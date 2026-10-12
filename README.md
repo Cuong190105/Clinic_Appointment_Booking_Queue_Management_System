@@ -1,5 +1,11 @@
 # Clinic_Appointment_Booking_Queue_Management_System
 
+## Docs
+
+- Đề bài, thiết kế: https://drive.google.com/drive/folders/1M1HR-tR2iFhIuq96xjhPAg8dM6SYoex-?usp=drive_link
+- User story (trello): https://trello.com/invite/b/6acc3c87026b4f10a3060506/ATTI079a5560549b8093901f179a7939dc21E6625052/copy-of-clinic-booking-management
+- Phân tích hệ thống hiện tại + phương hướng thiết kế: [microservices_analysis.md](microservices_analysis.md)
+
 ## Setup
 
 Sử dụng docker
