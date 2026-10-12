@@ -1,8 +1,12 @@
+using Azure;
+using Clinic.Application.Common.Models;
+using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 using Clinic.Infrastructure.Sqlserver.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 
@@ -179,6 +183,34 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .AnyAsync(ws => ws.DoctorId == doctorId && ws.IsDeleted == false && ws.Status != Domain.Enums.WorkScheduleStatus.Cancelled &&
                     ws.Date == date && ws.ShiftStart < endTime && ws.ShiftEnd > startTime && (currentWSId == null || ws.Id != currentWSId));
             return hasOverlapping;
+        }
+
+        public async Task<PagedResult<Doctor>> GetWeeklyWorkSchedules(DateOnly startDate, DateOnly endDate, int pageNumber, int pageSize, Guid? specialtyId, string? searchTerm)
+        {
+            var query = _context.Doctors
+                .Include(d => d.Employee)
+                    .ThenInclude(e => e.Person)
+                .Include(d => d.WorkHistories.Where(wh => wh.IsDeleted == false && wh.EndDate == null))
+                    .ThenInclude(wh => wh.Specialty)
+                .Include(d => d.WorkSchedules.Where(ws => ws.IsDeleted == false && ws.Status == WorkScheduleStatus.Active && ws.Date >= startDate && ws.Date <= endDate))
+                .Where(d => d.IsDeleted == false);
+            Console.WriteLine(startDate);
+            if (specialtyId != Guid.Empty)
+            {
+                query = query.Where(d => d.WorkHistories.Any(wh =>
+                    wh.SpecialtyId == specialtyId.Value && wh.EndDate == null));
+            }
+
+            if (string.IsNullOrEmpty(searchTerm) == false)
+            {
+                query = query.Where(d => d.Employee.Person.FullName.Contains(searchTerm)
+                    || d.WorkHistories.Any(wh => wh.Specialty.Name.Contains(searchTerm) && wh.EndDate == null));
+            }
+
+            var totalCount = await query.CountAsync();
+
+            var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync();
+            return new PagedResult<Doctor>(items, totalCount);
         }
     }
 }

@@ -1,4 +1,6 @@
-﻿using Clinic.Domain.Entities;
+﻿using Clinic.Application.Common.Models;
+using Clinic.Application.Contracts;
+using Clinic.Domain.Entities;
 using System;
 using System.Collections.Generic;
 
@@ -28,6 +30,7 @@ namespace Clinic.Application.Interfaces
         /// chuyên khoa hiện tại của bác sĩ, và khoảng ngày. Dùng cho màn "chọn khung giờ trống để đặt lịch".
         /// </summary>
         Task<List<WorkSchedule>> GetAvailableSlotsAsync(Guid? doctorId, Guid? specialtyId, DateTime? fromDate, DateTime? toDate);
+
 
         // ===== Nhóm chức năng: quản lý ca trực bác sĩ (shift request - của dev/cuong) =====
 
@@ -78,5 +81,6 @@ namespace Clinic.Application.Interfaces
         Task<bool> HasDuplicateShiftRequest(Guid doctorId, DateOnly date, TimeOnly startTime, TimeOnly endTime, Guid? currentSRId = null);
 
         Task<IEnumerable<WorkSchedule>> GetDoctorSchedulesWithAppointmentByDateAsync(Guid? doctorId, DateOnly date);
+        Task<PagedResult<Doctor>> GetWeeklyWorkSchedules(DateOnly startDate, DateOnly endDate, int pageNumber, int pageSize, Guid? specialtyId, string? searchTerm);
     }
 }

@@ -7,6 +7,7 @@ using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+// using System.Text.Json;
 
 namespace Clinic.Infrastructure.Sqlserver
 {
@@ -17,6 +18,7 @@ namespace Clinic.Infrastructure.Sqlserver
             IConfiguration configuration)
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection");
+            // Console.WriteLine($"Connection String: {JsonSerializer.Serialize(connectionString)}");
             Console.WriteLine($"Connection String: {connectionString}");
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(connectionString));

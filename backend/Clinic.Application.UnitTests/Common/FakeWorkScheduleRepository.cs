@@ -1,4 +1,5 @@
-﻿using Clinic.Application.Interfaces;
+﻿using Clinic.Application.Common.Models;
+using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 using System;
@@ -175,6 +176,11 @@ namespace Clinic.Application.UnitTests.Common
             return _workSchedules.Any(ws => ws.DoctorId == doctorId &&
                 ws.Date == date &&
                 ((ws.ShiftStart < endTime && ws.ShiftEnd > startTime) && (currentWSId == null || ws.Id != currentWSId)));
+        }
+
+        public Task<PagedResult<Doctor>> GetWeeklyWorkSchedules(DateOnly startDate, DateOnly endDate, int pageNumber, int pageSize, Guid? specialtyId, string? searchTerm)
+        {
+            throw new NotImplementedException();
         }
     }
 }

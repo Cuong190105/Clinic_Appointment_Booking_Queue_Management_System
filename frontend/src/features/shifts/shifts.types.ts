@@ -19,6 +19,26 @@ export interface DoctorScheduleResponse {
   endDate: string
 }
 
+export interface DoctorSchedulePageItem {
+  doctorId: string
+  doctorName: string
+  specialtyId: string
+  specialtyName: string
+  schedules: WorkSchedule[]
+  startDate: string
+  endDate: string
+}
+
+export interface PagedDoctorSchedulesResponse {
+  items: DoctorSchedulePageItem[]
+  pageNumber: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+  hasPrevious: boolean
+  hasNext: boolean
+}
+
 export interface CreateShiftPayload {
   doctorId: string
   date: string

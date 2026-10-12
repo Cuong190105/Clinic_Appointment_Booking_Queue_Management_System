@@ -1,7 +1,9 @@
 import { http } from '@/lib/api/http'
 import type {
   CreateShiftPayload,
+  DoctorSchedulePageItem,
   DoctorScheduleResponse,
+  PagedDoctorSchedulesResponse,
   ShiftSuggestion,
   UpdateShiftPayload,
   WorkSchedule,
@@ -100,30 +102,70 @@ export const shiftsApi = {
     })
   },
 
-  // GET /slots?fromDate=...&toDate=... (Lấy toàn bộ slots/schedules thực tế trong tuần)
-  async getAllSlots(fromDate: string, toDate: string, doctorId?: string, specialtyId?: string): Promise<WorkSchedule[]> {
-    const params: Record<string, any> = {
-      fromDate: `${fromDate}T00:00:00.000Z`,
-      toDate: `${toDate}T23:59:59.000Z`,
+  // GET /doctors/shifts?StartDate=...&EndDate=... (Paginated doctor schedules)
+  async getAllSlots(
+    fromDate: string,
+    toDate: string,
+    pageNumber = 1,
+    pageSize = 10,
+    specialtyId?: string,
+    searchTerm?: string,
+  ): Promise<PagedDoctorSchedulesResponse> {
+    const res = await http
+      .get<any>('/doctors/shifts', {
+        params: {
+          StartDate: fromDate,
+          EndDate: toDate,
+          SpecialtyId: specialtyId && specialtyId !== 'all' ? specialtyId : undefined,
+          SearchTerm: searchTerm?.trim() || undefined,
+          PageNumber: pageNumber,
+          PageSize: pageSize,
+        },
+      })
+      .then((r) => r.data)
+
+    const data = res?.result !== undefined ? res.result : res
+    const doctorRows = data?.items || data?.Items || []
+    const items: DoctorSchedulePageItem[] = doctorRows.map((doctor: any) => {
+      const doctorIdValue = String(doctor.doctorId || doctor.DoctorId || doctor.id || doctor.Id || '')
+      const doctorName = doctor.doctorName || doctor.DoctorName || ''
+      const schedules = doctor.schedules || doctor.Schedules || []
+
+      return {
+        doctorId: doctorIdValue,
+        doctorName,
+        specialtyId: String(doctor.specialtyId || doctor.SpecialtyId || ''),
+        specialtyName: doctor.specialtyName || doctor.SpecialtyName || '',
+        schedules: schedules.map((schedule: any) => ({
+          id: String(schedule.id || schedule.Id || ''),
+          doctorId: String(schedule.doctorId || schedule.DoctorId || doctorIdValue),
+          doctorName,
+          specialtyName: doctor.specialtyName || doctor.SpecialtyName || '',
+          date: schedule.date || schedule.Date || '',
+          startTime: formatTime(schedule.startTime || schedule.StartTime || schedule.shiftStart || schedule.ShiftStart),
+          endTime: formatTime(schedule.endTime || schedule.EndTime || schedule.shiftEnd || schedule.ShiftEnd),
+          patientLimit: schedule.patientLimit ?? schedule.PatientLimit ?? 20,
+          status: schedule.status ?? schedule.Status ?? 'Active',
+        })),
+        startDate: doctor.startDate || doctor.StartDate || fromDate,
+        endDate: doctor.endDate || doctor.EndDate || toDate,
+      }
+    })
+
+    const responsePageNumber = data?.pageNumber ?? data?.PageNumber ?? pageNumber
+    const responsePageSize = data?.pageSize ?? data?.PageSize ?? pageSize
+    const totalCount = data?.totalCount ?? data?.TotalCount ?? doctorRows.length
+    const totalPages = data?.totalPages ?? data?.TotalPages ?? (Math.ceil(totalCount / responsePageSize) || 1)
+
+    return {
+      items,
+      pageNumber: responsePageNumber,
+      pageSize: responsePageSize,
+      totalCount,
+      totalPages,
+      hasPrevious: data?.hasPrevious ?? data?.HasPrevious ?? responsePageNumber > 1,
+      hasNext: data?.hasNext ?? data?.HasNext ?? responsePageNumber < totalPages,
     }
-    if (doctorId) params.doctorId = doctorId
-    if (specialtyId && specialtyId !== 'all') params.specialtyId = specialtyId
-
-    const res = await http.get<any>('/slots', { params }).then((r) => r.data)
-    const rawItems = res?.result !== undefined ? res.result : res
-    const items = Array.isArray(rawItems) ? rawItems : rawItems?.items || []
-
-    return items.map((item: any) => ({
-      id: String(item.workScheduleId || item.WorkScheduleId || item.id || item.Id || ''),
-      doctorId: String(item.doctorId || item.DoctorId || ''),
-      doctorName: item.doctorName || item.DoctorName || '',
-      date: item.date || item.Date || '',
-      startTime: formatTime(item.shiftStart || item.ShiftStart || item.startTime),
-      endTime: formatTime(item.shiftEnd || item.ShiftEnd || item.endTime),
-      patientLimit: item.patientLimit ?? item.PatientLimit ?? 20,
-      remainingCapacity: item.remainingCapacity ?? item.RemainingCapacity ?? 0,
-      status: 'Active',
-    }))
   },
 
   // ──────────────────────────────────────────────

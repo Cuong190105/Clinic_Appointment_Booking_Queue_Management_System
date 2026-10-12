@@ -12,6 +12,7 @@ using MapsterMapper;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Identity.Client;
 
 namespace Clinic.API.Controllers
 {
@@ -51,6 +52,16 @@ namespace Clinic.API.Controllers
         {
             var query = _mapper.Map<GetDoctorsForBookingQuery>(new { SpecialtyId = specialtyId });
             var result = await _sender.Send(query);
+            return Ok(result);
+        }
+
+        [HttpGet("shifts")]
+        //[Authorize(Policy = "Permission:shift.manage")]
+        [ProducesResponseType(typeof(PaginationResponse<DoctorScheduleWithSpecialtyDto<WorkScheduleDto>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAllShiftsForAdmin([FromQuery] AdminGetShiftsQuery query)
+        {
+            var command = _mapper.Map<GetDoctorsWeeklySchedulesQuery>(query);
+            var result = await _sender.Send(command);
             return Ok(result);
         }
 

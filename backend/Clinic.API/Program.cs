@@ -1,5 +1,6 @@
 using Clinic.API;
 using Clinic.API.Hubs;
+using Clinic.API.Middlewares;
 using Clinic.API.Workers;
 using Clinic.Application;
 using Clinic.Infrastructure.Sqlserver;
@@ -130,6 +131,8 @@ using (var scope = app.Services.CreateScope())
 
 // Bắt mọi exception chưa xử lý và trả về envelope ApiResponse (qua GlobalExceptionHandler).
 app.UseExceptionHandler();
+
+app.UseMiddleware<RequestLoggingMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (true || app.Environment.IsDevelopment())

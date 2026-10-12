@@ -22,7 +22,10 @@ services:
         ports:
             - "5000:8080"
         environment:
-            - ConnectionStrings__DefaultConnection=Server=db,1433;Database=ClinicDB;User Id=sa;Password=ClinicDev!2026StrongPw;TrustServerCertificate=True;
+            - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+            - Jwt__Key=${JWT_KEY}
+            - Email__Username=${SMTP_USERNAME}
+            - Email__Password=${SMTP_PASSWORD}
         depends_on:
             - db
         restart: always
