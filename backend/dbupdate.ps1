@@ -1,0 +1,1 @@
+dotnet ef database update --project Clinic.Infrastructure.Sqlserver --startup-project Clinic.API --context ApplicationDbContext

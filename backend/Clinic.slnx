@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/tests/">
+    <Project Path="Clinic.Application.UnitTests/Clinic.Application.UnitTests.csproj" Id="0396a996-20f4-4055-9eb4-9ab28c61e01c" />
+    <Project Path="Clinic.Domain.UnitTests/Clinic.Domain.UnitTests.csproj" Id="b3cd11a9-4b4a-42db-b326-be6ba381a709" />
+  </Folder>
   <Project Path="Clinic.API/Clinic.API.csproj" />
   <Project Path="Clinic.Application/Clinic.Application.csproj" />
   <Project Path="Clinic.Domain/Clinic.Domain.csproj" />

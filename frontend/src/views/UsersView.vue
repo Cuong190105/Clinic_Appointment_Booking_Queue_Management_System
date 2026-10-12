@@ -8,7 +8,7 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import UserFormDialog from '@/features/users/UserFormDialog.vue'
-import type { CreateUserInput, User } from '@/features/users/users.types'
+import type { CreateUserInput, UpdateUserInput, User } from '@/features/users/users.types'
 
 const { t } = useI18n()
 const store = useUsersStore()
@@ -31,9 +31,9 @@ function openEdit(user: User) {
   dialogOpen.value = true
 }
 
-async function handleSubmit(input: CreateUserInput) {
+async function handleSubmit(input: CreateUserInput | UpdateUserInput) {
   if (editing.value) await store.update(editing.value.id, input)
-  else await store.create(input)
+  else await store.create(input as CreateUserInput)
   dialogOpen.value = false
 }
 </script>
@@ -79,7 +79,7 @@ async function handleSubmit(input: CreateUserInput) {
             :key="u.id"
             class="border-b border-gray-100 last:border-0 dark:border-gray-800"
           >
-            <td class="px-4 py-3 font-medium">{{ u.name }}</td>
+            <td class="px-4 py-3 font-medium">{{ u.fullName || u.name }}</td>
             <td class="px-4 py-3 text-gray-500">@{{ u.username }}</td>
             <td class="px-4 py-3 text-gray-500">{{ u.email }}</td>
             <td class="px-4 py-3">

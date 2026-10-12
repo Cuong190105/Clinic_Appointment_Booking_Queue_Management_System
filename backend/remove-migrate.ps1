@@ -1,0 +1,1 @@
+dotnet ef migrations remove --project Clinic.Infrastructure.Sqlserver --startup-project Clinic.API --context ApplicationDbContext

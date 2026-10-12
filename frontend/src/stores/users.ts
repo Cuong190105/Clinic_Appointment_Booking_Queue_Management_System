@@ -14,7 +14,9 @@ export const useUsersStore = defineStore('users', () => {
     const q = search.value.trim().toLowerCase()
     if (!q) return items.value
     return items.value.filter((u) =>
-      [u.name, u.username, u.email].some((v) => v.toLowerCase().includes(q)),
+      [(u.fullName ?? u.name ?? ''), u.username, (u.email ?? '')].some((v) =>
+        v.toLowerCase().includes(q),
+      ),
     )
   })
 
@@ -22,7 +24,8 @@ export const useUsersStore = defineStore('users', () => {
     status.value = 'loading'
     error.value = null
     try {
-      items.value = await usersApi.list()
+      const res = await usersApi.list()
+      items.value = res.items
       status.value = 'idle'
     } catch (e) {
       status.value = 'error'
@@ -34,14 +37,13 @@ export const useUsersStore = defineStore('users', () => {
     mutating.value = true
     try {
       const created = await usersApi.create(input)
-      // jsonplaceholder returns id 11; ensure uniqueness for the demo list.
-      items.value.unshift({ ...created, id: created.id || Date.now() })
+      items.value.unshift({ ...created, id: created.id || String(Date.now()) })
     } finally {
       mutating.value = false
     }
   }
 
-  async function update(id: number, input: UpdateUserInput) {
+  async function update(id: string, input: UpdateUserInput) {
     mutating.value = true
     try {
       const updated = await usersApi.update(id, input)
@@ -52,7 +54,7 @@ export const useUsersStore = defineStore('users', () => {
     }
   }
 
-  async function remove(id: number) {
+  async function remove(id: string) {
     await usersApi.remove(id)
     items.value = items.value.filter((u) => u.id !== id)
   }
