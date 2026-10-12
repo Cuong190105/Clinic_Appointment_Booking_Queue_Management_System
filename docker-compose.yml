@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+    db:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        container_name: clinic_sql_server
+        environment:
+            - ACCEPT_EULA=Y
+            - SA_PASSWORD=ClinicDev!2026StrongPw
+            - MSSQL_PID=Express
+        ports:
+            - "1433:1433"
+        volumes:
+            - mssql_data:/var/opt/mssql
+        restart: always
+
+    backend:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile # Đường dẫn tới Dockerfile của Backend
+        container_name: clinic_backend
+        ports:
+            - "5000:8080"
+        environment:
+            - ConnectionStrings__DefaultConnection=Server=db,1433;Database=ClinicDB;User Id=sa;Password=ClinicDev!2026StrongPw;TrustServerCertificate=True;
+        depends_on:
+            - db
+        restart: always
+
+    frontend:
+        build:
+            context: ./frontend # Thay bằng đường dẫn tới thư mục Vue.js của bạn
+            dockerfile: Dockerfile
+        container_name: clinic_frontend
+        ports:
+            - "3000:80" # Truy cập Frontend ở giao diện máy thật qua port 3000
+        depends_on:
+            - backend
+        restart: always
+
+volumes:
+    mssql_data:

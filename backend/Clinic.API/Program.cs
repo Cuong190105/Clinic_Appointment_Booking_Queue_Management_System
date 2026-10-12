@@ -6,7 +6,6 @@ using Clinic.Infrastructure.Sqlserver;
 using Clinic.Infrastructure.Sqlserver.Notifications;
 using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.OpenApi;
 using System.Reflection;
 using System.Security.Claims;
@@ -125,6 +124,7 @@ using (var scope = app.Services.CreateScope())
     var initializer = scope.ServiceProvider
         .GetRequiredService<DatabaseInitializer>();
 
+    await initializer.MigrateAsync();
     await initializer.CreateInitialAdminAsync();
 }
 
@@ -132,7 +132,7 @@ using (var scope = app.Services.CreateScope())
 app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (true || app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseSwagger();

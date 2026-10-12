@@ -25,7 +25,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task CreateInitialAdminAsync(string? username = null, string? password = null)
         {
             var adminUsername = username ?? _configuration["InitialAdmin:Username"] ?? "admin";
-            var adminPassword = password ?? _configuration["InitialAdmin:Password"] ?? "AdminPassowrd123!";
+            var adminPassword = password ?? _configuration["InitialAdmin:Password"] ?? "AdminPassword123!";
 
             if (await _context.Users.AnyAsync(u => u.Username == adminUsername))
             {
@@ -51,6 +51,11 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             user.AssignRole(adminRole);
             await _context.AddAsync(employee);
             await _context.SaveChangesAsync();
+        }
+
+        public async Task MigrateAsync()
+        {
+            await _context.Database.MigrateAsync();
         }
     }
 }
