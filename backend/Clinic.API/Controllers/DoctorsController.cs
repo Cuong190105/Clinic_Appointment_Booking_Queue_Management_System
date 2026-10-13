@@ -220,6 +220,7 @@ namespace Clinic.API.Controllers
 
         [HttpGet("{doctorId}/suggestions")]
         [Authorize(Policy = "Permission:shift.suggestion.manage")]
+        [ProducesResponseType(typeof(DoctorScheduleDto<RequestedShiftDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllSuggestions([FromRoute] Guid doctorId, [FromQuery] GetShiftsQuery query)
         {
             var userId = _currentUser.UserId;
@@ -230,6 +231,8 @@ namespace Clinic.API.Controllers
 
         [HttpGet("{doctorId}/queue")]
         [Authorize(Policy = "Permission:doctor.queue.view,queue.view")]
+        [ProducesResponseType(typeof(List<QueueTicketDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetQueue([FromRoute] Guid doctorId)
         {
             var result = await _sender.Send(new GetQueueByDoctorQuery(doctorId));
@@ -238,6 +241,8 @@ namespace Clinic.API.Controllers
 
         [HttpPost("{doctorId}/queue/next")]
         [Authorize(Policy = "Permission:queue.call-next")]
+        [ProducesResponseType(typeof(QueueTicketDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> CallNext([FromRoute] Guid doctorId)
         {
             var result = await _sender.Send(new CallNextQueueCommand(doctorId));

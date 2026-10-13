@@ -1,4 +1,5 @@
-﻿using Clinic.Application.Features.MedicalReports.Queries;
+﻿using Clinic.Application.Contracts;
+using Clinic.Application.Features.MedicalReports.Queries;
 using Clinic.Application.Features.Queue.Queries;
 using Clinic.Application.Features.Users.Queries;
 using MediatR;
@@ -29,6 +30,8 @@ namespace Clinic.API.Controllers
         /// trong cùng ngày. Trả về 204 nếu bệnh nhân chưa check-in lịch hẹn nào trong ngày hôm nay.
         /// </summary>
         [HttpGet("queue-status")]
+        [ProducesResponseType(typeof(List<MyQueueStatusDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> GetMyQueueStatus()
         {
             var result = await _sender.Send(new GetMyQueueStatusQuery());
@@ -37,6 +40,8 @@ namespace Clinic.API.Controllers
 
         /// <summary>Lịch sử khám bệnh (các hồ sơ đã chốt) của bệnh nhân đang đăng nhập.</summary>
         [HttpGet("medical-history")]
+        [ProducesResponseType(typeof(List<MedicalReportDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetMyMedicalHistory()
         {
             var result = await _sender.Send(new GetMyMedicalHistoryQuery());
@@ -45,6 +50,7 @@ namespace Clinic.API.Controllers
 
         [Authorize]
         [HttpGet("notifications")]
+        [ProducesResponseType(typeof(PaginationResponse<NotificationDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetNotifications([FromQuery] DateTime createdBefore, [FromQuery] int limit)
         {
             var result = await _sender.Send(new GetNotificationsQuery{ CreatedBefore = createdBefore, Limit = limit });

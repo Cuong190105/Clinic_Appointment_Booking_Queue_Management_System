@@ -95,6 +95,7 @@ namespace Clinic.API.Controllers
 
         [HttpPost("suggestions/{suggestionId}/cancel")]
         [Authorize(Policy = "Permission:shift.suggestion.self-manage")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> CancelSuggestion([FromRoute] Guid suggestionId)
         {
             var userId = _currentUser.UserId;
@@ -106,6 +107,7 @@ namespace Clinic.API.Controllers
 
         [HttpPost("suggestions/{suggestionId}/approve")]
         [Authorize(Policy = "Permission:shift.suggestion.manage")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> ApproveSuggestion([FromRoute] Guid suggestionId)
         {
             var command = new ApproveRequestCommand(suggestionId);
@@ -115,6 +117,7 @@ namespace Clinic.API.Controllers
 
         [HttpPost("suggestions/{suggestionId}/reject")]
         [Authorize(Policy = "Permission:shift.suggestion.manage")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> RejectSuggestion([FromRoute] Guid suggestionId)
         {
             var command = new RejectRequestCommand(suggestionId);
@@ -125,6 +128,7 @@ namespace Clinic.API.Controllers
         // Pls add a policy to allow doctor only for this endpoint
         [HttpGet("suggestions")]
         [Authorize(Policy = "Permission:shift.suggestion.self-manage")]
+        [ProducesResponseType(typeof(DoctorScheduleDto<RequestedShiftDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllSuggestions([FromQuery] GetShiftsQuery query)
         {
             var userId = _currentUser.UserId ?? throw new UnauthorizedAccessException("User not authenticated.");

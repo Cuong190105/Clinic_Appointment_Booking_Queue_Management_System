@@ -28,6 +28,7 @@ namespace Clinic.API.Controllers
 
         [HttpGet("ping")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public IActionResult Ping()
         {
             return Ok(new { message = "pong" });
@@ -35,6 +36,7 @@ namespace Clinic.API.Controllers
 
         [HttpGet("roles")]
         [Authorize(Policy = "Permission:role.manage")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public IActionResult Roles()
         {
             // placeholder: in real app return roles/permissions management data
@@ -94,6 +96,7 @@ namespace Clinic.API.Controllers
 
         [HttpGet("dashboard")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType(typeof(DashboardDataDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetDashboardData()
         {
             // placeholder: implement dashboard data retrieval
@@ -103,6 +106,7 @@ namespace Clinic.API.Controllers
 
         [HttpGet("statistics")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType(typeof(StatisticsDataDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetStatistics([FromQuery] Period period)
         {
             // placeholder: implement dashboard data retrieval
@@ -112,6 +116,7 @@ namespace Clinic.API.Controllers
 
         [HttpGet("appointments")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType(typeof(PaginationResponse<AppointmentExtended>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAppointmentsByDate([FromQuery] GetAppointmentsByDateRequest request)
         {
             // placeholder: implement dashboard data retrieval
