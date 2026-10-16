@@ -21,12 +21,12 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 1. Xác định service boundary và ownership của entity.
 2. Chốt 6 service:
-   - Identity Service
-   - Staff & Scheduling Service
-   - Appointment Service
-   - Queue Service
-   - Medical Records Service
-   - Notification Service
+    - Identity Service
+    - Staff & Scheduling Service
+    - Appointment Service
+    - Queue Service
+    - Medical Service
+    - Notification Service
 3. Thiết kế database boundary cho từng service.
 4. Thiết kế API contract cho login, availability, reservation, appointment, check-in, queue và medical report.
 5. Viết baseline integration test cho booking, check-in, gọi số, hoàn tất khám và duyệt ca.
