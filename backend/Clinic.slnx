@@ -2,6 +2,7 @@
   <Folder Name="/tests/">
     <Project Path="Clinic.Application.UnitTests/Clinic.Application.UnitTests.csproj" Id="0396a996-20f4-4055-9eb4-9ab28c61e01c" />
     <Project Path="Clinic.Domain.UnitTests/Clinic.Domain.UnitTests.csproj" Id="b3cd11a9-4b4a-42db-b326-be6ba381a709" />
+    <Project Path="Clinic.IntegrationTests/Clinic.IntegrationTests.csproj" Id="51384cb3-3cc3-46c5-b144-e6a8ab4fc74a" />
   </Folder>
   <Project Path="Clinic.API/Clinic.API.csproj" />
   <Project Path="Clinic.Application/Clinic.Application.csproj" />

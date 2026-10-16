@@ -87,6 +87,24 @@ namespace Clinic.API.Controllers
             return NoContent();
         }
 
+        [HttpPost("revoke")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        public IActionResult Revoke([FromBody] RefreshRequest request)
+        {
+            return NoContent();
+        }
+
+        [HttpGet("/.well-known/jwks.json")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(JwksResponse), StatusCodes.Status200OK)]
+        public IActionResult Jwks()
+        {
+            return Ok(new JwksResponse(Array.Empty<JwkKeyResponse>()));
+        }
+
         [HttpPost("refresh")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]

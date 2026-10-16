@@ -45,9 +45,13 @@ builder.Services.Configure<EmailOptions>(
     builder.Configuration.GetSection("Email"));
 builder.Services.AddSignalR();
 
-// Add workers
-builder.Services.AddHostedService<NotificationWorker>();
-builder.Services.AddHostedService<ScheduledNotificationWorker>();
+// Add workers. Test hosts can disable background consumers because their database
+// and broker dependencies are outside the HTTP contract test boundary.
+if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
+{
+    builder.Services.AddHostedService<NotificationWorker>();
+    builder.Services.AddHostedService<ScheduledNotificationWorker>();
+}
 
 // Add Authentication and Authorization services
 builder.Services
@@ -119,11 +123,12 @@ var app = builder.Build();
 
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Seed the database with an initial admin user if it doesn't exist
-using (var scope = app.Services.CreateScope())
+// Seed the database with an initial admin user if it doesn't exist.
+// Integration contract tests intentionally skip this external infrastructure step.
+if (!app.Configuration.GetValue<bool>("SkipDatabaseInitialization"))
 {
-    var initializer = scope.ServiceProvider
-        .GetRequiredService<DatabaseInitializer>();
+    using var scope = app.Services.CreateScope();
+    var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
 
     await initializer.MigrateAsync();
     await initializer.CreateInitialAdminAsync();
@@ -155,3 +160,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }
