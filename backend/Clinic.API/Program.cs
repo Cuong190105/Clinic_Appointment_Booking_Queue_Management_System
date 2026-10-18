@@ -7,6 +7,7 @@ using Clinic.Infrastructure.Sqlserver;
 using Clinic.Infrastructure.Sqlserver.Notifications;
 using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Clinic.Infrastructure.Sqlserver.Outbox;
 using Microsoft.OpenApi;
 using System.Reflection;
 using System.Security.Claims;
@@ -50,8 +51,10 @@ builder.Services.AddSignalR();
 if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
 {
     builder.Services.AddHostedService<NotificationWorker>();
-    builder.Services.AddHostedService<ScheduledNotificationWorker>();
-}
+            builder.Services.AddHostedService<ScheduledNotificationWorker>();
+            builder.Services.AddHostedService<OutboxPublisher>();
+            builder.Services.AddHostedService<AppointmentCheckedInConsumer>();
+        }
 
 // Add Authentication and Authorization services
 builder.Services
@@ -122,6 +125,7 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 
 // Seed the database with an initial admin user if it doesn't exist.
 // Integration contract tests intentionally skip this external infrastructure step.

@@ -1,5 +1,6 @@
 ﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Interfaces;
+using Clinic.Contracts.Events;
 using MediatR;
 using System;
 using System.Collections.Generic;
@@ -16,12 +17,16 @@ namespace Clinic.Application.Features.Appointments.Commands
         private readonly IAppointmentRepository _appointmentRepository;
         private readonly ICurrentUser _currentUser;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IOutboxWriter _outboxWriter;
+        private readonly IEventContext? _eventContext;
 
-        public CancelAppointmentCommandHandler(IAppointmentRepository appointmentRepository, ICurrentUser currentUser, IUnitOfWork unitOfWork)
+        public CancelAppointmentCommandHandler(IAppointmentRepository appointmentRepository, ICurrentUser currentUser, IUnitOfWork unitOfWork, IOutboxWriter outboxWriter, IEventContext? eventContext = null)
         {
             _appointmentRepository = appointmentRepository;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
+            _outboxWriter = outboxWriter;
+            _eventContext = eventContext;
         }
         public async Task<Guid> Handle(CancelAppointmentCommand request, CancellationToken cancellationToken)
         {
@@ -39,6 +44,25 @@ namespace Clinic.Application.Features.Appointments.Commands
                 throw new ForbiddenException("You are not authorized to cancel this appointment.");
             }
             appointment.Cancel((Guid)_currentUser.UserId);
+
+            _outboxWriter.Add(
+                new EventEnvelope<AppointmentCancelled>
+                {
+                    EventId = Guid.NewGuid(),
+                    EventType = EventTypes.AppointmentCancelled,
+                    SchemaVersion = 1,
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    CorrelationId = _eventContext?.CorrelationId ?? Guid.NewGuid(),
+                    CausationId = _eventContext?.CausationId,
+                    Producer = "appointment-service",
+                    Payload = new AppointmentCancelled(
+                        appointment.Id,
+                        appointment.PatientId,
+                        _currentUser.UserId,
+                        DateTimeOffset.UtcNow)
+                },
+                "appointment.cancelled");
+
             await _unitOfWork.SaveChangesAsync();
             return request.AppointmentId;
         }

@@ -1,5 +1,6 @@
 ﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Interfaces;
+using Clinic.Contracts.Events;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 using MediatR;
@@ -20,11 +21,15 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
         private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly INotificationQueue _notificationQueue;
-        public CancelWorkScheduleCommandHandler(IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork, INotificationQueue notificationQueue)
+        private readonly IOutboxWriter _outboxWriter;
+        private readonly IEventContext? _eventContext;
+        public CancelWorkScheduleCommandHandler(IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork, INotificationQueue notificationQueue, IOutboxWriter outboxWriter, IEventContext? eventContext = null)
         {
             _workScheduleRepository = workScheduleRepository;
             _unitOfWork = unitOfWork;
             _notificationQueue = notificationQueue;
+            _outboxWriter = outboxWriter;
+            _eventContext = eventContext;
         }
 
         public async Task<Guid> Handle(CancelWorkScheduleCommand request, CancellationToken cancellationToken)
@@ -33,6 +38,19 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
             if (workSchedule == null) throw new NotFoundException("Work schedule not found.");
 
             workSchedule.Cancel(request.Reason);
+            _outboxWriter.Add(
+                new EventEnvelope<WorkScheduleCancelled>
+                {
+                    EventId = Guid.NewGuid(),
+                    EventType = EventTypes.WorkScheduleCancelled,
+                    SchemaVersion = 1,
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    CorrelationId = _eventContext?.CorrelationId ?? Guid.NewGuid(),
+                    CausationId = _eventContext?.CausationId,
+                    Producer = "scheduling-service",
+                    Payload = new WorkScheduleCancelled(workSchedule.Id, workSchedule.DoctorId, request.Reason, DateTimeOffset.UtcNow)
+                },
+                "schedule.cancelled");
             foreach (var appointment in workSchedule.Appointments)
             {
                 appointment.AdminCancel(request.UserId);

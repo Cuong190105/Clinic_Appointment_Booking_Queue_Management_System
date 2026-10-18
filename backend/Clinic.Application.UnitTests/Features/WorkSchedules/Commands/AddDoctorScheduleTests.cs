@@ -17,7 +17,7 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Commands
             var doctorRepository = new FakeDoctorRepository();
             var workScheduleRepository = new FakeWorkScheduleRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new AddDoctorScheduleCommandHandler(doctorRepository, workScheduleRepository, unitOfWork);
+            var handler = new AddDoctorScheduleCommandHandler(doctorRepository, workScheduleRepository, unitOfWork, new FakeOutboxWriter());
             var doctor = TestDataFactory.CreateDoctor();
             var now = new DateTime(2027, 1, 1, 0,0,0, DateTimeKind.Utc);
             await doctorRepository.AddAsync(doctor);
@@ -47,7 +47,7 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Commands
             var doctorRepository = new FakeDoctorRepository();
             var workScheduleRepository = new FakeWorkScheduleRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new AddDoctorScheduleCommandHandler(doctorRepository, workScheduleRepository, unitOfWork);
+            var handler = new AddDoctorScheduleCommandHandler(doctorRepository, workScheduleRepository, unitOfWork, new FakeOutboxWriter());
             var now = new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             var command = new AddDoctorScheduleCommand(
                 Guid.NewGuid(), DateOnly.FromDateTime(now.AddDays(2)), TimeOnly.FromDateTime(now.AddDays(2).AddHours(1)), TimeOnly.FromDateTime(now.AddDays(2).AddHours(2)), 5);

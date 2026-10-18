@@ -1,6 +1,7 @@
 using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
+using Clinic.Contracts.Events;
 using Clinic.Domain.Entities;
 using MediatR;
 
@@ -14,11 +15,15 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
         private readonly IDoctorRepository _doctorRepository;
         private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly IUnitOfWork _unitOfWork;
-        public AddDoctorScheduleCommandHandler(IDoctorRepository doctorRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
+        private readonly IOutboxWriter _outboxWriter;
+        private readonly IEventContext? _eventContext;
+        public AddDoctorScheduleCommandHandler(IDoctorRepository doctorRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork, IOutboxWriter outboxWriter, IEventContext? eventContext = null)
         {
             _doctorRepository = doctorRepository;
             _workScheduleRepository = workScheduleRepository;
             _unitOfWork = unitOfWork;
+            _outboxWriter = outboxWriter;
+            _eventContext = eventContext;
         }
         public async Task<WorkScheduleDto> Handle(AddDoctorScheduleCommand request, CancellationToken cancellationToken)
         {
@@ -41,6 +46,19 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
             );
             doctor.AddWorkSchedule(workSchedule);
             await _workScheduleRepository.AddWorkScheduleAsync(workSchedule);
+            _outboxWriter.Add(
+                new EventEnvelope<WorkScheduleCreated>
+                {
+                    EventId = Guid.NewGuid(),
+                    EventType = EventTypes.WorkScheduleCreated,
+                    SchemaVersion = 1,
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    CorrelationId = _eventContext?.CorrelationId ?? Guid.NewGuid(),
+                    CausationId = _eventContext?.CausationId,
+                    Producer = "scheduling-service",
+                    Payload = new WorkScheduleCreated(workSchedule.Id, doctor.Id, request.Date, request.StartTime, request.EndTime, request.PatientLimit)
+                },
+                "schedule.created");
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return new WorkScheduleDto
             {

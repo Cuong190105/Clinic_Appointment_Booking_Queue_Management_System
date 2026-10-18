@@ -7,6 +7,8 @@ using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Clinic.Infrastructure.Sqlserver.Outbox;
+using Clinic.Infrastructure.Sqlserver.Inbox;
 // using System.Text.Json;
 
 namespace Clinic.Infrastructure.Sqlserver
@@ -22,6 +24,13 @@ namespace Clinic.Infrastructure.Sqlserver
             Console.WriteLine($"Connection String: {connectionString}");
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(connectionString));
+
+            services.Configure<RabbitMqOptions>(
+                configuration.GetSection("RabbitMq"));
+            services.Configure<RabbitMqConsumerOptions>(
+                configuration.GetSection("RabbitMqConsumer"));
+
+            services.AddSingleton<RabbitMqConnectionFactory>();
 
             //services.AddScoped<IFarmRepository, FarmRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
@@ -48,7 +57,10 @@ namespace Clinic.Infrastructure.Sqlserver
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IEmailSender, EmailSender>();
             services.AddScoped<ISmsSender, SmsSender>();
-
+            services.AddScoped<IOutboxWriter, OutboxWriter>();
+            services.AddScoped<IEventContext, EventContext>();
+            services.AddScoped<IInboxStore, InboxStore>();
+            services.AddScoped<ICorrelationContext, CorrelationContext>();
             return services;
         }
     }

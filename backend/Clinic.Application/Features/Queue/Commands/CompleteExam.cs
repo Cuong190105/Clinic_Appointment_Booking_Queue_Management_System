@@ -1,5 +1,6 @@
 ﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Interfaces;
+using Clinic.Contracts.Events;
 using MediatR;
 
 namespace Clinic.Application.Features.Queue.Commands
@@ -19,15 +20,21 @@ namespace Clinic.Application.Features.Queue.Commands
         private readonly IQueueTicketRepository _queueTicketRepository;
         private readonly ICurrentUser _currentUser;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IOutboxWriter _outboxWriter;
+        private readonly IEventContext? _eventContext;
 
         public CompleteExamHandler(
             IQueueTicketRepository queueTicketRepository,
             ICurrentUser currentUser,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            IOutboxWriter outboxWriter,
+            IEventContext? eventContext = null)
         {
             _queueTicketRepository = queueTicketRepository;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
+            _outboxWriter = outboxWriter;
+            _eventContext = eventContext;
         }
 
         public async Task Handle(CompleteExamCommand command, CancellationToken cancellationToken)
@@ -48,6 +55,29 @@ namespace Clinic.Application.Features.Queue.Commands
             queueTicket.Appointment.Complete(_currentUser.UserId ?? throw new UnauthorizedAccessException());
 
             await _queueTicketRepository.UpdateAsync(queueTicket);
+
+            var completedAt = DateTimeOffset.UtcNow;
+            _outboxWriter.Add(
+                new EventEnvelope<ExamCompleted>
+                {
+                    EventId = Guid.NewGuid(),
+                    EventType = EventTypes.ExamCompleted,
+                    SchemaVersion = 1,
+                    OccurredAt = completedAt,
+                    CorrelationId = _eventContext?.CorrelationId ?? Guid.NewGuid(),
+                    CausationId = _eventContext?.CausationId,
+                    Producer = "queue-service",
+                    Payload = new ExamCompleted(
+                        // Transitional monolith mapping: AppointmentId is the stable visit key
+                        // until the Encounter/Visit aggregate is introduced.
+                        queueTicket.AppointmentId,
+                        queueTicket.Id,
+                        queueTicket.AppointmentId,
+                        queueTicket.Appointment.WorkSchedule.DoctorId,
+                        completedAt)
+                },
+                "queue.exam-completed");
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
     }

@@ -15,7 +15,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork);
+            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment(confirmed: true, today: true);
             await appointmentRepository.AddAsync(appointment);
@@ -37,7 +37,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork);
+            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork, new FakeOutboxWriter());
             var ws = TestDataFactory.CreateWorkSchedule(date: DateOnly.FromDateTime(DateTime.UtcNow));
             var firstAppointment = TestDataFactory.CreateAppointment(confirmed: true, workSchedule: ws);
             var secondAppointment = TestDataFactory.CreateAppointment(confirmed: true, workSchedule: ws);
@@ -60,7 +60,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork);
+            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork, new FakeOutboxWriter());
 
             var appointmentForDoctorA = TestDataFactory.CreateAppointment(confirmed: true, today: true);
             var appointmentForDoctorB = TestDataFactory.CreateAppointment(confirmed: true, today: true);
@@ -83,7 +83,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork);
+            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork, new FakeOutboxWriter());
 
             // Act & Assert
             await Assert.ThrowsAsync<NotFoundException>(() =>
@@ -97,7 +97,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork);
+            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment();
             await appointmentRepository.AddAsync(appointment);
@@ -115,7 +115,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork);
+            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment(confirmed: true);
             await appointmentRepository.AddAsync(appointment);
@@ -135,7 +135,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork);
+            var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork, new FakeOutboxWriter());
             var appointment = TestDataFactory.CreateAppointment(confirmed: true, checkedIn: true);
             await appointmentRepository.AddAsync(appointment);
 
