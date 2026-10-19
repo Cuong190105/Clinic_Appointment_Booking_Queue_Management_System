@@ -28,9 +28,10 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             ticket.Call();
             ticket.StartExam();
 
-            var report = new MedicalReport(ticket.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
+            var report = new MedicalReport(appointment.Id, appointment.PatientId, "Chest pain", "Angina", "Nitroglycerin", "Rest")
             {
-                QueueTicket = ticket
+                Appointment = appointment,
+                Patient = appointment.Patient
             };
             await medicalReportRepository.AddAsync(report);
 
@@ -62,9 +63,10 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             // Ticket is still in Waiting status
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
 
-            var report = new MedicalReport(ticket.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
+            var report = new MedicalReport(appointment.Id, appointment.PatientId, "Chest pain", "Angina", "Nitroglycerin", "Rest")
             {
-                QueueTicket = ticket
+                Appointment = appointment,
+                Patient = appointment.Patient
             };
             await medicalReportRepository.AddAsync(report);
 
@@ -93,9 +95,10 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             ticket.Call();
             ticket.StartExam();
 
-            var report = new MedicalReport(ticket.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
+            var report = new MedicalReport(appointment.Id, appointment.PatientId, "Chest pain", "Angina", "Nitroglycerin", "Rest")
             {
-                QueueTicket = ticket
+                Appointment = appointment,
+                Patient = appointment.Patient
             };
             await medicalReportRepository.AddAsync(report);
 

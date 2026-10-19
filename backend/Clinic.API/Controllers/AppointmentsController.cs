@@ -46,10 +46,13 @@ namespace Clinic.API.Controllers
         // For patient only
         [HttpPost]
         [Authorize(Policy = "Permission:appointment.create")]
-        [ProducesResponseType(StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Create([FromBody] CreateAppointmentRequest request)
+        [ProducesResponseType(typeof(AppointmentDetailDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> Create(
+            [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
+            [FromBody] CreateAppointmentRequest request)
         {
             var userId = _currentUser.UserId;
             var command = new CreateAppointmentCommand(userId, request.WorkScheduleId, request.TimeSlot, request.Reason, false);
@@ -99,9 +102,20 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> CheckIn([FromRoute] Guid appointmentId)
+        public async Task<IActionResult> CheckIn(
+            [FromRoute] Guid appointmentId,
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey)
         {
-            await _sender.Send(new CheckInCommand(appointmentId));
+            if (!Guid.TryParse(idempotencyKey, out var parsedIdempotencyKey) || parsedIdempotencyKey == Guid.Empty)
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "A valid Idempotency-Key header is required.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+            }
+
+            await _sender.Send(new CheckInCommand(appointmentId, parsedIdempotencyKey));
             return NoContent();
         }
 

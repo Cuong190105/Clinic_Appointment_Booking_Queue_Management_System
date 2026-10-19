@@ -12,7 +12,7 @@ namespace Clinic.Application.Contracts
         public DateOnly Date { get; set; }
         public TimeOnly StartTime { get; set; }
         public TimeOnly EndTime { get; set; }
-        public int PatientLimit { get; set; }
+        public int RecommendedCapacity { get; set; }
         public string? Reason { get; set; }
         public ShiftRequestStatus Status { get; set; }
     }

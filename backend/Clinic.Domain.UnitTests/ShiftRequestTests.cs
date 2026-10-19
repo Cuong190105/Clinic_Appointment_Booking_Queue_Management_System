@@ -17,7 +17,7 @@ namespace Clinic.Domain.UnitTests
             var doctor = new Doctor(employee, "123ABC", "Tien si", new Specialty("name", "", DateOnly.FromDateTime(now.AddYears(-30))), 0);
             var shift = new ShiftRequest(doctor, DateOnly.FromDateTime(now.AddDays(1)), TimeOnly.FromDateTime(now.AddHours(1)), TimeOnly.FromDateTime(now.AddHours(2)), 5, "");
             Assert.Equal(doctor, shift.Doctor);
-            Assert.Equal(5, shift.PatientLimit);
+            Assert.Equal(5, shift.RecommendedCapacity);
         }
 
         [Fact]

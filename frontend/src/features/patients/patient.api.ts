@@ -141,6 +141,7 @@ async function callWithFallback<T>(
   call: () => Promise<T>,
   fallback: T,
   allowFallbackStatus: number[] = [401, 403, 404, 405],
+  allowServerFallback = true,
 ): Promise<T> {
   try {
     return await call()
@@ -156,7 +157,7 @@ async function callWithFallback<T>(
       return fallback
     }
 
-    if (status >= 500) {
+    if (status >= 500 && allowServerFallback) {
       logger.warn('[patientApi] Backend request failed (server error), using fallback data.', {
         status,
         error: details,
@@ -228,7 +229,11 @@ export const patientApi = {
           reason,
         }
 
-        const res = await http.post<any>('/appointments', body)
+        const res = await http.post<any>('/appointments', body, {
+          headers: {
+            'Idempotency-Key': crypto.randomUUID(),
+          },
+        })
         const created = res.data?.result ?? res.data
         const doctorName = created?.doctorName ?? 'BS. Chưa xác định'
         const specialty = created?.specialty ?? 'Khác'
@@ -254,6 +259,8 @@ export const patientApi = {
         status: 'Pending',
         queueNumber: `A-${Math.floor(10 + Math.random() * 90)}`,
       },
+      [],
+      false,
     )
   },
 

@@ -545,7 +545,7 @@ async function onSuggestionRejected() {
                         <span>🕒 {{ s.startTime }} - {{ s.endTime }}</span>
                       </div>
                       <div class="mt-0.5 text-[10px] font-normal text-slate-500">
-                        Tối đa: {{ s.patientLimit }} BN
+                        Tối đa: {{ s.RecommendedCapacity }} BN
                       </div>
                     </div>
                     <div

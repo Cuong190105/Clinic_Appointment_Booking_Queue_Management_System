@@ -72,7 +72,12 @@ function formatDate(dateStr: string): string {
   if (!dateStr) return ''
   try {
     const d = new Date(dateStr)
-    return d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+    return d.toLocaleDateString('vi-VN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
   } catch {
     return dateStr
   }
@@ -102,17 +107,24 @@ function formatDate(dateStr: string): string {
         @dismiss="successMessage = null"
       />
 
-      <div class="flex items-center justify-between rounded-xl bg-slate-50 p-4 border border-slate-100">
+      <div
+        class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-4"
+      >
         <div>
           <p class="text-sm font-bold text-slate-800">
             {{ doctor?.fullName || doctor?.name }}
           </p>
-          <p class="text-xs text-slate-500 mt-0.5">
-            Chuyên khoa: <span class="font-semibold text-violet-700">{{ doctor?.specialty || 'Chưa phân khoa' }}</span>
+          <p class="mt-0.5 text-xs text-slate-500">
+            Chuyên khoa:
+            <span class="font-semibold text-violet-700">{{
+              doctor?.specialty || 'Chưa phân khoa'
+            }}</span>
           </p>
         </div>
         <div class="text-right">
-          <span class="inline-block rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700">
+          <span
+            class="inline-block rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700"
+          >
             {{ schedules.length }} ca trực trong tuần
           </span>
         </div>
@@ -124,36 +136,45 @@ function formatDate(dateStr: string): string {
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="schedules.length === 0" class="rounded-xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-500">
+      <div
+        v-else-if="schedules.length === 0"
+        class="rounded-xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-500"
+      >
         Chưa có ca làm việc nào được xếp cho bác sĩ trong khoảng thời gian này.
       </div>
 
       <!-- Schedules List -->
-      <div v-else class="divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1">
+      <div v-else class="max-h-96 divide-y divide-slate-100 overflow-y-auto pr-1">
         <div
           v-for="shift in schedules"
           :key="shift.id"
-          class="flex items-center justify-between py-3.5 hover:bg-slate-50/80 px-2 rounded-lg transition-colors"
+          class="flex items-center justify-between rounded-lg px-2 py-3.5 transition-colors hover:bg-slate-50/80"
         >
           <div>
             <div class="flex items-center gap-2">
-              <span class="font-bold text-sm text-slate-800">
+              <span class="text-sm font-bold text-slate-800">
                 {{ formatDate(shift.date) }}
               </span>
               <span
                 class="rounded-md px-2 py-0.5 text-xs font-bold"
                 :class="
                   shift.status === 'Active' || shift.status === 0
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border border-rose-200 bg-rose-50 text-rose-700'
                 "
               >
                 {{ shift.status === 'Active' || shift.status === 0 ? 'Đang hoạt động' : 'Đã hủy' }}
               </span>
             </div>
             <div class="mt-1 flex items-center gap-4 text-xs text-slate-500">
-              <span>🕒 Giờ khám: <b class="text-slate-700">{{ shift.startTime }} - {{ shift.endTime }}</b></span>
-              <span>👥 Giới hạn: <b class="text-slate-700">{{ shift.patientLimit }} bệnh nhân</b></span>
+              <span
+                >🕒 Giờ khám:
+                <b class="text-slate-700">{{ shift.startTime }} - {{ shift.endTime }}</b></span
+              >
+              <span
+                >👥 Giới hạn:
+                <b class="text-slate-700">{{ shift.RecommendedCapacity }} bệnh nhân</b></span
+              >
             </div>
           </div>
 
@@ -162,7 +183,7 @@ function formatDate(dateStr: string): string {
               v-if="shift.status === 'Active' || shift.status === 0"
               size="sm"
               variant="outline"
-              class="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs"
+              class="border-rose-200 text-xs text-rose-600 hover:border-rose-300 hover:bg-rose-50"
               :loading="actionLoading === shift.id"
               @click="handleCancelShift(shift.id)"
             >
@@ -172,13 +193,8 @@ function formatDate(dateStr: string): string {
         </div>
       </div>
 
-      <div class="flex justify-end pt-4 border-t border-slate-100">
-        <BaseButton
-          variant="outline"
-          @click="emit('close')"
-        >
-          Đóng
-        </BaseButton>
+      <div class="flex justify-end border-t border-slate-100 pt-4">
+        <BaseButton variant="outline" @click="emit('close')"> Đóng </BaseButton>
       </div>
     </div>
   </BaseModal>

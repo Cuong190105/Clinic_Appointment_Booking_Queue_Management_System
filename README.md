@@ -15,3 +15,8 @@ Tại thư mục gốc, chạy docker compose:
 ```
 docker compose up -d --build
 ```
+
+## Sử dụng app
+
+Trong db đã có sẵn một số người dùng mẫu, tài khoản có dạng role + STT, ví dụ admin1, doctor2,...
+Mật khẩu mặc định đều là Password123!

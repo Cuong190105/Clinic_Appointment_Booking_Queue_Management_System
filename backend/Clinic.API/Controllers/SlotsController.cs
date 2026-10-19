@@ -1,4 +1,5 @@
 using Clinic.Application.Features.Slots.Queries;
+using Clinic.Application.Contracts;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +28,21 @@ namespace Clinic.API.Controllers
         {
             var result = await _sender.Send(new GetAvailableSlotsQuery(doctorId, specialtyId, fromDate, toDate));
             return Ok(result);
+        }
+
+        // Phase 0 contract endpoint. Availability ownership moves to Scheduling Service;
+        // this stub documents the request and response shape without calling Application.
+        [HttpGet("/schedules/availability")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(List<SlotDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        public IActionResult GetAvailability(
+            [FromQuery] Guid? doctorId,
+            [FromQuery] Guid? specialtyId,
+            [FromQuery] DateOnly? fromDate,
+            [FromQuery] DateOnly? toDate)
+        {
+            return Ok(Array.Empty<SlotDto>());
         }
     }
 }

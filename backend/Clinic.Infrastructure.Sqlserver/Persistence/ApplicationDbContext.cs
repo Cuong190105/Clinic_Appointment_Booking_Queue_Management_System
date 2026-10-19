@@ -1,4 +1,6 @@
 using Clinic.Domain.Entities;
+using Clinic.Infrastructure.Sqlserver.Outbox;
+using Clinic.Infrastructure.Sqlserver.Inbox;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 
@@ -21,6 +23,7 @@ namespace Clinic.Infrastructure.Sqlserver.Persistence
         public DbSet<Doctor> Doctors => Set<Doctor>();
         public DbSet<Specialty> Specialties => Set<Specialty>();
         public DbSet<WorkSchedule> WorkSchedules => Set<WorkSchedule>();
+        public DbSet<BookingSlot> BookingSlots => Set<BookingSlot>();
         public DbSet<Patient> Patients => Set<Patient>();
         public DbSet<Appointment> Appointments => Set<Appointment>();
         public DbSet<QueueTicket> QueueTickets => Set<QueueTicket>();
@@ -31,6 +34,8 @@ namespace Clinic.Infrastructure.Sqlserver.Persistence
         public DbSet<WorkHistory> WorkHistories => Set<WorkHistory>();
         public DbSet<ShiftRequest> ShiftRequests => Set<ShiftRequest>();
         public DbSet<AppointmentSnapshot> AppointmentSnapshots => Set<AppointmentSnapshot>();
+        public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+        public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

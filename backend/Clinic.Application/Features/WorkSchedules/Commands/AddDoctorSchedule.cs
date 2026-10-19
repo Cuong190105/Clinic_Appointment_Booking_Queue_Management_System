@@ -1,24 +1,29 @@
 using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
+using Clinic.Contracts.Events;
 using Clinic.Domain.Entities;
 using MediatR;
 
 namespace Clinic.Application.Features.WorkSchedules.Commands
 {
     // Use-case: Admin adds a new work schedule for a doctor
-    public record AddDoctorScheduleCommand(Guid DoctorId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, int PatientLimit) : IRequest<WorkScheduleDto>;
+    public record AddDoctorScheduleCommand(Guid DoctorId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, int RecommendedCapacity) : IRequest<WorkScheduleDto>;
 
     public class AddDoctorScheduleCommandHandler : IRequestHandler<AddDoctorScheduleCommand, WorkScheduleDto>
     {
         private readonly IDoctorRepository _doctorRepository;
         private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly IUnitOfWork _unitOfWork;
-        public AddDoctorScheduleCommandHandler(IDoctorRepository doctorRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
+        private readonly IOutboxWriter _outboxWriter;
+        private readonly IEventContext? _eventContext;
+        public AddDoctorScheduleCommandHandler(IDoctorRepository doctorRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork, IOutboxWriter outboxWriter, IEventContext? eventContext = null)
         {
             _doctorRepository = doctorRepository;
             _workScheduleRepository = workScheduleRepository;
             _unitOfWork = unitOfWork;
+            _outboxWriter = outboxWriter;
+            _eventContext = eventContext;
         }
         public async Task<WorkScheduleDto> Handle(AddDoctorScheduleCommand request, CancellationToken cancellationToken)
         {
@@ -37,10 +42,23 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
                 date: request.Date,
                 shiftStart: request.StartTime,
                 shiftEnd: request.EndTime,
-                patientLimit: request.PatientLimit
+                RecommendedCapacity: request.RecommendedCapacity
             );
             doctor.AddWorkSchedule(workSchedule);
             await _workScheduleRepository.AddWorkScheduleAsync(workSchedule);
+            _outboxWriter.Add(
+                new EventEnvelope<WorkScheduleCreated>
+                {
+                    EventId = Guid.NewGuid(),
+                    EventType = EventTypes.WorkScheduleCreated,
+                    SchemaVersion = 1,
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    CorrelationId = _eventContext?.CorrelationId ?? Guid.NewGuid(),
+                    CausationId = _eventContext?.CausationId,
+                    Producer = "scheduling-service",
+                    Payload = new WorkScheduleCreated(workSchedule.Id, doctor.Id, request.Date, request.StartTime, request.EndTime, request.RecommendedCapacity)
+                },
+                "schedule.created");
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return new WorkScheduleDto
             {
@@ -49,7 +67,7 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
                 Date = request.Date,
                 StartTime = request.StartTime,
                 EndTime = request.EndTime,
-                PatientLimit = request.PatientLimit,
+                RecommendedCapacity = request.RecommendedCapacity,
                 Status = workSchedule.Status
             };
         }

@@ -49,7 +49,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Update([FromRoute] Guid shiftId, [FromBody] UpdateShiftRequest request)
         {
-            var command = new UpdateWorkScheduleCommand(shiftId, request.Date, request.StartTime, request.EndTime, request.PatientLimitPerSlot);
+            var command = new UpdateWorkScheduleCommand(shiftId, request.Date, request.StartTime, request.EndTime, request.RecommendedCapacityPerSlot);
             await _sender.Send(command);
             return NoContent();
         }
@@ -75,7 +75,7 @@ namespace Clinic.API.Controllers
         public async Task<IActionResult> CreateSuggestion([FromBody] CreateShiftSuggestionRequest request)
         {
             var userId = _currentUser.UserId;
-            var command = new AddDoctorShiftRequestCommand(userId, request.Date, request.StartTime, request.EndTime, request.PatientLimit, request.Reason);
+            var command = new AddDoctorShiftRequestCommand(userId, request.Date, request.StartTime, request.EndTime, request.RecommendedCapacity, request.Reason);
             var result = await _sender.Send(command);
             return Created((string?)null, result);
         }
@@ -88,7 +88,7 @@ namespace Clinic.API.Controllers
         public async Task<IActionResult> PatchSuggestion([FromRoute] Guid suggestionId, [FromBody] UpdateShiftSuggestionRequest request)
         {
             var userId = _currentUser.UserId;
-            var command = new UpdateShiftRequestCommand(suggestionId, userId, request.Date, request.StartTime, request.EndTime, request.PatientLimitPerSlot, request.Reason);
+            var command = new UpdateShiftRequestCommand(suggestionId, userId, request.Date, request.StartTime, request.EndTime, request.RecommendedCapacityPerSlot, request.Reason);
             await _sender.Send(command);
             return NoContent();
         }

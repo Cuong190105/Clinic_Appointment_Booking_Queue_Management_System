@@ -152,7 +152,7 @@ export interface WorkSchedule {
   date: string
   startTime: string
   endTime: string
-  patientLimit: number
+  RecommendedCapacity: number
   status: string
 }
 
@@ -170,7 +170,7 @@ export interface RequestedShift {
   date: string
   startTime: string
   endTime: string
-  patientLimit: number
+  RecommendedCapacity: number
   reason?: string | null
   status: string
 }

@@ -36,7 +36,7 @@ namespace Clinic.API.Controllers
         public async Task<IActionResult> Save([FromBody] SaveMedicalReportRequest request)
         {
             var command = new SaveMedicalReportCommand(
-                request.QueueTicketId,
+                request.AppointmentId,
                 request.Symptoms,
                 request.Diagnosis,
                 request.Prescription,
@@ -64,17 +64,17 @@ namespace Clinic.API.Controllers
         }
 
         /// <summary>
-        /// Lấy hồ sơ khám bệnh theo mã vé hàng đợi (QueueTicketId).
+        /// Lấy hồ sơ khám bệnh theo mã lịch hẹn (AppointmentId).
         /// </summary>
-        [HttpGet("ticket/{queueTicketId}")]
+        [HttpGet("appointment/{appointmentId}")]
         [Authorize(Policy = "Permission:medical-report.view.related,medical-report.view.any,medical-report.view.own")]
         [ProducesResponseType(typeof(MedicalReportDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetByTicket([FromRoute] Guid queueTicketId)
+        public async Task<IActionResult> GetByAppointment([FromRoute] Guid appointmentId)
         {
-            var result = await _sender.Send(new GetMedicalReportByTicketQuery(queueTicketId));
+            var result = await _sender.Send(new GetMedicalReportByAppointmentQuery(appointmentId));
             if (result == null)
             {
                 return NotFound();

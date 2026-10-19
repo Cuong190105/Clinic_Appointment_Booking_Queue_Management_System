@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Clinic.Domain\Clinic.Domain.csproj" />
+    <ProjectReference Include="..\Clinic.Contracts\Clinic.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

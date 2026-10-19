@@ -18787,7 +18787,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<int>("PatientLimit")
+                    b.Property<int>("RecommendedCapacity")
                         .HasColumnType("int");
 
                     b.Property<string>("Reason")
@@ -20043,7 +20043,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<int>("PatientLimit")
+                    b.Property<int>("RecommendedCapacity")
                         .HasColumnType("int");
 
                     b.Property<TimeOnly>("ShiftEnd")
@@ -20074,7 +20074,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20086,7 +20086,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20098,7 +20098,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20110,7 +20110,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20122,7 +20122,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20134,7 +20134,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20146,7 +20146,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20158,7 +20158,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20170,7 +20170,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20182,7 +20182,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20194,7 +20194,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20206,7 +20206,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20218,7 +20218,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20230,7 +20230,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20242,7 +20242,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20254,7 +20254,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20266,7 +20266,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20278,7 +20278,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20290,7 +20290,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20302,7 +20302,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20314,7 +20314,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20326,7 +20326,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20338,7 +20338,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20350,7 +20350,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20362,7 +20362,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20374,7 +20374,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20386,7 +20386,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20398,7 +20398,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20410,7 +20410,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20422,7 +20422,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20434,7 +20434,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20446,7 +20446,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20458,7 +20458,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20470,7 +20470,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20482,7 +20482,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20494,7 +20494,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20506,7 +20506,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20518,7 +20518,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20530,7 +20530,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20542,7 +20542,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20554,7 +20554,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20566,7 +20566,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20578,7 +20578,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20590,7 +20590,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20602,7 +20602,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20614,7 +20614,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20626,7 +20626,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20638,7 +20638,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20650,7 +20650,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20662,7 +20662,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20674,7 +20674,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20686,7 +20686,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20698,7 +20698,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20710,7 +20710,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20722,7 +20722,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20734,7 +20734,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20746,7 +20746,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20758,7 +20758,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20770,7 +20770,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20782,7 +20782,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20794,7 +20794,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20806,7 +20806,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20818,7 +20818,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20830,7 +20830,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20842,7 +20842,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20854,7 +20854,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20866,7 +20866,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20878,7 +20878,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20890,7 +20890,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20902,7 +20902,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20914,7 +20914,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20926,7 +20926,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20938,7 +20938,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20950,7 +20950,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20962,7 +20962,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20974,7 +20974,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20986,7 +20986,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20998,7 +20998,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21010,7 +21010,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21022,7 +21022,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21034,7 +21034,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21046,7 +21046,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21058,7 +21058,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21070,7 +21070,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21082,7 +21082,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21094,7 +21094,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21106,7 +21106,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21118,7 +21118,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21130,7 +21130,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21142,7 +21142,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21154,7 +21154,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21166,7 +21166,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21178,7 +21178,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21190,7 +21190,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21202,7 +21202,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21214,7 +21214,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21226,7 +21226,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21238,7 +21238,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21250,7 +21250,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21262,7 +21262,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21274,7 +21274,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21286,7 +21286,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21298,7 +21298,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21310,7 +21310,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21322,7 +21322,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21334,7 +21334,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21346,7 +21346,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21358,7 +21358,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21370,7 +21370,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21382,7 +21382,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21394,7 +21394,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21406,7 +21406,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21418,7 +21418,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21430,7 +21430,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21442,7 +21442,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21454,7 +21454,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21466,7 +21466,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21478,7 +21478,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21490,7 +21490,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21502,7 +21502,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21514,7 +21514,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21526,7 +21526,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21538,7 +21538,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21550,7 +21550,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21562,7 +21562,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21574,7 +21574,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21586,7 +21586,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21598,7 +21598,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21610,7 +21610,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21622,7 +21622,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21634,7 +21634,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21646,7 +21646,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21658,7 +21658,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21670,7 +21670,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21682,7 +21682,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21694,7 +21694,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21706,7 +21706,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21718,7 +21718,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21730,7 +21730,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21742,7 +21742,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21754,7 +21754,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21766,7 +21766,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21778,7 +21778,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21790,7 +21790,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21802,7 +21802,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21814,7 +21814,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21826,7 +21826,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21838,7 +21838,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21850,7 +21850,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21862,7 +21862,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"

@@ -46,7 +46,7 @@ namespace Clinic.Application.Features.Appointments.Commands
             if (patient == null) {
                 throw new NotFoundException($"Patient not found.");
             }
-            // Begin transaction lock to prevent race conditions (active appointment count > patientLimit) when creating appointments
+            // Begin transaction lock to prevent race conditions (active appointment count > RecommendedCapacity) when creating appointments
             await _unitOfWork.InitializeTransactionLockAsync(cancellationToken);
             try
             {

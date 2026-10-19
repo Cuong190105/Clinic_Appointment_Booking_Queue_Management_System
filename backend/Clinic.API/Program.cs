@@ -7,9 +7,13 @@ using Clinic.Infrastructure.Sqlserver;
 using Clinic.Infrastructure.Sqlserver.Notifications;
 using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Clinic.Infrastructure.Sqlserver.Outbox;
 using Microsoft.OpenApi;
 using System.Reflection;
 using System.Security.Claims;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +38,25 @@ builder.Services.AddPresentation();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructureSqlServer(builder.Configuration);
 
+// Ensure the custom Meter and its instruments exist before the OpenTelemetry provider starts.
+_ = MessagingTelemetry.Meter;
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("clinic-api"))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddMeter(MessagingTelemetry.MeterName)
+        .AddPrometheusExporter())
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation(options =>
+        {
+            options.Filter = context =>
+                context.Request.Path != "/healthz" &&
+                context.Request.Path != "/metrics";
+        })
+        .AddHttpClientInstrumentation()
+        .AddSource(MessagingTelemetry.SourceName)
+        .AddOtlpExporter());
+
 // Configure JSON serialization options to handle enum values as strings
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
@@ -45,9 +68,15 @@ builder.Services.Configure<EmailOptions>(
     builder.Configuration.GetSection("Email"));
 builder.Services.AddSignalR();
 
-// Add workers
-builder.Services.AddHostedService<NotificationWorker>();
-builder.Services.AddHostedService<ScheduledNotificationWorker>();
+// Add workers. Test hosts can disable background consumers because their database
+// and broker dependencies are outside the HTTP contract test boundary.
+if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
+{
+    builder.Services.AddHostedService<NotificationWorker>();
+            builder.Services.AddHostedService<ScheduledNotificationWorker>();
+            builder.Services.AddHostedService<OutboxPublisher>();
+            builder.Services.AddHostedService<AppointmentCheckedInConsumer>();
+        }
 
 // Add Authentication and Authorization services
 builder.Services
@@ -117,13 +146,17 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapPrometheusScrapingEndpoint();
 
-// Seed the database with an initial admin user if it doesn't exist
-using (var scope = app.Services.CreateScope())
+app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
+
+// Seed the database with an initial admin user if it doesn't exist.
+// Integration contract tests intentionally skip this external infrastructure step.
+if (!app.Configuration.GetValue<bool>("SkipDatabaseInitialization"))
 {
-    var initializer = scope.ServiceProvider
-        .GetRequiredService<DatabaseInitializer>();
+    using var scope = app.Services.CreateScope();
+    var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
 
     await initializer.MigrateAsync();
     await initializer.CreateInitialAdminAsync();
@@ -155,3 +188,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }

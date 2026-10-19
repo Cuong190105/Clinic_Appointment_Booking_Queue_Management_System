@@ -15,7 +15,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
         {
             migrationBuilder.InsertData(
                 table: "WorkSchedules",
-                columns: new[] { "Id", "CancellationReason", "CreatedAt", "Date", "DoctorId", "IsDeleted", "PatientLimit", "ShiftEnd", "ShiftStart", "Status", "UpdatedAt" },
+                columns: new[] { "Id", "CancellationReason", "CreatedAt", "Date", "DoctorId", "IsDeleted", "RecommendedCapacity", "ShiftEnd", "ShiftStart", "Status", "UpdatedAt" },
                 values: new object[,]
                 {
                     { new Guid("a0000008-0000-0000-0000-000000000001"), null, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new DateOnly(2026, 7, 23), new Guid("a0000004-0000-0000-0000-000000000001"), false, 23, new TimeOnly(17, 30, 0), new TimeOnly(13, 30, 0), "Active", null },

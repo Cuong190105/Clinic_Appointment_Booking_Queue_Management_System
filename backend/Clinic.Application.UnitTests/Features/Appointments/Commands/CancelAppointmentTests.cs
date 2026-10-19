@@ -15,7 +15,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork);
+            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment();
             currentUser.PatientId = appointment.PatientId;
@@ -123,7 +123,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork);
+            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork, new FakeOutboxWriter());
             currentUser.UserId = Guid.NewGuid();
             // Act & Assert
             await Assert.ThrowsAsync<NotFoundException>(() =>
@@ -138,7 +138,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork);
+            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment();
             currentUser.PatientId = Guid.NewGuid(); // khác với appointment.PatientId
@@ -160,7 +160,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             currentUser.UserId = Guid.NewGuid();
             currentUser.GrantPermission("appointment.edit.any");
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork);
+            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment();
             await appointmentRepository.AddAsync(appointment);

@@ -12,14 +12,17 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasKey(m => m.Id);
 
-            // Gắn qua QueueTicket (không phải Appointment trực tiếp) - vì mọi
-            // ca khám đều phải qua hàng đợi trước khi bác sĩ ghi nhận kết quả.
-            builder.HasOne(m => m.QueueTicket)
-                .WithOne(q => q.MedicalReport)
-                .HasForeignKey<MedicalReport>(m => m.QueueTicketId)
+            builder.HasOne(m => m.Appointment)
+                .WithOne(a => a.MedicalReport)
+                .HasForeignKey<MedicalReport>(m => m.AppointmentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasIndex(m => m.QueueTicketId).IsUnique();
+            builder.HasIndex(m => m.AppointmentId).IsUnique();
+
+            builder.HasOne(m => m.Patient)
+                .WithMany()
+                .HasForeignKey(m => m.PatientId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             builder.Property(m => m.Symptoms).HasMaxLength(1000);
             builder.Property(m => m.Diagnosis).HasMaxLength(1000);

@@ -9,8 +9,8 @@ namespace Clinic.Application.Contracts
         [JsonPropertyName("id")]
         public Guid Id { get; set; }
 
-        [JsonPropertyName("queueTicketId")]
-        public Guid QueueTicketId { get; set; }
+        [JsonPropertyName("appointmentId")]
+        public Guid AppointmentId { get; set; }
 
         [JsonPropertyName("patientId")]
         public Guid PatientId { get; set; }

@@ -28,17 +28,21 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Queries
             await appointmentRepository.AddAsync(appointment);
 
             var ticket1 = TestDataFactory.CreateQueueTicket(appointment, queueNumber: 1);
-            var reportFinalized = new MedicalReport(ticket1.Id, "Fever", "Flu", "Paracetamol", null)
+            var reportFinalized = new MedicalReport(appointment.Id, appointment.PatientId, "Fever", "Flu", "Paracetamol", null)
             {
-                QueueTicket = ticket1
+                Appointment = appointment,
+                Patient = appointment.Patient
             };
             reportFinalized.FinalizeReport();
             await medicalReportRepository.AddAsync(reportFinalized);
 
-            var ticket2 = TestDataFactory.CreateQueueTicket(appointment, queueNumber: 2);
-            var reportDraft = new MedicalReport(ticket2.Id, "Cough", "Bronchitis", "Syrup", null)
+            var appointment2 = TestDataFactory.CreateAppointment(patient: patient, workSchedule: workSchedule, checkedIn: true);
+            await appointmentRepository.AddAsync(appointment2);
+            var ticket2 = TestDataFactory.CreateQueueTicket(appointment2, queueNumber: 2);
+            var reportDraft = new MedicalReport(appointment2.Id, appointment2.PatientId, "Cough", "Bronchitis", "Syrup", null)
             {
-                QueueTicket = ticket2
+                Appointment = appointment2,
+                Patient = appointment2.Patient
             };
             await medicalReportRepository.AddAsync(reportDraft);
 
@@ -91,9 +95,10 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Queries
             await appointmentRepository.AddAsync(appointment);
 
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
-            var report = new MedicalReport(ticket.Id, "Headache", "Migraine", "Painkiller", null)
+            var report = new MedicalReport(appointment.Id, appointment.PatientId, "Headache", "Migraine", "Painkiller", null)
             {
-                QueueTicket = ticket
+                Appointment = appointment,
+                Patient = appointment.Patient
             };
             report.FinalizeReport();
             await medicalReportRepository.AddAsync(report);

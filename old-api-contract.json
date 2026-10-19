@@ -6033,7 +6033,12 @@
                 "additionalProperties": false
             },
             "CreateShiftRequest": {
-                "required": ["date", "endTime", "patientLimit", "startTime"],
+                "required": [
+                    "date",
+                    "endTime",
+                    "RecommendedCapacity",
+                    "startTime"
+                ],
                 "type": "object",
                 "properties": {
                     "date": {
@@ -6048,7 +6053,7 @@
                         "type": "string",
                         "format": "time"
                     },
-                    "patientLimit": {
+                    "RecommendedCapacity": {
                         "maximum": 50,
                         "minimum": 1,
                         "type": "integer",
@@ -6061,7 +6066,7 @@
                 "required": [
                     "date",
                     "endTime",
-                    "patientLimit",
+                    "RecommendedCapacity",
                     "reason",
                     "startTime"
                 ],
@@ -6079,7 +6084,7 @@
                         "type": "string",
                         "format": "time"
                     },
-                    "patientLimit": {
+                    "RecommendedCapacity": {
                         "type": "integer",
                         "format": "int32"
                     },
@@ -7022,7 +7027,7 @@
                         "type": "string",
                         "format": "time"
                     },
-                    "patientLimit": {
+                    "RecommendedCapacity": {
                         "type": "integer",
                         "format": "int32"
                     },
@@ -7404,7 +7409,7 @@
                 "required": [
                     "date",
                     "endTime",
-                    "patientLimitPerSlot",
+                    "RecommendedCapacityPerSlot",
                     "startTime"
                 ],
                 "type": "object",
@@ -7421,7 +7426,7 @@
                         "type": "string",
                         "format": "time"
                     },
-                    "patientLimitPerSlot": {
+                    "RecommendedCapacityPerSlot": {
                         "maximum": 50,
                         "minimum": 1,
                         "type": "integer",
@@ -7434,7 +7439,7 @@
                 "required": [
                     "date",
                     "endTime",
-                    "patientLimitPerSlot",
+                    "RecommendedCapacityPerSlot",
                     "reason",
                     "startTime"
                 ],
@@ -7452,7 +7457,7 @@
                         "type": "string",
                         "format": "time"
                     },
-                    "patientLimitPerSlot": {
+                    "RecommendedCapacityPerSlot": {
                         "type": "integer",
                         "format": "int32"
                     },
@@ -7661,7 +7666,7 @@
                         "type": "string",
                         "format": "time"
                     },
-                    "patientLimit": {
+                    "RecommendedCapacity": {
                         "type": "integer",
                         "format": "int32"
                     },

@@ -34,7 +34,7 @@ namespace Clinic.Application.Features.Slots.Queries
                 Date = w.Date,
                 ShiftStart = w.ShiftStart,
                 ShiftEnd = w.ShiftEnd,
-                RemainingCapacity = w.PatientLimit - w.Appointments.Count(a => a.Status != AppointmentStatus.Cancelled)
+                RemainingCapacity = w.RecommendedCapacity - w.Appointments.Count(a => a.Status != AppointmentStatus.Cancelled)
             }).ToList();
         }
     }

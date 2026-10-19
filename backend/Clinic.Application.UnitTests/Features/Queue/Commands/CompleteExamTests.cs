@@ -14,7 +14,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CompleteExamHandler(queueTicketRepository, currentUser, unitOfWork);
+            var handler = new CompleteExamHandler(queueTicketRepository, currentUser, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment(checkedIn: true);
             var queueTicket = TestDataFactory.CreateQueueTicket(appointment, queueNumber: 1);
@@ -42,7 +42,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             currentUser.GrantPermission("queue.complete-exam.any");
             currentUser.UserId = Guid.NewGuid();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CompleteExamHandler(queueTicketRepository, currentUser, unitOfWork);
+            var handler = new CompleteExamHandler(queueTicketRepository, currentUser, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment(checkedIn: true);
             var queueTicket = TestDataFactory.CreateQueueTicket(appointment, queueNumber: 1);
@@ -65,7 +65,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser { DoctorId = Guid.NewGuid() };
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CompleteExamHandler(queueTicketRepository, currentUser, unitOfWork);
+            var handler = new CompleteExamHandler(queueTicketRepository, currentUser, unitOfWork, new FakeOutboxWriter());
 
             var appointment = TestDataFactory.CreateAppointment(checkedIn: true);
             var queueTicket = TestDataFactory.CreateQueueTicket(appointment, queueNumber: 1);
@@ -89,7 +89,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser { DoctorId = Guid.NewGuid() };
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CompleteExamHandler(queueTicketRepository, currentUser, unitOfWork);
+            var handler = new CompleteExamHandler(queueTicketRepository, currentUser, unitOfWork, new FakeOutboxWriter());
 
             // Act & Assert
             await Assert.ThrowsAsync<NotFoundException>(() =>

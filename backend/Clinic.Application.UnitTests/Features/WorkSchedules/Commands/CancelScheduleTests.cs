@@ -18,7 +18,7 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Commands
             var workScheduleRepository = new FakeWorkScheduleRepository();
             var notiQueue = new FakeNotificationQueue();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelWorkScheduleCommandHandler(workScheduleRepository, unitOfWork, notiQueue);
+            var handler = new CancelWorkScheduleCommandHandler(workScheduleRepository, unitOfWork, notiQueue, new FakeOutboxWriter());
             var doctor = TestDataFactory.CreateDoctor();
             var now = new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             var workSchedule = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(1)), TimeOnly.FromDateTime(now.AddDays(1)), TimeOnly.FromDateTime(now.AddDays(1).AddHours(1)), 5);
@@ -40,7 +40,7 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Commands
             var workScheduleRepository = new FakeWorkScheduleRepository();
             var notiQueue = new FakeNotificationQueue();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelWorkScheduleCommandHandler(workScheduleRepository, unitOfWork, notiQueue);
+            var handler = new CancelWorkScheduleCommandHandler(workScheduleRepository, unitOfWork, notiQueue, new FakeOutboxWriter());
             var doctor = TestDataFactory.CreateDoctor();
             var now = new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             var workSchedule = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(1)), TimeOnly.FromDateTime(now.AddDays(1)), TimeOnly.FromDateTime(now.AddDays(1).AddHours(1)), 5);

@@ -14,7 +14,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var currentUser = new FakeCurrentUser();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork);
+            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork, new FakeOutboxWriter());
             var patient = TestDataFactory.CreatePatient();
             var workSchedule = TestDataFactory.CreateWorkSchedule();
             var appointment = TestDataFactory.CreateAppointment(patient, workSchedule);
@@ -46,7 +46,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var currentUser = new FakeCurrentUser();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork);
+            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork, new FakeOutboxWriter());
             var patient = TestDataFactory.CreatePatient();
             var receptionist = TestDataFactory.CreateEmployee(role: "Receptionist");
             var workSchedule = TestDataFactory.CreateWorkSchedule();
@@ -63,7 +63,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var currentUser = new FakeCurrentUser();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork);
+            var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork, new FakeOutboxWriter());
             var patient = TestDataFactory.CreatePatient();
             var workSchedule = TestDataFactory.CreateWorkSchedule();
             var appointment = TestDataFactory.CreateAppointment(patient, workSchedule);

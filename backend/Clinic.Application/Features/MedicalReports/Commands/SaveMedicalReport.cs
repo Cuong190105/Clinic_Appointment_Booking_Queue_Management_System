@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace Clinic.Application.Features.MedicalReports.Commands
 {
     public record SaveMedicalReportCommand(
-        Guid QueueTicketId,
+        Guid AppointmentId,
         string? Symptoms,
         string? Diagnosis,
         string? Prescription,
@@ -22,29 +22,31 @@ namespace Clinic.Application.Features.MedicalReports.Commands
     public class SaveMedicalReportHandler : IRequestHandler<SaveMedicalReportCommand, MedicalReportDto>
     {
         private readonly IMedicalReportRepository _medicalReportRepository;
-        private readonly IQueueTicketRepository _queueTicketRepository;
+        private readonly IAppointmentRepository _appointmentRepository;
         private readonly ICurrentUser _currentUser;
         private readonly IUnitOfWork _unitOfWork;
 
         public SaveMedicalReportHandler(
             IMedicalReportRepository medicalReportRepository,
-            IQueueTicketRepository queueTicketRepository,
+            IAppointmentRepository appointmentRepository,
             ICurrentUser currentUser,
             IUnitOfWork unitOfWork)
         {
             _medicalReportRepository = medicalReportRepository;
-            _queueTicketRepository = queueTicketRepository;
+            _appointmentRepository = appointmentRepository;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
         }
 
         public async Task<MedicalReportDto> Handle(SaveMedicalReportCommand request, CancellationToken cancellationToken)
         {
-            var ticket = await _queueTicketRepository.GetByIdAsync(request.QueueTicketId)
-                ?? throw new NotFoundException($"Queue ticket '{request.QueueTicketId}' not found.");
+            var appointment = await _appointmentRepository.GetByIdAsync(request.AppointmentId)
+                ?? throw new NotFoundException($"Appointment '{request.AppointmentId}' not found.");
+            var ticket = appointment.QueueTicket
+                ?? throw new InvalidOperationException("The appointment has not been checked in.");
 
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any") || _currentUser.HasPermission("medical-report.view.any");
-            if (!hasAnyScope && ticket.Appointment.WorkSchedule.DoctorId != _currentUser.DoctorId)
+            if (!hasAnyScope && appointment.WorkSchedule.DoctorId != _currentUser.DoctorId)
             {
                 throw new ForbiddenException("You are not allowed to record medical report for another doctor's queue.");
             }
@@ -54,11 +56,12 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 throw new InvalidOperationException($"Cannot record medical report for queue ticket with status '{ticket.Status}'. Examination must be in progress.");
             }
 
-            var report = await _medicalReportRepository.GetByQueueTicketIdAsync(request.QueueTicketId);
+            var report = await _medicalReportRepository.GetByAppointmentIdAsync(appointment.Id);
             if (report == null)
             {
                 report = new MedicalReport(
-                    ticket.Id,
+                    appointment.Id,
+                    appointment.PatientId,
                     request.Symptoms,
                     request.Diagnosis,
                     request.Prescription,
@@ -77,9 +80,9 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 report.FinalizeReport();
                 ticket.Complete();
 
-                if (ticket.Appointment.Status == AppointmentStatus.CheckedIn)
+                if (appointment.Status == AppointmentStatus.CheckedIn)
                 {
-                    ticket.Appointment.Complete(_currentUser.UserId ?? throw new UnauthorizedAccessException());
+                    appointment.Complete(_currentUser.UserId ?? throw new UnauthorizedAccessException());
                 }
             }
 
@@ -88,12 +91,12 @@ namespace Clinic.Application.Features.MedicalReports.Commands
             return new MedicalReportDto
             {
                 Id = report.Id,
-                QueueTicketId = report.QueueTicketId,
-                PatientId = ticket.Appointment.PatientId,
-                PatientName = ticket.Appointment.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = ticket.Appointment.WorkSchedule.DoctorId,
-                DoctorName = ticket.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                ExamDate = ticket.Appointment.WorkSchedule.Date,
+                AppointmentId = report.AppointmentId,
+                PatientId = report.PatientId,
+                PatientName = report.Patient?.Person?.FullName ?? appointment.Patient?.Person?.FullName ?? string.Empty,
+                DoctorId = appointment.WorkSchedule.DoctorId,
+                DoctorName = appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                ExamDate = appointment.WorkSchedule.Date,
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,

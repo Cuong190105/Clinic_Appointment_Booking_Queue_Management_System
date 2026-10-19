@@ -30,7 +30,7 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Commands
 
             // Assert
             Assert.Equal(shiftRequest.Id, result);
-            Assert.Equal(10, shiftRequest.PatientLimit);
+            Assert.Equal(10, shiftRequest.RecommendedCapacity);
             Assert.True(shiftRequest.Date > DateOnly.FromDateTime(now.AddDays(1)));
         }
 

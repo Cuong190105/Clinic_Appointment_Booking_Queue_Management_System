@@ -19,7 +19,7 @@ namespace Clinic.Application.Interfaces
         /// tại COMMIT/ROLLBACK. Dùng NGAY TRƯỚC khi đếm số lịch hẹn đang có + ghi lịch hẹn mới
         /// cho slot này (xem CreateAppointmentHandler), để 2 request đặt lịch đồng thời cho
         /// cùng 1 slot bắt buộc phải chạy tuần tự thay vì cùng đọc thấy "còn chỗ" rồi cùng
-        /// insert thành công (vi phạm PatientLimitPerSlot).
+        /// insert thành công (vi phạm RecommendedCapacityPerSlot).
         /// Bắt buộc gọi bên trong 1 transaction đã mở qua IUnitOfWork.BeginTransactionAsync,
         /// nếu không lock sẽ được nhả ngay sau câu lệnh và không có tác dụng.
         /// </summary>

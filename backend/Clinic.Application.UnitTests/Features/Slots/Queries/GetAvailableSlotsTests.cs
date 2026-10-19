@@ -70,7 +70,7 @@ namespace Clinic.Application.UnitTests.Features.Slots.Queries
             var workScheduleRepository = new FakeWorkScheduleRepository();
             var handler = new GetAvailableSlotsQueryHandler(workScheduleRepository);
 
-            var workSchedule = TestDataFactory.CreateWorkSchedule(patientLimit: 5);
+            var workSchedule = TestDataFactory.CreateWorkSchedule(RecommendedCapacity: 5);
             // 2 active appointments + 1 cancelled appointment
             var active1 = TestDataFactory.CreateAppointment(workSchedule: workSchedule);
             var active2 = TestDataFactory.CreateAppointment(workSchedule: workSchedule);
@@ -102,7 +102,7 @@ namespace Clinic.Application.UnitTests.Features.Slots.Queries
             var workScheduleRepository = new FakeWorkScheduleRepository();
             var handler = new GetAvailableSlotsQueryHandler(workScheduleRepository);
 
-            var fullSchedule = TestDataFactory.CreateWorkSchedule(patientLimit: 1);
+            var fullSchedule = TestDataFactory.CreateWorkSchedule(RecommendedCapacity: 1);
             var activeApp = TestDataFactory.CreateAppointment(workSchedule: fullSchedule);
             fullSchedule.Appointments.Add(activeApp);
 

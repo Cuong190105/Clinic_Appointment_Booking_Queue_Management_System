@@ -274,7 +274,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                     var offset = baseOffsets[scheduleIndex] + ((doctorIndex - 1) % 3);
                     var scheduleDate = BaseDate.AddDays(offset);
                     var (shiftStart, shiftEnd) = ((doctorIndex + scheduleIndex) % 2 == 0) ? MorningShift : AfternoonShift;
-                    var patientLimit = 20 + ((doctorIndex * 3 + scheduleIndex * 7) % 21); // 20 to 40
+                    var RecommendedCapacity = 20 + ((doctorIndex * 3 + scheduleIndex * 7) % 21); // 20 to 40
                     var scheduleId = WorkScheduleId(scheduleIdCounter++);
 
                     var schedule = new WorkSchedule(
@@ -283,7 +283,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                         scheduleDate,
                         shiftStart,
                         shiftEnd,
-                        patientLimit,
+                        RecommendedCapacity,
                         WorkScheduleStatus.Active,
                         CreatedAt,
                         null,
@@ -456,7 +456,8 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
                             var report = new MedicalReport(
                                 MedicalReportId(medicalReportIdCounter++),
-                                ticket.Id,
+                                appt.Id,
+                                appt.PatientId,
                                 sampleCase.Symptoms,
                                 sampleCase.Diagnosis,
                                 sampleCase.Prescription,

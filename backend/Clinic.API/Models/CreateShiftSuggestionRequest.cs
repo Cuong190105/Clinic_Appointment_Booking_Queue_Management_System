@@ -11,7 +11,7 @@ namespace Clinic.API.Models
         [Required(ErrorMessage = "End time is required.")]
         public TimeOnly EndTime { get; set; }
         [Required(ErrorMessage = "Patient limit per slot is required.")]
-        public int PatientLimit { get; set; }
+        public int RecommendedCapacity { get; set; }
         [Required(ErrorMessage = "Reason is required.")]
         public string Reason { get; set; }
     }

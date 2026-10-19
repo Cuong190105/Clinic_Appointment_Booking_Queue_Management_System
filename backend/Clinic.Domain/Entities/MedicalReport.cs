@@ -5,13 +5,16 @@ using System;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Hồ sơ khám bệnh gắn với 1 lượt khám (QueueTicket)
+    /// Hồ sơ khám bệnh gắn trực tiếp với một lịch hẹn.
     /// </summary>
     public class MedicalReport : BaseEntity
     {
-        /// <summary>FK - đường dẫn duy nhất tới Doctor là QueueTicket.Appointment.WorkSchedule.Doctor.</summary>
-        public Guid QueueTicketId { get; set; }
-        public QueueTicket QueueTicket { get; set; } = null!;
+        /// <summary>Appointment sở hữu lượt khám mà hồ sơ này ghi nhận.</summary>
+        public Guid AppointmentId { get; set; }
+        public Appointment Appointment { get; set; } = null!;
+        public Patient Patient { get; set; } = null!;
+
+        public Guid PatientId { get; set; }
 
         public string? Symptoms { get; set; }
 
@@ -34,7 +37,8 @@ namespace Clinic.Domain.Entities
 
         public MedicalReport(
             Guid id,
-            Guid queueTicketId,
+            Guid appointmentId,
+            Guid patientId,
             string? symptoms,
             string? diagnosis,
             string? prescription,
@@ -47,7 +51,8 @@ namespace Clinic.Domain.Entities
             bool isDeleted)
             : base(id, createdAt, updatedAt, isDeleted)
         {
-            QueueTicketId = queueTicketId;
+            AppointmentId = appointmentId;
+            PatientId = patientId;
             Symptoms = symptoms;
             Diagnosis = diagnosis;
             Prescription = prescription;
@@ -57,9 +62,10 @@ namespace Clinic.Domain.Entities
             Status = status;
         }
 
-        public MedicalReport(Guid queueTicketId, string? symptoms, string? diagnosis, string? prescription, string? notes, DateTime? examStartTime = null)
+        public MedicalReport(Guid appointmentId, Guid patientId, string? symptoms, string? diagnosis, string? prescription, string? notes, DateTime? examStartTime = null)
         {
-            QueueTicketId = queueTicketId;
+            AppointmentId = appointmentId;
+            PatientId = patientId;
             Symptoms = symptoms;
             Diagnosis = diagnosis;
             Prescription = prescription;

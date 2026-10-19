@@ -17,23 +17,23 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
-            var queueTicketRepository = new FakeQueueTicketRepository();
+            var appointmentRepository = new FakeAppointmentRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var doctor = TestDataFactory.CreateDoctor();
             var workSchedule = TestDataFactory.CreateWorkSchedule(doctor: doctor, date: DateOnly.FromDateTime(DateTime.Today));
             var appointment = TestDataFactory.CreateAppointment(workSchedule: workSchedule, checkedIn: true);
+            await appointmentRepository.AddAsync(appointment);
             var currentUser = new FakeCurrentUser { DoctorId = doctor.Id, UserId = Guid.NewGuid() };
 
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
             ticket.Call();
             ticket.StartExam();
-            await queueTicketRepository.AddAsync(ticket);
 
-            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, appointmentRepository, currentUser, unitOfWork);
 
             var command = new SaveMedicalReportCommand(
-                ticket.Id,
+                appointment.Id,
                 Symptoms: "Sore throat, mild fever",
                 Diagnosis: "Pharyngitis",
                 Prescription: "Paracetamol 500mg, Vitamin C",
@@ -46,13 +46,13 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(ticket.Id, result.QueueTicketId);
+            Assert.Equal(appointment.Id, result.AppointmentId);
             Assert.Equal("Sore throat, mild fever", result.Symptoms);
             Assert.Equal("Pharyngitis", result.Diagnosis);
             Assert.Equal("Paracetamol 500mg, Vitamin C", result.Prescription);
             Assert.Equal(MedicalReportStatus.Draft, result.Status);
 
-            var savedReport = await medicalReportRepository.GetByQueueTicketIdAsync(ticket.Id);
+            var savedReport = await medicalReportRepository.GetByAppointmentIdAsync(appointment.Id);
             Assert.NotNull(savedReport);
             Assert.Equal("Pharyngitis", savedReport.Diagnosis);
         }
@@ -62,7 +62,7 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
-            var queueTicketRepository = new FakeQueueTicketRepository();
+            var appointmentRepository = new FakeAppointmentRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var doctor = TestDataFactory.CreateDoctor();
@@ -73,15 +73,15 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
             ticket.Call();
             ticket.StartExam();
-            await queueTicketRepository.AddAsync(ticket);
+            await appointmentRepository.AddAsync(appointment);
 
-            var existingReport = new MedicalReport(ticket.Id, "Old symptoms", "Old diag", "Old rx", "Old notes");
+            var existingReport = new MedicalReport(appointment.Id, appointment.PatientId, "Old symptoms", "Old diag", "Old rx", "Old notes");
             await medicalReportRepository.AddAsync(existingReport);
 
-            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, appointmentRepository, currentUser, unitOfWork);
 
             var command = new SaveMedicalReportCommand(
-                ticket.Id,
+                appointment.Id,
                 Symptoms: "Updated symptoms",
                 Diagnosis: "Updated diag",
                 Prescription: "Updated rx",
@@ -99,7 +99,7 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             Assert.Equal("Updated diag", result.Diagnosis);
             Assert.Equal(MedicalReportStatus.Draft, result.Status);
 
-            var updatedReport = await medicalReportRepository.GetByQueueTicketIdAsync(ticket.Id);
+            var updatedReport = await medicalReportRepository.GetByAppointmentIdAsync(appointment.Id);
             Assert.NotNull(updatedReport);
             Assert.Equal("Updated diag", updatedReport.Diagnosis);
         }
@@ -109,7 +109,7 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
-            var queueTicketRepository = new FakeQueueTicketRepository();
+            var appointmentRepository = new FakeAppointmentRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var doctor = TestDataFactory.CreateDoctor();
@@ -120,12 +120,12 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
             ticket.Call();
             ticket.StartExam();
-            await queueTicketRepository.AddAsync(ticket);
+            await appointmentRepository.AddAsync(appointment);
 
-            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, appointmentRepository, currentUser, unitOfWork);
 
             var command = new SaveMedicalReportCommand(
-                ticket.Id,
+                appointment.Id,
                 Symptoms: "Chest pain",
                 Diagnosis: "Angina",
                 Prescription: "Nitroglycerin 0.4mg",
@@ -145,11 +145,11 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
         }
 
         [Fact]
-        public async Task Handle_TicketNotInProgress_ShouldThrowInvalidOperationException()
+        public async Task Handle_AppointmentTicketNotInProgress_ShouldThrowInvalidOperationException()
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
-            var queueTicketRepository = new FakeQueueTicketRepository();
+            var appointmentRepository = new FakeAppointmentRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var doctor = TestDataFactory.CreateDoctor();
@@ -159,12 +159,12 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
 
             // Ticket is in Waiting status, not InProgress
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
-            await queueTicketRepository.AddAsync(ticket);
+            await appointmentRepository.AddAsync(appointment);
 
-            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, appointmentRepository, currentUser, unitOfWork);
 
             var command = new SaveMedicalReportCommand(
-                ticket.Id,
+                appointment.Id,
                 Symptoms: "Symptoms",
                 Diagnosis: "Diagnosis",
                 Prescription: "Rx",
@@ -183,7 +183,7 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
-            var queueTicketRepository = new FakeQueueTicketRepository();
+            var appointmentRepository = new FakeAppointmentRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var doctor = TestDataFactory.CreateDoctor();
@@ -194,16 +194,16 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
             ticket.Call();
             ticket.StartExam();
-            await queueTicketRepository.AddAsync(ticket);
+            await appointmentRepository.AddAsync(appointment);
 
-            var finalizedReport = new MedicalReport(ticket.Id, "Initial", "Initial", "Initial", null);
+            var finalizedReport = new MedicalReport(appointment.Id, appointment.PatientId, "Initial", "Initial", "Initial", null);
             finalizedReport.FinalizeReport();
             await medicalReportRepository.AddAsync(finalizedReport);
 
-            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, appointmentRepository, currentUser, unitOfWork);
 
             var command = new SaveMedicalReportCommand(
-                ticket.Id,
+                appointment.Id,
                 Symptoms: "Try edit",
                 Diagnosis: "Try edit",
                 Prescription: "Try edit",
@@ -221,7 +221,7 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
-            var queueTicketRepository = new FakeQueueTicketRepository();
+            var appointmentRepository = new FakeAppointmentRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var doctor = TestDataFactory.CreateDoctor();
@@ -233,11 +233,11 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
             ticket.Call();
             ticket.StartExam();
-            await queueTicketRepository.AddAsync(ticket);
+            await appointmentRepository.AddAsync(appointment);
 
-            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, appointmentRepository, currentUser, unitOfWork);
 
-            var command = new SaveMedicalReportCommand(ticket.Id, "Symptoms", "Diag", "Rx", null);
+            var command = new SaveMedicalReportCommand(appointment.Id, "Symptoms", "Diag", "Rx", null);
 
             // Act & Assert
             await Assert.ThrowsAsync<ForbiddenException>(() =>
@@ -245,15 +245,15 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
         }
 
         [Fact]
-        public async Task Handle_TicketNotFound_ShouldThrowNotFoundException()
+        public async Task Handle_AppointmentNotFound_ShouldThrowNotFoundException()
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
-            var queueTicketRepository = new FakeQueueTicketRepository();
+            var appointmentRepository = new FakeAppointmentRepository();
             var unitOfWork = new FakeUnitOfWork();
             var currentUser = new FakeCurrentUser { DoctorId = Guid.NewGuid(), UserId = Guid.NewGuid() };
 
-            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, appointmentRepository, currentUser, unitOfWork);
 
             var command = new SaveMedicalReportCommand(Guid.NewGuid(), "Symptoms", "Diag", "Rx", null);
 

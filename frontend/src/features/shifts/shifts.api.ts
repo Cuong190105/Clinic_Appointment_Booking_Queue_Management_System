@@ -29,7 +29,11 @@ function ensureTimeWithSeconds(timeStr: string): string {
 
 export const shiftsApi = {
   // GET /doctors/{doctorId}/shifts?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
-  async getDoctorShifts(doctorId: string, startDate: string, endDate: string): Promise<DoctorScheduleResponse> {
+  async getDoctorShifts(
+    doctorId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<DoctorScheduleResponse> {
     const res = await http
       .get<any>(`/doctors/${doctorId}/shifts`, {
         params: {
@@ -49,7 +53,7 @@ export const shiftsApi = {
       date: s.date || s.Date || '',
       startTime: formatTime(s.startTime || s.StartTime || s.shiftStart),
       endTime: formatTime(s.endTime || s.EndTime || s.shiftEnd),
-      patientLimit: s.patientLimit ?? s.PatientLimit ?? 20,
+      RecommendedCapacity: s.RecommendedCapacity ?? s.RecommendedCapacity ?? 20,
       status: s.status ?? s.Status ?? 'Active',
     }))
 
@@ -69,7 +73,7 @@ export const shiftsApi = {
         date: payload.date,
         startTime: ensureTimeWithSeconds(payload.startTime),
         endTime: ensureTimeWithSeconds(payload.endTime),
-        patientLimit: Number(payload.patientLimit) || 20,
+        RecommendedCapacity: Number(payload.RecommendedCapacity) || 20,
       })
       .then((r) => r.data)
 
@@ -80,7 +84,8 @@ export const shiftsApi = {
       date: s?.date || s?.Date || payload.date,
       startTime: formatTime(s?.startTime || s?.StartTime || payload.startTime),
       endTime: formatTime(s?.endTime || s?.EndTime || payload.endTime),
-      patientLimit: s?.patientLimit ?? s?.PatientLimit ?? payload.patientLimit,
+      RecommendedCapacity:
+        s?.RecommendedCapacity ?? s?.RecommendedCapacity ?? payload.RecommendedCapacity,
       status: s?.status ?? s?.Status ?? 'Active',
     }
   },
@@ -91,7 +96,7 @@ export const shiftsApi = {
       date: payload.date,
       startTime: ensureTimeWithSeconds(payload.startTime),
       endTime: ensureTimeWithSeconds(payload.endTime),
-      patientLimitPerSlot: Number(payload.patientLimitPerSlot) || 20,
+      RecommendedCapacityPerSlot: Number(payload.RecommendedCapacityPerSlot) || 20,
     })
   },
 
@@ -127,7 +132,9 @@ export const shiftsApi = {
     const data = res?.result !== undefined ? res.result : res
     const doctorRows = data?.items || data?.Items || []
     const items: DoctorSchedulePageItem[] = doctorRows.map((doctor: any) => {
-      const doctorIdValue = String(doctor.doctorId || doctor.DoctorId || doctor.id || doctor.Id || '')
+      const doctorIdValue = String(
+        doctor.doctorId || doctor.DoctorId || doctor.id || doctor.Id || '',
+      )
       const doctorName = doctor.doctorName || doctor.DoctorName || ''
       const schedules = doctor.schedules || doctor.Schedules || []
 
@@ -142,9 +149,13 @@ export const shiftsApi = {
           doctorName,
           specialtyName: doctor.specialtyName || doctor.SpecialtyName || '',
           date: schedule.date || schedule.Date || '',
-          startTime: formatTime(schedule.startTime || schedule.StartTime || schedule.shiftStart || schedule.ShiftStart),
-          endTime: formatTime(schedule.endTime || schedule.EndTime || schedule.shiftEnd || schedule.ShiftEnd),
-          patientLimit: schedule.patientLimit ?? schedule.PatientLimit ?? 20,
+          startTime: formatTime(
+            schedule.startTime || schedule.StartTime || schedule.shiftStart || schedule.ShiftStart,
+          ),
+          endTime: formatTime(
+            schedule.endTime || schedule.EndTime || schedule.shiftEnd || schedule.ShiftEnd,
+          ),
+          RecommendedCapacity: schedule.RecommendedCapacity ?? schedule.RecommendedCapacity ?? 20,
           status: schedule.status ?? schedule.Status ?? 'Active',
         })),
         startDate: doctor.startDate || doctor.StartDate || fromDate,
@@ -155,7 +166,8 @@ export const shiftsApi = {
     const responsePageNumber = data?.pageNumber ?? data?.PageNumber ?? pageNumber
     const responsePageSize = data?.pageSize ?? data?.PageSize ?? pageSize
     const totalCount = data?.totalCount ?? data?.TotalCount ?? doctorRows.length
-    const totalPages = data?.totalPages ?? data?.TotalPages ?? (Math.ceil(totalCount / responsePageSize) || 1)
+    const totalPages =
+      data?.totalPages ?? data?.TotalPages ?? (Math.ceil(totalCount / responsePageSize) || 1)
 
     return {
       items,
@@ -173,7 +185,11 @@ export const shiftsApi = {
   // ──────────────────────────────────────────────
 
   // GET /doctors/{doctorId}/suggestions?StartDate=...&EndDate=...
-  async getDoctorSuggestions(doctorId: string, startDate: string, endDate: string): Promise<ShiftSuggestion[]> {
+  async getDoctorSuggestions(
+    doctorId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<ShiftSuggestion[]> {
     const res = await http
       .get<any>(`/doctors/${doctorId}/suggestions`, {
         params: {
@@ -194,7 +210,7 @@ export const shiftsApi = {
       date: s.date || s.Date || '',
       startTime: formatTime(s.startTime || s.StartTime || s.shiftStart),
       endTime: formatTime(s.endTime || s.EndTime || s.shiftEnd),
-      patientLimit: s.patientLimit ?? s.PatientLimit ?? 20,
+      RecommendedCapacity: s.RecommendedCapacity ?? s.RecommendedCapacity ?? 20,
       reason: s.reason || s.Reason || '',
       status: s.status || s.Status || 'Pending',
     }))

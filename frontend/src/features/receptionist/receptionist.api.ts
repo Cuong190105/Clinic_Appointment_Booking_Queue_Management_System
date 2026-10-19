@@ -72,7 +72,11 @@ export const receptionistApi = {
   },
 
   async checkInAppointment(appointmentId: string): Promise<CheckInResponse> {
-    const res = await http.post(`/appointments/${appointmentId}/check-in`)
+    const res = await http.post(`/appointments/${appointmentId}/check-in`, undefined, {
+      headers: {
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+    })
     return unwrap<CheckInResponse>(res.data)
   },
 

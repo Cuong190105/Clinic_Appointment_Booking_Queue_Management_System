@@ -28,6 +28,9 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("BookingSlotId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -63,6 +66,10 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BookingSlotId")
+                        .IsUnique()
+                        .HasFilter("[BookingSlotId] IS NOT NULL");
 
                     b.HasIndex("PatientId");
 
@@ -9699,6 +9706,31 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.ToTable("AppointmentSnapshots", (string)null);
                 });
 
+            modelBuilder.Entity("Clinic.Domain.Entities.BookingSlot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<TimeOnly>("TimeSlot")
+                        .HasColumnType("time");
+
+                    b.Property<Guid>("WorkScheduleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkScheduleId", "TimeSlot")
+                        .IsUnique();
+
+                    b.ToTable("BookingSlots", (string)null);
+                });
+
             modelBuilder.Entity("Clinic.Domain.Entities.Doctor", b =>
                 {
                     b.Property<Guid>("Id")
@@ -10174,6 +10206,9 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -10194,12 +10229,12 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Prescription")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
-
-                    b.Property<Guid>("QueueTicketId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -10215,8 +10250,10 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("QueueTicketId")
+                    b.HasIndex("AppointmentId")
                         .IsUnique();
+
+                    b.HasIndex("PatientId");
 
                     b.ToTable("MedicalReports", (string)null);
 
@@ -10224,2604 +10261,2790 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000001"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000001"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 7, 23, 13, 58, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 13, 39, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000023"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000001"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000002"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000002"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 7, 23, 14, 28, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 13, 58, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000001"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000002"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000003"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000003"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 7, 23, 14, 35, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 14, 12, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000003"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000004"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000006"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 7, 23, 14, 51, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 14, 34, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000010"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000005"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000005"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000009"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 7, 23, 16, 52, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 16, 34, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000008"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000008"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000006"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000011"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 7, 27, 8, 32, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 27, 8, 13, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000012"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000009"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000007"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000029"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 4, 11, 1, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 10, 19, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000028"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000013"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000008"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000032"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 12, 8, 34, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 8, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000017"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000014"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000009"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000035"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 12, 10, 23, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 9, 43, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000012"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000015"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000010"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000036"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 8, 12, 10, 35, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 10, 16, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000010"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000016"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000011"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000038"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 16, 15, 8, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 16, 14, 49, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000029"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000017"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000012"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000040"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 16, 16, 45, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 16, 16, 24, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000014"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000018"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000013"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000043"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 16, 16, 46, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 16, 16, 26, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000020"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000014"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000057"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 7, 28, 14, 14, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 13, 50, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000011"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000021"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000015"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000062"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 7, 28, 15, 39, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 15, 10, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000003"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000024"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000016"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000065"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 28, 17, 35, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000013"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000026"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000017"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000071"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 8, 5, 16, 36, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 5, 16, 21, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000029"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000027"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000018"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000072"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 9, 8, 17, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 7, 55, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000028"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000019"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000073"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 9, 10, 12, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 9, 42, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000007"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000029"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000020"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000074"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 9, 11, 1, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 10, 41, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000002"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000030"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000021"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000075"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 9, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 11, 26, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000012"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000031"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000022"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000076"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 13, 14, 6, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 13, 39, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000003"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000032"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000023"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000078"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 13, 15, 6, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 14, 51, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000033"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000024"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000079"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 13, 15, 32, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 15, 19, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000034"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000025"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000080"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 13, 15, 44, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 15, 31, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000028"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000035"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000026"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000081"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 13, 16, 40, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 16, 23, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000011"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000036"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000027"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000084"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 13, 16, 19, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 15, 57, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000038"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000028"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000085"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 13, 16, 41, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 16, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000001"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000039"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000029"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000086"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 17, 8, 26, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 7, 58, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000008"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000040"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000030"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000090"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 17, 11, 28, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 11, 5, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000043"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000031"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000114"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 7, 25, 17, 9, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 16, 52, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000005"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000045"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000032"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000117"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 7, 29, 10, 54, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 10, 33, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000007"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000047"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000033"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000121"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 2, 15, 4, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 14, 22, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000050"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000034"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000123"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 2, 15, 31, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 15, 15, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000051"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000035"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000124"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 2, 16, 8, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 15, 41, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000025"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000052"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000036"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000125"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 2, 15, 55, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 15, 30, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000003"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000053"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000037"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000126"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 2, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 17, 24, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000018"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000054"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000038"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000128"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 2, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 17, 18, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000055"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000039"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000133"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 6, 9, 50, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 6, 9, 33, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000025"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000057"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000040"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000134"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 8, 6, 11, 6, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 6, 10, 40, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000007"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000058"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000041"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000137"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 10, 16, 34, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 10, 15, 59, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000060"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000042"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000139"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 14, 8, 53, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 8, 48, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000061"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000043"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000144"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 14, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 11, 26, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000013"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000063"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000044"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000145"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 14, 11, 6, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 10, 40, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000014"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000064"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000045"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000149"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 18, 16, 4, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 15, 49, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000066"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000046"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000150"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 18, 16, 42, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 16, 27, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000067"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000047"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000165"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 23, 9, 24, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 9, 2, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000026"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000070"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000048"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000167"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 7, 23, 11, 27, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 11, 9, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000071"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000049"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000178"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 7, 31, 9, 19, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 8, 52, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000076"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000050"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000184"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 8, 8, 41, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 8, 8, 15, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000078"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000051"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000185"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 8, 8, 43, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 8, 8, 25, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000009"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000079"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000052"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000193"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 12, 15, 55, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 15, 42, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000006"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000084"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000053"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000195"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 8, 12, 17, 13, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 16, 43, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000086"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000054"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000199"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 16, 9, 33, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 16, 9, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000088"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000055"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000222"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 24, 15, 39, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 24, 15, 16, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000091"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000056"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000225"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 7, 24, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 24, 17, 15, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000030"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000093"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000057"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000227"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 7, 28, 9, 33, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 9, 3, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000003"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000095"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000058"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000228"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 28, 9, 31, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 9, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000008"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000096"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000059"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000230"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 28, 10, 43, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 9, 53, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000097"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000060"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000237"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 9, 17, 38, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 17, 33, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000028"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000100"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000061"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000238"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 9, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 17, 16, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000101"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000062"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000239"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 13, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 11, 23, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000102"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000063"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000250"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 25, 10, 57, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 10, 32, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000104"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000064"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000256"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 29, 16, 1, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 15, 35, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000020"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000105"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000065"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000257"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 7, 29, 16, 38, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 16, 22, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000009"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000106"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000066"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000259"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 7, 29, 16, 48, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 16, 23, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000107"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000067"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000260"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 7, 29, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 17, 29, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000108"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000068"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000263"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 2, 9, 43, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 9, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000002"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000111"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000069"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000264"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 2, 9, 49, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 9, 23, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000030"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000112"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000070"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000265"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 2, 10, 24, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 9, 44, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000029"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000113"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000071"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000278"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 14, 16, 15, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 15, 54, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000026"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000118"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000072"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000297"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 7, 23, 14, 1, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 13, 44, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000121"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000073"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000298"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 7, 23, 14, 33, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 14, 10, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000003"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000122"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000074"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000300"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 7, 23, 15, 12, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 14, 45, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000030"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000124"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000075"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000302"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 7, 23, 16, 38, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 16, 19, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000018"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000125"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000076"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000310"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 7, 31, 15, 18, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 15, 1, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000025"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000130"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000077"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000311"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 31, 15, 47, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 15, 25, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000010"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000131"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000078"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000313"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 31, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 16, 54, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000020"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000132"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000079"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000317"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 12, 8, 8, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 7, 42, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000011"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000134"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000080"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000319"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 8, 12, 10, 18, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 9, 48, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000012"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000135"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000081"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000320"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 12, 9, 15, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 8, 55, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000025"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000136"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000082"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000338"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 7, 24, 8, 41, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 24, 8, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000141"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000083"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000339"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 7, 24, 9, 25, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 24, 8, 57, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000142"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000084"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000342"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 24, 9, 13, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 24, 8, 56, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000025"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000143"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000085"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000343"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 24, 10, 4, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 24, 9, 37, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000030"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000144"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000086"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000354"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 28, 17, 16, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 16, 50, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000008"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000149"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000087"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000357"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 1, 11, 8, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 1, 10, 53, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000151"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000088"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000358"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 5, 15, 0, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 5, 14, 44, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000152"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000089"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000359"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 5, 14, 12, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 5, 13, 56, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000013"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000153"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000090"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000362"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 8, 5, 15, 34, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 5, 15, 16, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000003"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000154"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000091"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000364"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 5, 16, 34, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 5, 16, 4, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000020"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000155"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000092"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000366"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 5, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 5, 17, 11, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000156"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000093"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000367"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 9, 8, 7, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 7, 46, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000157"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000094"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000370"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 9, 9, 33, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 9, 15, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000159"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000095"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000372"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 9, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 11, 20, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000161"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000096"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000374"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 8, 9, 10, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 9, 10, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000163"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000097"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000380"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 8, 17, 8, 44, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 8, 20, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000165"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000098"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000381"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 17, 10, 14, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 9, 24, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000005"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000166"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000099"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000402"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 25, 14, 7, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 13, 43, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000030"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000169"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000100"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000404"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 29, 8, 11, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 7, 43, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000004"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000171"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000101"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000408"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 7, 29, 10, 14, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 9, 50, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000030"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000174"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000102"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000413"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 2, 14, 3, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 13, 48, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000177"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000103"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000414"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 2, 16, 8, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 15, 42, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000178"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000104"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000415"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 2, 16, 33, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 16, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000030"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000179"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000105"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000416"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 2, 16, 48, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 16, 18, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000180"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000106"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000418"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 6, 8, 53, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 6, 8, 33, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000023"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000181"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000107"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000419"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 6, 8, 55, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 6, 8, 39, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000182"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000108"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000423"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 6, 10, 26, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 6, 10, 7, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000009"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000185"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000109"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000426"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 6, 11, 14, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 6, 10, 51, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000011"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000188"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000110"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000428"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 10, 16, 23, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 10, 15, 59, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000007"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000189"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000111"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000433"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 14, 10, 12, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 9, 37, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000017"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000192"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000112"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000435"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 8, 14, 10, 10, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 9, 46, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000194"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000113"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000436"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 14, 10, 9, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 9, 50, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000195"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000114"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000437"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 14, 10, 51, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 10, 29, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000009"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000196"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000115"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000438"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 14, 11, 15, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 10, 53, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000018"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000197"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000116"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000441"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 14, 11, 38, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 11, 33, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000013"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000199"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000117"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000444"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 18, 14, 51, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 14, 22, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000004"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000202"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000118"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000466"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 31, 7, 55, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 7, 43, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000023"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000205"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000119"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000469"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 31, 9, 36, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 9, 7, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000028"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000207"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000120"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000470"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 7, 31, 11, 10, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 10, 44, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000208"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000121"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000472"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 4, 14, 57, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 14, 30, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000210"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000122"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000476"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 4, 16, 57, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 16, 28, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000211"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000123"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000478"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 4, 17, 45, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 17, 40, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000018"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000212"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000124"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000490"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 8, 16, 9, 51, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 16, 9, 25, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000005"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000217"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000125"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000491"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 16, 10, 8, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 16, 9, 52, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000017"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000218"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000126"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000503"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 7, 24, 15, 6, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 24, 14, 50, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000005"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000220"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000127"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000504"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 24, 16, 4, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 24, 15, 45, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000020"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000221"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000128"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000505"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 28, 11, 47, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 11, 42, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000025"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000222"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000129"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000506"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 1, 14, 19, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 1, 13, 59, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000018"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000223"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000130"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000522"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 13, 9, 41, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 9, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000002"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000231"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000131"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000523"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 13, 9, 33, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 9, 10, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000028"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000232"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000132"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000527"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 13, 10, 56, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 13, 10, 39, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000018"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000235"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000133"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000528"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 17, 14, 19, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 13, 56, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000020"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000236"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000134"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000531"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 17, 17, 29, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 17, 12, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000239"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000135"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000539"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 7, 25, 9, 20, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 8, 51, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000001"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000240"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000136"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000540"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 7, 25, 9, 52, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 9, 28, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000241"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000137"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000541"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 7, 25, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 11, 15, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000023"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000242"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000138"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000543"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 7, 25, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 11, 20, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000005"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000243"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000139"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000548"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 2, 10, 12, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 9, 52, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000004"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000246"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000140"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000550"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 2, 10, 32, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 10, 13, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000006"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000248"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000141"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000554"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 6, 14, 56, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 6, 14, 10, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000012"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000249"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000142"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000557"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 10, 8, 35, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 10, 8, 9, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000009"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000251"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000143"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000563"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 8, 10, 11, 54, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 10, 11, 49, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000024"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000254"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000144"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000564"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 14, 15, 2, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 14, 39, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000019"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000255"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000145"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000569"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 18, 8, 24, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 8, 7, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000258"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000146"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000571"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute contact dermatitis",
                             ExamEndTime = new DateTime(2026, 8, 18, 9, 14, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 8, 53, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid suspected contact allergens, apply hypoallergenic moisturizer, do not scratch lesions.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Hydrocortisone cream 1% (apply BID), Cetirizine 10mg (1 tab at bedtime).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000259"),
                             Status = "Finalized",
                             Symptoms = "Erythematous papules and intense itching on bilateral forearms and neck."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000147"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000574"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 18, 11, 13, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 10, 56, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000261"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000148"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000575"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 18, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 11, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000023"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000262"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000149"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000576"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 18, 11, 35, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000009"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000263"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000150"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000593"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 7, 23, 15, 3, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 23, 14, 35, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000265"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000151"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000600"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 7, 31, 15, 18, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 15, 12, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000026"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000268"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000152"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000601"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 7, 31, 16, 24, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 31, 16, 0, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000014"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000269"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000153"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000602"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 4, 8, 2, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 7, 39, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000270"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000154"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000604"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 4, 9, 3, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 8, 32, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000003"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000272"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000155"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000605"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 4, 9, 25, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 9, 4, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000008"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000273"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000156"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000606"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 4, 9, 36, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 9, 16, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000029"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000274"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000157"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000608"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 4, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 11, 26, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000026"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000275"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000158"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000609"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 4, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 4, 10, 53, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000276"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000159"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000611"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 8, 14, 17, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 8, 13, 59, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000028"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000277"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000160"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000612"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 8, 14, 42, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 8, 14, 14, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000022"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000278"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000161"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000615"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 8, 16, 53, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 8, 16, 28, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000010"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000279"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000162"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000616"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 8, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 8, 17, 29, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000002"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000280"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000163"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000622"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 12, 11, 7, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 12, 10, 44, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000018"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000283"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000164"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000626"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 16, 15, 44, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 16, 15, 24, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000001"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000284"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000165"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000631"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 8, 16, 17, 45, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 16, 17, 40, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000030"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000287"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000166"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000647"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 7, 28, 15, 13, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 28, 14, 53, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000029"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000289"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000167"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000656"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 5, 15, 59, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 5, 15, 38, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000016"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000293"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000168"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000658"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Type 2 diabetes mellitus - newly diagnosed",
                             ExamEndTime = new DateTime(2026, 8, 5, 17, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 5, 17, 13, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred to nutrition specialist, instructed on self-monitoring of blood glucose.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000010"),
                             Prescription = "Metformin 500mg (1 tab BID with meals).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000294"),
                             Status = "Finalized",
                             Symptoms = "Fasting blood glucose 7.4 mmol/L, HbA1c 6.8%, mild polydipsia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000169"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000669"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Essential hypertension Stage 1",
                             ExamEndTime = new DateTime(2026, 8, 17, 7, 53, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 7, 38, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Low-sodium DASH diet recommended, home BP logging twice daily, review in 1 month.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Amlodipine 5mg (1 tab daily in the morning).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000302"),
                             Status = "Finalized",
                             Symptoms = "Routine screening: asymptomatic, BP recorded 145/92 mmHg, BMI 26.2."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000170"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000670"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 8, 17, 10, 31, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 9, 44, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000028"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000303"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000171"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000671"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 17, 11, 18, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 17, 10, 57, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000007"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000304"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000172"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000686"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 25, 16, 22, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 15, 54, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000013"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000306"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000173"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000688"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 7, 25, 16, 35, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 25, 16, 7, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000012"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000307"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000174"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000691"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute viral upper respiratory infection",
                             ExamEndTime = new DateTime(2026, 7, 29, 8, 19, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 8, 4, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Rest, drink plenty of warm fluids, return if fever persists > 3 days or dyspnea develops.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000011"),
                             Prescription = "Paracetamol 500mg (1 tab TID prn fever), Vitamin C 500mg (1 tab daily), Cough syrup 10ml TID.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000310"),
                             Status = "Finalized",
                             Symptoms = "Mild fever, dry cough, and fatigue for 2 days."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000175"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000693"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 7, 29, 9, 55, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 7, 29, 9, 32, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000004"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000312"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000176"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000697"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 2, 14, 0, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 13, 44, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000011"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000314"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000177"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000700"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 2, 16, 39, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 2, 16, 9, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000010"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000315"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000178"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000706"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 6, 11, 30, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 6, 11, 1, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000002"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000318"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000179"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000707"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 10, 14, 56, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 10, 14, 29, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000002"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000319"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000180"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000711"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 10, 15, 5, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 10, 14, 44, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000005"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000321"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000181"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000712"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Allergic rhinitis",
                             ExamEndTime = new DateTime(2026, 8, 10, 16, 5, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 10, 15, 43, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Minimize exposure to dust and pollens, use saline nasal wash daily.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000027"),
                             Prescription = "Fluticasone furoate nasal spray (1 spray per nostril daily), Fexofenadine 180mg (1 tab daily).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000322"),
                             Status = "Finalized",
                             Symptoms = "Nasal congestion, clear rhinorrhea, sneezing bouts, itchy eyes."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000182"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000717"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Gastroesophageal reflux disease (GERD) with mild gastritis",
                             ExamEndTime = new DateTime(2026, 8, 14, 9, 0, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 8, 40, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Avoid spicy/fatty foods, do not lie down within 2 hours after meals, follow up in 4 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000015"),
                             Prescription = "Esomeprazole 40mg (1 tab 30 mins before breakfast), Phosphalugel (1 sachet TID prn).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000325"),
                             Status = "Finalized",
                             Symptoms = "Epigastric burning pain aggravated after meals, bloating and acid regurgitation."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000183"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000718"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Acute lumbar muscle strain",
                             ExamEndTime = new DateTime(2026, 8, 14, 8, 45, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 8, 28, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Relative rest for 48 hours, avoid heavy lifting, gentle stretching exercises demonstrated.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000009"),
                             Prescription = "Eperisone 50mg (1 tab TID), Paracetamol 500mg (1 tab TID), Topical diclofenac gel.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000326"),
                             Status = "Finalized",
                             Symptoms = "Lower back stiffness and dull ache after heavy lifting, localized tenderness."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000184"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000721"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Non-cardiac chest discomfort - rule out exertional angina",
                             ExamEndTime = new DateTime(2026, 8, 14, 10, 59, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 14, 10, 29, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Referred for treadmill stress test and 12-lead ECG. Follow up in 2 weeks.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000020"),
                             Prescription = "Aspirin 81mg (1 tab daily), Trimetazidine 35mg (1 tab BID), Nitroglycerin sublingual prn.",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000329"),
                             Status = "Finalized",
                             Symptoms = "Intermittent chest tightness during physical exertion, mild palpitations."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000185"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000724"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Early primary osteoarthritis of the knee",
                             ExamEndTime = new DateTime(2026, 8, 18, 14, 56, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 14, 37, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Recommended low-impact exercise (swimming/cycling), physical therapy session scheduled.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000008"),
                             Prescription = "Glucosamine sulfate 1500mg (1 packet daily), Meloxicam 7.5mg (1 tab daily with food).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000330"),
                             Status = "Finalized",
                             Symptoms = "Bilateral knee pain, stiffness worse in mornings lasting 15 minutes, crepitus on movement."
                         },
                         new
                         {
                             Id = new Guid("a0000011-0000-0000-0000-000000000186"),
+                            AppointmentId = new Guid("a0000009-0000-0000-0000-000000000727"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Diagnosis = "Tension-type headache with migraine features",
                             ExamEndTime = new DateTime(2026, 8, 18, 16, 3, 0, 0, DateTimeKind.Unspecified),
                             ExamStartTime = new DateTime(2026, 8, 18, 15, 40, 0, 0, DateTimeKind.Unspecified),
                             IsDeleted = false,
                             Notes = "Advised regular sleep hygiene, adequate hydration, stress reduction techniques.",
+                            PatientId = new Guid("a0000005-0000-0000-0000-000000000013"),
                             Prescription = "Ibuprofen 400mg (1 tab prn), Magnesium B6 (2 tabs BID).",
-                            QueueTicketId = new Guid("a0000010-0000-0000-0000-000000000332"),
                             Status = "Finalized",
                             Symptoms = "Throbbing frontal and temporal headache, mild nausea, photophobia."
                         });
@@ -18784,12 +19007,12 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<int>("PatientLimit")
-                        .HasColumnType("int");
-
                     b.Property<string>("Reason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("RecommendedCapacity")
+                        .HasColumnType("int");
 
                     b.Property<TimeOnly>("ShiftEnd")
                         .HasColumnType("time");
@@ -20040,7 +20263,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<int>("PatientLimit")
+                    b.Property<int>("RecommendedCapacity")
                         .HasColumnType("int");
 
                     b.Property<TimeOnly>("ShiftEnd")
@@ -20071,7 +20294,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20083,7 +20306,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20095,7 +20318,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20107,7 +20330,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20119,7 +20342,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20131,7 +20354,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20143,7 +20366,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20155,7 +20378,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20167,7 +20390,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20179,7 +20402,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000001"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20191,7 +20414,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20203,7 +20426,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20215,7 +20438,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20227,7 +20450,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20239,7 +20462,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20251,7 +20474,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20263,7 +20486,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20275,7 +20498,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20287,7 +20510,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20299,7 +20522,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000002"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20311,7 +20534,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20323,7 +20546,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20335,7 +20558,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20347,7 +20570,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20359,7 +20582,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20371,7 +20594,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20383,7 +20606,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20395,7 +20618,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20407,7 +20630,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20419,7 +20642,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000003"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20431,7 +20654,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20443,7 +20666,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20455,7 +20678,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20467,7 +20690,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20479,7 +20702,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20491,7 +20714,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20503,7 +20726,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20515,7 +20738,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20527,7 +20750,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20539,7 +20762,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000004"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20551,7 +20774,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20563,7 +20786,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20575,7 +20798,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20587,7 +20810,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20599,7 +20822,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20611,7 +20834,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20623,7 +20846,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20635,7 +20858,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20647,7 +20870,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20659,7 +20882,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000005"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20671,7 +20894,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20683,7 +20906,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20695,7 +20918,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20707,7 +20930,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20719,7 +20942,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20731,7 +20954,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20743,7 +20966,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20755,7 +20978,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20767,7 +20990,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20779,7 +21002,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000006"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20791,7 +21014,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20803,7 +21026,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20815,7 +21038,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20827,7 +21050,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20839,7 +21062,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20851,7 +21074,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20863,7 +21086,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20875,7 +21098,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20887,7 +21110,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20899,7 +21122,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000007"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20911,7 +21134,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20923,7 +21146,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20935,7 +21158,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20947,7 +21170,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20959,7 +21182,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20971,7 +21194,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -20983,7 +21206,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -20995,7 +21218,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21007,7 +21230,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21019,7 +21242,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000008"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21031,7 +21254,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21043,7 +21266,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21055,7 +21278,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21067,7 +21290,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21079,7 +21302,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21091,7 +21314,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21103,7 +21326,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21115,7 +21338,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 33,
+                            RecommendedCapacity = 33,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21127,7 +21350,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 40,
+                            RecommendedCapacity = 40,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21139,7 +21362,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000009"),
                             IsDeleted = false,
-                            PatientLimit = 26,
+                            RecommendedCapacity = 26,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21151,7 +21374,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21163,7 +21386,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21175,7 +21398,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21187,7 +21410,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21199,7 +21422,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21211,7 +21434,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21223,7 +21446,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21235,7 +21458,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 36,
+                            RecommendedCapacity = 36,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21247,7 +21470,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 22,
+                            RecommendedCapacity = 22,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21259,7 +21482,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000010"),
                             IsDeleted = false,
-                            PatientLimit = 29,
+                            RecommendedCapacity = 29,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21271,7 +21494,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21283,7 +21506,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21295,7 +21518,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21307,7 +21530,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21319,7 +21542,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21331,7 +21554,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21343,7 +21566,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21355,7 +21578,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 39,
+                            RecommendedCapacity = 39,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21367,7 +21590,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 25,
+                            RecommendedCapacity = 25,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21379,7 +21602,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000011"),
                             IsDeleted = false,
-                            PatientLimit = 32,
+                            RecommendedCapacity = 32,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21391,7 +21614,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21403,7 +21626,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21415,7 +21638,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21427,7 +21650,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21439,7 +21662,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21451,7 +21674,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21463,7 +21686,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21475,7 +21698,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 21,
+                            RecommendedCapacity = 21,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21487,7 +21710,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 28,
+                            RecommendedCapacity = 28,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21499,7 +21722,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000012"),
                             IsDeleted = false,
-                            PatientLimit = 35,
+                            RecommendedCapacity = 35,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21511,7 +21734,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21523,7 +21746,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21535,7 +21758,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21547,7 +21770,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 4),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21559,7 +21782,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 8),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21571,7 +21794,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 12),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21583,7 +21806,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 16),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21595,7 +21818,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 22),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 24,
+                            RecommendedCapacity = 24,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21607,7 +21830,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 26),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 31,
+                            RecommendedCapacity = 31,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21619,7 +21842,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 31),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000013"),
                             IsDeleted = false,
-                            PatientLimit = 38,
+                            RecommendedCapacity = 38,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21631,7 +21854,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21643,7 +21866,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21655,7 +21878,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21667,7 +21890,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 5),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21679,7 +21902,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 9),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21691,7 +21914,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 13),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21703,7 +21926,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 17),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21715,7 +21938,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 23),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 27,
+                            RecommendedCapacity = 27,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21727,7 +21950,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 27),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 34,
+                            RecommendedCapacity = 34,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21739,7 +21962,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 1),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000014"),
                             IsDeleted = false,
-                            PatientLimit = 20,
+                            RecommendedCapacity = 20,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21751,7 +21974,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 25),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21763,7 +21986,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 7, 29),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21775,7 +21998,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21787,7 +22010,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 6),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21799,7 +22022,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 10),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21811,7 +22034,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 14),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21823,7 +22046,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 18),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21835,7 +22058,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 24),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 30,
+                            RecommendedCapacity = 30,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
@@ -21847,7 +22070,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 8, 28),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 37,
+                            RecommendedCapacity = 37,
                             ShiftEnd = new TimeOnly(17, 30, 0),
                             ShiftStart = new TimeOnly(13, 30, 0),
                             Status = "Active"
@@ -21859,15 +22082,167 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Date = new DateOnly(2026, 9, 2),
                             DoctorId = new Guid("a0000004-0000-0000-0000-000000000015"),
                             IsDeleted = false,
-                            PatientLimit = 23,
+                            RecommendedCapacity = 23,
                             ShiftEnd = new TimeOnly(11, 30, 0),
                             ShiftStart = new TimeOnly(7, 30, 0),
                             Status = "Active"
                         });
                 });
 
+            modelBuilder.Entity("Clinic.Infrastructure.Sqlserver.Inbox.InboxMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ConsumerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ProcessingStartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId", "ConsumerName")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "ProcessingStartedAt");
+
+                    b.ToTable("InboxMessages", (string)null);
+                });
+
+            modelBuilder.Entity("Clinic.Infrastructure.Sqlserver.Outbox.OutboxMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid?>("CausationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("LastAttemptAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Producer")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("PublishingStartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RoutingKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TraceState")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.HasIndex("Status", "NextAttemptAt", "LastAttemptAt");
+
+                    b.HasIndex("Status", "NextAttemptAt", "PublishingStartedAt");
+
+                    b.ToTable("OutboxMessages", (string)null);
+                });
+
             modelBuilder.Entity("Clinic.Domain.Entities.Appointment", b =>
                 {
+                    b.HasOne("Clinic.Domain.Entities.BookingSlot", "BookingSlot")
+                        .WithOne("Appointment")
+                        .HasForeignKey("Clinic.Domain.Entities.Appointment", "BookingSlotId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Clinic.Domain.Entities.Patient", "Patient")
                         .WithMany("Appointments")
                         .HasForeignKey("PatientId")
@@ -21885,6 +22260,8 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .HasForeignKey("WorkScheduleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("BookingSlot");
 
                     b.Navigation("Patient");
 
@@ -21920,6 +22297,17 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Navigation("Updator");
                 });
 
+            modelBuilder.Entity("Clinic.Domain.Entities.BookingSlot", b =>
+                {
+                    b.HasOne("Clinic.Domain.Entities.WorkSchedule", "WorkSchedule")
+                        .WithMany()
+                        .HasForeignKey("WorkScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("WorkSchedule");
+                });
+
             modelBuilder.Entity("Clinic.Domain.Entities.Doctor", b =>
                 {
                     b.HasOne("Clinic.Domain.Entities.Employee", "Employee")
@@ -21951,13 +22339,21 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
 
             modelBuilder.Entity("Clinic.Domain.Entities.MedicalReport", b =>
                 {
-                    b.HasOne("Clinic.Domain.Entities.QueueTicket", "QueueTicket")
+                    b.HasOne("Clinic.Domain.Entities.Appointment", "Appointment")
                         .WithOne("MedicalReport")
-                        .HasForeignKey("Clinic.Domain.Entities.MedicalReport", "QueueTicketId")
+                        .HasForeignKey("Clinic.Domain.Entities.MedicalReport", "AppointmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("QueueTicket");
+                    b.HasOne("Clinic.Domain.Entities.Patient", "Patient")
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+
+                    b.Navigation("Patient");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.Notification", b =>
@@ -22096,9 +22492,16 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
 
             modelBuilder.Entity("Clinic.Domain.Entities.Appointment", b =>
                 {
+                    b.Navigation("MedicalReport");
+
                     b.Navigation("QueueTicket");
 
                     b.Navigation("Snapshots");
+                });
+
+            modelBuilder.Entity("Clinic.Domain.Entities.BookingSlot", b =>
+                {
+                    b.Navigation("Appointment");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.Doctor", b =>
@@ -22134,11 +22537,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Navigation("Patient");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.QueueTicket", b =>
-                {
-                    b.Navigation("MedicalReport");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.Role", b =>

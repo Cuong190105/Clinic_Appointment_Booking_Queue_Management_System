@@ -31,9 +31,6 @@ namespace Clinic.Domain.Entities
         /// </summary>
         public byte[] RowVersion { get; set; } = null!;
 
-        /// <summary>0..1 - chỉ có sau khi bác sĩ khám xong.</summary>
-        public MedicalReport? MedicalReport { get; set; }
-
         public QueueTicket() { }
 
         public QueueTicket(

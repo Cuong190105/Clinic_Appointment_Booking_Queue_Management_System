@@ -14,11 +14,21 @@ namespace Clinic.Domain.Enums
         Resigned
     }
 
+
+
     public enum WorkScheduleStatus
     {
         Active,
         Full,
         Cancelled
+    }
+
+    /// <summary>Trạng thái giữ chỗ trong quy trình đặt lịch (reservation saga).</summary>
+    public enum BookingSlotStatus
+    {
+        Available,
+        Reserved,
+        Booked
     }
 
     /// <summary>
