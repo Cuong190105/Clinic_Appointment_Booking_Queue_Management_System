@@ -34,8 +34,12 @@ namespace Clinic.Application.Features.MedicalReports.Queries
                 .Select(r => new MedicalReportDto
                 {
                     Id = r.Id,
-                    DoctorName = r.QueueTicket.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                    ExamDate = r.QueueTicket.Appointment.WorkSchedule.Date,
+                    AppointmentId = r.AppointmentId,
+                    PatientId = r.PatientId,
+                    PatientName = r.Patient?.Person?.FullName ?? string.Empty,
+                    DoctorId = r.Appointment.WorkSchedule.DoctorId,
+                    DoctorName = r.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                    ExamDate = r.Appointment.WorkSchedule.Date,
                     Symptoms = r.Symptoms,
                     Diagnosis = r.Diagnosis,
                     Prescription = r.Prescription,

@@ -22,6 +22,11 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 .HasForeignKey(a => a.WorkScheduleId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            builder.HasOne(a => a.BookingSlot)
+                .WithOne(slot => slot.Appointment)
+                .HasForeignKey<Appointment>(a => a.BookingSlotId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             builder.HasOne(a => a.Updator)
                 .WithMany()
                 .HasForeignKey(a => a.UpdatedByUserId)

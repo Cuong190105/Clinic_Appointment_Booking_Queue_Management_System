@@ -49,7 +49,8 @@ async function loadAllSuggestions() {
     const maxEnd = new Date(s)
     maxEnd.setMonth(maxEnd.getMonth() + 1)
     if (e > maxEnd) {
-      errorMessage.value = 'Khoảng thời gian tra cứu không được vượt quá 1 tháng theo quy định hệ thống.'
+      errorMessage.value =
+        'Khoảng thời gian tra cứu không được vượt quá 1 tháng theo quy định hệ thống.'
       return
     }
   }
@@ -106,11 +107,15 @@ watch([startDate, endDate], async () => {
   await loadAllSuggestions()
 })
 
-watch(() => props.doctors, async (newVal) => {
-  if (newVal.length > 0) {
-    await loadAllSuggestions()
-  }
-}, { immediate: true })
+watch(
+  () => props.doctors,
+  async (newVal) => {
+    if (newVal.length > 0) {
+      await loadAllSuggestions()
+    }
+  },
+  { immediate: true },
+)
 
 onMounted(async () => {
   if (props.doctors.length > 0) {
@@ -122,7 +127,9 @@ onMounted(async () => {
 const filteredSuggestions = computed(() => {
   const keyword = search.value.trim().toLowerCase()
   const selectedSpecObj = props.specialties.find(
-    (s) => s.id === selectedSpecialty.value || s.name.toLowerCase() === selectedSpecialty.value.toLowerCase(),
+    (s) =>
+      s.id === selectedSpecialty.value ||
+      s.name.toLowerCase() === selectedSpecialty.value.toLowerCase(),
   )
   const targetSpecName = selectedSpecObj ? selectedSpecObj.name : selectedSpecialty.value
 
@@ -135,7 +142,8 @@ const filteredSuggestions = computed(() => {
       item.date.includes(keyword)
 
     // Doctor filter
-    const matchesDoctor = selectedDoctorId.value === 'all' || item.doctorId === selectedDoctorId.value
+    const matchesDoctor =
+      selectedDoctorId.value === 'all' || item.doctorId === selectedDoctorId.value
 
     // Specialty filter
     const matchesSpec =
@@ -154,7 +162,11 @@ const pendingCount = computed(() => suggestions.value.filter((s) => s.status ===
 
 // Actions
 async function handleApprove(item: ShiftSuggestion) {
-  if (!confirm(`Phê duyệt ca trực ngày ${item.date} (${item.startTime} - ${item.endTime}) của BS. ${item.doctorName}?`)) {
+  if (
+    !confirm(
+      `Phê duyệt ca trực ngày ${item.date} (${item.startTime} - ${item.endTime}) của BS. ${item.doctorName}?`,
+    )
+  ) {
     return
   }
 
@@ -168,7 +180,8 @@ async function handleApprove(item: ShiftSuggestion) {
     await loadAllSuggestions()
     emit('approved')
   } catch (err: any) {
-    errorMessage.value = err.response?.data?.message || err.message || 'Không thể phê duyệt đề xuất.'
+    errorMessage.value =
+      err.response?.data?.message || err.message || 'Không thể phê duyệt đề xuất.'
   } finally {
     actionLoading.value = null
   }
@@ -247,28 +260,32 @@ defineExpose({
     />
 
     <!-- SUMMARY STATS -->
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
-        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Tổng đề xuất</p>
+        <p class="text-xs font-semibold tracking-wider text-slate-400 uppercase">Tổng đề xuất</p>
         <p class="mt-1.5 text-2xl font-bold text-slate-800">{{ suggestions.length }}</p>
       </div>
       <div class="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-2xs">
-        <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">Đang chờ duyệt</p>
+        <p class="text-xs font-semibold tracking-wider text-amber-600 uppercase">Đang chờ duyệt</p>
         <p class="mt-1.5 text-2xl font-bold text-amber-700">{{ pendingCount }}</p>
       </div>
       <div class="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-2xs">
-        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Đã phê duyệt</p>
-        <p class="mt-1.5 text-2xl font-bold text-emerald-700">{{ suggestions.filter(s => s.status === 'Approved').length }}</p>
+        <p class="text-xs font-semibold tracking-wider text-emerald-600 uppercase">Đã phê duyệt</p>
+        <p class="mt-1.5 text-2xl font-bold text-emerald-700">
+          {{ suggestions.filter((s) => s.status === 'Approved').length }}
+        </p>
       </div>
       <div class="rounded-2xl border border-red-200 bg-red-50/50 p-4 shadow-2xs">
-        <p class="text-xs font-semibold uppercase tracking-wider text-red-600">Đã từ chối</p>
-        <p class="mt-1.5 text-2xl font-bold text-red-700">{{ suggestions.filter(s => s.status === 'Rejected').length }}</p>
+        <p class="text-xs font-semibold tracking-wider text-red-600 uppercase">Đã từ chối</p>
+        <p class="mt-1.5 text-2xl font-bold text-red-700">
+          {{ suggestions.filter((s) => s.status === 'Rejected').length }}
+        </p>
       </div>
     </div>
 
     <!-- TOOLBAR -->
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs space-y-3">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+    <div class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs sm:p-5">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <!-- SEARCH -->
         <div class="relative lg:col-span-2">
           <input
@@ -278,7 +295,7 @@ defineExpose({
             class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pl-10 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#0E4D92] focus:outline-none"
           />
           <svg
-            class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -295,11 +312,7 @@ defineExpose({
           class="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 focus:border-[#0E4D92] focus:outline-none"
         >
           <option value="all">Tất cả bác sĩ</option>
-          <option
-            v-for="d in doctors"
-            :key="d.id"
-            :value="d.id"
-          >
+          <option v-for="d in doctors" :key="d.id" :value="d.id">
             {{ d.fullName || d.name }}
           </option>
         </select>
@@ -310,11 +323,7 @@ defineExpose({
           class="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 focus:border-[#0E4D92] focus:outline-none"
         >
           <option value="all">Tất cả chuyên khoa</option>
-          <option
-            v-for="sp in specialties"
-            :key="sp.id"
-            :value="sp.id"
-          >
+          <option v-for="sp in specialties" :key="sp.id" :value="sp.id">
             {{ formatSpecialtyName(sp.name) }}
           </option>
         </select>
@@ -333,7 +342,7 @@ defineExpose({
       </div>
 
       <!-- DATE RANGE & REFRESH -->
-      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-2">
         <div class="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-600">
           <span>Khoảng ngày:</span>
           <input
@@ -349,7 +358,7 @@ defineExpose({
           />
           <button
             type="button"
-            class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors"
+            class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
             @click="loadAllSuggestions"
           >
             Lọc ngày
@@ -359,14 +368,14 @@ defineExpose({
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+            class="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
             @click="resetFilters"
           >
             Đặt lại bộ lọc
           </button>
           <button
             type="button"
-            class="rounded-xl bg-[#0E4D92] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#0c407a] transition-colors disabled:opacity-50"
+            class="rounded-xl bg-[#0E4D92] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0c407a] disabled:opacity-50"
             :disabled="loading"
             @click="loadAllSuggestions"
           >
@@ -382,13 +391,27 @@ defineExpose({
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-slate-200 bg-slate-50 text-slate-600">
-              <th class="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">Bác sĩ & Chuyên khoa</th>
-              <th class="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">Ngày ca trực</th>
-              <th class="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">Thời gian</th>
-              <th class="px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">Giới hạn BN</th>
-              <th class="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider">Lý do đề xuất</th>
-              <th class="px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider">Trạng thái</th>
-              <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Thao tác</th>
+              <th class="px-4 py-3.5 text-left text-xs font-bold tracking-wider uppercase">
+                Bác sĩ & Chuyên khoa
+              </th>
+              <th class="px-4 py-3.5 text-left text-xs font-bold tracking-wider uppercase">
+                Ngày ca trực
+              </th>
+              <th class="px-4 py-3.5 text-left text-xs font-bold tracking-wider uppercase">
+                Thời gian
+              </th>
+              <th class="px-4 py-3.5 text-center text-xs font-bold tracking-wider uppercase">
+                Giới hạn BN
+              </th>
+              <th class="px-4 py-3.5 text-left text-xs font-bold tracking-wider uppercase">
+                Lý do đề xuất
+              </th>
+              <th class="px-4 py-3.5 text-center text-xs font-bold tracking-wider uppercase">
+                Trạng thái
+              </th>
+              <th class="px-4 py-3.5 text-right text-xs font-bold tracking-wider uppercase">
+                Thao tác
+              </th>
             </tr>
           </thead>
 
@@ -396,12 +419,12 @@ defineExpose({
             <tr
               v-for="item in filteredSuggestions"
               :key="item.id"
-              class="hover:bg-slate-50/70 transition-colors"
+              class="transition-colors hover:bg-slate-50/70"
             >
               <!-- Doctor -->
               <td class="px-4 py-3.5">
                 <div class="font-bold text-slate-800">{{ item.doctorName }}</div>
-                <div class="text-xs text-slate-500 font-medium mt-0.5">
+                <div class="mt-0.5 text-xs font-medium text-slate-500">
                   {{ formatSpecialtyName(item.specialty) || 'Bác sĩ' }}
                 </div>
               </td>
@@ -413,20 +436,27 @@ defineExpose({
 
               <!-- Time -->
               <td class="px-4 py-3.5 font-mono text-xs text-slate-700">
-                <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+                <span
+                  class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 font-semibold text-slate-700"
+                >
                   {{ item.startTime }} - {{ item.endTime }}
                 </span>
               </td>
 
               <!-- Limit -->
               <td class="px-4 py-3.5 text-center">
-                <span class="inline-flex items-center justify-center rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#0E4D92]">
-                  {{ item.patientLimit }} BN
+                <span
+                  class="inline-flex items-center justify-center rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#0E4D92]"
+                >
+                  {{ item.RecommendedCapacity }} BN
                 </span>
               </td>
 
               <!-- Reason -->
-              <td class="max-w-xs px-4 py-3.5 text-xs text-slate-600 truncate" :title="item.reason || ''">
+              <td
+                class="max-w-xs truncate px-4 py-3.5 text-xs text-slate-600"
+                :title="item.reason || ''"
+              >
                 {{ item.reason || '—' }}
               </td>
 
@@ -445,7 +475,7 @@ defineExpose({
                 <div v-if="item.status === 'Pending'" class="flex items-center justify-end gap-2">
                   <button
                     type="button"
-                    class="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    class="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 disabled:opacity-50"
                     :disabled="actionLoading === item.id"
                     @click="handleApprove(item)"
                   >
@@ -454,7 +484,7 @@ defineExpose({
                   </button>
                   <button
                     type="button"
-                    class="inline-flex items-center gap-1 rounded-lg bg-red-50 border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                    class="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
                     :disabled="actionLoading === item.id"
                     @click="handleReject(item)"
                   >
@@ -462,26 +492,28 @@ defineExpose({
                     <span>Từ chối</span>
                   </button>
                 </div>
-                <span v-else class="text-xs text-slate-400 italic">
-                  Đã xử lý
-                </span>
+                <span v-else class="text-xs text-slate-400 italic"> Đã xử lý </span>
               </td>
             </tr>
 
             <!-- Empty -->
             <tr v-if="filteredSuggestions.length === 0 && !loading">
               <td colspan="7" class="py-12 text-center text-slate-400">
-                <div class="text-3xl mb-2">📋</div>
+                <div class="mb-2 text-3xl">📋</div>
                 <div class="font-medium text-slate-600">Không tìm thấy đề xuất ca làm việc nào</div>
-                <div class="text-xs text-slate-400 mt-1">Các đề xuất đăng ký ca trực của bác sĩ sẽ xuất hiện tại đây</div>
+                <div class="mt-1 text-xs text-slate-400">
+                  Các đề xuất đăng ký ca trực của bác sĩ sẽ xuất hiện tại đây
+                </div>
               </td>
             </tr>
 
             <!-- Loading -->
             <tr v-if="loading">
               <td colspan="7" class="py-12 text-center text-slate-500">
-                <span class="animate-spin inline-block text-2xl mb-1">🌀</span>
-                <div class="text-xs font-semibold text-violet-600">Đang tải danh sách đề xuất ca trực...</div>
+                <span class="mb-1 inline-block animate-spin text-2xl">🌀</span>
+                <div class="text-xs font-semibold text-violet-600">
+                  Đang tải danh sách đề xuất ca trực...
+                </div>
               </td>
             </tr>
           </tbody>

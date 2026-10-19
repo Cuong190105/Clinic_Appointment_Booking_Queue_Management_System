@@ -62,7 +62,7 @@ namespace Clinic.Application.UnitTests.Common
                 query = query.Where(w => new DateTime(w.Date, w.ShiftStart) <= toDate.Value);
             }
 
-            query = query.Where(w => w.Appointments.Count(a => a.Status != AppointmentStatus.Cancelled) < w.PatientLimit);
+            query = query.Where(w => w.Appointments.Count(a => a.Status != AppointmentStatus.Cancelled) < w.RecommendedCapacity);
 
             var result = query.OrderBy(w => w.ShiftStart).ToList();
             return Task.FromResult(result);
@@ -91,7 +91,7 @@ namespace Clinic.Application.UnitTests.Common
             foreach (var schedule in result)
             {
                 // workaround to filter inclusion to preserve object stored in context, but lose the reference to other entity
-                var ws = new WorkSchedule(schedule.Id, schedule.DoctorId, schedule.Date, schedule.ShiftStart, schedule.ShiftEnd, schedule.PatientLimit, schedule.Status, schedule.CreatedAt, schedule.UpdatedAt, schedule.IsDeleted);
+                var ws = new WorkSchedule(schedule.Id, schedule.DoctorId, schedule.Date, schedule.ShiftStart, schedule.ShiftEnd, schedule.RecommendedCapacity, schedule.Status, schedule.CreatedAt, schedule.UpdatedAt, schedule.IsDeleted);
                 foreach (var appointment in schedule.Appointments)
                 {
                     if (!appointment.IsDeleted && appointment.Status != AppointmentStatus.Cancelled)
@@ -115,7 +115,7 @@ namespace Clinic.Application.UnitTests.Common
             foreach (var schedule in result)
             {
                 // workaround to filter inclusion to preserve object stored in context, but lose the reference to other entity
-                var ws = new WorkSchedule(schedule.Id, schedule.DoctorId, schedule.Date, schedule.ShiftStart, schedule.ShiftEnd, schedule.PatientLimit, schedule.Status, schedule.CreatedAt, schedule.UpdatedAt, schedule.IsDeleted);
+                var ws = new WorkSchedule(schedule.Id, schedule.DoctorId, schedule.Date, schedule.ShiftStart, schedule.ShiftEnd, schedule.RecommendedCapacity, schedule.Status, schedule.CreatedAt, schedule.UpdatedAt, schedule.IsDeleted);
                 foreach (var appointment in schedule.Appointments)
                 {
                     if (!appointment.IsDeleted && appointment.Status != AppointmentStatus.Cancelled)

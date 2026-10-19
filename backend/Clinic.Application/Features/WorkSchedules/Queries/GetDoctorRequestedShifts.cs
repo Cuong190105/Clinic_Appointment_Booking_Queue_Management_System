@@ -61,7 +61,7 @@ namespace Clinic.Application.Features.WorkSchedules.Queries
                     Date = sr.Date,
                     StartTime = sr.ShiftStart,
                     EndTime = sr.ShiftEnd,
-                    PatientLimit = sr.PatientLimit,
+                    RecommendedCapacity = sr.RecommendedCapacity,
                     Reason = sr.Reason,
                     Status = sr.Status
                 }).ToList(),

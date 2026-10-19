@@ -16,7 +16,7 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
         DateOnly Date,
         TimeOnly StartTime,
         TimeOnly EndTime,
-        int PatientLimit
+        int RecommendedCapacity
     ) : IRequest<Guid>;
     public class UpdateWorkScheduleCommandHandler : IRequestHandler<UpdateWorkScheduleCommand, Guid>
     {
@@ -44,7 +44,7 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
             {
                 throw new InvalidOperationException("The updated schedule overlaps with another existing schedule.");
             }
-            workSchedule.UpdateShift(request.Date, request.StartTime, request.EndTime, request.PatientLimit);
+            workSchedule.UpdateShift(request.Date, request.StartTime, request.EndTime, request.RecommendedCapacity);
             _outboxWriter.Add(
                 new EventEnvelope<WorkScheduleUpdated>
                 {
@@ -55,7 +55,7 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
                     CorrelationId = _eventContext?.CorrelationId ?? Guid.NewGuid(),
                     CausationId = _eventContext?.CausationId,
                     Producer = "scheduling-service",
-                    Payload = new WorkScheduleUpdated(workSchedule.Id, workSchedule.DoctorId, request.Date, request.StartTime, request.EndTime, request.PatientLimit)
+                    Payload = new WorkScheduleUpdated(workSchedule.Id, workSchedule.DoctorId, request.Date, request.StartTime, request.EndTime, request.RecommendedCapacity)
                 },
                 "schedule.updated");
             await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -12,7 +12,8 @@ namespace Clinic.Domain.UnitTests
             // Arrange & Act
             var report = new MedicalReport
             {
-                QueueTicketId = Guid.NewGuid(),
+                AppointmentId = Guid.NewGuid(),
+                PatientId = Guid.NewGuid(),
                 Symptoms = "Fever and sore throat"
             };
 
@@ -29,7 +30,8 @@ namespace Clinic.Domain.UnitTests
             // Arrange
             var report = new MedicalReport
             {
-                QueueTicketId = Guid.NewGuid(),
+                AppointmentId = Guid.NewGuid(),
+                PatientId = Guid.NewGuid(),
                 Status = MedicalReportStatus.Draft
             };
 
@@ -54,7 +56,8 @@ namespace Clinic.Domain.UnitTests
             // Arrange
             var report = new MedicalReport
             {
-                QueueTicketId = Guid.NewGuid(),
+                AppointmentId = Guid.NewGuid(),
+                PatientId = Guid.NewGuid(),
                 Status = MedicalReportStatus.Draft,
                 ExamStartTime = DateTime.UtcNow.AddMinutes(-30)
             };

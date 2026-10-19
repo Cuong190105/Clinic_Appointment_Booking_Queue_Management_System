@@ -24,16 +24,16 @@ namespace Clinic.Application.UnitTests.Common
             return Task.FromResult(report);
         }
 
-        public Task<MedicalReport?> GetByQueueTicketIdAsync(Guid queueTicketId)
+        public Task<MedicalReport?> GetByAppointmentIdAsync(Guid appointmentId)
         {
-            var report = _reports.FirstOrDefault(r => r.QueueTicketId == queueTicketId && !r.IsDeleted);
+            var report = _reports.FirstOrDefault(r => r.AppointmentId == appointmentId && !r.IsDeleted);
             return Task.FromResult(report);
         }
 
         public Task<List<MedicalReport>> GetHistoryByPatientIdAsync(Guid patientId)
         {
             var history = _reports
-                .Where(r => !r.IsDeleted && r.QueueTicket?.Appointment?.PatientId == patientId)
+                .Where(r => !r.IsDeleted && r.PatientId == patientId)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToList();
 

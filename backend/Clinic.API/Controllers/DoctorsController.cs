@@ -213,7 +213,7 @@ namespace Clinic.API.Controllers
         public async Task<IActionResult> CreateShift([FromRoute] Guid doctorId, [FromBody] CreateShiftRequest request)
         {
             // In another branch
-            var command = new AddDoctorScheduleCommand(doctorId, request.Date, request.StartTime, request.EndTime, request.PatientLimit);
+            var command = new AddDoctorScheduleCommand(doctorId, request.Date, request.StartTime, request.EndTime, request.RecommendedCapacity);
             var result = await _sender.Send(command);
             return Created((string?)null, result);
         }

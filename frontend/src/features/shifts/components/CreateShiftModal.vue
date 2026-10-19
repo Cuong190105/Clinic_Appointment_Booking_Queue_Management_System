@@ -30,7 +30,7 @@ const form = reactive({
   date: '',
   startTime: '07:30',
   endTime: '11:30',
-  patientLimit: 20,
+  RecommendedCapacity: 20,
 })
 
 watch(
@@ -42,7 +42,8 @@ watch(
       form.doctorId = props.defaultDoctorId || firstDocId
 
       // Nếu defaultDate nhỏ hơn ngày hôm nay thì chọn ngày hôm nay
-      const initialDate = props.defaultDate && props.defaultDate >= todayDateStr ? props.defaultDate : todayDateStr
+      const initialDate =
+        props.defaultDate && props.defaultDate >= todayDateStr ? props.defaultDate : todayDateStr
       form.date = initialDate
 
       // Nếu ngày là hôm nay, tự động gợi ý ca làm việc ở tương lai
@@ -57,7 +58,7 @@ watch(
         form.endTime = '11:30'
       }
 
-      form.patientLimit = 20
+      form.RecommendedCapacity = 20
     }
   },
   { immediate: true },
@@ -93,7 +94,7 @@ async function handleSubmit() {
     errorMessage.value = 'Giờ kết thúc phải sau giờ bắt đầu.'
     return
   }
-  if (form.patientLimit < 1 || form.patientLimit > 50) {
+  if (form.RecommendedCapacity < 1 || form.RecommendedCapacity > 50) {
     errorMessage.value = 'Giới hạn bệnh nhân phải từ 1 đến 50.'
     return
   }
@@ -122,7 +123,7 @@ async function handleSubmit() {
       date: form.date,
       startTime: form.startTime,
       endTime: form.endTime,
-      patientLimit: Number(form.patientLimit),
+      RecommendedCapacity: Number(form.RecommendedCapacity),
     })
     emit('saved')
     emit('close')
@@ -140,12 +141,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <BaseModal
-    :open="show"
-    title="Thêm lịch làm việc cho bác sĩ"
-    size="lg"
-    @close="emit('close')"
-  >
+  <BaseModal :open="show" title="Thêm lịch làm việc cho bác sĩ" size="lg" @close="emit('close')">
     <form @submit.prevent="handleSubmit" class="space-y-4">
       <BaseAlert
         v-if="errorMessage"
@@ -156,17 +152,9 @@ async function handleSubmit() {
       />
 
       <!-- Chọn Bác sĩ -->
-      <BaseSelect
-        v-model="form.doctorId"
-        label="Bác sĩ phụ trách"
-        required
-      >
+      <BaseSelect v-model="form.doctorId" label="Bác sĩ phụ trách" required>
         <option value="" disabled>-- Chọn bác sĩ --</option>
-        <option
-          v-for="doc in doctors"
-          :key="doc.id"
-          :value="doc.id"
-        >
+        <option v-for="doc in doctors" :key="doc.id" :value="doc.id">
           {{ doc.fullName || doc.name }} ({{ doc.specialty || 'Chưa phân khoa' }})
         </option>
       </BaseSelect>
@@ -182,27 +170,27 @@ async function handleSubmit() {
 
       <!-- Khung giờ định sẵn -->
       <div>
-        <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+        <label class="mb-1.5 block text-xs font-semibold text-slate-700">
           Chọn nhanh ca làm việc
         </label>
         <div class="grid grid-cols-3 gap-2">
           <button
             type="button"
-            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:border-violet-500 hover:bg-violet-50 text-slate-700 transition-colors"
+            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:border-violet-500 hover:bg-violet-50"
             @click="setPresetShift('morning')"
           >
             ☀️ Sáng (07:30 - 11:30)
           </button>
           <button
             type="button"
-            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:border-violet-500 hover:bg-violet-50 text-slate-700 transition-colors"
+            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:border-violet-500 hover:bg-violet-50"
             @click="setPresetShift('afternoon')"
           >
             🌤️ Chiều (13:30 - 17:00)
           </button>
           <button
             type="button"
-            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:border-violet-500 hover:bg-violet-50 text-slate-700 transition-colors"
+            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:border-violet-500 hover:bg-violet-50"
             @click="setPresetShift('fullday')"
           >
             📅 Cả ngày (07:30 - 17:00)
@@ -212,23 +200,13 @@ async function handleSubmit() {
 
       <!-- Giờ bắt đầu & Kết thúc -->
       <div class="grid grid-cols-2 gap-3">
-        <BaseInput
-          v-model="form.startTime"
-          type="time"
-          label="Giờ bắt đầu"
-          required
-        />
-        <BaseInput
-          v-model="form.endTime"
-          type="time"
-          label="Giờ kết thúc"
-          required
-        />
+        <BaseInput v-model="form.startTime" type="time" label="Giờ bắt đầu" required />
+        <BaseInput v-model="form.endTime" type="time" label="Giờ kết thúc" required />
       </div>
 
       <!-- Giới hạn bệnh nhân -->
       <BaseInput
-        v-model="form.patientLimit"
+        v-model="form.RecommendedCapacity"
         type="number"
         label="Số lượng bệnh nhân tối đa tiếp nhận"
         min="1"
@@ -236,22 +214,11 @@ async function handleSubmit() {
         required
       />
 
-      <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-        <BaseButton
-          type="button"
-          variant="outline"
-          :disabled="loading"
-          @click="emit('close')"
-        >
+      <div class="flex justify-end gap-3 border-t border-slate-100 pt-4">
+        <BaseButton type="button" variant="outline" :disabled="loading" @click="emit('close')">
           Hủy bỏ
         </BaseButton>
-        <BaseButton
-          type="submit"
-          variant="primary"
-          :loading="loading"
-        >
-          Tạo ca trực
-        </BaseButton>
+        <BaseButton type="submit" variant="primary" :loading="loading"> Tạo ca trực </BaseButton>
       </div>
     </form>
   </BaseModal>

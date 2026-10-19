@@ -87,7 +87,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             }
 
             // Chỉ lấy khung giờ còn chỗ trống (số lịch hẹn chưa hủy < giới hạn/khung giờ).
-            query = query.Where(w => w.Appointments.Count(a => a.Status != AppointmentStatus.Cancelled) < w.PatientLimit);
+            query = query.Where(w => w.Appointments.Count(a => a.Status != AppointmentStatus.Cancelled) < w.RecommendedCapacity);
 
             return await query.OrderBy(w => w.ShiftStart).ToListAsync();
         }

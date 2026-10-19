@@ -234,7 +234,7 @@ BEGIN
         [DoctorId] uniqueidentifier NOT NULL,
         [ShiftStart] datetime2 NOT NULL,
         [ShiftEnd] datetime2 NOT NULL,
-        [PatientLimit] int NOT NULL,
+        [RecommendedCapacity] int NOT NULL,
         [Status] nvarchar(20) NOT NULL,
         [CreatedAt] datetime2 NOT NULL,
         [UpdatedAt] datetime2 NULL,
@@ -870,7 +870,7 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260807093426_SeedRoleData'
 )
 BEGIN
-    EXEC sp_rename N'[WorkSchedules].[PatientLimit]', N'PatientLimitPerSlot', 'COLUMN';
+    EXEC sp_rename N'[WorkSchedules].[RecommendedCapacity]', N'RecommendedCapacityPerSlot', 'COLUMN';
 END;
 
 IF NOT EXISTS (

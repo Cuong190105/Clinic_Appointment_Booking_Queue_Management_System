@@ -5,8 +5,8 @@ namespace Clinic.API.Models
 {
     public class SaveMedicalReportRequest
     {
-        [Required(ErrorMessage = "QueueTicketId is required.")]
-        public Guid QueueTicketId { get; set; }
+        [Required(ErrorMessage = "AppointmentId is required.")]
+        public Guid AppointmentId { get; set; }
 
         public string? Symptoms { get; set; }
 

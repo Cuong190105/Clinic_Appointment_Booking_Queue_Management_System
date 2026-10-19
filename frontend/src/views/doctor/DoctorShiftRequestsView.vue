@@ -2,10 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 
 import { doctorsApi } from '@/features/doctors/doctors.api'
-import type {
-  DoctorSchedule,
-  RequestedShift,
-} from '@/features/doctors/doctors.types'
+import type { DoctorSchedule, RequestedShift } from '@/features/doctors/doctors.types'
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10)
@@ -42,7 +39,7 @@ const form = reactive({
   date: isoDate(now),
   startTime: '08:00',
   endTime: '12:00',
-  patientLimit: 20,
+  RecommendedCapacity: 20,
   reason: '',
 })
 
@@ -90,7 +87,7 @@ function reset() {
   form.date = isoDate(new Date())
   form.startTime = '08:00'
   form.endTime = '12:00'
-  form.patientLimit = 20
+  form.RecommendedCapacity = 20
   form.reason = ''
 }
 
@@ -110,10 +107,7 @@ async function load() {
   error.value = ''
 
   try {
-    const res = await doctorsApi.getOwnShiftRequests(
-      startDate.value,
-      endDate.value,
-    )
+    const res = await doctorsApi.getOwnShiftRequests(startDate.value, endDate.value)
     data.value = (res as any)?.result ?? res
   } catch (e) {
     console.error('GET SHIFT SUGGESTIONS ERROR:', e)
@@ -135,7 +129,7 @@ function edit(item: RequestedShift) {
   form.startTime = item.startTime.slice(0, 5)
   form.endTime = item.endTime.slice(0, 5)
 
-  form.patientLimit = item.patientLimit
+  form.RecommendedCapacity = item.RecommendedCapacity
   form.reason = item.reason ?? ''
 
   window.scrollTo({
@@ -157,7 +151,7 @@ async function submit() {
         startTime: formatTime(form.startTime),
         endTime: formatTime(form.endTime),
 
-        patientLimitPerSlot: Number(form.patientLimit),
+        RecommendedCapacityPerSlot: Number(form.RecommendedCapacity),
 
         reason: form.reason,
       })
@@ -170,7 +164,7 @@ async function submit() {
         startTime: formatTime(form.startTime),
         endTime: formatTime(form.endTime),
 
-        patientLimit: Number(form.patientLimit),
+        RecommendedCapacity: Number(form.RecommendedCapacity),
 
         reason: form.reason,
       })
@@ -191,15 +185,9 @@ async function submit() {
       }
     }
 
-    console.error(
-      'STATUS:',
-      axiosError.response?.status,
-    )
+    console.error('STATUS:', axiosError.response?.status)
 
-    console.error(
-      'RESPONSE DATA:',
-      axiosError.response?.data,
-    )
+    console.error('RESPONSE DATA:', axiosError.response?.data)
 
     error.value = getErrorMessage(e)
   } finally {
@@ -208,9 +196,7 @@ async function submit() {
 }
 
 async function cancel(item: RequestedShift) {
-  const confirmed = window.confirm(
-    `Huỷ yêu cầu ca ngày ${item.date}?`,
-  )
+  const confirmed = window.confirm(`Huỷ yêu cầu ca ngày ${item.date}?`)
 
   if (!confirmed) {
     return
@@ -236,15 +222,9 @@ async function cancel(item: RequestedShift) {
       }
     }
 
-    console.error(
-      'STATUS:',
-      axiosError.response?.status,
-    )
+    console.error('STATUS:', axiosError.response?.status)
 
-    console.error(
-      'RESPONSE DATA:',
-      axiosError.response?.data,
-    )
+    console.error('RESPONSE DATA:', axiosError.response?.data)
 
     error.value = getErrorMessage(e)
   } finally {
@@ -274,9 +254,7 @@ onMounted(() => {
     <div class="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm">
       <p class="text-sm font-semibold text-violet-600">Bác sĩ</p>
 
-      <h1 class="mt-1 text-2xl font-bold text-slate-900">
-        Đề xuất ca làm việc
-      </h1>
+      <h1 class="mt-1 text-2xl font-bold text-slate-900">Đề xuất ca làm việc</h1>
 
       <p class="mt-1 text-sm text-slate-500">
         Bác sĩ gửi yêu cầu, quản trị viên sẽ phê duyệt hoặc từ chối.
@@ -300,9 +278,7 @@ onMounted(() => {
     </div>
 
     <!-- Form -->
-    <section
-      class="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm"
-    >
+    <section class="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm">
       <div class="border-b border-slate-100 pb-4">
         <h2 class="font-semibold text-slate-900">
           {{ editingId ? 'Chỉnh sửa yêu cầu' : 'Tạo yêu cầu mới' }}
@@ -313,10 +289,7 @@ onMounted(() => {
         </p>
       </div>
 
-      <form
-        class="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5"
-        @submit.prevent="submit"
-      >
+      <form class="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5" @submit.prevent="submit">
         <!-- Date -->
         <label class="text-sm font-medium text-slate-700">
           Ngày
@@ -325,7 +298,7 @@ onMounted(() => {
             v-model="form.date"
             type="date"
             required
-            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
           />
         </label>
 
@@ -337,7 +310,7 @@ onMounted(() => {
             v-model="form.startTime"
             type="time"
             required
-            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
           />
         </label>
 
@@ -349,7 +322,7 @@ onMounted(() => {
             v-model="form.endTime"
             type="time"
             required
-            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
           />
         </label>
 
@@ -358,19 +331,17 @@ onMounted(() => {
           Giới hạn bệnh nhân
 
           <input
-            v-model.number="form.patientLimit"
+            v-model.number="form.RecommendedCapacity"
             type="number"
             min="1"
             max="50"
             required
-            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
           />
         </label>
 
         <!-- Reason -->
-        <label
-          class="text-sm font-medium text-slate-700 md:col-span-2 lg:col-span-1"
-        >
+        <label class="text-sm font-medium text-slate-700 md:col-span-2 lg:col-span-1">
           Lý do
 
           <input
@@ -378,7 +349,7 @@ onMounted(() => {
             type="text"
             required
             placeholder="Ví dụ: tăng ca"
-            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+            class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition outline-none placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
           />
         </label>
 
@@ -388,13 +359,7 @@ onMounted(() => {
             class="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="saving"
           >
-            {{
-              saving
-                ? 'Đang xử lý...'
-                : editingId
-                  ? 'Lưu thay đổi'
-                  : 'Gửi yêu cầu'
-            }}
+            {{ saving ? 'Đang xử lý...' : editingId ? 'Lưu thay đổi' : 'Gửi yêu cầu' }}
           </button>
 
           <button
@@ -410,17 +375,13 @@ onMounted(() => {
     </section>
 
     <!-- History -->
-    <section
-      class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-    >
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <!-- Section header -->
       <div
         class="flex flex-col justify-between gap-4 border-b border-slate-200 bg-slate-50 p-5 lg:flex-row lg:items-end"
       >
         <div>
-          <h2 class="font-semibold text-slate-900">
-            Lịch sử yêu cầu
-          </h2>
+          <h2 class="font-semibold text-slate-900">Lịch sử yêu cầu</h2>
 
           <p class="mt-1 text-sm text-slate-500">
             {{ data?.schedules.length ?? 0 }} yêu cầu trong khoảng thời gian đã chọn
@@ -454,7 +415,7 @@ onMounted(() => {
       <div class="overflow-x-auto">
         <table class="min-w-full text-sm">
           <thead
-            class="bg-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
+            class="bg-slate-100 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase"
           >
             <tr>
               <th class="px-5 py-3">Ngày</th>
@@ -479,17 +440,13 @@ onMounted(() => {
 
               <!-- Time -->
               <td class="px-5 py-4">
-                <span
-                  class="rounded-md bg-slate-100 px-2.5 py-1 font-medium text-slate-700"
-                >
+                <span class="rounded-md bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
                   {{ item.startTime.slice(0, 5) }}
                 </span>
 
                 <span class="mx-2 text-slate-400">→</span>
 
-                <span
-                  class="rounded-md bg-slate-100 px-2.5 py-1 font-medium text-slate-700"
-                >
+                <span class="rounded-md bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
                   {{ item.endTime.slice(0, 5) }}
                 </span>
               </td>
@@ -499,7 +456,7 @@ onMounted(() => {
                 <span
                   class="inline-flex min-w-10 justify-center rounded-lg bg-blue-50 px-3 py-1 font-semibold text-blue-700"
                 >
-                  {{ item.patientLimit }}
+                  {{ item.RecommendedCapacity }}
                 </span>
               </td>
 
@@ -530,10 +487,7 @@ onMounted(() => {
 
               <!-- Actions -->
               <td class="px-5 py-4 text-right">
-                <div
-                  v-if="item.status === 'Pending'"
-                  class="flex justify-end gap-2"
-                >
+                <div v-if="item.status === 'Pending'" class="flex justify-end gap-2">
                   <button
                     class="rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
                     :disabled="saving"
@@ -551,34 +505,19 @@ onMounted(() => {
                   </button>
                 </div>
 
-                <span
-                  v-else
-                  class="text-xs text-slate-400"
-                >
-                  —
-                </span>
+                <span v-else class="text-xs text-slate-400"> — </span>
               </td>
             </tr>
 
             <!-- Loading -->
             <tr v-if="loading">
-              <td
-                colspan="6"
-                class="px-5 py-12 text-center text-slate-500"
-              >
-                Đang tải yêu cầu...
-              </td>
+              <td colspan="6" class="px-5 py-12 text-center text-slate-500">Đang tải yêu cầu...</td>
             </tr>
 
             <!-- Empty -->
             <tr v-if="!loading && !data?.schedules.length">
-              <td
-                colspan="6"
-                class="px-5 py-16 text-center"
-              >
-                <p class="font-medium text-slate-700">
-                  Chưa có yêu cầu nào
-                </p>
+              <td colspan="6" class="px-5 py-16 text-center">
+                <p class="font-medium text-slate-700">Chưa có yêu cầu nào</p>
 
                 <p class="mt-1 text-sm text-slate-400">
                   Bạn chưa gửi yêu cầu thay đổi hoặc đề xuất ca làm việc.

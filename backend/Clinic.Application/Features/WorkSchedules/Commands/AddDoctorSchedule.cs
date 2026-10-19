@@ -8,7 +8,7 @@ using MediatR;
 namespace Clinic.Application.Features.WorkSchedules.Commands
 {
     // Use-case: Admin adds a new work schedule for a doctor
-    public record AddDoctorScheduleCommand(Guid DoctorId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, int PatientLimit) : IRequest<WorkScheduleDto>;
+    public record AddDoctorScheduleCommand(Guid DoctorId, DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, int RecommendedCapacity) : IRequest<WorkScheduleDto>;
 
     public class AddDoctorScheduleCommandHandler : IRequestHandler<AddDoctorScheduleCommand, WorkScheduleDto>
     {
@@ -42,7 +42,7 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
                 date: request.Date,
                 shiftStart: request.StartTime,
                 shiftEnd: request.EndTime,
-                patientLimit: request.PatientLimit
+                RecommendedCapacity: request.RecommendedCapacity
             );
             doctor.AddWorkSchedule(workSchedule);
             await _workScheduleRepository.AddWorkScheduleAsync(workSchedule);
@@ -56,7 +56,7 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
                     CorrelationId = _eventContext?.CorrelationId ?? Guid.NewGuid(),
                     CausationId = _eventContext?.CausationId,
                     Producer = "scheduling-service",
-                    Payload = new WorkScheduleCreated(workSchedule.Id, doctor.Id, request.Date, request.StartTime, request.EndTime, request.PatientLimit)
+                    Payload = new WorkScheduleCreated(workSchedule.Id, doctor.Id, request.Date, request.StartTime, request.EndTime, request.RecommendedCapacity)
                 },
                 "schedule.created");
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -67,7 +67,7 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
                 Date = request.Date,
                 StartTime = request.StartTime,
                 EndTime = request.EndTime,
-                PatientLimit = request.PatientLimit,
+                RecommendedCapacity = request.RecommendedCapacity,
                 Status = workSchedule.Status
             };
         }

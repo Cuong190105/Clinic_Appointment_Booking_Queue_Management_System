@@ -56,7 +56,7 @@ namespace Clinic.Domain.UnitTests
 
             Assert.True(workSchedule.ShiftStart > TimeOnly.FromDateTime(now.AddHours(2)));
             Assert.True(workSchedule.ShiftEnd > TimeOnly.FromDateTime(now.AddHours(3)));
-            Assert.Equal(10, workSchedule.PatientLimit);
+            Assert.Equal(10, workSchedule.RecommendedCapacity);
         }
 
         [Fact]
@@ -84,7 +84,7 @@ namespace Clinic.Domain.UnitTests
             Thread.Sleep(2000); // Wait for 2 seconds to ensure the shift has started
             Assert.Throws<InvalidOperationException>(() => nowShift.UpdateShift(DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddHours(2)), TimeOnly.FromDateTime(now.AddHours(3)), 10));
             nowShift.UpdateShift(DateOnly.FromDateTime(now), nowShift.ShiftStart, nowShift.ShiftEnd.AddHours(1), 15); // This should be valid since we are not changing the start time
-            Assert.Equal(15, nowShift.PatientLimit);
+            Assert.Equal(15, nowShift.RecommendedCapacity);
             Assert.Throws<InvalidOperationException>(() => nowShift.Delete());
         }
 

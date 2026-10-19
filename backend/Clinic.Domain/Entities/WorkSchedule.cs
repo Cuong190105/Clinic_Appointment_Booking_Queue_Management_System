@@ -20,40 +20,40 @@ namespace Clinic.Domain.Entities
 
         public TimeOnly ShiftEnd { get; protected set; }
 
-        public int PatientLimit { get; protected set; }
+        public int RecommendedCapacity { get; protected set; }
 
         public WorkScheduleStatus Status { get; protected set; } = WorkScheduleStatus.Active;
         public string? CancellationReason { get; protected set; }
 
         public ICollection<Appointment> Appointments { get; protected set; } = new List<Appointment>();
 
-        public WorkSchedule(Doctor doctor, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int patientLimit)
+        public WorkSchedule(Doctor doctor, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int RecommendedCapacity)
         {
             var utcStart = new TimeConverter().ConvertToUtc(new DateTime(date, shiftStart));
             if (doctor == null) throw new ArgumentNullException(nameof(doctor));
             if (utcStart < DateTime.UtcNow) throw new ArgumentException("Shift start time must be in the future.");
             if (shiftStart >= shiftEnd) throw new ArgumentException("Shift start time must be before shift end time.");
-            if (patientLimit <= 0) throw new ArgumentException("Patient limit per slot must be greater than zero.");
+            if (RecommendedCapacity <= 0) throw new ArgumentException("Patient limit per slot must be greater than zero.");
             Doctor = doctor;
             DoctorId = doctor.Id;
             Date = date;
             ShiftStart = shiftStart;
             ShiftEnd = shiftEnd;
-            PatientLimit = patientLimit;
+            this.RecommendedCapacity = RecommendedCapacity;
         }
 
-        public WorkSchedule(Guid id, Guid doctorId, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int patientLimit, WorkScheduleStatus status, DateTime createdAt, DateTime? updatedAt, bool isDeleted)
+        public WorkSchedule(Guid id, Guid doctorId, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int RecommendedCapacity, WorkScheduleStatus status, DateTime createdAt, DateTime? updatedAt, bool isDeleted)
             : base(id, createdAt, updatedAt, isDeleted)
         {
             DoctorId = doctorId;
             Date = date;
             ShiftStart = shiftStart;
             ShiftEnd = shiftEnd;
-            PatientLimit = patientLimit;
+            this.RecommendedCapacity = RecommendedCapacity;
             Status = status;
         }
 
-        public void UpdateShift(DateOnly newDate, TimeOnly newShiftStart, TimeOnly newShiftEnd, int newPatientLimit)
+        public void UpdateShift(DateOnly newDate, TimeOnly newShiftStart, TimeOnly newShiftEnd, int newRecommendedCapacity)
         {
             var utcStart = new TimeConverter().ConvertToUtc(new DateTime(Date, ShiftStart));
             var utcNewStart = new TimeConverter().ConvertToUtc(new DateTime(newDate, newShiftStart));
@@ -61,11 +61,11 @@ namespace Clinic.Domain.Entities
             if (utcStart <= DateTime.UtcNow && utcNewStart != utcStart) throw new InvalidOperationException("Cannot update the start time of a shift that has already started.");
             if (utcNewStart != utcStart && utcNewStart < DateTime.UtcNow) throw new ArgumentException("New shift start time must be in the future.");
             if (newShiftStart >= newShiftEnd) throw new ArgumentException("New shift start time must be before new shift end time.");
-            if (newPatientLimit <= 0) throw new ArgumentException("New patient limit per slot must be greater than zero.");
+            if (newRecommendedCapacity <= 0) throw new ArgumentException("New patient limit per slot must be greater than zero.");
             Date = newDate;
             ShiftStart = newShiftStart;
             ShiftEnd = newShiftEnd;
-            PatientLimit = newPatientLimit;
+            RecommendedCapacity = newRecommendedCapacity;
             MarkUpdated();
         }
 
@@ -128,7 +128,7 @@ namespace Clinic.Domain.Entities
                 throw new InvalidOperationException("Cannot add an appointment to a cancelled work schedule.");
             }
             Appointments.Add(appointment);
-            if (Appointments.Count(a => a.Status != AppointmentStatus.Cancelled && a.IsDeleted == false) >= PatientLimit)
+            if (Appointments.Count(a => a.Status != AppointmentStatus.Cancelled && a.IsDeleted == false) >= RecommendedCapacity)
             {
                 Status = WorkScheduleStatus.Full;
             }

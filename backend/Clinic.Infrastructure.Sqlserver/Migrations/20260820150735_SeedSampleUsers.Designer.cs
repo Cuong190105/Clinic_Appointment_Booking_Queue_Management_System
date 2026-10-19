@@ -2758,7 +2758,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<int>("PatientLimit")
+                    b.Property<int>("RecommendedCapacity")
                         .HasColumnType("int");
 
                     b.Property<string>("Reason")
@@ -4014,7 +4014,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<int>("PatientLimit")
+                    b.Property<int>("RecommendedCapacity")
                         .HasColumnType("int");
 
                     b.Property<TimeOnly>("ShiftEnd")

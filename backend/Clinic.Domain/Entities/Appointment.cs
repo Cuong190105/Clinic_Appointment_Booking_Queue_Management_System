@@ -14,6 +14,9 @@ namespace Clinic.Domain.Entities
 
         public Guid WorkScheduleId { get; protected set; }
         public WorkSchedule WorkSchedule { get; protected set; } = null!;
+        public BookingSlot? BookingSlot { get; protected set; }
+
+        public Guid? BookingSlotId { get; protected set; }
 
         public string Reason { get; protected set; }
 
@@ -27,6 +30,7 @@ namespace Clinic.Domain.Entities
 
         /// <summary>0..1 - chỉ có sau khi bệnh nhân check-in.</summary>
         public QueueTicket? QueueTicket { get; protected set; }
+        public MedicalReport? MedicalReport { get; set; }
 
         public ICollection<AppointmentSnapshot> Snapshots { get; protected set; } = [];
 

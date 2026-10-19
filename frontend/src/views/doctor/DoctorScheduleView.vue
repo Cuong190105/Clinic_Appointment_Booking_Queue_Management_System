@@ -4,19 +4,43 @@ import { ApiError } from '@/lib/api/http'
 import { doctorsApi } from '@/features/doctors/doctors.api'
 import type { DoctorSchedule, WorkSchedule } from '@/features/doctors/doctors.types'
 
-function isoDate(date: Date) { return date.toISOString().slice(0, 10) }
+function isoDate(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
 const today = new Date()
 const startDate = ref(isoDate(today))
-const end = new Date(today); end.setDate(end.getDate() + 13)
+const end = new Date(today)
+end.setDate(end.getDate() + 13)
 const endDate = ref(isoDate(end))
 const data = ref<DoctorSchedule<WorkSchedule> | null>(null)
 const loading = ref(false)
 const error = ref('')
 
-const activeSchedules = computed(() => data.value?.schedules.filter((s) => s.status === 'Active') ?? [])
-function msg(e: unknown) { return e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Không thể tải lịch.' }
-function formatDate(v: string) { return new Intl.DateTimeFormat('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(new Date(`${v}T00:00:00`)) }
-async function load() { loading.value = true; error.value = ''; try { const res = await doctorsApi.getOwnSchedule(startDate.value, endDate.value); data.value = (res as any)?.result ?? res } catch (e) { error.value = msg(e) } finally { loading.value = false } }
+const activeSchedules = computed(
+  () => data.value?.schedules.filter((s) => s.status === 'Active') ?? [],
+)
+function msg(e: unknown) {
+  return e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Không thể tải lịch.'
+}
+function formatDate(v: string) {
+  return new Intl.DateTimeFormat('vi-VN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+  }).format(new Date(`${v}T00:00:00`))
+}
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const res = await doctorsApi.getOwnSchedule(startDate.value, endDate.value)
+    data.value = (res as any)?.result ?? res
+  } catch (e) {
+    error.value = msg(e)
+  } finally {
+    loading.value = false
+  }
+}
 onMounted(load)
 </script>
 
@@ -29,13 +53,9 @@ onMounted(load)
       <div>
         <p class="text-sm font-semibold text-violet-600">Bác sĩ</p>
 
-        <h1 class="mt-1 text-2xl font-bold text-slate-900">
-          Lịch làm việc
-        </h1>
+        <h1 class="mt-1 text-2xl font-bold text-slate-900">Lịch làm việc</h1>
 
-        <p class="mt-1 text-sm text-slate-500">
-          Lịch làm việc đã được phòng khám phê duyệt.
-        </p>
+        <p class="mt-1 text-sm text-slate-500">Lịch làm việc đã được phòng khám phê duyệt.</p>
       </div>
 
       <div class="flex flex-wrap gap-2">
@@ -72,12 +92,8 @@ onMounted(load)
     <!-- Stats -->
     <div class="grid gap-4 sm:grid-cols-3">
       <!-- Total -->
-      <div
-        class="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm"
-      >
-        <p class="text-sm font-medium text-blue-600">
-          Tổng ca làm việc
-        </p>
+      <div class="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
+        <p class="text-sm font-medium text-blue-600">Tổng ca làm việc</p>
 
         <p class="mt-2 text-3xl font-bold text-blue-900">
           {{ data?.schedules.length ?? 0 }}
@@ -85,12 +101,8 @@ onMounted(load)
       </div>
 
       <!-- Active -->
-      <div
-        class="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm"
-      >
-        <p class="text-sm font-medium text-emerald-600">
-          Ca đang hoạt động
-        </p>
+      <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+        <p class="text-sm font-medium text-emerald-600">Ca đang hoạt động</p>
 
         <p class="mt-2 text-3xl font-bold text-emerald-700">
           {{ activeSchedules.length }}
@@ -98,12 +110,8 @@ onMounted(load)
       </div>
 
       <!-- Doctor -->
-      <div
-        class="rounded-2xl border border-violet-100 bg-violet-50 p-5 shadow-sm"
-      >
-        <p class="text-sm font-medium text-violet-600">
-          Bác sĩ
-        </p>
+      <div class="rounded-2xl border border-violet-100 bg-violet-50 p-5 shadow-sm">
+        <p class="text-sm font-medium text-violet-600">Bác sĩ</p>
 
         <p class="mt-2 truncate text-lg font-bold text-violet-900">
           {{ data?.doctorName || '—' }}
@@ -112,25 +120,17 @@ onMounted(load)
     </div>
 
     <!-- Schedule Table -->
-    <section
-      class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-    >
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div
         class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4"
       >
         <div>
-          <h2 class="font-semibold text-slate-900">
-            Danh sách ca khám
-          </h2>
+          <h2 class="font-semibold text-slate-900">Danh sách ca khám</h2>
 
-          <p class="mt-1 text-sm text-slate-500">
-            Các ca làm việc trong khoảng thời gian đã chọn.
-          </p>
+          <p class="mt-1 text-sm text-slate-500">Các ca làm việc trong khoảng thời gian đã chọn.</p>
         </div>
 
-        <span
-          class="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700"
-        >
+        <span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
           {{ data?.schedules.length ?? 0 }} ca
         </span>
       </div>
@@ -138,17 +138,13 @@ onMounted(load)
       <div class="overflow-x-auto">
         <table class="min-w-full text-sm">
           <thead
-            class="bg-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
+            class="bg-slate-100 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase"
           >
             <tr>
               <th class="px-5 py-3">Ngày</th>
               <th class="px-5 py-3">Thời gian</th>
-              <th class="px-5 py-3 text-center">
-                Số bệnh nhân
-              </th>
-              <th class="px-5 py-3 text-center">
-                Trạng thái
-              </th>
+              <th class="px-5 py-3 text-center">Số bệnh nhân</th>
+              <th class="px-5 py-3 text-center">Trạng thái</th>
             </tr>
           </thead>
 
@@ -163,17 +159,13 @@ onMounted(load)
               </td>
 
               <td class="px-5 py-4 font-medium text-slate-700">
-                <span
-                  class="rounded-md bg-slate-100 px-2.5 py-1 text-slate-700"
-                >
+                <span class="rounded-md bg-slate-100 px-2.5 py-1 text-slate-700">
                   {{ shift.startTime.slice(0, 5) }}
                 </span>
 
                 <span class="mx-2 text-slate-400">→</span>
 
-                <span
-                  class="rounded-md bg-slate-100 px-2.5 py-1 text-slate-700"
-                >
+                <span class="rounded-md bg-slate-100 px-2.5 py-1 text-slate-700">
                   {{ shift.endTime.slice(0, 5) }}
                 </span>
               </td>
@@ -182,7 +174,7 @@ onMounted(load)
                 <span
                   class="inline-flex min-w-10 justify-center rounded-lg bg-blue-50 px-3 py-1 font-semibold text-blue-700"
                 >
-                  {{ shift.patientLimit }}
+                  {{ shift.RecommendedCapacity }}
                 </span>
               </td>
 
@@ -195,36 +187,22 @@ onMounted(load)
                       : 'bg-slate-100 text-slate-600'
                   "
                 >
-                  {{
-                    shift.status === 'Active'
-                      ? 'Đang hoạt động'
-                      : shift.status
-                  }}
+                  {{ shift.status === 'Active' ? 'Đang hoạt động' : shift.status }}
                 </span>
               </td>
             </tr>
 
             <!-- Loading -->
             <tr v-if="loading">
-              <td
-                colspan="4"
-                class="px-5 py-12 text-center text-slate-500"
-              >
+              <td colspan="4" class="px-5 py-12 text-center text-slate-500">
                 Đang tải lịch làm việc...
               </td>
             </tr>
 
             <!-- Empty -->
-            <tr
-              v-if="!loading && !data?.schedules.length"
-            >
-              <td
-                colspan="4"
-                class="px-5 py-16 text-center"
-              >
-                <p class="font-medium text-slate-700">
-                  Chưa có ca làm việc
-                </p>
+            <tr v-if="!loading && !data?.schedules.length">
+              <td colspan="4" class="px-5 py-16 text-center">
+                <p class="font-medium text-slate-700">Chưa có ca làm việc</p>
 
                 <p class="mt-1 text-sm text-slate-400">
                   Không có ca trong khoảng thời gian bạn đã chọn.

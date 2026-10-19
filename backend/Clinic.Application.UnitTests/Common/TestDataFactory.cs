@@ -90,9 +90,9 @@ namespace Clinic.Application.UnitTests.Common
             return patient;
         }
 
-        internal static WorkSchedule CreateWorkSchedule(Doctor? doctor = null, DateOnly? date = null, TimeOnly? startTime = null, TimeOnly? endTime = null, int patientLimit = 15)
+        internal static WorkSchedule CreateWorkSchedule(Doctor? doctor = null, DateOnly? date = null, TimeOnly? startTime = null, TimeOnly? endTime = null, int RecommendedCapacity = 15)
         {
-            return new WorkSchedule(doctor ?? CreateDoctor(), date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)), startTime ?? (date != null ? TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddMinutes(1)) : new TimeOnly(9, 0)), endTime ?? (date != null ? TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(9)) : new TimeOnly(11, 0)), patientLimit);
+            return new WorkSchedule(doctor ?? CreateDoctor(), date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)), startTime ?? (date != null ? TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddMinutes(1)) : new TimeOnly(9, 0)), endTime ?? (date != null ? TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(9)) : new TimeOnly(11, 0)), RecommendedCapacity);
         }
 
         internal static Appointment CreateAppointment(Patient? patient = null, WorkSchedule? workSchedule = null, TimeOnly? timeSlot = null, string? reason = null, Guid? createdBy = null, bool confirmed = false, bool checkedIn = false, int queueNumber = 0, bool today = false)
@@ -123,8 +123,10 @@ namespace Clinic.Application.UnitTests.Common
             queueTicket ??= CreateQueueTicket(appointment);
             var report = new MedicalReport
             {
-                QueueTicketId = queueTicket.Id,
-                QueueTicket = queueTicket,
+                AppointmentId = queueTicket.AppointmentId,
+                Appointment = queueTicket.Appointment,
+                PatientId = queueTicket.Appointment.PatientId,
+                Patient = queueTicket.Appointment.Patient,
                 Symptoms = symptoms,
                 Diagnosis = diagnosis,
                 Prescription = prescription,

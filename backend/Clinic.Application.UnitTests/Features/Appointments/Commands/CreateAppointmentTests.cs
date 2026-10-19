@@ -150,7 +150,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var appointmentRepository = new FakeAppointmentRepository();
             var handler = new CreateAppointmentCommandHandler(workScheduleRepository, patientRepository, appointmentRepository, unitOfWork, notiQueue);
 
-            var workSchedule = TestDataFactory.CreateWorkSchedule(patientLimit: 2);
+            var workSchedule = TestDataFactory.CreateWorkSchedule(RecommendedCapacity: 2);
             workScheduleRepository.Add(workSchedule);
             var patient1 = TestDataFactory.CreatePatient();
             var patient2 = TestDataFactory.CreatePatient();
@@ -183,7 +183,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var handler = new CreateAppointmentCommandHandler(workScheduleRepository, patientRepository, appointmentRepository, unitOfWork, notiQueue);
             var patient = TestDataFactory.CreatePatient();
             await patientRepository.AddAsync(patient);
-            var workSchedule = TestDataFactory.CreateWorkSchedule(patientLimit: 1);
+            var workSchedule = TestDataFactory.CreateWorkSchedule(RecommendedCapacity: 1);
             workScheduleRepository.Add(workSchedule);
 
             // One cancelled appointment

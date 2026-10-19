@@ -33,8 +33,10 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 ?? throw new NotFoundException($"Medical report '{request.MedicalReportId}' not found.");
 
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any") || _currentUser.HasPermission("medical-report.view.any");
-            var ticket = report.QueueTicket;
-            if (!hasAnyScope && ticket.Appointment.WorkSchedule.DoctorId != _currentUser.DoctorId)
+            var appointment = report.Appointment;
+            var ticket = appointment.QueueTicket
+                ?? throw new InvalidOperationException("The appointment has no queue ticket to finalize.");
+            if (!hasAnyScope && appointment.WorkSchedule.DoctorId != _currentUser.DoctorId)
             {
                 throw new ForbiddenException("You are not allowed to finalize medical report for another doctor's queue.");
             }
@@ -47,9 +49,9 @@ namespace Clinic.Application.Features.MedicalReports.Commands
             report.FinalizeReport();
             ticket.Complete();
 
-            if (ticket.Appointment.Status == AppointmentStatus.CheckedIn)
+            if (appointment.Status == AppointmentStatus.CheckedIn)
             {
-                ticket.Appointment.Complete(_currentUser.UserId ?? throw new UnauthorizedAccessException());
+                appointment.Complete(_currentUser.UserId ?? throw new UnauthorizedAccessException());
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -57,12 +59,12 @@ namespace Clinic.Application.Features.MedicalReports.Commands
             return new MedicalReportDto
             {
                 Id = report.Id,
-                QueueTicketId = report.QueueTicketId,
-                PatientId = ticket.Appointment.PatientId,
-                PatientName = ticket.Appointment.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = ticket.Appointment.WorkSchedule.DoctorId,
-                DoctorName = ticket.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                ExamDate = ticket.Appointment.WorkSchedule.Date,
+                AppointmentId = report.AppointmentId,
+                PatientId = report.PatientId,
+                PatientName = report.Patient?.Person?.FullName ?? appointment.Patient?.Person?.FullName ?? string.Empty,
+                DoctorId = appointment.WorkSchedule.DoctorId,
+                DoctorName = appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                ExamDate = appointment.WorkSchedule.Date,
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,

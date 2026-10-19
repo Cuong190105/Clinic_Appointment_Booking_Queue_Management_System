@@ -6,7 +6,7 @@ public sealed record WorkScheduleCreated(
     DateOnly Date,
     TimeOnly StartTime,
     TimeOnly EndTime,
-    int PatientLimit
+    int RecommendedCapacity
 );
 
 public sealed record WorkScheduleUpdated(
@@ -15,7 +15,7 @@ public sealed record WorkScheduleUpdated(
     DateOnly Date,
     TimeOnly StartTime,
     TimeOnly EndTime,
-    int PatientLimit
+    int RecommendedCapacity
 );
 
 public sealed record WorkScheduleCancelled(
