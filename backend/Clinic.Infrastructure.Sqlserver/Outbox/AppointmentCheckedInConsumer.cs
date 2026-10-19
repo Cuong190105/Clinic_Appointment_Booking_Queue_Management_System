@@ -275,6 +275,7 @@ public sealed class AppointmentCheckedInConsumer : BackgroundService
         if (attempt > _consumerOptions.MaxRetryAttempts)
         {
             await PublishDeadLetterAsync(args, error, cancellationToken);
+            MessagingTelemetry.ConsumerDeadLettered.Add(1);
             return;
         }
 
@@ -286,6 +287,7 @@ public sealed class AppointmentCheckedInConsumer : BackgroundService
             basicProperties: properties,
             body: args.Body,
             cancellationToken: cancellationToken);
+        MessagingTelemetry.ConsumerRetries.Add(1);
     }
 
     private async Task PublishDeadLetterAsync(

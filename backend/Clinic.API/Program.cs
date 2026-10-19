@@ -11,6 +11,9 @@ using Clinic.Infrastructure.Sqlserver.Outbox;
 using Microsoft.OpenApi;
 using System.Reflection;
 using System.Security.Claims;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +37,25 @@ builder.Services.AddCors(options =>
 builder.Services.AddPresentation();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructureSqlServer(builder.Configuration);
+
+// Ensure the custom Meter and its instruments exist before the OpenTelemetry provider starts.
+_ = MessagingTelemetry.Meter;
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("clinic-api"))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddMeter(MessagingTelemetry.MeterName)
+        .AddPrometheusExporter())
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation(options =>
+        {
+            options.Filter = context =>
+                context.Request.Path != "/healthz" &&
+                context.Request.Path != "/metrics";
+        })
+        .AddHttpClientInstrumentation()
+        .AddSource(MessagingTelemetry.SourceName)
+        .AddOtlpExporter());
 
 // Configure JSON serialization options to handle enum values as strings
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -123,6 +145,8 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+app.MapPrometheusScrapingEndpoint();
 
 app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();

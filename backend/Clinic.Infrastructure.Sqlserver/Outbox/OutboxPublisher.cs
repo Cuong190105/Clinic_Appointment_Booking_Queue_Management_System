@@ -298,6 +298,10 @@ public sealed class OutboxPublisher : BackgroundService
             }
 
             await db.SaveChangesAsync(cancellationToken);
+            if (message.Status == OutboxMessageStatus.Failed)
+            {
+                MessagingTelemetry.OutboxPublishRetries.Add(1);
+            }
 
             _logger.LogError(
                 ex,

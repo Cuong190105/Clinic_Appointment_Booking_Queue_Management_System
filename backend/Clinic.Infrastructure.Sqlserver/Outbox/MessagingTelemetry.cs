@@ -12,10 +12,13 @@ public static class MessagingTelemetry
     public static readonly Meter Meter = new(MeterName, "1.0.0");
     public static readonly Counter<long> OutboxPublished = Meter.CreateCounter<long>("clinic.outbox.published");
     public static readonly Counter<long> OutboxPublishFailures = Meter.CreateCounter<long>("clinic.outbox.publish.failures");
+    public static readonly Counter<long> OutboxPublishRetries = Meter.CreateCounter<long>("clinic.outbox.publish.retries");
     public static readonly Counter<long> OutboxDeadLettered = Meter.CreateCounter<long>("clinic.outbox.dead_lettered");
     public static readonly Counter<long> ConsumerProcessed = Meter.CreateCounter<long>("clinic.consumer.processed");
     public static readonly Counter<long> ConsumerDuplicates = Meter.CreateCounter<long>("clinic.consumer.duplicates");
     public static readonly Counter<long> ConsumerFailures = Meter.CreateCounter<long>("clinic.consumer.failures");
+    public static readonly Counter<long> ConsumerRetries = Meter.CreateCounter<long>("clinic.consumer.retries");
+    public static readonly Counter<long> ConsumerDeadLettered = Meter.CreateCounter<long>("clinic.consumer.dead_lettered");
     public static readonly Histogram<double> ConsumerLag = Meter.CreateHistogram<double>("clinic.consumer.lag", "s");
 
     private static readonly ActivityListener Listener = CreateListener();

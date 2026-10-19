@@ -55,11 +55,15 @@ services:
             - RabbitMq__Username=clinic
             - RabbitMq__Password=clinic-dev-password
             - RabbitMq__VirtualHost=/
+            - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+            - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
         depends_on:
             rabbitmq:
                 condition: service_healthy
             db:
                 condition: service_healthy
+            jaeger:
+                condition: service_started
         healthcheck:
             test: ["CMD", "/usr/bin/bash", "-c", "</dev/tcp/127.0.0.1/8080"]
             interval: 10s
@@ -86,6 +90,40 @@ services:
             start_period: 5s
         restart: always
 
+    prometheus:
+        image: prom/prometheus:v2.55.1
+        container_name: clinic_prometheus
+        ports:
+            - "9090:9090"
+        volumes:
+            - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - prometheus_data:/prometheus
+        depends_on:
+            backend:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/healthy"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        restart: always
+
+    jaeger:
+        image: jaegertracing/all-in-one:1.62.0
+        container_name: clinic_jaeger
+        environment:
+            COLLECTOR_OTLP_ENABLED: "true"
+        ports:
+            - "16686:16686"
+            - "4317:4317"
+        healthcheck:
+            test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:14269/"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        restart: always
+
 volumes:
     mssql_data:
     rabbitmq_data:
+    prometheus_data:
