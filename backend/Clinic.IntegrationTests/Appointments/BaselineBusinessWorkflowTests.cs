@@ -66,14 +66,31 @@ public sealed class BaselineBusinessWorkflowTests : IClassFixture<ApiContractFac
     {
         var appointmentId = await SeedConfirmedAppointmentForTodayAsync();
 
+        using var missingKeyRequest = new HttpRequestMessage(HttpMethod.Post, $"/appointments/{appointmentId}/check-in");
+        using var missingKeyResponse = await _patientClient.SendAsync(missingKeyRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, missingKeyResponse.StatusCode);
+
         using var checkInRequest = new HttpRequestMessage(HttpMethod.Post, $"/appointments/{appointmentId}/check-in");
         checkInRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("N"));
+        var idempotencyKey = checkInRequest.Headers.GetValues("Idempotency-Key").Single();
+        await using var beforeCheckInDb = _factory.CreateDbContext();
+        var outboxCountBeforeCheckIn = await beforeCheckInDb.OutboxMessages
+            .CountAsync(message => message.RoutingKey == "appointment.checked-in");
+
         using var checkInResponse = await _patientClient.SendAsync(checkInRequest);
         Assert.Equal(HttpStatusCode.NoContent, checkInResponse.StatusCode);
+
+        using var retryRequest = new HttpRequestMessage(HttpMethod.Post, $"/appointments/{appointmentId}/check-in");
+        retryRequest.Headers.Add("Idempotency-Key", idempotencyKey);
+        using var retryResponse = await _patientClient.SendAsync(retryRequest);
+        Assert.Equal(HttpStatusCode.NoContent, retryResponse.StatusCode);
 
         await using var dbContext = _factory.CreateDbContext();
         var ticket = await dbContext.QueueTickets.SingleAsync(q => q.AppointmentId == appointmentId);
         Assert.Equal(QueueStatus.Waiting, ticket.Status);
+        Assert.Equal(1, await dbContext.QueueTickets.CountAsync(q => q.AppointmentId == appointmentId));
+        Assert.Equal(outboxCountBeforeCheckIn + 1, await dbContext.OutboxMessages
+            .CountAsync(message => message.RoutingKey == "appointment.checked-in"));
 
         using var callNextResponse = await _doctorClient.PostAsync($"/queue/call-next/{ApiContractFactory.DoctorId}", null);
         Assert.Equal(HttpStatusCode.OK, callNextResponse.StatusCode);

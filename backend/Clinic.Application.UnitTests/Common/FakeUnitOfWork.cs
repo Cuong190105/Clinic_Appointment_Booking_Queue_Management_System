@@ -10,9 +10,11 @@ namespace Clinic.Application.UnitTests.Common
         public bool TransactionOpen { get; private set; }
         public bool WasCommitted { get; private set; }
         public bool WasRolledBack { get; private set; }
+        public int SaveChangesCallCount { get; private set; }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            SaveChangesCallCount++;
             return Task.FromResult(0);
         }
 

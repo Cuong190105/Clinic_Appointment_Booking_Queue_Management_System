@@ -104,9 +104,18 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CheckIn(
             [FromRoute] Guid appointmentId,
-            [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey)
         {
-            await _sender.Send(new CheckInCommand(appointmentId));
+            if (!Guid.TryParse(idempotencyKey, out var parsedIdempotencyKey) || parsedIdempotencyKey == Guid.Empty)
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "A valid Idempotency-Key header is required.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+            }
+
+            await _sender.Send(new CheckInCommand(appointmentId, parsedIdempotencyKey));
             return NoContent();
         }
 
