@@ -25,9 +25,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _context.Employees
                 .Include(e => e.Person)
-                    .ThenInclude(p => p.User)
-                    .ThenInclude(u => u.UserRoles)
-                    .ThenInclude(ur => ur.Role)
                 .Include(e => e.Manager)
                     .ThenInclude(m => m.Person)
                 .FirstOrDefaultAsync(e => e.Id == employeeId && e.IsDeleted == false);
@@ -37,9 +34,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _context.Employees
                 .Include(e => e.Person)
-                .ThenInclude(p => p.User)
-                .ThenInclude(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(e => e.PersonId == personId && e.IsDeleted == false);
         }
 
@@ -47,9 +41,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             var query = _context.Employees
                 .Include(e => e.Person)
-                    .ThenInclude(p => p.User)
-                    .ThenInclude(u => u.UserRoles)
-                    .ThenInclude(ur => ur.Role)
+                .Include(e => e.Doctor)
                 .Where(e => e.IsDeleted == false);
 
             if (!string.IsNullOrEmpty(search))
@@ -68,7 +60,9 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             }
             if (roles != null && roles.Count != 0)
             {
-                query = query.Where(e => e.Person.User.UserRoles.Any(ur => roles.Contains(ur.Role.Name)));
+                query = roles.Any(role => string.Equals(role, "Doctor", StringComparison.OrdinalIgnoreCase))
+                    ? query.Where(e => e.Doctor != null)
+                    : query.Where(_ => false);
             }
 
             if (string.IsNullOrEmpty(sortBy))

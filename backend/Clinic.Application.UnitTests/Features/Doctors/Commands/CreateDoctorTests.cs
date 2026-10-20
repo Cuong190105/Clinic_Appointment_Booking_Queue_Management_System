@@ -13,22 +13,16 @@ namespace Clinic.Application.UnitTests.Features.Doctors.Commands
         {
             var doctorRepository = new FakeDoctorRepository();
             var specialtyRepository = new FakeSpecialtyRepository();
-            var roleRepository = new FakeRoleRepository();
             var employeeRepository = new FakeEmployeeRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var passwordHasher = new FakePasswordHasher();
-            var userRepository = new FakeUserRepository();
             var personRepository = new FakePersonRepository();
-            var userService = new UserService(userRepository, personRepository, passwordHasher);
             var personService = new PersonService(personRepository);
-            var handler = new CreateDoctorCommandHandler(userService, personService, doctorRepository, specialtyRepository, roleRepository, employeeRepository, unitOfWork);
+            var handler = new CreateDoctorCommandHandler(personService, doctorRepository, specialtyRepository, employeeRepository, new FakePatientRepository(), unitOfWork);
 
             var specialty = TestDataFactory.CreateSpecialty();
             await specialtyRepository.AddAsync(specialty);
             var command = new CreateDoctorCommand
             (
-                Username: "johndoe",
-                Password: "SecurePassword123!",
                 FullName: "Dr. John Doe",
                 PhoneNumber: "1234567890",
                 Email: "john.doe@example.com",
@@ -41,7 +35,8 @@ namespace Clinic.Application.UnitTests.Features.Doctors.Commands
                 Biography: "Experienced doctor in internal medicine.",
                 Status: DoctorStatus.Active,
                 ExperienceYears: 10,
-                SpecialtyId: specialty.Id
+                SpecialtyId: specialty.Id,
+                IdentityUserId: Guid.NewGuid()
             );
             var summary = await handler.Handle(command, CancellationToken.None);
             var createdDoctor = await doctorRepository.GetInfoByIdAsync(summary.Id);
@@ -53,19 +48,13 @@ namespace Clinic.Application.UnitTests.Features.Doctors.Commands
         {
             var doctorRepository = new FakeDoctorRepository();
             var specialtyRepository = new FakeSpecialtyRepository();
-            var roleRepository = new FakeRoleRepository();
             var employeeRepository = new FakeEmployeeRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var passwordHasher = new FakePasswordHasher();
-            var userRepository = new FakeUserRepository();
             var personRepository = new FakePersonRepository();
-            var userService = new UserService(userRepository, personRepository, passwordHasher);
             var personService = new PersonService(personRepository);
-            var handler = new CreateDoctorCommandHandler(userService, personService, doctorRepository, specialtyRepository, roleRepository, employeeRepository, unitOfWork);
+            var handler = new CreateDoctorCommandHandler(personService, doctorRepository, specialtyRepository, employeeRepository, new FakePatientRepository(), unitOfWork);
             var command = new CreateDoctorCommand
             (
-                Username: "johndoe",
-                Password: "SecurePassword123!",
                 FullName: "Dr. John Doe",
                 PhoneNumber: "1234567890",
                 Email: "john.doe@example.com",
@@ -78,9 +67,11 @@ namespace Clinic.Application.UnitTests.Features.Doctors.Commands
                 Qualification: "MD",
                 Biography: "Experienced doctor in internal medicine.",
                 ExperienceYears: 10,
-                SpecialtyId: Guid.NewGuid()
+                SpecialtyId: Guid.NewGuid(),
+                IdentityUserId: Guid.NewGuid()
             );
             await Assert.ThrowsAsync<ArgumentException>(async () => await handler.Handle(command, CancellationToken.None));
         }
     }
 }
+

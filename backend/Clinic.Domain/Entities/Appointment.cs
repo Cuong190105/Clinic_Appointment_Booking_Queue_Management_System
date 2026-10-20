@@ -34,8 +34,6 @@ namespace Clinic.Domain.Entities
 
         public ICollection<AppointmentSnapshot> Snapshots { get; protected set; } = [];
 
-        public User Updator { get; protected set; } = null!;
-
         private Appointment() { } // For EF Core
 
         public Appointment( // For seeding sample data

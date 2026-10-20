@@ -18,7 +18,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
 
             var appointment = TestDataFactory.CreateAppointment(checkedIn: true);
             var queueTicket = TestDataFactory.CreateQueueTicket(appointment, queueNumber: 1);
-            currentUser.UserId = appointment.WorkSchedule.Doctor.Employee.Person.User.Id;
+            currentUser.UserId = appointment.WorkSchedule.Doctor.Employee.Person.IdentityUserId!.Value;
             currentUser.DoctorId = appointment.WorkSchedule.Doctor.Id;
             currentUser.GrantPermission("queue.complete-exam.own");
             queueTicket.Call();
@@ -97,3 +97,4 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
         }
     }
 }
+

@@ -49,10 +49,6 @@ namespace Clinic.Domain.Entities
 
         public void AssignDoctor(Doctor doctor)
         {
-            if (Person.User!.UserRoles.All(ur => ur.Role.Name != "Doctor"))
-            {
-                throw new InvalidOperationException("Cannot assign a doctor to an employee who is not a doctor.");
-            }
             Doctor = doctor;
         }
 

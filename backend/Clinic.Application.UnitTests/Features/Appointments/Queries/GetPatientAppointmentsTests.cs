@@ -3,66 +3,62 @@ using Clinic.Application.Features.Appointments.Queries;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Enums;
 
-namespace Clinic.Application.UnitTests.Features.Appointments.Queries
+namespace Clinic.Application.UnitTests.Features.Appointments.Queries;
+
+public sealed class GetPatientAppointmentsTests
 {
-    public class GetPatientAppointmentsTests
+    [Fact]
+    public async Task Gets_own_appointments_using_patient_id_claim()
     {
-        [Fact]
-        public async Task TestGetPatientAppointments()
-        {
-            var patientRepository = new FakePatientRepository();
-            var appointmentRepository = new FakeAppointmentRepository();
-            var userRepository = new FakeUserRepository();
-            var handler = new GetPatientAppointmentsQueryHandler(appointmentRepository, patientRepository, userRepository);
-            var patient = TestDataFactory.CreatePatient();
-            var workSchedule = TestDataFactory.CreateWorkSchedule(date: DateOnly.FromDateTime(DateTime.UtcNow));
-            var appointment1 = TestDataFactory.CreateAppointment(patient: patient, workSchedule: workSchedule, checkedIn: true);
-            var appointment2 = TestDataFactory.CreateAppointment(patient: patient, workSchedule: workSchedule, timeSlot: workSchedule.ShiftStart.AddMinutes(30));
-            appointment1.Complete(patient.Person.User.Id);
-            await appointmentRepository.AddAsync(appointment1);
-            await appointmentRepository.AddAsync(appointment2);
-            await patientRepository.AddAsync(patient);
-            await userRepository.AddAsync(patient.Person.User);
-            var query = new GetPatientAppointmentsQuery(patient.Person.User.Id);
-            var result = await handler.Handle(query, CancellationToken.None);
-            Assert.Single(result);
-            Assert.Equal(AppointmentStatus.Pending, result[0].Status);
+        var patients = new FakePatientRepository();
+        var appointments = new FakeAppointmentRepository();
+        var currentUser = new FakeCurrentUser();
+        var handler = new GetPatientAppointmentsQueryHandler(appointments, patients, currentUser);
+        var patient = TestDataFactory.CreatePatient();
+        var schedule = TestDataFactory.CreateWorkSchedule(date: DateOnly.FromDateTime(DateTime.UtcNow));
+        var completed = TestDataFactory.CreateAppointment(patient, schedule, checkedIn: true);
+        var pending = TestDataFactory.CreateAppointment(patient, schedule, schedule.ShiftStart.AddMinutes(30));
+        completed.Complete(patient.Person.IdentityUserId!.Value);
+        await appointments.AddAsync(completed);
+        await appointments.AddAsync(pending);
+        await patients.AddAsync(patient);
+        currentUser.UserId = patient.Person.IdentityUserId!.Value;
+        currentUser.PatientId = patient.Id;
 
-            var queryCompleted = new GetPatientAppointmentsQuery(patient.Person.User.Id, "Completed");
-            var resultCompleted = await handler.Handle(queryCompleted, CancellationToken.None);
-            Assert.Single(resultCompleted);
-            Assert.Equal(AppointmentStatus.Completed, resultCompleted[0].Status);
-        }
+        var upcoming = await handler.Handle(new(currentUser.UserId.Value), default);
+        Assert.Single(upcoming);
+        Assert.Equal(AppointmentStatus.Pending, upcoming[0].Status);
+        var completedResult = await handler.Handle(new(currentUser.UserId.Value, "Completed"), default);
+        Assert.Single(completedResult);
+        Assert.Equal(AppointmentStatus.Completed, completedResult[0].Status);
+    }
 
-        [Fact]
-        public async Task TestGetPatientAppointmentsForNonExistentPatient()
-        {
-            var patientRepository = new FakePatientRepository();
-            var appointmentRepository = new FakeAppointmentRepository();
-            var userRepository = new FakeUserRepository();
-            var handler = new GetPatientAppointmentsQueryHandler(appointmentRepository, patientRepository, userRepository);
-            var receptionist = TestDataFactory.CreateEmployee(role: "Receptionist");
-            var appointment = TestDataFactory.CreateAppointment();
-            await appointmentRepository.AddAsync(appointment);
-            await userRepository.AddAsync(receptionist.Person.User);
-            var query = new GetPatientAppointmentsQuery(receptionist.Person.User.Id, "Completed", Guid.NewGuid());
-            await Assert.ThrowsAsync<NotFoundException>(async () => await handler.Handle(query, CancellationToken.None));
-        }
+    [Fact]
+    public async Task Allows_privileged_staff_to_query_another_patient()
+    {
+        var patients = new FakePatientRepository();
+        var appointments = new FakeAppointmentRepository();
+        var currentUser = new FakeCurrentUser();
+        var handler = new GetPatientAppointmentsQueryHandler(appointments, patients, currentUser);
+        var receptionist = Guid.NewGuid();
+        currentUser.UserId = receptionist;
+        currentUser.GrantRole("Receptionist");
+        var missingPatientId = Guid.NewGuid();
+        await Assert.ThrowsAsync<NotFoundException>(() => handler.Handle(new(receptionist, "Completed", missingPatientId), default));
+    }
 
-        [Fact]
-        public async Task TestUnauthorizedGetPatientAppointmentsForPatient()
-        {
-            var patientRepository = new FakePatientRepository();
-            var appointmentRepository = new FakeAppointmentRepository();
-            var userRepository = new FakeUserRepository();
-            var handler = new GetPatientAppointmentsQueryHandler(appointmentRepository, patientRepository, userRepository);
-            var patient = TestDataFactory.CreatePatient();
-            var appointment = TestDataFactory.CreateAppointment(patient: patient);
-            await appointmentRepository.AddAsync(appointment);
-
-            var query = new GetPatientAppointmentsQuery(Guid.NewGuid());
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await handler.Handle(query, CancellationToken.None));
-            var query2 = new GetPatientAppointmentsQuery(Guid.NewGuid(), "Completed", patient.Person.User.Id);
-        }
+    [Fact]
+    public async Task Rejects_missing_identity_and_patient_cross_access()
+    {
+        var patients = new FakePatientRepository();
+        var appointments = new FakeAppointmentRepository();
+        var currentUser = new FakeCurrentUser();
+        var handler = new GetPatientAppointmentsQueryHandler(appointments, patients, currentUser);
+        var patient = TestDataFactory.CreatePatient();
+        currentUser.UserId = patient.Person.IdentityUserId!.Value;
+        currentUser.PatientId = patient.Id;
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => handler.Handle(new(Guid.NewGuid()), default));
+        await Assert.ThrowsAsync<ForbiddenException>(() => handler.Handle(new(patient.Person.IdentityUserId!.Value, "upcoming", Guid.NewGuid()), default));
     }
 }
+

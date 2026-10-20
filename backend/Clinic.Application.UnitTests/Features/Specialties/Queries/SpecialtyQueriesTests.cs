@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Exceptions;
+﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Specialties.Queries;
 using Clinic.Application.UnitTests.Common;
 
@@ -39,3 +39,4 @@ namespace Clinic.Application.UnitTests.Features.Specialties.Queries
         }
     }
 }
+

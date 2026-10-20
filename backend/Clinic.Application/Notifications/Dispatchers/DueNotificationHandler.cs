@@ -59,13 +59,13 @@ namespace Clinic.Application.Notifications.Dispatchers
                         }
                         break;
                     case NotificationChannel.InApp:
-                        if (notification.Person.User == null)
+                        if (notification.Person.IdentityUserId is not Guid identityUserId)
                         {
                             continue;
                         }
                         try
                         {
-                            await _inAppSender.SendAsync(notification.Person.User.Id, notification.Title, notification.Message, stoppingToken);
+                            await _inAppSender.SendAsync(identityUserId, notification.Title, notification.Message, stoppingToken);
                             notification.MarkAsSent();
                         }
                         catch

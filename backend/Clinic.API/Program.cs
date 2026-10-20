@@ -2,6 +2,7 @@ using Clinic.API;
 using Clinic.API.Hubs;
 using Clinic.API.Middlewares;
 using Clinic.API.Workers;
+using Clinic.API.Services;
 using Clinic.Application;
 using Clinic.Infrastructure.Sqlserver;
 using Clinic.Infrastructure.Sqlserver.Notifications;
@@ -16,6 +17,9 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+const string ClinicJwtScheme = "ClinicJwt";
+const string IdentityJwtScheme = "IdentityJwt";
+const string LegacyJwtScheme = "LegacyJwt";
 
 builder.Services.AddCors(options =>
 {
@@ -79,24 +83,69 @@ if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
         }
 
 // Add Authentication and Authorization services
+builder.Services.AddHttpClient("Identity", client =>
+{
+    var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5001";
+    client.BaseAddress = new Uri(identityAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddTransient<IdentityAccountClient>();
+
 builder.Services
     .AddAuthentication(options =>
     {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultAuthenticateScheme = ClinicJwtScheme;
+        options.DefaultChallengeScheme = ClinicJwtScheme;
     })
-    .AddJwtBearer(options =>
+    .AddPolicyScheme(ClinicJwtScheme, "Clinic access token", options =>
     {
+        options.ForwardDefaultSelector = context =>
+        {
+            var header = context.Request.Headers.Authorization.ToString();
+            if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return IdentityJwtScheme;
+            try
+            {
+                var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler()
+                    .ReadJwtToken(header["Bearer ".Length..].Trim());
+                return string.IsNullOrWhiteSpace(token.Header.Kid) ? LegacyJwtScheme : IdentityJwtScheme;
+            }
+            catch
+            {
+                return IdentityJwtScheme;
+            }
+        };
+    })
+    .AddJwtBearer(IdentityJwtScheme, options =>
+    {
+        var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5001";
+        options.Authority = identityAuthority.TrimEnd('/');
+        options.RequireHttpsMetadata = builder.Configuration.GetValue<bool?>("Identity:RequireHttpsMetadata")
+            ?? (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"));
+        options.Audience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services";
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
             ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "Clinic.Identity",
             ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services",
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            RoleClaimType = ClaimTypes.Role
+        };
+    })
+    .AddJwtBearer(LegacyJwtScheme, options =>
+    {
+        var legacyKey = builder.Configuration["Jwt:Key"] ?? string.Empty;
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuers = ["Clinic.API", "Clinic.Identity"],
+            ValidateAudience = true,
+            ValidAudiences = ["Clinic.Client", "Clinic.Services"],
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
             IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+                System.Text.Encoding.UTF8.GetBytes(legacyKey)),
             RoleClaimType = ClaimTypes.Role
         };
     });
@@ -148,8 +197,45 @@ var app = builder.Build();
 
 app.MapPrometheusScrapingEndpoint();
 
+var identityPublicBaseUrl = (builder.Configuration["Jwt:PublicBaseUrl"] ?? "http://localhost:5000").TrimEnd('/');
+var identityIssuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:5000";
+app.MapGet("/.well-known/jwks.json", async (IHttpClientFactory clients, CancellationToken cancellationToken) =>
+{
+    using var response = await clients.CreateClient("Identity").GetAsync(".well-known/jwks.json", cancellationToken);
+    if (!response.IsSuccessStatusCode) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    var jwks = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>(cancellationToken: cancellationToken);
+    return jwks is null ? Results.StatusCode(StatusCodes.Status502BadGateway) : Results.Json(jwks.RootElement.Clone());
+}).AllowAnonymous();
+
+app.MapGet("/.well-known/openid-configuration", () => Results.Json(new
+{
+    issuer = identityIssuer,
+    jwks_uri = $"{identityPublicBaseUrl}/.well-known/jwks.json",
+    response_types_supported = new[] { "token" },
+    subject_types_supported = new[] { "public" },
+    id_token_signing_alg_values_supported = new[] { "RS256" },
+    token_endpoint = $"{identityPublicBaseUrl}/auth/login"
+})).AllowAnonymous();
+
 app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
+app.MapGet("/readyz", async (IServiceScopeFactory scopeFactory, IHttpClientFactory clients, CancellationToken ct) =>
+{
+    try
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<Clinic.Infrastructure.Sqlserver.Persistence.ApplicationDbContext>();
+        if (!await db.Database.CanConnectAsync(ct)) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        using var identity = await clients.CreateClient("Identity").GetAsync("readyz", ct);
+        return identity.IsSuccessStatusCode
+            ? Results.Ok(new { status = "Ready" })
+            : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+    catch
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+}).AllowAnonymous();
 
 // Seed the database with an initial admin user if it doesn't exist.
 // Integration contract tests intentionally skip this external infrastructure step.
@@ -159,7 +245,6 @@ if (!app.Configuration.GetValue<bool>("SkipDatabaseInitialization"))
     var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
 
     await initializer.MigrateAsync();
-    await initializer.CreateInitialAdminAsync();
 }
 
 // Bắt mọi exception chưa xử lý và trả về envelope ApiResponse (qua GlobalExceptionHandler).

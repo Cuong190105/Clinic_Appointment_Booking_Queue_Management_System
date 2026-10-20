@@ -28,8 +28,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 // RowVersion không khớp - bản ghi đã bị request khác cập nhật trước.
                 // Dịch sang exception riêng của Application để Infrastructure (EF Core)
                 // không rò rỉ lên Handler, giữ đúng ranh giới Clean Architecture.
-                throw new ConcurrencyConflictException(
-                    "Dữ liệu đã bị thay đổi bởi thao tác khác, vui lòng thử lại.");
+                throw new ConcurrencyConflictException("Data changed concurrently. Please retry.");
             }
         }
 

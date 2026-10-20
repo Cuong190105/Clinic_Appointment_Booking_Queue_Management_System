@@ -30,7 +30,7 @@ namespace Clinic.Application.Notifications.Dispatchers
         }
         public async Task HandleAsync(NotificationJob<Account> notificationJob, CancellationToken cancellationToken = default, DateTimeOffset? scheduledTime = null)
         {
-            if (notificationJob.SendInApp && notificationJob.Person.User != null)
+            if (notificationJob.SendInApp && notificationJob.Person.IdentityUserId is not null)
             {
                 //InAppContent content = new AccountNotificationTemplate().RenderInApp(notificationJob.Data);
                 //var notification = new Notification(
@@ -50,7 +50,6 @@ namespace Clinic.Application.Notifications.Dispatchers
                 //    return;
                 //}
 
-                //await _inAppSender.SendAsync(notificationJob.Person.User.Id, content.Title, content.Message, cancellationToken);
                 //notification.MarkAsSent();
             }
             if (notificationJob.SendEmail && notificationJob.Person.Email != null)
@@ -63,8 +62,8 @@ namespace Clinic.Application.Notifications.Dispatchers
                 var notification = new Notification(
                         notificationJob.Person.Id,
                         notificationJob.NotificationType,
-                        content.Subject,
-                        content.Body,
+                        notificationJob.NotificationType == NotificationType.ResetPassword ? "Password reset" : content.Subject,
+                        notificationJob.NotificationType == NotificationType.ResetPassword ? "A one-time reset code was sent." : content.Body,
                         NotificationChannel.Email,
                         scheduledTime
                     );
@@ -95,7 +94,7 @@ namespace Clinic.Application.Notifications.Dispatchers
                         notificationJob.Person.Id,
                         notificationJob.NotificationType,
                         "<NO TITLE>",
-                        content.Message,
+                        notificationJob.NotificationType == NotificationType.ResetPassword ? "A one-time reset code was sent." : content.Message,
                         NotificationChannel.Sms,
                         scheduledTime
                     );

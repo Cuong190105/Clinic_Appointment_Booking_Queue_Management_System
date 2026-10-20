@@ -62,7 +62,7 @@ namespace Clinic.API.Controllers
 
         // For patient only
         [HttpPatch("{appointmentId}")]
-        [Authorize(Policy = "Permission:appointment.edit.own")]
+        [Authorize(Policy = "Permission:appointment.edit.own,appointment.edit.any")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

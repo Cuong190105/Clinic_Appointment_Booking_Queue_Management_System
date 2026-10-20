@@ -57,12 +57,15 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
             {
                 ["SkipDatabaseInitialization"] = "true",
                 ["SkipBackgroundWorkers"] = "true",
+                ["Identity:ServiceToken"] = "integration-test-service-token",
                 ["ConnectionStrings:DefaultConnection"] = TestConnectionString
             });
         });
 
         builder.ConfigureTestServices(services =>
         {
+            services.RemoveAll<IHttpClientFactory>();
+            services.AddSingleton<IHttpClientFactory, TestIdentityHttpClientFactory>();
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
             services.RemoveAll<ApplicationDbContext>();
             services.AddDbContext<ApplicationDbContext>(options =>
@@ -134,6 +137,63 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
     }
 }
 
+public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(new TestIdentityHandler())
+    {
+        BaseAddress = new Uri("http://identity.test")
+    };
+
+    private sealed class TestIdentityHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.EndsWith("/v1/internal/users/provision", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var root = body.RootElement;
+                var provisioned = JsonSerializer.Serialize(new
+                {
+                    userId = root.GetProperty("userId").GetGuid(),
+                    personId = root.GetProperty("personId").GetGuid(),
+                    isActive = false,
+                    created = true
+                });
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(provisioned, System.Text.Encoding.UTF8, "application/json")
+                };
+            }
+            if (path.Contains("/v1/internal/users/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/roles", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Put)
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            if (path.EndsWith("/v1/auth/login", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+                return Json(HttpStatusCode.OK, "{\"accessToken\":\"identity-access-token\",\"refreshToken\":\"identity-refresh-token\",\"roles\":[\"Patient\"]}");
+            if (path.EndsWith("/v1/auth/refresh", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+                return new HttpResponseMessage(HttpStatusCode.Unauthorized);
+            if (path.EndsWith("/v1/auth/revoke", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            if (path.EndsWith("/v1/auth/me", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"userId\":\"b0000001-0000-0000-0000-000000000001\",\"personId\":\"b0000002-0000-0000-0000-000000000001\",\"username\":\"identity-admin-user\",\"fullName\":\"Identity Admin User\",\"phoneNumber\":\"09000000000\",\"email\":\"admin-user@example.test\",\"gender\":\"Other\",\"address\":\"Address\",\"dateOfBirth\":\"1990-01-01\",\"roles\":[\"Patient\"],\"isActive\":true,\"createdAt\":\"2026-01-01T00:00:00Z\"}");
+            var content = path.EndsWith("jwks.json", StringComparison.OrdinalIgnoreCase)
+                ? "{\"keys\":[]}"
+                : path.EndsWith("/v1/internal/roles", StringComparison.OrdinalIgnoreCase)
+                    ? "[{\"id\":\"b0000003-0000-0000-0000-000000000001\",\"name\":\"Patient\",\"description\":\"Patient role\",\"permissions\":[]}]"
+                : path.EndsWith("/v1/internal/users", StringComparison.OrdinalIgnoreCase)
+                    ? "{\"items\":[{\"userId\":\"b0000001-0000-0000-0000-000000000001\",\"personId\":\"b0000002-0000-0000-0000-000000000001\",\"username\":\"identity-admin-user\",\"fullName\":\"Identity Admin User\",\"phoneNumber\":\"09000000000\",\"email\":\"admin-user@example.test\",\"gender\":\"Other\",\"roles\":[\"Patient\"],\"isActive\":true,\"createdAt\":\"2026-01-01T00:00:00Z\"}],\"totalCount\":1,\"pageNumber\":1,\"pageSize\":10}"
+                    : path.Contains("/v1/internal/users/", StringComparison.OrdinalIgnoreCase)
+                        ? "{\"userId\":\"b0000001-0000-0000-0000-000000000001\",\"personId\":\"b0000002-0000-0000-0000-000000000001\",\"username\":\"identity-admin-user\",\"fullName\":\"Identity Admin User\",\"phoneNumber\":\"09000000000\",\"email\":\"admin-user@example.test\",\"gender\":\"Other\",\"address\":\"Address\",\"dateOfBirth\":\"1990-01-01\",\"roles\":[\"Patient\"],\"isActive\":true,\"createdAt\":\"2026-01-01T00:00:00Z\",\"patientId\":null,\"employeeId\":null,\"doctorId\":null}"
+                        : "{}";
+            return Json(HttpStatusCode.OK, content);
+        }
+
+        private static HttpResponseMessage Json(HttpStatusCode status, string content) => new(status)
+        {
+            Content = new StringContent(content, System.Text.Encoding.UTF8, "application/json")
+        };
+    }
+}
+
 public sealed class TestAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public new const string Scheme = "IntegrationTest";
@@ -164,7 +224,11 @@ public sealed class TestAuthenticationHandler : AuthenticationHandler<Authentica
                 new Claim("patientId", patientId),
                 new Claim("permission", "queue.start-exam.any"),
                 new Claim("permission", "queue.complete-exam.any"),
-                new Claim("permission", "medical-report.view.any")
+                new Claim("permission", "medical-report.view.any"),
+                new Claim("permission", "user.manage"),
+                new Claim("permission", "employee.create"),
+                new Claim("permission", "doctor.create"),
+                new Claim("permission", "role.manage")
             },
             Scheme);
         return Task.FromResult(AuthenticateResult.Success(

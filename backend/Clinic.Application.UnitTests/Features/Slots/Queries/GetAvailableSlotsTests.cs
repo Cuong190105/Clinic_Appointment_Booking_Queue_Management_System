@@ -1,4 +1,4 @@
-using Clinic.Application.Features.Slots.Queries;
+﻿using Clinic.Application.Features.Slots.Queries;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
@@ -119,3 +119,4 @@ namespace Clinic.Application.UnitTests.Features.Slots.Queries
         }
     }
 }
+

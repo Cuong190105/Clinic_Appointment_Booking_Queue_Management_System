@@ -18,21 +18,20 @@ namespace Clinic.Application.Features.Appointments.Commands
     public class UpdateAppointmentCommandHandler : IRequestHandler<UpdateAppointmentCommand, AppointmentDto>
     {
         private readonly IAppointmentRepository _appointmentRepository;
-        private readonly IUserRepository _userRepository;
+        private readonly ICurrentUser _currentUser;
         private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly IUnitOfWork _unitOfWork;
-        public UpdateAppointmentCommandHandler(IAppointmentRepository appointmentRepository, IUserRepository userRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
+        public UpdateAppointmentCommandHandler(IAppointmentRepository appointmentRepository, ICurrentUser currentUser, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
         {
             _appointmentRepository = appointmentRepository;
-            _userRepository = userRepository;
+            _currentUser = currentUser;
             _workScheduleRepository = workScheduleRepository;
             _unitOfWork = unitOfWork;
         }
 
         public async Task<AppointmentDto> Handle(UpdateAppointmentCommand request, CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            if (_currentUser.UserId != request.UserId)
             {
                 throw new UnauthorizedAccessException($"User not found.");
             }
@@ -41,7 +40,7 @@ namespace Clinic.Application.Features.Appointments.Commands
             {
                 throw new NotFoundException($"Appointment not found.");
             }
-            if (!(user.UserRoles.Any(ur => ur.Role.Name == "Receptionist") || appointment.PatientId == user.Person.Patient?.Id))
+            if (!(_currentUser.HasRole("Receptionist") || _currentUser.HasPermission("appointment.edit.any") || appointment.PatientId == _currentUser.PatientId))
             {
                 throw new ForbiddenException($"You are not authorized to update this appointment.");
             }

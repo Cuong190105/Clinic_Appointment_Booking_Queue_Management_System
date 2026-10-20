@@ -27,7 +27,7 @@ namespace Clinic.Application.Notifications.Dispatchers
 
         public async Task HandleAsync(NotificationJob<Appointment> appointmentJob, CancellationToken cancellationToken = default, DateTimeOffset? scheduledTime = null)
         {
-            if (appointmentJob.SendInApp && appointmentJob.Person.User != null)
+            if (appointmentJob.SendInApp && appointmentJob.Person.IdentityUserId is Guid identityUserId)
             {
                 InAppContent content = appointmentJob.NotificationType switch
                 {
@@ -51,7 +51,7 @@ namespace Clinic.Application.Notifications.Dispatchers
                 {
                     return;
                 }
-                await _inAppSender.SendAsync(appointmentJob.Person.User.Id, content.Title, content.Message, cancellationToken);
+                await _inAppSender.SendAsync(identityUserId, content.Title, content.Message, cancellationToken);
                 notification.MarkAsSent();
             }
             if (appointmentJob.SendEmail && appointmentJob.Person.Email != null)

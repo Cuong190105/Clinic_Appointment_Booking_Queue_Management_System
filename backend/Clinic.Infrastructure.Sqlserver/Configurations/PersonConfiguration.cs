@@ -27,6 +27,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.Property(p => p.Email).HasMaxLength(200);
             builder.Property(p => p.Address).HasMaxLength(500);
+            builder.HasIndex(p => p.IdentityUserId).IsUnique().HasFilter("[IdentityUserId] IS NOT NULL");
 
             builder.HasMany(p => p.Notifications)
                 .WithOne(n => n.Person)

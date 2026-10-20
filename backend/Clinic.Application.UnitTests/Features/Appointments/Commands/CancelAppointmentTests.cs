@@ -19,7 +19,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
 
             var appointment = TestDataFactory.CreateAppointment();
             currentUser.PatientId = appointment.PatientId;
-            currentUser.UserId = appointment.Patient.Person.User.Id;
+            currentUser.UserId = appointment.Patient.Person.IdentityUserId!.Value;
             await appointmentRepository.AddAsync(appointment);
 
             // Act
@@ -49,7 +49,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         //    var appointment = TestDataFactory.CreateAppointment(checkedIn: true);
         //    var queueTicket = TestDataFactory.CreateQueueTicket(appointment);
         //    currentUser.PatientId = appointment.PatientId;
-        //    currentUser.UserId = appointment.Patient.Person.User.Id;
+        //    currentUser.UserId = appointment.Patient.Person.IdentityUserId!.Value;
         //    await appointmentRepository.AddAsync(appointment);
         //    await queueTicketRepository.AddAsync(queueTicket);
 
@@ -74,7 +74,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         //    var appointment = TestDataFactory.CreateAppointment(checkedIn: true);
         //    var queueTicket = TestDataFactory.CreateQueueTicket(appointment);
         //    queueTicket.Call();
-        //    currentUser.UserId = appointment.Patient.Person.User.Id;
+        //    currentUser.UserId = appointment.Patient.Person.IdentityUserId!.Value;
         //    currentUser.PatientId = appointment.PatientId;
         //    await appointmentRepository.AddAsync(appointment);
         //    await queueTicketRepository.AddAsync(queueTicket);
@@ -102,7 +102,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         //    var queueTicket = TestDataFactory.CreateQueueTicket(appointment);
         //    queueTicket.Call();
         //    queueTicket.StartExam();
-        //    currentUser.UserId = appointment.Patient.Person.User.Id;
+        //    currentUser.UserId = appointment.Patient.Person.IdentityUserId!.Value;
         //    currentUser.PatientId = appointment.PatientId;
         //    await appointmentRepository.AddAsync(appointment);
         //    await queueTicketRepository.AddAsync(queueTicket);
@@ -173,3 +173,4 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         }
     }
 }
+

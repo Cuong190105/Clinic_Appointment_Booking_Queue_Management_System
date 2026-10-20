@@ -8,8 +8,6 @@ namespace Clinic.Application.Features.Doctors.Commands
 {
     // Use-case: Create a new doctor
     public record CreateDoctorCommand(
-        string Username,
-        string Password,
         string FullName,
         string PhoneNumber,
         string Email,
@@ -22,46 +20,40 @@ namespace Clinic.Application.Features.Doctors.Commands
         string? Biography,
         int ExperienceYears,
         DoctorStatus Status,
-        Guid SpecialtyId) : IRequest<DoctorSummaryDto>;
+        Guid SpecialtyId,
+        Guid? IdentityUserId = null,
+        Guid? IdentityPatientId = null) : IRequest<DoctorSummaryDto>;
     public class CreateDoctorCommandHandler : IRequestHandler<CreateDoctorCommand, DoctorSummaryDto>
     {
-        private readonly IUserService _userService;
         private readonly IPersonService _personService;
         private readonly IDoctorRepository _doctorRepository;
         private readonly ISpecialtyRepository _specialtyRepository;
-        private readonly IRoleRepository _roleRepository;
         private readonly IEmployeeRepository _employeeRepository;
+        private readonly IPatientRepository _patientRepository;
         private readonly IUnitOfWork _unitOfWork;
-        public CreateDoctorCommandHandler(IUserService userService, IPersonService personService, IDoctorRepository doctorRepository, ISpecialtyRepository specialtyRepository, IRoleRepository roleRepository, IEmployeeRepository employeeRepository, IUnitOfWork unitOfWork)
+        public CreateDoctorCommandHandler(IPersonService personService, IDoctorRepository doctorRepository, ISpecialtyRepository specialtyRepository, IEmployeeRepository employeeRepository, IPatientRepository patientRepository, IUnitOfWork unitOfWork)
         {
-            _userService = userService;
             _personService = personService;
             _doctorRepository = doctorRepository;
             _specialtyRepository = specialtyRepository;
-            _roleRepository = roleRepository;
             _unitOfWork = unitOfWork;
             _employeeRepository = employeeRepository;
+            _patientRepository = patientRepository;
         }
         public async Task<DoctorSummaryDto> Handle(CreateDoctorCommand request, CancellationToken cancellationToken)
         {
             var person = await _personService.CreateOrGetPersonAsync(request.FullName, request.PhoneNumber, request.Email, request.DateOfBirth, request.Gender, request.Address);
-            var user = await _userService.CreateUserAsync(request.Username, request.Password, person);
-            var role = await _roleRepository.GetByNameAsync("Doctor");
-            if (role == null)
-            {
-                throw new ArgumentException("Role 'Doctor' does not exist.");
-            }
-            user.AssignRole(role);
+            if (request.IdentityUserId is not Guid identityUserId || identityUserId == Guid.Empty)
+                throw new ArgumentException("An Identity account ID is required to create a doctor profile.");
+            person.LinkIdentityUser(identityUserId);
             var employee = new Employee(person, request.HireDate);
             if (person.Patient == null)
             {
-                var patient = new Patient(person, null, null);
-                var patientRole = await _roleRepository.GetByNameAsync("Patient");
-                if (patientRole == null) {
-                    throw new ArgumentException("Role 'Patient' does not exist.");
-                }
-                user.AssignRole(patientRole);
+                var patient = request.IdentityPatientId is Guid patientId
+                    ? new Patient(patientId, person.Id, null, null, DateTime.UtcNow, null, false)
+                    : new Patient(person, null, null);
                 person.Patient = patient;
+                await _patientRepository.AddAsync(patient);
             }
 
             var specialty = await _specialtyRepository.GetByIdAsync(request.SpecialtyId);
@@ -76,6 +68,8 @@ namespace Clinic.Application.Features.Doctors.Commands
             return new DoctorSummaryDto
             {
                 Id = doctor.Id,
+                EmployeeId = employee.Id,
+                PatientId = person.Patient?.Id,
                 FullName = person.FullName,
                 PhoneNumber = person.PhoneNumber,
                 Email = person.Email,

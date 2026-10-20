@@ -73,8 +73,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.HasIndex("UpdatedByUserId");
-
                     b.HasIndex("WorkScheduleId");
 
                     b.HasIndex("TimeSlot", "WorkScheduleId")
@@ -9701,8 +9699,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
 
                     b.HasIndex("OldWorkScheduleId");
 
-                    b.HasIndex("UpdatedByUserId");
-
                     b.ToTable("AppointmentSnapshots", (string)null);
                 });
 
@@ -13414,472 +13410,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Clinic.Domain.Entities.Permission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("Permissions", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Create appointments",
-                            IsDeleted = false,
-                            Name = "appointment.create"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View appointments",
-                            IsDeleted = false,
-                            Name = "appointment.view"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Cancel appointments (deprecated - dùng appointment.cancel.own/.any)",
-                            IsDeleted = true,
-                            Name = "appointment.cancel"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-00000000000e"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Cancel own appointment (Patient)",
-                            IsDeleted = false,
-                            Name = "appointment.edit.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-00000000000f"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Cancel any appointment (Admin/Receptionist)",
-                            IsDeleted = false,
-                            Name = "appointment.edit.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000004"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Call next in queue",
-                            IsDeleted = false,
-                            Name = "queue.call-next"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000005"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View own doctor profile (Doctor)",
-                            IsDeleted = false,
-                            Name = "doctor.view.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000006"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Edit doctor profile (deprecated - dùng doctor.edit.own/.any)",
-                            IsDeleted = true,
-                            Name = "doctor.edit"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000007"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Manage users",
-                            IsDeleted = false,
-                            Name = "user.manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000008"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Manage roles and permissions",
-                            IsDeleted = false,
-                            Name = "role.manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000009"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Update appointments",
-                            IsDeleted = false,
-                            Name = "appointment.update"
-                        },
-                        new
-                        {
-                            Id = new Guid("1000000a-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Confirm appointments",
-                            IsDeleted = false,
-                            Name = "appointment.confirm"
-                        },
-                        new
-                        {
-                            Id = new Guid("1000000a-0000-0000-0000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Reschedule appointments",
-                            IsDeleted = false,
-                            Name = "appointment.reschedule"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-00000000000c"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View doctor's queue",
-                            IsDeleted = false,
-                            Name = "doctor.queue.view"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-00000000000d"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Create doctor profile",
-                            IsDeleted = false,
-                            Name = "doctor.create"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000013"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Edit own doctor profile (Doctor)",
-                            IsDeleted = false,
-                            Name = "doctor.edit.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000014"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Edit any doctor profile (Admin)",
-                            IsDeleted = false,
-                            Name = "doctor.edit.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000020"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View any doctor profile (Admin)",
-                            IsDeleted = false,
-                            Name = "doctor.view.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000015"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View own employee profile (Employee)",
-                            IsDeleted = false,
-                            Name = "employee.view.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000016"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Create employee profile",
-                            IsDeleted = false,
-                            Name = "employee.create"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000017"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Edit any employee profile (Admin)",
-                            IsDeleted = false,
-                            Name = "employee.edit.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000018"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Edit own employee profile (Employee)",
-                            IsDeleted = false,
-                            Name = "employee.edit.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000019"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View any employee profile (Admin)",
-                            IsDeleted = false,
-                            Name = "employee.view.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View medical reports",
-                            IsDeleted = true,
-                            Name = "medical-report.view"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Create medical reports",
-                            IsDeleted = false,
-                            Name = "medical-report.create"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View patient medical history",
-                            IsDeleted = true,
-                            Name = "patient-history.view"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000004"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Manage any doctor's shifts",
-                            IsDeleted = false,
-                            Name = "shift.manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000005"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Manage own shift requests",
-                            IsDeleted = false,
-                            Name = "shift.self-manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000006"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View queue",
-                            IsDeleted = false,
-                            Name = "queue.view"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000007"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Check in a patient into queue",
-                            IsDeleted = false,
-                            Name = "queue.check-in"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000008"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Skip a patient in queue",
-                            IsDeleted = false,
-                            Name = "queue.skip"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000009"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Set priority in queue",
-                            IsDeleted = false,
-                            Name = "queue.priority"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-00000000000a"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View own medical reports (Patient)",
-                            IsDeleted = false,
-                            Name = "medical-report.view.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-00000000000b"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View medical reports of patients in own exam cases (Doctor)",
-                            IsDeleted = false,
-                            Name = "medical-report.view.related"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-00000000000c"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View any medical report (Admin)",
-                            IsDeleted = false,
-                            Name = "medical-report.view.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-00000000000d"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View own medical history (Patient)",
-                            IsDeleted = false,
-                            Name = "patient-history.view.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-00000000000e"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View medical history of patients in own exam cases (Doctor)",
-                            IsDeleted = false,
-                            Name = "patient-history.view.related"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-00000000000f"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View any patient's medical history (Admin)",
-                            IsDeleted = false,
-                            Name = "patient-history.view.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Manage notifications",
-                            IsDeleted = false,
-                            Name = "notification.manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View clinic-wide reports",
-                            IsDeleted = false,
-                            Name = "report.view"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Manage medical specialties",
-                            IsDeleted = false,
-                            Name = "specialty.manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000004"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View appointment slots",
-                            IsDeleted = false,
-                            Name = "slot.view"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000005"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Manage appointment slots",
-                            IsDeleted = false,
-                            Name = "slot.manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000006"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Approve/reject doctor shift-change suggestions (Receptionist)",
-                            IsDeleted = false,
-                            Name = "shift.suggestion.manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000b-0000-0000-0000-000000000005"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Start exam for own queue ticket (Doctor)",
-                            IsDeleted = false,
-                            Name = "queue.start-exam.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000b-0000-0000-0000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Start exam for any doctor's queue ticket (Admin/Receptionist)",
-                            IsDeleted = false,
-                            Name = "queue.start-exam.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000b-0000-0000-0000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Complete exam for own queue ticket (Doctor)",
-                            IsDeleted = false,
-                            Name = "queue.complete-exam.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000b-0000-0000-0000-000000000004"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Complete exam for any doctor's queue ticket (Admin/Receptionist)",
-                            IsDeleted = false,
-                            Name = "queue.complete-exam.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000b-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Manage doctor own shift suggestions (Doctor)",
-                            IsDeleted = false,
-                            Name = "shift.suggestion.self-manage"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000007"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Create any patient record (Receptionist)",
-                            IsDeleted = false,
-                            Name = "patient.create.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000008"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Edit own patient record (Patient)",
-                            IsDeleted = false,
-                            Name = "patient.edit.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000009"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Edit any patient record (Receptionist)",
-                            IsDeleted = false,
-                            Name = "patient.edit.any"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000010"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View own patient record (Patient)",
-                            IsDeleted = false,
-                            Name = "patient.view.own"
-                        },
-                        new
-                        {
-                            Id = new Guid("2000000a-0000-0000-0000-000000000011"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "View any patient record (Receptionist)",
-                            IsDeleted = false,
-                            Name = "patient.view.any"
-                        });
-                });
-
             modelBuilder.Entity("Clinic.Domain.Entities.Person", b =>
                 {
                     b.Property<Guid>("Id")
@@ -13908,6 +13438,9 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Property<int>("Gender")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -13919,6 +13452,10 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IdentityUserId")
+                        .IsUnique()
+                        .HasFilter("[IdentityUserId] IS NOT NULL");
 
                     b.HasIndex("PhoneNumber")
                         .IsUnique()
@@ -13936,6 +13473,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor1@clinic.local",
                             FullName = "Nguyen Van An",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000001"),
                             IsDeleted = false,
                             PhoneNumber = "0901000001"
                         },
@@ -13948,6 +13486,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor2@clinic.local",
                             FullName = "Tran Thi Binh",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000002"),
                             IsDeleted = false,
                             PhoneNumber = "0901000002"
                         },
@@ -13960,6 +13499,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor3@clinic.local",
                             FullName = "Le Minh Chau",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000003"),
                             IsDeleted = false,
                             PhoneNumber = "0901000003"
                         },
@@ -13972,6 +13512,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor4@clinic.local",
                             FullName = "Pham Quoc Dung",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000004"),
                             IsDeleted = false,
                             PhoneNumber = "0901000004"
                         },
@@ -13984,6 +13525,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor5@clinic.local",
                             FullName = "Hoang Thi Em",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000005"),
                             IsDeleted = false,
                             PhoneNumber = "0901000005"
                         },
@@ -13996,6 +13538,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor6@clinic.local",
                             FullName = "Vu Van Phuc",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000006"),
                             IsDeleted = false,
                             PhoneNumber = "0901000006"
                         },
@@ -14008,6 +13551,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor7@clinic.local",
                             FullName = "Dang Thi Giang",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000007"),
                             IsDeleted = false,
                             PhoneNumber = "0901000007"
                         },
@@ -14020,6 +13564,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor8@clinic.local",
                             FullName = "Bui Van Hai",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000008"),
                             IsDeleted = false,
                             PhoneNumber = "0901000008"
                         },
@@ -14032,6 +13577,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor9@clinic.local",
                             FullName = "Ngo Thi Hoa",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000009"),
                             IsDeleted = false,
                             PhoneNumber = "0901000009"
                         },
@@ -14044,6 +13590,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor10@clinic.local",
                             FullName = "Duong Van Khoa",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000010"),
                             IsDeleted = false,
                             PhoneNumber = "0901000010"
                         },
@@ -14056,6 +13603,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor11@clinic.local",
                             FullName = "Luong Thi Lan",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000011"),
                             IsDeleted = false,
                             PhoneNumber = "0901000011"
                         },
@@ -14068,6 +13616,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor12@clinic.local",
                             FullName = "Trinh Van Minh",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000012"),
                             IsDeleted = false,
                             PhoneNumber = "0901000012"
                         },
@@ -14080,6 +13629,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor13@clinic.local",
                             FullName = "Cao Thi Nga",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000013"),
                             IsDeleted = false,
                             PhoneNumber = "0901000013"
                         },
@@ -14092,6 +13642,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor14@clinic.local",
                             FullName = "Phan Van Quang",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000014"),
                             IsDeleted = false,
                             PhoneNumber = "0901000014"
                         },
@@ -14104,6 +13655,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "doctor15@clinic.local",
                             FullName = "Do Thi Quyen",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000015"),
                             IsDeleted = false,
                             PhoneNumber = "0901000015"
                         },
@@ -14116,6 +13668,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "admin1@clinic.local",
                             FullName = "Vo Thanh Son",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000016"),
                             IsDeleted = false,
                             PhoneNumber = "0901000016"
                         },
@@ -14128,6 +13681,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "admin2@clinic.local",
                             FullName = "Mai Huu Tam",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000017"),
                             IsDeleted = false,
                             PhoneNumber = "0901000017"
                         },
@@ -14140,6 +13694,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "receptionist1@clinic.local",
                             FullName = "Ly Thi Uyen",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000018"),
                             IsDeleted = false,
                             PhoneNumber = "0901000018"
                         },
@@ -14152,6 +13707,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "receptionist2@clinic.local",
                             FullName = "Ho Van Vinh",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000019"),
                             IsDeleted = false,
                             PhoneNumber = "0901000019"
                         },
@@ -14164,6 +13720,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "receptionist3@clinic.local",
                             FullName = "Dinh Thi Xuan",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000020"),
                             IsDeleted = false,
                             PhoneNumber = "0901000020"
                         },
@@ -14176,6 +13733,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "receptionist4@clinic.local",
                             FullName = "Ta Van Yen",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000021"),
                             IsDeleted = false,
                             PhoneNumber = "0901000021"
                         },
@@ -14188,6 +13746,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "receptionist5@clinic.local",
                             FullName = "Chau Thi Anh",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000022"),
                             IsDeleted = false,
                             PhoneNumber = "0901000022"
                         },
@@ -14200,6 +13759,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient1@clinic.local",
                             FullName = "Nguyen Thi Bach",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000023"),
                             IsDeleted = false,
                             PhoneNumber = "0901000023"
                         },
@@ -14212,6 +13772,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient2@clinic.local",
                             FullName = "Tran Van Cuong",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000024"),
                             IsDeleted = false,
                             PhoneNumber = "0901000024"
                         },
@@ -14224,6 +13785,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient3@clinic.local",
                             FullName = "Le Thi Dao",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000025"),
                             IsDeleted = false,
                             PhoneNumber = "0901000025"
                         },
@@ -14236,6 +13798,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient4@clinic.local",
                             FullName = "Pham Van Dat",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000026"),
                             IsDeleted = false,
                             PhoneNumber = "0901000026"
                         },
@@ -14248,6 +13811,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient5@clinic.local",
                             FullName = "Hoang Thi Hanh",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000027"),
                             IsDeleted = false,
                             PhoneNumber = "0901000027"
                         },
@@ -14260,6 +13824,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient6@clinic.local",
                             FullName = "Huynh Van Hung",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000028"),
                             IsDeleted = false,
                             PhoneNumber = "0901000028"
                         },
@@ -14272,6 +13837,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient7@clinic.local",
                             FullName = "Phan Thi Kim",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000029"),
                             IsDeleted = false,
                             PhoneNumber = "0901000029"
                         },
@@ -14284,6 +13850,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient8@clinic.local",
                             FullName = "Vu Van Long",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000030"),
                             IsDeleted = false,
                             PhoneNumber = "0901000030"
                         },
@@ -14296,6 +13863,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient9@clinic.local",
                             FullName = "Vo Thi Mai",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000031"),
                             IsDeleted = false,
                             PhoneNumber = "0901000031"
                         },
@@ -14308,6 +13876,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient10@clinic.local",
                             FullName = "Dang Van Nam",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000032"),
                             IsDeleted = false,
                             PhoneNumber = "0901000032"
                         },
@@ -14320,6 +13889,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient11@clinic.local",
                             FullName = "Bui Thi Oanh",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000033"),
                             IsDeleted = false,
                             PhoneNumber = "0901000033"
                         },
@@ -14332,6 +13902,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient12@clinic.local",
                             FullName = "Ngo Van Phat",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000034"),
                             IsDeleted = false,
                             PhoneNumber = "0901000034"
                         },
@@ -14344,6 +13915,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient13@clinic.local",
                             FullName = "Duong Thi Quynh",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000035"),
                             IsDeleted = false,
                             PhoneNumber = "0901000035"
                         },
@@ -14356,6 +13928,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient14@clinic.local",
                             FullName = "Luong Van Sang",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000036"),
                             IsDeleted = false,
                             PhoneNumber = "0901000036"
                         },
@@ -14368,6 +13941,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient15@clinic.local",
                             FullName = "Trinh Thi Trang",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000037"),
                             IsDeleted = false,
                             PhoneNumber = "0901000037"
                         },
@@ -14380,6 +13954,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient16@clinic.local",
                             FullName = "Cao Van Tuan",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000038"),
                             IsDeleted = false,
                             PhoneNumber = "0901000038"
                         },
@@ -14392,6 +13967,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient17@clinic.local",
                             FullName = "Phan Thi Uyen",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000039"),
                             IsDeleted = false,
                             PhoneNumber = "0901000039"
                         },
@@ -14404,6 +13980,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient18@clinic.local",
                             FullName = "Do Van Viet",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000040"),
                             IsDeleted = false,
                             PhoneNumber = "0901000040"
                         },
@@ -14416,6 +13993,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient19@clinic.local",
                             FullName = "Ly Thi Xinh",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000041"),
                             IsDeleted = false,
                             PhoneNumber = "0901000041"
                         },
@@ -14428,6 +14006,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient20@clinic.local",
                             FullName = "Ho Van Yen",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000042"),
                             IsDeleted = false,
                             PhoneNumber = "0901000042"
                         },
@@ -14440,6 +14019,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient21@clinic.local",
                             FullName = "Dinh Thi An",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000043"),
                             IsDeleted = false,
                             PhoneNumber = "0901000043"
                         },
@@ -14452,6 +14032,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient22@clinic.local",
                             FullName = "Ta Van Bao",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000044"),
                             IsDeleted = false,
                             PhoneNumber = "0901000044"
                         },
@@ -14464,6 +14045,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient23@clinic.local",
                             FullName = "Chau Thi Cam",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000045"),
                             IsDeleted = false,
                             PhoneNumber = "0901000045"
                         },
@@ -14476,6 +14058,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient24@clinic.local",
                             FullName = "Nguyen Van Duc",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000046"),
                             IsDeleted = false,
                             PhoneNumber = "0901000046"
                         },
@@ -14488,6 +14071,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient25@clinic.local",
                             FullName = "Tran Thi En",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000047"),
                             IsDeleted = false,
                             PhoneNumber = "0901000047"
                         },
@@ -14500,6 +14084,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient26@clinic.local",
                             FullName = "Le Van Giang",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000048"),
                             IsDeleted = false,
                             PhoneNumber = "0901000048"
                         },
@@ -14512,6 +14097,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient27@clinic.local",
                             FullName = "Pham Thi Hien",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000049"),
                             IsDeleted = false,
                             PhoneNumber = "0901000049"
                         },
@@ -14524,6 +14110,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient28@clinic.local",
                             FullName = "Hoang Van Kiet",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000050"),
                             IsDeleted = false,
                             PhoneNumber = "0901000050"
                         },
@@ -14536,6 +14123,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient29@clinic.local",
                             FullName = "Huynh Thi Linh",
                             Gender = 1,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000051"),
                             IsDeleted = false,
                             PhoneNumber = "0901000051"
                         },
@@ -14548,6 +14136,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             Email = "patient30@clinic.local",
                             FullName = "Phan Van My",
                             Gender = 0,
+                            IdentityUserId = new Guid("a0000002-0000-0000-0000-000000000052"),
                             IsDeleted = false,
                             PhoneNumber = "0901000052"
                         });
@@ -18458,537 +18047,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Clinic.Domain.Entities.RefreshToken", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("IssuedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("RevokedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TokenHash")
-                        .IsUnique();
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("RefreshTokens", (string)null);
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.Role", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("Roles", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Administrator role",
-                            IsDeleted = false,
-                            Name = "Admin"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Patient role",
-                            IsDeleted = false,
-                            Name = "Patient"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Receptionist role",
-                            IsDeleted = false,
-                            Name = "Receptionist"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000004"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Doctor role",
-                            IsDeleted = false,
-                            Name = "Doctor"
-                        });
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.RolePermission", b =>
-                {
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("PermissionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("RoleId", "PermissionId");
-
-                    b.HasIndex("PermissionId");
-
-                    b.ToTable("RolePermissions", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-00000000000f")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000014")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000007")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000008")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000009")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-00000000000c")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-00000000000d")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-00000000000c")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-00000000000f")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000006")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000007")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000008")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000009")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000003")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("2000000b-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("2000000b-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000016")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000017")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000015")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000018")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000019")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000020")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-00000000000f")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000009")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-00000000000c")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("1000000a-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000006")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000006")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000007")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000008")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000009")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000b-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000b-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000015")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000018")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000007")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000009")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000011")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000013")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000009")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-00000000000c")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-00000000000b")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-00000000000e")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-000000000006")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("2000000b-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("2000000b-0000-0000-0000-000000000003")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000015")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000018")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("2000000b-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000011")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-00000000000e")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("1000000a-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("10000000-0000-0000-0000-000000000005")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-00000000000a")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("20000000-0000-0000-0000-00000000000d")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000008")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002"),
-                            PermissionId = new Guid("2000000a-0000-0000-0000-000000000010")
-                        });
-                });
-
             modelBuilder.Entity("Clinic.Domain.Entities.ShiftRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -19115,956 +18173,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                             EstablishedDate = new DateOnly(2005, 4, 1),
                             IsDeleted = false,
                             Name = "General Practice"
-                        });
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.User", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("PersonId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PersonId")
-                        .IsUnique();
-
-                    b.HasIndex("Username")
-                        .IsUnique();
-
-                    b.ToTable("Users", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000001"),
-                            Username = "doctor1"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000002"),
-                            Username = "doctor2"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000003"),
-                            Username = "doctor3"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000004"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000004"),
-                            Username = "doctor4"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000005"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000005"),
-                            Username = "doctor5"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000006"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000006"),
-                            Username = "doctor6"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000007"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000007"),
-                            Username = "doctor7"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000008"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000008"),
-                            Username = "doctor8"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000009"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000009"),
-                            Username = "doctor9"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000010"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000010"),
-                            Username = "doctor10"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000011"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000011"),
-                            Username = "doctor11"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000012"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000012"),
-                            Username = "doctor12"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000013"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000013"),
-                            Username = "doctor13"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000014"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000014"),
-                            Username = "doctor14"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000015"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000015"),
-                            Username = "doctor15"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000016"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000016"),
-                            Username = "admin1"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000017"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000017"),
-                            Username = "admin2"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000018"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000018"),
-                            Username = "receptionist1"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000019"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000019"),
-                            Username = "receptionist2"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000020"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000020"),
-                            Username = "receptionist3"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000021"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000021"),
-                            Username = "receptionist4"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000022"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000022"),
-                            Username = "receptionist5"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000023"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000023"),
-                            Username = "patient1"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000024"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000024"),
-                            Username = "patient2"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000025"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000025"),
-                            Username = "patient3"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000026"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000026"),
-                            Username = "patient4"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000027"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000027"),
-                            Username = "patient5"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000028"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000028"),
-                            Username = "patient6"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000029"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000029"),
-                            Username = "patient7"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000030"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000030"),
-                            Username = "patient8"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000031"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000031"),
-                            Username = "patient9"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000032"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000032"),
-                            Username = "patient10"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000033"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000033"),
-                            Username = "patient11"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000034"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000034"),
-                            Username = "patient12"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000035"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000035"),
-                            Username = "patient13"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000036"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000036"),
-                            Username = "patient14"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000037"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000037"),
-                            Username = "patient15"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000038"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000038"),
-                            Username = "patient16"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000039"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000039"),
-                            Username = "patient17"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000040"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000040"),
-                            Username = "patient18"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000041"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000041"),
-                            Username = "patient19"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000042"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000042"),
-                            Username = "patient20"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000043"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000043"),
-                            Username = "patient21"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000044"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000044"),
-                            Username = "patient22"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000045"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000045"),
-                            Username = "patient23"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000046"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000046"),
-                            Username = "patient24"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000047"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000047"),
-                            Username = "patient25"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000048"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000048"),
-                            Username = "patient26"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000049"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000049"),
-                            Username = "patient27"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000050"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000050"),
-                            Username = "patient28"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000051"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000051"),
-                            Username = "patient29"
-                        },
-                        new
-                        {
-                            Id = new Guid("a0000002-0000-0000-0000-000000000052"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K",
-                            PersonId = new Guid("a0000001-0000-0000-0000-000000000052"),
-                            Username = "patient30"
-                        });
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.UserRole", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("UserId", "RoleId");
-
-                    b.HasIndex("RoleId");
-
-                    b.ToTable("UserRoles", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000001"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000002"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000003"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000004"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000005"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000006"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000007"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000008"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000009"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000010"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000011"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000012"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000013"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000014"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000015"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000016"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000017"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000018"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000019"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000020"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000021"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000022"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000023"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000024"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000025"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000026"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000027"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000028"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000029"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000030"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000031"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000032"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000033"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000034"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000035"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000036"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000037"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000038"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000039"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000040"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000041"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000042"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000043"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000044"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000045"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000046"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000047"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000048"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000049"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000050"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000051"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000052"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000001"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000002"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000003"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000004"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000005"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000006"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000007"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000008"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000009"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000010"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000011"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000012"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000013"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000014"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000015"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000004")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000016"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000017"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000001")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000018"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000019"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000020"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000021"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003")
-                        },
-                        new
-                        {
-                            UserId = new Guid("a0000002-0000-0000-0000-000000000022"),
-                            RoleId = new Guid("00000000-0000-0000-0000-000000000003")
                         });
                 });
 
@@ -22249,12 +20357,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Clinic.Domain.Entities.User", "Updator")
-                        .WithMany()
-                        .HasForeignKey("UpdatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Clinic.Domain.Entities.WorkSchedule", "WorkSchedule")
                         .WithMany("Appointments")
                         .HasForeignKey("WorkScheduleId")
@@ -22264,8 +20366,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Navigation("BookingSlot");
 
                     b.Navigation("Patient");
-
-                    b.Navigation("Updator");
 
                     b.Navigation("WorkSchedule");
                 });
@@ -22284,17 +20384,9 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Clinic.Domain.Entities.User", "Updator")
-                        .WithMany()
-                        .HasForeignKey("UpdatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Appointment");
 
                     b.Navigation("OldWorkSchedule");
-
-                    b.Navigation("Updator");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.BookingSlot", b =>
@@ -22389,36 +20481,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Navigation("Appointment");
                 });
 
-            modelBuilder.Entity("Clinic.Domain.Entities.RefreshToken", b =>
-                {
-                    b.HasOne("Clinic.Domain.Entities.User", "User")
-                        .WithMany("RefreshTokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.RolePermission", b =>
-                {
-                    b.HasOne("Clinic.Domain.Entities.Permission", "Permission")
-                        .WithMany("RolePermissions")
-                        .HasForeignKey("PermissionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Clinic.Domain.Entities.Role", "Role")
-                        .WithMany("RolePermissions")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Permission");
-
-                    b.Navigation("Role");
-                });
-
             modelBuilder.Entity("Clinic.Domain.Entities.ShiftRequest", b =>
                 {
                     b.HasOne("Clinic.Domain.Entities.Doctor", "Doctor")
@@ -22428,36 +20490,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .IsRequired();
 
                     b.Navigation("Doctor");
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.User", b =>
-                {
-                    b.HasOne("Clinic.Domain.Entities.Person", "Person")
-                        .WithOne("User")
-                        .HasForeignKey("Clinic.Domain.Entities.User", "PersonId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Person");
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.UserRole", b =>
-                {
-                    b.HasOne("Clinic.Domain.Entities.Role", "Role")
-                        .WithMany("UserRoles")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Clinic.Domain.Entities.User", "User")
-                        .WithMany("UserRoles")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Role");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.WorkHistory", b =>
@@ -22523,11 +20555,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Navigation("Appointments");
                 });
 
-            modelBuilder.Entity("Clinic.Domain.Entities.Permission", b =>
-                {
-                    b.Navigation("RolePermissions");
-                });
-
             modelBuilder.Entity("Clinic.Domain.Entities.Person", b =>
                 {
                     b.Navigation("Employee");
@@ -22535,27 +20562,11 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Navigation("Notifications");
 
                     b.Navigation("Patient");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.Role", b =>
-                {
-                    b.Navigation("RolePermissions");
-
-                    b.Navigation("UserRoles");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.Specialty", b =>
                 {
                     b.Navigation("WorkHistories");
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.User", b =>
-                {
-                    b.Navigation("RefreshTokens");
-
-                    b.Navigation("UserRoles");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.WorkSchedule", b =>

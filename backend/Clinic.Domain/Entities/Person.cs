@@ -24,14 +24,23 @@ namespace Clinic.Domain.Entities
 
         public string? Address { get; set; }
 
-        // Navigation - quan hệ 0..1: không phải Person nào cũng có tài khoản/là nhân viên/là bệnh nhân
-        public User? User { get; set; }
+        /// <summary>Identity service account id, when this person can sign in.</summary>
+        public Guid? IdentityUserId { get; private set; }
 
         public Employee? Employee { get; set; }
 
         public Patient? Patient { get; set; }
 
         public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+
+        public void LinkIdentityUser(Guid userId)
+        {
+            if (userId == Guid.Empty)
+                throw new ArgumentException("Identity user ID cannot be empty.", nameof(userId));
+            if (IdentityUserId is Guid existingId && existingId != userId)
+                throw new InvalidOperationException("This person is already linked to a different Identity account.");
+            IdentityUserId = userId;
+        }
 
         /// <summary>
         /// Constructor for creating a new Person instance. Validates the input parameters.

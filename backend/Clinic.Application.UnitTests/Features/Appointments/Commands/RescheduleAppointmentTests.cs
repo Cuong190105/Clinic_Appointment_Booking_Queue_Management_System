@@ -1,4 +1,4 @@
-// Remove this test, as the feature is removed. Instead use UpdateAppointment
+﻿// Remove this test, as the feature is removed. Instead use UpdateAppointment
 
 
 //using Clinic.Application.Common.Exceptions;
@@ -181,3 +181,4 @@
 //        }
 //    }
 //}
+

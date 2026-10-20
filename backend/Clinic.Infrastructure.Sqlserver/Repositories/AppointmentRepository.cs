@@ -109,11 +109,10 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<Appointment?> GetAppointmentChangelogAsync(Guid appointmentId)
         {
-            var query = _context.Appointments.Include(a => a.Snapshots).ThenInclude(s => s.Updator).ThenInclude(u => u.Person)
+            var query = _context.Appointments.Include(a => a.Snapshots)
                 .Include(a => a.Snapshots).ThenInclude(s => s.OldWorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
                 .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
                 .Include(a => a.Patient).ThenInclude(p => p.Person)
-                .Include(a => a.Updator).ThenInclude(u => u.Person)
                 .Where(a => a.Id == appointmentId);
             return await query.FirstOrDefaultAsync();
         }

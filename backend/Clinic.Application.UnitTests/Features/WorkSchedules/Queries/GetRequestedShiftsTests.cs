@@ -14,8 +14,8 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Queries
         {
             var doctorRepository = new FakeDoctorRepository();
             var workScheduleRepository = new FakeWorkScheduleRepository();
-            var userRepository = new FakeUserRepository();
-            var handler = new GetDoctorRequestedShiftsHandler(doctorRepository, workScheduleRepository, userRepository);
+            var currentUser = new FakeCurrentUser();
+            var handler = new GetDoctorRequestedShiftsHandler(doctorRepository, workScheduleRepository, currentUser);
             var doctor = TestDataFactory.CreateDoctor();
             await doctorRepository.AddAsync(doctor);
             var now = DateTime.UtcNow;
@@ -24,28 +24,30 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Queries
             doctor.AddShiftRequest(schedule1);
             doctor.AddShiftRequest(schedule2);
             var admin = TestDataFactory.CreateEmployee();
-            await userRepository.AddAsync(admin.Person.User);
             await workScheduleRepository.AddShiftRequestAsync(schedule1);
             await workScheduleRepository.AddShiftRequestAsync(schedule2);
-            await userRepository.AddAsync(doctor.Employee.Person.User);
-            await userRepository.AddAsync(admin.Person.User);
-            var query = new GetDoctorRequestedShiftsQuery(doctor.Employee.Person.User.Id, DateOnly.FromDateTime(now), DateOnly.FromDateTime(now.AddDays(15)));
+            currentUser.UserId = doctor.Employee.Person.IdentityUserId!.Value;
+            currentUser.DoctorId = doctor.Id;
+            currentUser.GrantRole("Doctor");
+            var query = new GetDoctorRequestedShiftsQuery(doctor.Employee.Person.IdentityUserId!.Value, DateOnly.FromDateTime(now), DateOnly.FromDateTime(now.AddDays(15)));
             var result = await handler.Handle(query, CancellationToken.None);
             Assert.Equal(2, result.Schedules.Count());
 
-            var query2 = new GetDoctorRequestedShiftsQuery(doctor.Employee.Person.User.Id, DateOnly.FromDateTime(now.AddDays(2)), DateOnly.FromDateTime(now.AddDays(15)));
+            var query2 = new GetDoctorRequestedShiftsQuery(doctor.Employee.Person.IdentityUserId!.Value, DateOnly.FromDateTime(now.AddDays(2)), DateOnly.FromDateTime(now.AddDays(15)));
             var result2 = await handler.Handle(query2, CancellationToken.None);
             Assert.Single(result2.Schedules);
 
-            var query3 = new GetDoctorRequestedShiftsQuery(doctor.Employee.Person.User.Id, DateOnly.FromDateTime(now.AddDays(11)), DateOnly.FromDateTime(now.AddDays(15)));
+            var query3 = new GetDoctorRequestedShiftsQuery(doctor.Employee.Person.IdentityUserId!.Value, DateOnly.FromDateTime(now.AddDays(11)), DateOnly.FromDateTime(now.AddDays(15)));
             var result3 = await handler.Handle(query3, CancellationToken.None);
             Assert.Empty(result3.Schedules);
 
-            var query4 = new GetDoctorRequestedShiftsQuery(doctor.Employee.Person.User.Id, DateOnly.FromDateTime(now.AddDays(-1)), DateOnly.FromDateTime(now.AddDays(40)));
+            var query4 = new GetDoctorRequestedShiftsQuery(doctor.Employee.Person.IdentityUserId!.Value, DateOnly.FromDateTime(now.AddDays(-1)), DateOnly.FromDateTime(now.AddDays(40)));
             await Assert.ThrowsAsync<ArgumentException>(async () => await handler.Handle(query4, CancellationToken.None));
 
             // Admin gets schedules
-            var query5 = new GetDoctorRequestedShiftsQuery(admin.Person.User.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddMinutes(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)), doctor.Id);
+            currentUser.UserId = admin.Person.IdentityUserId!.Value;
+            currentUser.GrantRole("Admin");
+            var query5 = new GetDoctorRequestedShiftsQuery(admin.Person.IdentityUserId!.Value, DateOnly.FromDateTime(DateTime.UtcNow.AddMinutes(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)), doctor.Id);
             var result5 = await handler.Handle(query5, CancellationToken.None);
             Assert.Equal(2, result5.Schedules.Count());
         }
@@ -55,12 +57,13 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Queries
         {
             var doctorRepository = new FakeDoctorRepository();
             var workScheduleRepository = new FakeWorkScheduleRepository();
-            var userRepository = new FakeUserRepository();
-            var handler = new GetDoctorRequestedShiftsHandler(doctorRepository, workScheduleRepository, userRepository);
+            var currentUser = new FakeCurrentUser();
+            var handler = new GetDoctorRequestedShiftsHandler(doctorRepository, workScheduleRepository, currentUser);
             var admin = TestDataFactory.CreateEmployee();
-            await userRepository.AddAsync(admin.Person.User);
+            currentUser.UserId = admin.Person.IdentityUserId!.Value;
+            currentUser.GrantRole("Admin");
             var now = DateTime.UtcNow;
-            var query = new GetDoctorRequestedShiftsQuery(admin.Person.User.Id, DateOnly.FromDateTime(now.AddMinutes(-1)), DateOnly.FromDateTime(now.AddDays(15)), Guid.NewGuid());
+            var query = new GetDoctorRequestedShiftsQuery(admin.Person.IdentityUserId!.Value, DateOnly.FromDateTime(now.AddMinutes(-1)), DateOnly.FromDateTime(now.AddDays(15)), Guid.NewGuid());
             await Assert.ThrowsAsync<NotFoundException>(async () => await handler.Handle(query, CancellationToken.None));
         }
 
@@ -69,8 +72,8 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Queries
         {
             var doctorRepository = new FakeDoctorRepository();
             var workScheduleRepository = new FakeWorkScheduleRepository();
-            var userRepository = new FakeUserRepository();
-            var handler = new GetDoctorRequestedShiftsHandler(doctorRepository, workScheduleRepository, userRepository);
+            var currentUser = new FakeCurrentUser();
+            var handler = new GetDoctorRequestedShiftsHandler(doctorRepository, workScheduleRepository, currentUser);
             var doctor = TestDataFactory.CreateDoctor();
             var doctor2 = TestDataFactory.CreateDoctor();
             await doctorRepository.AddAsync(doctor);
@@ -81,21 +84,24 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Queries
             doctor.AddShiftRequest(schedule1);
             doctor.AddShiftRequest(schedule2);
             var receptionist = TestDataFactory.CreateEmployee(role: "Receptionist");
-            await userRepository.AddAsync(receptionist.Person.User);
             await workScheduleRepository.AddShiftRequestAsync(schedule1);
             await workScheduleRepository.AddShiftRequestAsync(schedule2);
-            await userRepository.AddAsync(doctor.Employee.Person.User);
-            await userRepository.AddAsync(doctor2.Employee.Person.User);
             var query = new GetDoctorRequestedShiftsQuery(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.UtcNow.AddMinutes(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)), doctor.Id);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await handler.Handle(query, CancellationToken.None));
 
             // Not a doctor
-            var query2 = new GetDoctorRequestedShiftsQuery(receptionist.Person.User.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddMinutes(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)), doctor.Id);
+            var query2 = new GetDoctorRequestedShiftsQuery(receptionist.Person.IdentityUserId!.Value, DateOnly.FromDateTime(DateTime.UtcNow.AddMinutes(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)), doctor.Id);
+            currentUser.UserId = receptionist.Person.IdentityUserId!.Value;
+            currentUser.GrantRole("Receptionist");
             await Assert.ThrowsAsync<ForbiddenException>(async () => await handler.Handle(query2, CancellationToken.None));
 
             // Not the same doctor
-            var query3 = new GetDoctorRequestedShiftsQuery(doctor2.Employee.Person.User.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddMinutes(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)), doctor.Id);
+            var query3 = new GetDoctorRequestedShiftsQuery(doctor2.Employee.Person.IdentityUserId!.Value, DateOnly.FromDateTime(DateTime.UtcNow.AddMinutes(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)), doctor.Id);
+            currentUser.UserId = doctor2.Employee.Person.IdentityUserId!.Value;
+            currentUser.DoctorId = doctor2.Id;
+            currentUser.GrantRole("Doctor");
             await Assert.ThrowsAsync<ForbiddenException>(async () => await handler.Handle(query3, CancellationToken.None));
         }
     }
 }
+

@@ -78,5 +78,10 @@ namespace Clinic.API.Authentication
                 .HasClaim(c => c.Type == "permission" && c.Value == permission)
                 ?? false;
         }
+
+        public bool HasRole(string role)
+        {
+            return _httpContextAccessor.HttpContext?.User?.IsInRole(role) ?? false;
+        }
     }
 }

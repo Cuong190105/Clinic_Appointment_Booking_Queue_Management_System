@@ -10,7 +10,8 @@ namespace Clinic.Infrastructure.Sqlserver.Notifications
         public async Task SendAsync(string phoneNumber, string message, CancellationToken cancellationToken = default)
         {
             // Currently found no free SMS sending service, so this is a placeholder for future implementation.
-            Console.WriteLine("Sent SMS to {0}: {1}", phoneNumber, message);
+            // Placeholder provider: never log message content because it may contain a one-time reset code.
+            await Task.CompletedTask;
         }
     }
 }

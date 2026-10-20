@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Models;
+﻿using Clinic.Application.Common.Models;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
@@ -24,7 +24,7 @@ namespace Clinic.Application.UnitTests.Common
 
         public async Task<Patient?> GetPatientByUserIdAsync(Guid userId)
         {
-            return _patients.FirstOrDefault(p => p.Person.User.Id == userId);
+            return _patients.FirstOrDefault(p => p.Person.IdentityUserId == userId);
         }
 
         internal async Task AddAsync(Patient patient)
@@ -48,3 +48,4 @@ namespace Clinic.Application.UnitTests.Common
         }
     }
 }
+

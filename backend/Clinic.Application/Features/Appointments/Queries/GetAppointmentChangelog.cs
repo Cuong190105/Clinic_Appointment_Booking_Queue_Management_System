@@ -12,9 +12,11 @@ namespace Clinic.Application.Features.Appointments.Queries
     public class GetAppointmentChangelogHandler : IRequestHandler<GetAppointmentChangelogQuery, AppointmentChangelogDto>
     {
         private readonly IAppointmentRepository _appointmentRepository;
-        public GetAppointmentChangelogHandler(IAppointmentRepository appointmentRepository)
+        private readonly IPersonRepository _personRepository;
+        public GetAppointmentChangelogHandler(IAppointmentRepository appointmentRepository, IPersonRepository personRepository)
         {
             _appointmentRepository = appointmentRepository;
+            _personRepository = personRepository;
         }
         public async Task<AppointmentChangelogDto> Handle(GetAppointmentChangelogQuery request, CancellationToken cancellationToken)
         {
@@ -24,6 +26,7 @@ namespace Clinic.Application.Features.Appointments.Queries
                 throw new NotFoundException("Appointment not found.");
             }
             List<AppointmentHistoryDto> changelog = new List<AppointmentHistoryDto>();
+            var currentUpdater = await _personRepository.GetByIdentityUserIdAsync(appointment.UpdatedByUserId);
             changelog.Add(new AppointmentHistoryDto
             {
                 DoctorId = appointment.WorkSchedule.DoctorId,
@@ -34,11 +37,12 @@ namespace Clinic.Application.Features.Appointments.Queries
                 Status = appointment.Status,
                 UpdatedAt = appointment.UpdatedAt ?? appointment.CreatedAt,
                 UpdatedByUserId = appointment.UpdatedByUserId,
-                UpdatorName = appointment.Updator.Person.FullName
+                UpdatorName = currentUpdater?.FullName ?? "Unknown"
             });
             var sortedHistory = appointment.Snapshots.OrderByDescending(s => s.UpdatedAt).ToList();
             foreach (var snapshot in sortedHistory)
             {
+                var updater = await _personRepository.GetByIdentityUserIdAsync(snapshot.UpdatedByUserId);
                 changelog.Add(new AppointmentHistoryDto
                 {
                     DoctorId = snapshot.OldWorkSchedule.DoctorId,
@@ -49,7 +53,7 @@ namespace Clinic.Application.Features.Appointments.Queries
                     Status = snapshot.Status,
                     UpdatedAt = snapshot.UpdatedAt,
                     UpdatedByUserId = snapshot.UpdatedByUserId,
-                    UpdatorName = snapshot.Updator.Person.FullName
+                    UpdatorName = updater?.FullName ?? "Unknown"
                 });
             }
             return new AppointmentChangelogDto

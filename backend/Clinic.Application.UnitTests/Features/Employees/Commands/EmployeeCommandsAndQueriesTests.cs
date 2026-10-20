@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Exceptions;
+﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Employees.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Enums;
@@ -11,18 +11,17 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
         public async Task CreateEmployeeFromUser_ValidUser_ShouldCreateEmployee()
         {
             // Arrange
-            var userRepository = new FakeUserRepository();
             var employeeRepository = new FakeEmployeeRepository();
-            var roleRepository = new FakeRoleRepository();
+            var personRepository = new FakePersonRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var handler = new CreateEmployeeFromUserCommandHandler(
-                userRepository, employeeRepository, roleRepository, unitOfWork);
+                personRepository, employeeRepository, unitOfWork);
 
             var person = TestDataFactory.CreatePerson(email: "receptionist@example.com", address: "456 Clinic Ave");
             var patient = TestDataFactory.CreatePatient(person);
             var user = TestDataFactory.CreateUser("Patient", "receptionist_user", "hash", person);
-            await userRepository.AddAsync(user);
+            await personRepository.AddAsync(person);
 
             var command = new CreateEmployeeFromUserCommand(
                 user.Id,
@@ -48,19 +47,18 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
         public async Task CreateEmployeeFromUser_AlreadyEmployee_ShouldThrowInvalidOperationException()
         {
             // Arrange
-            var userRepository = new FakeUserRepository();
             var employeeRepository = new FakeEmployeeRepository();
-            var roleRepository = new FakeRoleRepository();
+            var personRepository = new FakePersonRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var handler = new CreateEmployeeFromUserCommandHandler(
-                userRepository, employeeRepository, roleRepository, unitOfWork);
+                personRepository, employeeRepository, unitOfWork);
 
             var person = TestDataFactory.CreatePerson(email: "existing@example.com", address: "123 Main St", userRole: "Admin");
             var existingEmployee = new Domain.Entities.Employee(person, DateOnly.FromDateTime(DateTime.UtcNow));
             person.Employee = existingEmployee;
-            var user = person.User!;
-            await userRepository.AddAsync(user);
+            var user = TestDataFactory.CreateUser(person: person);
+            await personRepository.AddAsync(person);
 
             var command = new CreateEmployeeFromUserCommand(
                 user.Id,
@@ -110,3 +108,4 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
         }
     }
 }
+

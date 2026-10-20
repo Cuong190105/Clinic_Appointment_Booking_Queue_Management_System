@@ -13,6 +13,7 @@ namespace Clinic.Application.Interfaces
         Guid? UserId { get; }
         Guid? EmployeeId { get; }
         Guid? PersonId { get; }
+        bool HasRole(string role);
         bool HasPermission(string permission);
     }
 }

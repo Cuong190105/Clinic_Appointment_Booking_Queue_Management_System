@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Exceptions;
+﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Doctors.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Enums;
@@ -11,20 +11,19 @@ namespace Clinic.Application.UnitTests.Features.Doctors.Commands
         public async Task CreateDoctorFromUser_ValidUser_ShouldCreateDoctor()
         {
             // Arrange
-            var userRepository = new FakeUserRepository();
             var employeeRepository = new FakeEmployeeRepository();
             var doctorRepository = new FakeDoctorRepository();
             var specialtyRepository = new FakeSpecialtyRepository();
-            var roleRepository = new FakeRoleRepository();
+            var personRepository = new FakePersonRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var handler = new CreateDoctorFromUserCommandHandler(
-                userRepository, employeeRepository, doctorRepository, specialtyRepository, roleRepository, unitOfWork);
+                personRepository, employeeRepository, doctorRepository, specialtyRepository, unitOfWork);
 
             var person = TestDataFactory.CreatePerson(email: "doctor@example.com", address: "123 Clinic St");
             var patient = TestDataFactory.CreatePatient(person: person);
             var user = TestDataFactory.CreateUser("Patient", "docuser", "hash", person);
-            await userRepository.AddAsync(user);
+            await personRepository.AddAsync(person);
 
             var specialty = TestDataFactory.CreateSpecialty();
             await specialtyRepository.AddAsync(specialty);
@@ -56,15 +55,14 @@ namespace Clinic.Application.UnitTests.Features.Doctors.Commands
         public async Task CreateDoctorFromUser_NonExistentUser_ShouldThrowArgumentException()
         {
             // Arrange
-            var userRepository = new FakeUserRepository();
             var employeeRepository = new FakeEmployeeRepository();
             var doctorRepository = new FakeDoctorRepository();
             var specialtyRepository = new FakeSpecialtyRepository();
-            var roleRepository = new FakeRoleRepository();
+            var personRepository = new FakePersonRepository();
             var unitOfWork = new FakeUnitOfWork();
 
             var handler = new CreateDoctorFromUserCommandHandler(
-                userRepository, employeeRepository, doctorRepository, specialtyRepository, roleRepository, unitOfWork);
+                personRepository, employeeRepository, doctorRepository, specialtyRepository, unitOfWork);
 
             var command = new CreateDoctorFromUserCommand(
                 Guid.NewGuid(),
@@ -117,3 +115,4 @@ namespace Clinic.Application.UnitTests.Features.Doctors.Commands
         }
     }
 }
+

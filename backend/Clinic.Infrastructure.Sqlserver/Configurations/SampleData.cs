@@ -5,20 +5,12 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 {
     /// <summary>
     /// Deterministic sample rows for EF Core HasData.
-    /// Every seeded user password is <c>Password123!</c>.
+    /// Legacy sample account rows remain in the old Clinic schema for the one-time Identity importer.
     /// Person layout: doctors 1-15, admins 16-17, receptionists 18-22, patients 23-52.
     /// </summary>
     internal static class SampleData
     {
         internal static readonly DateTime CreatedAt = new(2026, 1, 1, 0, 0, 0);
-
-        // BCrypt hash of "Password123!"
-        internal const string PasswordHash = "$2a$11$G0m4K.LSMeRwVPfVM1CMOux4zgF46UDGK57iWrKIDIAnH/kqOGv.K";
-
-        internal static readonly Guid AdminRoleId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-        internal static readonly Guid PatientRoleId = Guid.Parse("00000000-0000-0000-0000-000000000002");
-        internal static readonly Guid ReceptionistRoleId = Guid.Parse("00000000-0000-0000-0000-000000000003");
-        internal static readonly Guid DoctorRoleId = Guid.Parse("00000000-0000-0000-0000-000000000004");
 
         internal const int DoctorCount = 15;
         internal const int AdminCount = 2;
@@ -123,8 +115,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
         ];
 
         internal static Person[] Persons => Enumerable.Range(1, PersonCount).Select(CreatePerson).ToArray();
-
-        internal static User[] Users => Enumerable.Range(1, PersonCount).Select(CreateUser).ToArray();
 
         internal static Employee[] Employees => Enumerable.Range(1, DoctorCount + AdminCount + ReceptionistCount).Select(CreateEmployee).ToArray();
 
@@ -478,32 +468,11 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
             return (schedules.ToArray(), appointments.ToArray(), queueTickets.ToArray(), medicalReports.ToArray());
         }
 
-        internal static UserRole[] UserRoles
-        {
-            get
-            {
-                var roles = new List<UserRole>(PersonCount + DoctorCount + AdminCount + ReceptionistCount);
-                for (var n = 1; n <= PersonCount; n++)
-                    roles.Add(new UserRole(UserId(n), PatientRoleId));
-
-                for (var n = 1; n <= DoctorCount; n++)
-                    roles.Add(new UserRole(UserId(n), DoctorRoleId));
-
-                for (var n = 1; n <= AdminCount; n++)
-                    roles.Add(new UserRole(UserId(DoctorCount + n), AdminRoleId));
-
-                for (var n = 1; n <= ReceptionistCount; n++)
-                    roles.Add(new UserRole(UserId(DoctorCount + AdminCount + n), ReceptionistRoleId));
-
-                return roles.ToArray();
-            }
-        }
-
         private static Person CreatePerson(int n)
         {
             var info = People[n - 1];
             var username = Username(n);
-            return new Person(
+            var person = new Person(
                 PersonId(n),
                 info.FullName,
                 PhoneNumber(n),
@@ -514,10 +483,9 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 false,
                 CreatedAt,
                 null);
+            person.LinkIdentityUser(UserId(n));
+            return person;
         }
-
-        private static User CreateUser(int n) =>
-            new(UserId(n), Username(n), PasswordHash, true, PersonId(n), CreatedAt, null, false);
 
         private static Employee CreateEmployee(int n) =>
             new(EmployeeId(n), PersonId(n), new DateOnly(2022, 1, 15).AddMonths(n), EmployeeStatus.Active, null, CreatedAt, null, false);

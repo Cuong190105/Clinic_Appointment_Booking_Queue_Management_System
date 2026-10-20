@@ -17,12 +17,12 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<Patient?> GetByIdAsync(Guid? patientId)
         {
-            return await _context.Patients.Include(p => p.Person).ThenInclude(p => p.User).FirstOrDefaultAsync(p => p.Id == patientId);
+            return await _context.Patients.Include(p => p.Person).FirstOrDefaultAsync(p => p.Id == patientId);
         }
 
         public async Task<PagedResult<Patient>> GetPagedAsync(string? search, string? sortBy, bool descending, int pageNumber, int pageSize)
         {
-            var query = _context.Patients.Include(p => p.Person).ThenInclude(p => p.User).Where(p => !p.IsDeleted);
+            var query = _context.Patients.Include(p => p.Person).Where(p => !p.IsDeleted);
 
             if (!string.IsNullOrEmpty(search))
             {
@@ -49,7 +49,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<Patient?> GetPatientByUserIdAsync(Guid userId)
         {
-            return await _context.Patients.Include(p => p.Person).ThenInclude(p => p.User).FirstOrDefaultAsync(p => p.Person.User.Id == userId);
+            return await _context.Patients.Include(p => p.Person).FirstOrDefaultAsync(p => p.Person.IdentityUserId == userId);
         }
 
         public async Task<Patient?> GetByPersonIdAsync(Guid personId)

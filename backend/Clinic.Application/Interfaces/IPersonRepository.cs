@@ -28,6 +28,8 @@ namespace Clinic.Application.Interfaces
         /// <returns></returns>
         Task<Person?> GetByIdAsync(Guid id);
 
+        Task<Person?> GetByIdentityUserIdAsync(Guid userId);
+
         Task DeleteAsync(Guid id);
 
         /// <summary>

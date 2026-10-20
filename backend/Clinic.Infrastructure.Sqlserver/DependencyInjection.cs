@@ -1,6 +1,4 @@
 using Clinic.Application.Interfaces;
-using Clinic.Infrastructure.Authentication;
-using Clinic.Infrastructure.Sqlserver.Authentication;
 using Clinic.Infrastructure.Sqlserver.Notifications;
 using Clinic.Infrastructure.Sqlserver.Persistence;
 using Clinic.Infrastructure.Sqlserver.Repositories;
@@ -21,7 +19,6 @@ namespace Clinic.Infrastructure.Sqlserver
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection");
             // Console.WriteLine($"Connection String: {JsonSerializer.Serialize(connectionString)}");
-            Console.WriteLine($"Connection String: {connectionString}");
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(connectionString));
 
@@ -33,13 +30,8 @@ namespace Clinic.Infrastructure.Sqlserver
             services.AddSingleton<RabbitMqConnectionFactory>();
 
             //services.AddScoped<IFarmRepository, FarmRepository>();
-            services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IPersonRepository, PersonRepository>();
-            services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
-            services.AddScoped<ITokenProvider, TokenProvider>();
-            services.AddScoped<IRoleRepository, RoleRepository>();
-            services.AddScoped<IPasswordHasher, PasswordHasher>();
             services.AddScoped<ISpecialtyRepository, SpecialtyRepository>();
             services.AddScoped<IDoctorRepository, DoctorRepository>();
             services.AddScoped<IEmployeeRepository, EmployeeRepository>();
