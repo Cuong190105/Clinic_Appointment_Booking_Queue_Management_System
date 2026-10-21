@@ -76,3 +76,13 @@ public record WorkScheduleDto(
     string? CancellationReason
 );
 
+public record UpdateScheduleRequest(
+    DateOnly Date,
+    TimeOnly ShiftStart,
+    TimeOnly ShiftEnd,
+    int RecommendedCapacity
+);
+
+public record CancelScheduleRequest(
+    string Reason
+);

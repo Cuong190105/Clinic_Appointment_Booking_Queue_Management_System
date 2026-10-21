@@ -292,6 +292,52 @@ public static class SchedulingEndpoints
             return Results.Ok(new { isSuccess = true, result = schedules, totalCount = schedules.Count });
         });
 
+        app.MapPut("/schedules/{id:guid}", async (
+            Guid id,
+            [FromBody] UpdateScheduleRequest request,
+            ISchedulingManager manager,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var schedule = await manager.UpdateScheduleAsync(id, request.Date, request.ShiftStart, request.ShiftEnd, request.RecommendedCapacity, ct);
+                return Results.Ok(new { isSuccess = true, message = "Schedule updated.", result = schedule });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { error = ex.Message });
+            }
+        });
+
+        app.MapPost("/schedules/{id:guid}/cancel", async (
+            Guid id,
+            [FromBody] CancelScheduleRequest request,
+            ISchedulingManager manager,
+            CancellationToken ct) =>
+        {
+            var success = await manager.CancelScheduleAsync(id, request.Reason, ct);
+            if (!success)
+                return Results.NotFound(new { error = $"Schedule '{id}' not found." });
+
+            return Results.Ok(new { isSuccess = true, message = "Schedule cancelled." });
+        });
+
+        // ==========================================
+        // 5. INTERNAL EVENTS (Profile Synchronization)
+        // ==========================================
+        app.MapPost("/internal/events/user-profile-updated", async (
+            [FromBody] Clinic.Contracts.Events.UserProfileUpdated evt,
+            ISchedulingManager manager,
+            CancellationToken ct) =>
+        {
+            var updatedCount = await manager.HandleUserProfileUpdatedAsync(evt, ct);
+            return Results.Ok(new { isSuccess = true, message = $"Synchronized {updatedCount} employee profile(s)." });
+        });
+
         return app;
     }
 }

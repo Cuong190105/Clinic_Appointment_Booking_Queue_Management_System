@@ -122,4 +122,87 @@ public class SchedulingApiIntegrationTests : IClassFixture<SchedulingServiceFact
         var releaseResponse = await _client.PostAsync($"/schedules/{scheduleId}/reservations/{reservation.Id}/release", null);
         Assert.Equal(HttpStatusCode.OK, releaseResponse.StatusCode);
     }
+
+    [Fact]
+    public async Task ScheduleUpdateAndCancel_ViaHttpApi_Succeeds()
+    {
+        Guid scheduleId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SchedulingDbContext>();
+            var doctor = await db.Doctors.FirstOrDefaultAsync();
+            var schedule = new WorkSchedule
+            {
+                Id = Guid.NewGuid(),
+                DoctorId = doctor!.Id,
+                Date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
+                ShiftStart = new TimeOnly(13, 0),
+                ShiftEnd = new TimeOnly(17, 0),
+                RecommendedCapacity = 16,
+                Status = WorkScheduleStatus.Active
+            };
+            db.WorkSchedules.Add(schedule);
+            await db.SaveChangesAsync();
+            scheduleId = schedule.Id;
+        }
+
+        // 1. Update schedule
+        var updateReq = new UpdateScheduleRequest(
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
+            new TimeOnly(14, 0),
+            new TimeOnly(18, 0),
+            15
+        );
+        var putResponse = await _client.PutAsJsonAsync($"/schedules/{scheduleId}", updateReq);
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        // 2. Cancel schedule
+        var cancelReq = new CancelScheduleRequest("Doctor conference");
+        var cancelResponse = await _client.PostAsJsonAsync($"/schedules/{scheduleId}/cancel", cancelReq);
+        Assert.Equal(HttpStatusCode.OK, cancelResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task InternalUserProfileUpdated_ViaHttpApi_SynchronizesEmployee()
+    {
+        var personId = Guid.NewGuid();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SchedulingDbContext>();
+            var emp = new Employee
+            {
+                Id = Guid.NewGuid(),
+                PersonId = personId,
+                FullName = "Initial Name",
+                PhoneNumber = "0123456789",
+                Email = "initial@test.com",
+                Gender = "Male",
+                HireDate = new DateOnly(2022, 1, 1),
+                Status = EmployeeStatus.Active
+            };
+            db.Employees.Add(emp);
+            await db.SaveChangesAsync();
+        }
+
+        var updateEvt = new Clinic.Contracts.Events.UserProfileUpdated(
+            personId,
+            "Updated Name via Event",
+            "0999999999",
+            "updated@test.com",
+            "Female"
+        );
+
+        var response = await _client.PostAsJsonAsync("/internal/events/user-profile-updated", updateEvt);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SchedulingDbContext>();
+            var emp = await db.Employees.FirstOrDefaultAsync(e => e.PersonId == personId);
+            Assert.NotNull(emp);
+            Assert.Equal("Updated Name via Event", emp.FullName);
+            Assert.Equal("0999999999", emp.PhoneNumber);
+            Assert.Equal("Female", emp.Gender);
+        }
+    }
 }

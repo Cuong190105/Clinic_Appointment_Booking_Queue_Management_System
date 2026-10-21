@@ -17,6 +17,9 @@ public interface ISchedulingManager
     Task<WorkSchedule> ApproveShiftRequestAsync(Guid shiftRequestId, string? note, CancellationToken ct = default);
     Task<bool> RejectShiftRequestAsync(Guid shiftRequestId, string? reason, CancellationToken ct = default);
     Task<bool> CancelShiftRequestAsync(Guid shiftRequestId, CancellationToken ct = default);
+    Task<WorkSchedule> UpdateScheduleAsync(Guid scheduleId, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int recommendedCapacity, CancellationToken ct = default);
+    Task<bool> CancelScheduleAsync(Guid scheduleId, string reason, CancellationToken ct = default);
+    Task<int> HandleUserProfileUpdatedAsync(UserProfileUpdated evt, CancellationToken ct = default);
 }
 
 public class SchedulingManager : ISchedulingManager
@@ -343,5 +346,116 @@ public class SchedulingManager : ISchedulingManager
         request.Cancel();
         await _dbContext.SaveChangesAsync(ct);
         return true;
+    }
+
+    public async Task<WorkSchedule> UpdateScheduleAsync(Guid scheduleId, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int recommendedCapacity, CancellationToken ct = default)
+    {
+        var schedule = await _dbContext.WorkSchedules
+            .FirstOrDefaultAsync(ws => ws.Id == scheduleId && !ws.IsDeleted, ct);
+
+        if (schedule == null)
+            throw new KeyNotFoundException($"Work schedule '{scheduleId}' not found.");
+
+        if (schedule.Status == WorkScheduleStatus.Cancelled)
+            throw new InvalidOperationException("Cannot update a cancelled schedule.");
+
+        var hasConflict = await _dbContext.WorkSchedules.AnyAsync(ws =>
+            ws.DoctorId == schedule.DoctorId &&
+            ws.Id != scheduleId &&
+            ws.Date == date &&
+            ws.Status == WorkScheduleStatus.Active &&
+            !ws.IsDeleted &&
+            ws.ShiftStart < shiftEnd &&
+            shiftStart < ws.ShiftEnd, ct);
+
+        if (hasConflict)
+            throw new InvalidOperationException("The updated schedule overlaps with another existing schedule.");
+
+        schedule.UpdateShift(date, shiftStart, shiftEnd, recommendedCapacity);
+
+        var workScheduleUpdated = new WorkScheduleUpdated(
+            schedule.Id,
+            schedule.DoctorId,
+            schedule.Date,
+            schedule.ShiftStart,
+            schedule.ShiftEnd,
+            schedule.RecommendedCapacity);
+
+        var envelope = new EventEnvelope<WorkScheduleUpdated>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.WorkScheduleUpdated,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Scheduling.Service",
+            Payload = workScheduleUpdated
+        };
+
+        _outboxWriter.Add(envelope, "schedule.updated");
+
+        await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Updated schedule {ScheduleId} and added WorkScheduleUpdated to outbox.", schedule.Id);
+        return schedule;
+    }
+
+    public async Task<bool> CancelScheduleAsync(Guid scheduleId, string reason, CancellationToken ct = default)
+    {
+        var schedule = await _dbContext.WorkSchedules
+            .FirstOrDefaultAsync(ws => ws.Id == scheduleId && !ws.IsDeleted, ct);
+
+        if (schedule == null)
+            return false;
+
+        if (schedule.Status == WorkScheduleStatus.Cancelled)
+            return true;
+
+        schedule.Cancel(reason);
+
+        var workScheduleCancelled = new WorkScheduleCancelled(
+            schedule.Id,
+            schedule.DoctorId,
+            reason,
+            DateTimeOffset.UtcNow);
+
+        var envelope = new EventEnvelope<WorkScheduleCancelled>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.WorkScheduleCancelled,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Scheduling.Service",
+            Payload = workScheduleCancelled
+        };
+
+        _outboxWriter.Add(envelope, "schedule.cancelled");
+
+        await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Cancelled schedule {ScheduleId} with reason '{Reason}' and added WorkScheduleCancelled to outbox.", schedule.Id, reason);
+        return true;
+    }
+
+    public async Task<int> HandleUserProfileUpdatedAsync(UserProfileUpdated evt, CancellationToken ct = default)
+    {
+        var employees = await _dbContext.Employees
+            .Where(e => e.PersonId == evt.PersonId && !e.IsDeleted)
+            .ToListAsync(ct);
+
+        if (employees.Count == 0)
+            return 0;
+
+        foreach (var emp in employees)
+        {
+            emp.FullName = evt.FullName;
+            if (evt.PhoneNumber != null) emp.PhoneNumber = evt.PhoneNumber;
+            if (evt.Email != null) emp.Email = evt.Email;
+            if (evt.Gender != null) emp.Gender = evt.Gender;
+            emp.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Synchronized profile for PersonId {PersonId} across {Count} employee records.", evt.PersonId, employees.Count);
+        return employees.Count;
     }
 }

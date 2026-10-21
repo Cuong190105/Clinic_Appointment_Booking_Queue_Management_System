@@ -355,5 +355,157 @@ public class SchedulingManagerTests
         Assert.Equal("Clinic.Scheduling.Service", outbox.Producer);
         Assert.Equal(OutboxMessageStatus.Pending, outbox.Status);
     }
+
+    [Fact]
+    public async Task UpdateSchedule_EmitsWorkScheduleUpdatedOutboxEvent()
+    {
+        var (db, manager) = CreateTestManager();
+
+        var doctorId = Guid.NewGuid();
+        var doctor = CreateTestDoctor(doctorId);
+        var schedule = new WorkSchedule
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = doctorId,
+            Doctor = doctor,
+            Date = new DateOnly(2026, 12, 5),
+            ShiftStart = new TimeOnly(8, 0),
+            ShiftEnd = new TimeOnly(12, 0),
+            RecommendedCapacity = 10,
+            Status = WorkScheduleStatus.Active
+        };
+        db.Doctors.Add(doctor);
+        db.WorkSchedules.Add(schedule);
+        await db.SaveChangesAsync();
+
+        var updated = await manager.UpdateScheduleAsync(
+            schedule.Id,
+            new DateOnly(2026, 12, 5),
+            new TimeOnly(8, 30),
+            new TimeOnly(12, 30),
+            12);
+
+        Assert.Equal(new TimeOnly(8, 30), updated.ShiftStart);
+        Assert.Equal(12, updated.RecommendedCapacity);
+
+        var outbox = await db.OutboxMessages.FirstOrDefaultAsync(m => m.EventType == "WorkScheduleUpdated");
+        Assert.NotNull(outbox);
+        Assert.Equal("schedule.updated", outbox.RoutingKey);
+        Assert.Equal("Clinic.Scheduling.Service", outbox.Producer);
+    }
+
+    [Fact]
+    public async Task UpdateSchedule_WhenOverlapsWithExisting_ThrowsConflict()
+    {
+        var (db, manager) = CreateTestManager();
+
+        var doctorId = Guid.NewGuid();
+        var doctor = CreateTestDoctor(doctorId);
+        var date = new DateOnly(2026, 12, 6);
+
+        var schedule1 = new WorkSchedule
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = doctorId,
+            Doctor = doctor,
+            Date = date,
+            ShiftStart = new TimeOnly(8, 0),
+            ShiftEnd = new TimeOnly(12, 0),
+            RecommendedCapacity = 10,
+            Status = WorkScheduleStatus.Active
+        };
+        var schedule2 = new WorkSchedule
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = doctorId,
+            Doctor = doctor,
+            Date = date,
+            ShiftStart = new TimeOnly(13, 0),
+            ShiftEnd = new TimeOnly(17, 0),
+            RecommendedCapacity = 10,
+            Status = WorkScheduleStatus.Active
+        };
+        db.Doctors.Add(doctor);
+        db.WorkSchedules.AddRange(schedule1, schedule2);
+        await db.SaveChangesAsync();
+
+        // Updating schedule2 to 11:00 - 15:00 overlaps with schedule1 (8:00 - 12:00)
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            manager.UpdateScheduleAsync(schedule2.Id, date, new TimeOnly(11, 0), new TimeOnly(15, 0), 10));
+
+        Assert.Contains("overlaps", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelSchedule_EmitsWorkScheduleCancelledOutboxEvent()
+    {
+        var (db, manager) = CreateTestManager();
+
+        var doctorId = Guid.NewGuid();
+        var doctor = CreateTestDoctor(doctorId);
+        var schedule = new WorkSchedule
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = doctorId,
+            Doctor = doctor,
+            Date = new DateOnly(2026, 12, 7),
+            ShiftStart = new TimeOnly(8, 0),
+            ShiftEnd = new TimeOnly(12, 0),
+            RecommendedCapacity = 10,
+            Status = WorkScheduleStatus.Active
+        };
+        db.Doctors.Add(doctor);
+        db.WorkSchedules.Add(schedule);
+        await db.SaveChangesAsync();
+
+        var success = await manager.CancelScheduleAsync(schedule.Id, "Doctor sick leave");
+
+        Assert.True(success);
+        Assert.Equal(WorkScheduleStatus.Cancelled, schedule.Status);
+
+        var outbox = await db.OutboxMessages.FirstOrDefaultAsync(m => m.EventType == "WorkScheduleCancelled");
+        Assert.NotNull(outbox);
+        Assert.Equal("schedule.cancelled", outbox.RoutingKey);
+        Assert.Contains("Doctor sick leave", outbox.Payload);
+    }
+
+    [Fact]
+    public async Task HandleUserProfileUpdated_UpdatesMatchingEmployeeProjections()
+    {
+        var (db, manager) = CreateTestManager();
+
+        var personId = Guid.NewGuid();
+        var employee = new Employee
+        {
+            Id = Guid.NewGuid(),
+            PersonId = personId,
+            FullName = "Old Name",
+            PhoneNumber = "0900000001",
+            Email = "old@example.com",
+            Gender = "Female",
+            HireDate = new DateOnly(2021, 1, 1),
+            Status = EmployeeStatus.Active
+        };
+        db.Employees.Add(employee);
+        await db.SaveChangesAsync();
+
+        var evt = new Clinic.Contracts.Events.UserProfileUpdated(
+            personId,
+            "New Full Name",
+            "0988888888",
+            "new@example.com",
+            "Male"
+        );
+
+        var updatedCount = await manager.HandleUserProfileUpdatedAsync(evt);
+
+        Assert.Equal(1, updatedCount);
+        var reloaded = await db.Employees.FindAsync(employee.Id);
+        Assert.NotNull(reloaded);
+        Assert.Equal("New Full Name", reloaded.FullName);
+        Assert.Equal("0988888888", reloaded.PhoneNumber);
+        Assert.Equal("new@example.com", reloaded.Email);
+        Assert.Equal("Male", reloaded.Gender);
+    }
 }
 
