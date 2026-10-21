@@ -111,6 +111,33 @@ services:
             start_period: 30s
         restart: always
 
+    scheduling-service:
+        build:
+            context: ./backend
+            dockerfile: Clinic.Scheduling.Service/Dockerfile
+        container_name: clinic_scheduling_service
+        ports:
+            - "5002:8080"
+        environment:
+            - ConnectionStrings__SchedulingConnection=Server=db,1433;Database=ClinicSchedulingDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - Identity__Authority=http://identity-service:8080
+            - Identity__RequireHttpsMetadata=false
+            - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
+            - Jwt__Audience=Clinic.Services
+            - ASPNETCORE_HTTP_PORTS=8080
+        depends_on:
+            db:
+                condition: service_healthy
+            identity-service:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        restart: always
+
     identity-data-importer:
         image: mcr.microsoft.com/mssql/server:2022-latest
         entrypoint: ["/bin/bash", "-c"]
