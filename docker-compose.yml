@@ -156,6 +156,24 @@ services:
                 condition: service_healthy
         restart: "no"
 
+    scheduling-data-importer:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        entrypoint: ["/bin/bash", "-c"]
+        command:
+            - >-
+              until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
+              /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql
+        environment:
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+        volumes:
+            - ./backend/Clinic.Scheduling.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+        depends_on:
+            backend:
+                condition: service_healthy
+            scheduling-service:
+                condition: service_healthy
+        restart: "no"
+
     frontend:
         build:
             context: ./frontend # Thay bằng đường dẫn tới thư mục Vue.js của bạn
@@ -167,6 +185,8 @@ services:
             backend:
                 condition: service_healthy
             identity-data-importer:
+                condition: service_completed_successfully
+            scheduling-data-importer:
                 condition: service_completed_successfully
         healthcheck:
             test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
