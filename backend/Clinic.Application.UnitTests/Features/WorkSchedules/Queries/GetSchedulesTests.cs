@@ -50,3 +50,4 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Queries
         }
     }
 }
+

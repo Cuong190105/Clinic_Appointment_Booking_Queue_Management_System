@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Exceptions;
+﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Appointments.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Enums;
@@ -29,7 +29,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
 
             // Same time slot, but walk-in appointment should be allowed
             var receptionist = TestDataFactory.CreateUser();
-            receptionist.AssignRole(TestDataFactory.RoleSet.First(r => r.Name == "Receptionist"));
+            receptionist.AssignRole("Receptionist");
             var command2 = new CreateAppointmentCommand(receptionist.Id, workSchedule.Id, new TimeOnly(10, 0), "Reason", true, patient.Id);
             var result2 = await handler.Handle(command2, CancellationToken.None);
             Assert.Equal(receptionist.Id, workSchedule.Appointments.FirstOrDefault(a => a.Id == result2.Id)?.UpdatedByUserId);
@@ -76,3 +76,4 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         }
     }
 }
+

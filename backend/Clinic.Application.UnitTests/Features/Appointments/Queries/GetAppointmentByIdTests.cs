@@ -1,69 +1,61 @@
 ﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Appointments.Queries;
 using Clinic.Application.UnitTests.Common;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace Clinic.Application.UnitTests.Features.Appointments.Queries
+namespace Clinic.Application.UnitTests.Features.Appointments.Queries;
+
+public sealed class GetAppointmentByIdTests
 {
-    public class GetAppointmentByIdTests
+    [Fact]
+    public async Task Allows_receptionist_patient_owner_and_assigned_doctor_from_token_claims()
     {
-        [Fact]
-        public async Task TestGetAppointmentValid()
-        {
-            // Arrange
-            var fakeAppointmentRepository = new FakeAppointmentRepository();
-            var userRepository = new FakeUserRepository();
-            var handler = new GetAppointmentByIdQueryHandler(fakeAppointmentRepository, userRepository);
-            var patient1 = TestDataFactory.CreatePatient();
-            var receptionist = TestDataFactory.CreateEmployee(role: "Receptionist");
-            var doctor1 = TestDataFactory.CreateDoctor();
-            var workSchedule1 = TestDataFactory.CreateWorkSchedule(doctor1);
-            var appointment = TestDataFactory.CreateAppointment(patient1, workSchedule1);
-            await fakeAppointmentRepository.AddAsync(appointment);
-            await userRepository.AddAsync(receptionist.Person.User);
-            await userRepository.AddAsync(doctor1.Employee.Person.User);
-            await userRepository.AddAsync(patient1.Person.User);
+        var repository = new FakeAppointmentRepository();
+        var currentUser = new FakeCurrentUser();
+        var handler = new GetAppointmentByIdQueryHandler(repository, currentUser);
+        var patient = TestDataFactory.CreatePatient();
+        var doctor = TestDataFactory.CreateDoctor();
+        var appointment = TestDataFactory.CreateAppointment(patient, TestDataFactory.CreateWorkSchedule(doctor));
+        await repository.AddAsync(appointment);
 
-            var result = await handler.Handle(new GetAppointmentByIdQuery(appointment.Id, receptionist.Person.User.Id), CancellationToken.None);
-            Assert.NotNull(result);
-            Assert.Equal(appointment.Id, result.Id);
+        var receptionistId = Guid.NewGuid();
+        currentUser.UserId = receptionistId;
+        currentUser.GrantRole("Receptionist");
+        Assert.Equal(appointment.Id, (await handler.Handle(new(appointment.Id, receptionistId), default)).Id);
 
-            var result2 = await handler.Handle(new GetAppointmentByIdQuery(appointment.Id, doctor1.Employee.Person.User.Id), CancellationToken.None);
-            Assert.NotNull(result2);
-            Assert.Equal(appointment.Id, result2.Id);
+        currentUser.UserId = doctor.Employee.Person.IdentityUserId!.Value;
+        currentUser.DoctorId = doctor.Id;
+        currentUser.GrantRole("Doctor");
+        Assert.Equal(appointment.Id, (await handler.Handle(new(appointment.Id, currentUser.UserId.Value), default)).Id);
 
-            var result3 = await handler.Handle(new GetAppointmentByIdQuery(appointment.Id, patient1.Person.User.Id), CancellationToken.None);
-            Assert.NotNull(result3);
-            Assert.Equal(appointment.Id, result3.Id);
-        }
+        currentUser.UserId = patient.Person.IdentityUserId!.Value;
+        currentUser.PatientId = patient.Id;
+        currentUser.GrantRole("Patient");
+        Assert.Equal(appointment.Id, (await handler.Handle(new(appointment.Id, currentUser.UserId.Value), default)).Id);
+    }
 
-        [Fact]
-        public async Task TestGetAppointmentInvalid()
-        {
-            // Arrange
-            var fakeAppointmentRepository = new FakeAppointmentRepository();
-            var userRepository = new FakeUserRepository();
-            var handler = new GetAppointmentByIdQueryHandler(fakeAppointmentRepository, userRepository);
-            var patient1 = TestDataFactory.CreatePatient();
-            var patient2 = TestDataFactory.CreatePatient();
-            var admin = TestDataFactory.CreateEmployee(role: "Admin");
-            var doctor1 = TestDataFactory.CreateDoctor();
-            var doctor2 = TestDataFactory.CreateDoctor();
-            var workSchedule1 = TestDataFactory.CreateWorkSchedule(doctor1);
-            var appointment = TestDataFactory.CreateAppointment(patient1, workSchedule1);
-            await fakeAppointmentRepository.AddAsync(appointment);
-            await userRepository.AddAsync(admin.Person.User);
-            await userRepository.AddAsync(doctor1.Employee.Person.User);
-            await userRepository.AddAsync(doctor2.Employee.Person.User);
-            await userRepository.AddAsync(patient1.Person.User);
-            await userRepository.AddAsync(patient2.Person.User);
+    [Fact]
+    public async Task Denies_unrelated_users_and_user_id_mismatch()
+    {
+        var repository = new FakeAppointmentRepository();
+        var currentUser = new FakeCurrentUser();
+        var handler = new GetAppointmentByIdQueryHandler(repository, currentUser);
+        var patient = TestDataFactory.CreatePatient();
+        var doctor = TestDataFactory.CreateDoctor();
+        var unrelatedDoctor = TestDataFactory.CreateDoctor();
+        var appointment = TestDataFactory.CreateAppointment(patient, TestDataFactory.CreateWorkSchedule(doctor));
+        await repository.AddAsync(appointment);
 
-            await Assert.ThrowsAsync<ForbiddenException>(async () => await handler.Handle(new GetAppointmentByIdQuery(appointment.Id, doctor2.Employee.Person.User.Id), CancellationToken.None));
-            await Assert.ThrowsAsync<ForbiddenException>(async () => await handler.Handle(new GetAppointmentByIdQuery(appointment.Id, patient2.Person.User.Id), CancellationToken.None));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await handler.Handle(new GetAppointmentByIdQuery(appointment.Id, Guid.NewGuid()), CancellationToken.None));
+        currentUser.UserId = unrelatedDoctor.Employee.Person.IdentityUserId!.Value;
+        currentUser.DoctorId = unrelatedDoctor.Id;
+        currentUser.GrantRole("Doctor");
+        await Assert.ThrowsAsync<ForbiddenException>(() => handler.Handle(new(appointment.Id, currentUser.UserId.Value), default));
 
-        }
+        currentUser.UserId = patient.Person.IdentityUserId!.Value;
+        currentUser.PatientId = TestDataFactory.CreatePatient().Id;
+        currentUser.GrantRole("Patient");
+        await Assert.ThrowsAsync<ForbiddenException>(() => handler.Handle(new(appointment.Id, currentUser.UserId.Value), default));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => handler.Handle(new(appointment.Id, Guid.NewGuid()), default));
     }
 }
+

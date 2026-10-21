@@ -40,6 +40,8 @@ namespace Clinic.Application.Features.Doctors.Queries
             var doctorDtos = doctors.Items.Select(d => new DoctorSummaryDto
             {
                 Id = d.Id,
+                EmployeeId = d.Employee.Id,
+                PatientId = d.Employee.Person.Patient?.Id,
                 FullName = d.Employee.Person.FullName,
                 PhoneNumber = d.Employee.Person.PhoneNumber,
                 Email = d.Employee.Person.Email,

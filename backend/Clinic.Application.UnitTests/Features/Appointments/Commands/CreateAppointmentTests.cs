@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Exceptions;
+﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Appointments.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Common.Exceptions;
@@ -27,7 +27,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             workScheduleRepository.Add(workSchedule);
 
             var timeSlot = workSchedule.ShiftStart.AddMinutes(30);
-            var command = new CreateAppointmentCommand(patient.Person.User.Id, workSchedule.Id, timeSlot, "Routine checkup", false);
+            var command = new CreateAppointmentCommand(patient.Person.IdentityUserId!.Value, workSchedule.Id, timeSlot, "Routine checkup", false);
 
             // Act
             var appointment = await handler.Handle(command, CancellationToken.None);
@@ -158,7 +158,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             await patientRepository.AddAsync(patient2);
 
             // Fill capacity
-            var app1 = new Appointment(patient1, workSchedule, workSchedule.ShiftStart, "Reason", patient1.Person.User.Id, false);
+            var app1 = new Appointment(patient1, workSchedule, workSchedule.ShiftStart, "Reason", patient1.Person.IdentityUserId!.Value, false);
             var app2 = new Appointment(patient2, workSchedule, workSchedule.ShiftStart, "Reason", Guid.NewGuid(), true);
             workSchedule.AddAppointment(app1);
             workSchedule.AddAppointment(app2);
@@ -188,7 +188,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
 
             // One cancelled appointment
             var cancelledApp = new Appointment(patient, workSchedule, workSchedule.ShiftStart, "Cancelled", Guid.NewGuid(), false);
-            cancelledApp.Cancel(patient.Person.User.Id);
+            cancelledApp.Cancel(patient.Person.IdentityUserId!.Value);
             workSchedule.Appointments.Add(cancelledApp);
 
             var command = new CreateAppointmentCommand(Guid.NewGuid(), workSchedule.Id, workSchedule.ShiftStart.AddMinutes(30), "After cancellation", false, patient.Id);
@@ -202,3 +202,4 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         }
     }
 }
+

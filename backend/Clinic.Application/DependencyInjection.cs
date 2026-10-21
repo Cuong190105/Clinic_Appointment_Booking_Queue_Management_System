@@ -25,9 +25,7 @@ namespace Clinic.Application
             config.Scan(Assembly.GetExecutingAssembly());
             services.AddSingleton(config);
             services.AddScoped<IMapper, Mapper>();
-            services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPersonService, PersonService>();
-            services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<INotificationService, NotificationService>();
             services.AddSingleton<INotificationQueue, NotificationQueue>();
             services.AddScoped<IAppointmentNotificationHandler, AppointmentNotificationHandler>();

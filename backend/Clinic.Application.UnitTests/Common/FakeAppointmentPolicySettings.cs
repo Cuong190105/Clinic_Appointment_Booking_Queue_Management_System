@@ -1,4 +1,4 @@
-using Clinic.Application.Interfaces;
+﻿using Clinic.Application.Interfaces;
 
 namespace Clinic.Application.UnitTests.Common
 {
@@ -7,3 +7,4 @@ namespace Clinic.Application.UnitTests.Common
         public int RescheduleMinNoticeHours { get; set; } = 2;
     }
 }
+

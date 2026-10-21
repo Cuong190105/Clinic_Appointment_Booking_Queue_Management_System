@@ -16,27 +16,28 @@ namespace Clinic.Application.Features.Appointments.Queries
     {
         private readonly IAppointmentRepository _appointmentRepository;
         private readonly IPatientRepository _patientRepository;
-        private readonly IUserRepository _userRepository;
+        private readonly ICurrentUser _currentUser;
 
-        public GetPatientAppointmentsQueryHandler(IAppointmentRepository appointmentRepository, IPatientRepository patientRepository, IUserRepository userRepository)
+        public GetPatientAppointmentsQueryHandler(IAppointmentRepository appointmentRepository, IPatientRepository patientRepository, ICurrentUser currentUser)
         {
             _appointmentRepository = appointmentRepository;
             _patientRepository = patientRepository;
-            _userRepository = userRepository;
+            _currentUser = currentUser;
         }
 
         public async Task<List<AppointmentDto>> Handle(GetPatientAppointmentsQuery request, CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            if (_currentUser.UserId != request.UserId)
             {
                 throw new UnauthorizedAccessException();
             }
-            if (!user.UserRoles.Any(ur => ur.Role.Name == "Receptionist") && request.PatientId != null)
+            if (!_currentUser.HasRole("Receptionist") && !_currentUser.HasPermission("patient.view.any") &&
+                request.PatientId != null && request.PatientId != _currentUser.PatientId)
             {
                 throw new ForbiddenException("You do not have permission to view other patients' appointments.");
             }
-            var patient = request.PatientId == null ? user.Person.Patient : await _patientRepository.GetByIdAsync(request.PatientId);
+            var patientId = request.PatientId ?? _currentUser.PatientId;
+            var patient = patientId == null ? null : await _patientRepository.GetByIdAsync(patientId.Value);
             if (patient == null)
             {
                 throw new NotFoundException("Patient not found.");

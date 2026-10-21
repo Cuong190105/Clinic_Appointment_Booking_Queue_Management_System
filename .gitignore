@@ -28,6 +28,7 @@ bin/
 obj/
 backend/**/bin/
 backend/**/obj/
+backend/Clinic.Identity.Service/var/
 TestResults/
 
 # IDE and OS files

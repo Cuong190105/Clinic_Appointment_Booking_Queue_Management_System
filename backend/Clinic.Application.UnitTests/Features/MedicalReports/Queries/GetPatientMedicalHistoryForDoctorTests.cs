@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Exceptions;
+﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.MedicalReports.Queries;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Entities;
@@ -115,3 +115,4 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Queries
         }
     }
 }
+

@@ -3,60 +3,49 @@ import { mount, flushPromises } from '@vue/test-utils'
 import ForgotPasswordView from '../ForgotPasswordView.vue'
 import { authApi } from '@/features/auth/auth.api'
 
-const { routerPush } = vi.hoisted(() => ({
-  routerPush: vi.fn(),
-}))
+const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }))
 
-vi.mock('vue-router', () => ({
-  useRouter: () => ({
-    push: routerPush,
-  }),
-}))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerPush }) }))
 
 describe('ForgotPasswordView', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => vi.clearAllMocks())
 
-  it('renders title and input field', () => {
-    const wrapper = mount(ForgotPasswordView)
-    expect(wrapper.text()).toContain('Quên mật khẩu')
-    expect(wrapper.find('input').exists()).toBe(true)
-  })
-
-  it('validates empty input on submit', async () => {
-    const wrapper = mount(ForgotPasswordView)
-    await wrapper.find('form').trigger('submit.prevent')
-    expect(wrapper.text()).toContain('Email hoặc Số điện thoại')
-  })
-
-  it('calls authApi.forgotPassword and displays success state', async () => {
-    vi.spyOn(authApi, 'forgotPassword').mockResolvedValueOnce({
-      message: 'Mật khẩu tạm thời đã được gửi.',
-    })
+  it('requests a reset code and lets the user submit a new password', async () => {
+    vi.spyOn(authApi, 'forgotPassword').mockResolvedValueOnce({ message: 'If the account exists, a code was sent.' })
+    vi.spyOn(authApi, 'resetPassword').mockResolvedValueOnce({ message: 'Password updated.' })
 
     const wrapper = mount(ForgotPasswordView)
-    const input = wrapper.find('input')
-    await input.setValue('patient@example.com')
+    await wrapper.find('input').setValue('patient@example.com')
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
     expect(authApi.forgotPassword).toHaveBeenCalledWith('patient@example.com')
-    expect(wrapper.text()).toContain('Yêu cầu đã được xử lý!')
-    expect(wrapper.text()).toContain('Mật khẩu tạm thời đã được gửi.')
-  })
+    expect(wrapper.text()).toContain('Nhập mã đã nhận')
 
-  it('displays error alert if API fails', async () => {
-    vi.spyOn(authApi, 'forgotPassword').mockRejectedValueOnce(
-      new Error('Không tìm thấy tài khoản.'),
-    )
-
-    const wrapper = mount(ForgotPasswordView)
-    const input = wrapper.find('input')
-    await input.setValue('0987654321')
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('one-time-code')
+    await inputs[1]!.setValue('NewPassword123')
+    await inputs[2]!.setValue('NewPassword123')
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Không tìm thấy tài khoản.')
+    expect(authApi.resetPassword).toHaveBeenCalledWith({ token: 'one-time-code', newPassword: 'NewPassword123' })
+    expect(wrapper.text()).toContain('Password updated.')
+  })
+
+  it('requires matching passwords before calling the reset API', async () => {
+    const resetSpy = vi.spyOn(authApi, 'resetPassword')
+    vi.spyOn(authApi, 'forgotPassword').mockResolvedValueOnce({ message: 'If the account exists, a code was sent.' })
+    const wrapper = mount(ForgotPasswordView)
+    await wrapper.find('input').setValue('patient@example.com')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('one-time-code')
+    await inputs[1]!.setValue('NewPassword123')
+    await inputs[2]!.setValue('DifferentPassword123')
+    await wrapper.find('form').trigger('submit.prevent')
+    expect(wrapper.text()).toContain('Mật khẩu xác nhận không khớp.')
+    expect(resetSpy).not.toHaveBeenCalled()
   })
 })

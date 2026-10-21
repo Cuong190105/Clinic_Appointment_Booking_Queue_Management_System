@@ -1,40 +1,28 @@
-using Clinic.Domain.Entities;
+﻿using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 
 namespace Clinic.Application.UnitTests.Common
 {
     public class TestDataFactory
     {
-        public static List<Role> RoleSet => new List<Role>
-        {
-            new Role(Guid.NewGuid(), "Admin", "Administrator role", DateTime.UtcNow, DateTime.UtcNow, false),
-            new Role(Guid.NewGuid(), "Doctor", "Doctor role", DateTime.UtcNow, DateTime.UtcNow, false),
-            new Role(Guid.NewGuid(), "Receptionist", "Receptionist role", DateTime.UtcNow, DateTime.UtcNow, false),
-            new Role(Guid.NewGuid(), "Patient", "Patient role", DateTime.UtcNow, DateTime.UtcNow, false),
-        };
-
         public static Person CreatePerson(string fullName = "John Doe", string? phoneNumber = "1234567890", string? email = "", string? address = "", DateOnly? dateOfBirth = null, string? userRole = null)
         {
             var person = new Person(fullName, phoneNumber, email, dateOfBirth ?? DateOnly.FromDateTime(DateTime.UtcNow), Gender.Male, address);
             if (!string.IsNullOrEmpty(userRole))
-            {
-                var user = CreateUser(userRole, $"{fullName.Replace(" ", "").ToLower()}user", "hashedpassword", person);
-                person.User = user;
-            }
+                CreateUser(userRole, $"{fullName.Replace(" ", "").ToLower()}user", "hashedpassword", person);
             return person;
         }
 
-        public static User CreateUser(string role = "Admin", string username = "testuser", string passwordHash = "hashedpassword", Person? person = null)
+        public static TestIdentityAccount CreateUser(string role = "Admin", string username = "testuser", string passwordHash = "hashedpassword", Person? person = null)
         {
             person ??= CreatePerson();
-            var newUser = new User(username, passwordHash, person);
-            person.User = newUser;
-            newUser.AssignRole(RoleSet.FirstOrDefault(r => r.Name == role) ?? RoleSet.First());
-            return newUser;
+            var id = person.IdentityUserId ?? Guid.NewGuid();
+            person.LinkIdentityUser(id);
+            return new TestIdentityAccount(id, person, role);
         }
 
         /// <summary>
-        /// Tạo 1 QueueTicket hợp lệ, liên kết 2 chiều với appointment (giống CheckInHandler thật).
+        /// Táº¡o 1 QueueTicket há»£p lá»‡, liÃªn káº¿t 2 chiá»u vá»›i appointment (giá»‘ng CheckInHandler tháº­t).
         /// </summary>
         public static QueueTicket CreateQueueTicket(Appointment appointment, int queueNumber = 1, bool priority = false)
         {
@@ -53,12 +41,6 @@ namespace Clinic.Application.UnitTests.Common
             }
 
             return queueTicket;
-        }
-
-        public static RefreshToken CreateRefreshToken(string hashedToken, User user)
-        {
-            var refreshToken = new RefreshToken(hashedToken, DateTime.UtcNow.AddDays(7), user);
-            return refreshToken;
         }
 
         public static Specialty CreateSpecialty(string? name = "Cardiology", string? description = "Heart specialist")
@@ -107,10 +89,10 @@ namespace Clinic.Application.UnitTests.Common
 
             if (checkedIn)
             {
-                // Lưu ý: nếu truyền timeSlot khác ngày hôm nay kèm checkedIn: true, dòng này sẽ tự
-                // ném ConflictException ngay trong lúc dựng dữ liệu test (đúng theo domain rule mới) -
-                // muốn test case "check-in lịch ngày khác" thì dùng confirmed: true + timeSlot khác
-                // ngày, rồi tự gọi handler.Handle(...) để assert exception, không dùng checkedIn: true.
+                // LÆ°u Ã½: náº¿u truyá»n timeSlot khÃ¡c ngÃ y hÃ´m nay kÃ¨m checkedIn: true, dÃ²ng nÃ y sáº½ tá»±
+                // nÃ©m ConflictException ngay trong lÃºc dá»±ng dá»¯ liá»‡u test (Ä‘Ãºng theo domain rule má»›i) -
+                // muá»‘n test case "check-in lá»‹ch ngÃ y khÃ¡c" thÃ¬ dÃ¹ng confirmed: true + timeSlot khÃ¡c
+                // ngÃ y, rá»“i tá»± gá»i handler.Handle(...) Ä‘á»ƒ assert exception, khÃ´ng dÃ¹ng checkedIn: true.
                 app.CheckIn(DateTime.UtcNow, queueNumber);
             }
 
@@ -137,4 +119,13 @@ namespace Clinic.Application.UnitTests.Common
             return report;
         }
     }
+
+    public sealed class TestIdentityAccount(Guid id, Person person, string role)
+    {
+        public Guid Id { get; } = id;
+        public Person Person { get; } = person;
+        public string Role { get; private set; } = role;
+        public void AssignRole(string roleName) => Role = roleName;
+    }
 }
+

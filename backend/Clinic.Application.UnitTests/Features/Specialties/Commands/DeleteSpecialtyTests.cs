@@ -33,3 +33,4 @@ namespace Clinic.Application.UnitTests.Features.Specialties.Commands
         }
     }
 }
+

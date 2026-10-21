@@ -48,9 +48,10 @@ namespace Clinic.Infrastructure.Sqlserver.Notifications
                 await smtp.DisconnectAsync(
                     true,
                     cancellationToken);
-            } catch (Exception ex)
+            } catch
             {
-                Console.WriteLine(ex.ToString());
+                Console.Error.WriteLine("Email delivery failed.");
+                throw;
             }
         }
     }

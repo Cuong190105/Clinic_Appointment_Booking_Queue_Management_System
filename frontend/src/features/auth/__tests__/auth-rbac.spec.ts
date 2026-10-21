@@ -60,6 +60,28 @@ describe('auth complete flow', () => {
     expect(result.user.roles).toEqual(['Admin'])
   })
 
+  it('maps the Identity /auth/me profile contract', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue({
+      data: {
+        result: {
+          userId: 'identity-user-id',
+          username: 'patient1',
+          fullName: 'Patient One',
+          email: 'patient@example.test',
+          roles: ['Patient'],
+        },
+      },
+    } as any)
+
+    await expect(authApi.getMe()).resolves.toMatchObject({
+      id: 'identity-user-id',
+      name: 'Patient One',
+      email: 'patient@example.test',
+      role: 'Patient',
+      roles: ['Patient'],
+    })
+  })
+
   it('login success stores user and tokens', async () => {
     vi.spyOn(authApi, 'login').mockResolvedValue({
       accessToken: 'access-token-123',

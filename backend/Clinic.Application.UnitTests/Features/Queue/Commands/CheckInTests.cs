@@ -190,3 +190,4 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
         }
     }
 }
+

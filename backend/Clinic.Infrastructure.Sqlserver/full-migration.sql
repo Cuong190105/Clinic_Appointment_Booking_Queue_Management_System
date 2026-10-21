@@ -870,14 +870,6 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260807093426_SeedRoleData'
 )
 BEGIN
-    EXEC sp_rename N'[WorkSchedules].[RecommendedCapacity]', N'RecommendedCapacityPerSlot', 'COLUMN';
-END;
-
-IF NOT EXISTS (
-    SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20260807093426_SeedRoleData'
-)
-BEGIN
     ALTER TABLE [QueueTickets] ADD [CheckInTime] datetime2 NOT NULL DEFAULT '0001-01-01T00:00:00.0000000';
 END;
 

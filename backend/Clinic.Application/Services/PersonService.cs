@@ -24,7 +24,7 @@ namespace Clinic.Application.Services
                 if (existingPersonByPhone != null)
                 {
                     // If this person already has a user account, don't allow registration.
-                    if (existingPersonByPhone.User != null)
+                    if (existingPersonByPhone.IdentityUserId != null)
                     {
                         throw new ArgumentException("A user account already exists for this phone number.");
                     }

@@ -1,7 +1,9 @@
 using Clinic.API.Models;
+using Clinic.API.Services;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.Doctors.Commands;
 using Clinic.Application.Features.Doctors.Queries;
+using Clinic.Application.Features.Auth.Commands;
 using Clinic.Application.Features.Queue.Commands;
 using Clinic.Application.Features.Queue.Queries;
 using Clinic.Application.Features.WorkSchedules.Commands;
@@ -23,12 +25,14 @@ namespace Clinic.API.Controllers
         private readonly IMapper _mapper;
         private readonly ISender _sender;
         private readonly ICurrentUser _currentUser;
+        private readonly IdentityAccountClient _identityAccounts;
 
-        public DoctorsController(IMapper mapper, ISender sender, ICurrentUser currentUser)
+        public DoctorsController(IMapper mapper, ISender sender, ICurrentUser currentUser, IdentityAccountClient identityAccounts)
         {
             _mapper = mapper;
             _sender = sender;
             _currentUser = currentUser;
+            _identityAccounts = identityAccounts;
         }
 
         // Public: bệnh nhân (kể cả chưa đăng nhập) cần xem được danh sách bác sĩ/chuyên khoa
@@ -138,8 +142,48 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status201Created)]
         public async Task<IActionResult> Create([FromBody] CreateDoctorRequest request)
         {
-            var command = _mapper.Map<CreateDoctorCommand>(request);
-            var result = await _sender.Send(command);
+            var profileIds = await _sender.Send(new EnsureIdentityRegistrationProfileCommand(request.FullName, request.PhoneNumber, request.Email, request.DateOfBirth, request.Gender, request.Address), HttpContext.RequestAborted);
+            var identityUserId = Guid.NewGuid();
+            var roles = new[] { "Doctor", "Patient" };
+            var provisioned = await _identityAccounts.ProvisionAsync(identityUserId, profileIds.PersonId,
+                request.Username, request.Password, request.FullName, request.PhoneNumber, request.Email,
+                request.DateOfBirth, request.Gender, request.Address, roles, profileIds.PatientId, HttpContext.RequestAborted);
+            if (provisioned is null) return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Identity could not provision the doctor account." });
+            identityUserId = provisioned.UserId;
+            DoctorSummaryDto result;
+            try
+            {
+                if (profileIds.DoctorId is Guid existingDoctorId)
+                {
+                    var existing = await _sender.Send(new GetDoctorQuery(existingDoctorId), HttpContext.RequestAborted);
+                    result = new DoctorSummaryDto
+                    {
+                        Id = existing.Id, EmployeeId = existing.EmployeeId, FullName = existing.FullName,
+                        PhoneNumber = existing.PhoneNumber, Email = existing.Email, Gender = existing.Gender,
+                        LicenseNumber = existing.LicenseNumber, Qualification = existing.Qualification,
+                        CurrentSpecialty = existing.CurrentSpecialty, ExperienceYears = existing.ExperienceYears,
+                        Status = existing.Status
+                    };
+                }
+                else if (profileIds.EmployeeId is not null)
+                {
+                    result = await _sender.Send(new CreateDoctorFromUserCommand(
+                        identityUserId, request.HireDate, request.LicenseNumber, request.Qualification,
+                        request.Biography, request.ExperienceYears, request.Status, request.SpecialtyId,
+                        request.Email, request.Address), HttpContext.RequestAborted);
+                }
+                else
+                {
+                    var command = _mapper.Map<CreateDoctorCommand>(request) with { IdentityUserId = identityUserId, IdentityPatientId = profileIds.PatientId };
+                    result = await _sender.Send(command, HttpContext.RequestAborted);
+                }
+            }
+            catch
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "The account is inactive and pending doctor profile provisioning." });
+            }
+            if (!await _identityAccounts.UpdateRolesAsync(identityUserId, roles, profileIds.PatientId, result.EmployeeId, result.Id, HttpContext.RequestAborted))
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "The doctor profile was created, but Identity activation is pending." });
             return CreatedAtAction(nameof(GetById), new { doctorId = result.Id }, result);
         }
 
@@ -148,8 +192,14 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status201Created)]
         public async Task<IActionResult> CreateFromUser([FromBody] CreateDoctorFromUserRequest request)
         {
+            var current = await _identityAccounts.GetRolesAsync(request.UserId, HttpContext.RequestAborted);
+            if (current is null) return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Identity account could not be loaded." });
+            var roles = current.Value.Roles.Append("Doctor").Append("Patient").Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (!await _identityAccounts.RolesExistAsync(roles, HttpContext.RequestAborted)) return BadRequest(new { message = "Doctor role is not defined in Identity." });
             var command = _mapper.Map<CreateDoctorFromUserCommand>(request);
-            var result = await _sender.Send(command);
+            var result = await _sender.Send(command, HttpContext.RequestAborted);
+            if (!await _identityAccounts.UpdateRolesAsync(request.UserId, roles, result.PatientId ?? current.Value.PatientId, result.EmployeeId, result.Id, HttpContext.RequestAborted))
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "The doctor profile was created, but Identity role update is pending." });
             return CreatedAtAction(nameof(GetById), new { doctorId = result.Id }, result);
         }
 

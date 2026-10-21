@@ -5,6 +5,10 @@ namespace Clinic.Application.Contracts
     public class DoctorSummaryDto
     {
         public Guid Id { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore]
+        public Guid EmployeeId { get; set; }
+        [System.Text.Json.Serialization.JsonIgnore]
+        public Guid? PatientId { get; set; }
         public string FullName { get; set; }
         public string PhoneNumber { get; set; }
         public string Email { get; set; }

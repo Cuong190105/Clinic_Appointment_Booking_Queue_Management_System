@@ -40,13 +40,14 @@ namespace Clinic.Application.Features.Employees.Queries
             var employeeDtos = employees.Items.Select(e => new EmployeeSummaryDto
             {
                 Id = e.Id,
+                UserId = e.Person.IdentityUserId,
                 FullName = e.Person.FullName,
                 PhoneNumber = e.Person.PhoneNumber,
                 Email = e.Person.Email,
                 Gender = e.Person.Gender,
                 DateOfBirth = e.Person.DateOfBirth,
                 Status = e.Status,
-                Roles = e.Person.User.UserRoles.Select(r => r.Role.Name).ToList()
+                Roles = new List<string>()
             }).ToList();
             return new PaginationResponse<EmployeeSummaryDto>
             {

@@ -16,29 +16,29 @@ namespace Clinic.Application.Features.Patients.Commands
     ) : IRequest<Guid>;
     public class UpdatePatientCommandHandler : IRequestHandler<UpdatePatientCommand, Guid>
     {
-        private readonly IUserRepository _userRepository;
+        private readonly ICurrentUser _currentUser;
         private readonly IPatientRepository _patientRepository;
         private readonly IUnitOfWork _unitOfWork;
 
-        public UpdatePatientCommandHandler(IUserRepository userRepository, IPatientRepository patientRepository, IUnitOfWork unitOfWork)
+        public UpdatePatientCommandHandler(ICurrentUser currentUser, IPatientRepository patientRepository, IUnitOfWork unitOfWork)
         {
-            _userRepository = userRepository;
+            _currentUser = currentUser;
             _patientRepository = patientRepository;
             _unitOfWork = unitOfWork;
         }
 
         public async Task<Guid> Handle(UpdatePatientCommand request, CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            if (_currentUser.UserId != request.UserId)
             {
                 throw new UnauthorizedAccessException("User not found.");
             }
-            if (!user.UserRoles.Any(ur => ur.Role.Name == "Receptionist") && request.PatientId != null)
+            if (!_currentUser.HasRole("Receptionist") && request.PatientId != null && request.PatientId != _currentUser.PatientId)
             {
                 throw new ForbiddenException("You are not authorized to update patient information.");
             }
-            var patient = request.PatientId != null ? await _patientRepository.GetByIdAsync(request.PatientId) : user.Person.Patient;
+            var patientId = request.PatientId ?? _currentUser.PatientId;
+            var patient = patientId != null ? await _patientRepository.GetByIdAsync(patientId.Value) : null;
             if (patient == null)
             {
                 throw new NotFoundException("Patient not found.");

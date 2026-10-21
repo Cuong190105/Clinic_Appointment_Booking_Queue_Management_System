@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Exceptions;
+﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Queue.Queries;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Entities;
@@ -117,3 +117,4 @@ namespace Clinic.Application.UnitTests.Features.Queue.Queries
         }
     }
 }
+

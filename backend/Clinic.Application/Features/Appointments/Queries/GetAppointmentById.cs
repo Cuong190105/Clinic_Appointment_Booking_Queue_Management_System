@@ -15,12 +15,12 @@ namespace Clinic.Application.Features.Appointments.Queries
     public class GetAppointmentByIdQueryHandler : IRequestHandler<GetAppointmentByIdQuery, AppointmentDetailDto>
     {
         private readonly IAppointmentRepository _appointmentRepository;
-        private readonly IUserRepository _userRepository;
+        private readonly ICurrentUser _currentUser;
 
-        public GetAppointmentByIdQueryHandler(IAppointmentRepository appointmentRepository, IUserRepository userRepository)
+        public GetAppointmentByIdQueryHandler(IAppointmentRepository appointmentRepository, ICurrentUser currentUser)
         {
             _appointmentRepository = appointmentRepository;
-            _userRepository = userRepository;
+            _currentUser = currentUser;
         }
 
         public async Task<AppointmentDetailDto> Handle(GetAppointmentByIdQuery request, CancellationToken cancellationToken)
@@ -32,15 +32,14 @@ namespace Clinic.Application.Features.Appointments.Queries
             }
 
             // Only the receptionist, the patient who owns the appointment, or the doctor assigned to the appointment can access it
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            if (_currentUser.UserId != request.UserId)
             {
                 throw new UnauthorizedAccessException("Unauthorized.");
             }
 
-            if (!user.UserRoles.Any(ur => ur.Role.Name == "Receptionist" || ur.Role.Name == "Admin") && // Not a receptionist or admin
-                (!user.UserRoles.Any(ur => ur.Role.Name == "Patient") || user.Person.Patient.Id != appointment.PatientId) && // Not a patient, or not the patient who owns the appointment
-                (!user.UserRoles.Any(ur => ur.Role.Name == "Doctor") || user.Person.Employee.Doctor.Id != appointment.WorkSchedule.DoctorId) // Not a doctor, or not the doctor assigned to the appointment
+            if (!_currentUser.HasRole("Receptionist") && !_currentUser.HasRole("Admin") &&
+                !(_currentUser.HasRole("Patient") && _currentUser.PatientId == appointment.PatientId) &&
+                !(_currentUser.HasRole("Doctor") && _currentUser.DoctorId == appointment.WorkSchedule.DoctorId)
             )
             {
                 throw new ForbiddenException("Forbidden.");

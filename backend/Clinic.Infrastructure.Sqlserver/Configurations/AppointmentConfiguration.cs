@@ -27,11 +27,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 .HasForeignKey<Appointment>(a => a.BookingSlotId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasOne(a => a.Updator)
-                .WithMany()
-                .HasForeignKey(a => a.UpdatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             builder.Property(a => a.Reason).HasMaxLength(500);
 
             builder.Property(a => a.Status)

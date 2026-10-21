@@ -25,6 +25,8 @@ namespace Clinic.Application.Features.Employees.Queries
             return new EmployeeDetailDto
             {
                 Id = employee.Id,
+                UserId = employee.Person.IdentityUserId,
+                PatientId = employee.Person.Patient?.Id,
                 FullName = employee.Person.FullName,
                 PhoneNumber = employee.Person.PhoneNumber,
                 Email = employee.Person.Email,
@@ -33,7 +35,7 @@ namespace Clinic.Application.Features.Employees.Queries
                 Address = employee.Person.Address,
                 ManagerName = employee.Manager != null ? employee.Manager.Person.FullName : null,
                 Status = employee.Status,
-                Roles = employee.Person.User.UserRoles.Select(r => r.Role.Name).ToList()
+                Roles = new List<string>()
             };
         }
     }

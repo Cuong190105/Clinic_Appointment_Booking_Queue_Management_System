@@ -22,22 +22,22 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             await appointmentRepository.AddAsync(appointment);
             await appointmentRepository.AddAsync(appointment2);
 
-            currentUser.UserId = patient.Person.User.Id;
+            currentUser.UserId = patient.Person.IdentityUserId!.Value;
             currentUser.PatientId = patient.Id;
             // Patient cancels the appointment themselves
             var command = new CancelAppointmentCommand(AppointmentId: appointment.Id);
             await handler.Handle(command, CancellationToken.None);
             Assert.Equal(AppointmentStatus.Cancelled, appointment.Status);
-            Assert.Equal(patient.Person.User.Id, appointment.UpdatedByUserId);
+            Assert.Equal(patient.Person.IdentityUserId!.Value, appointment.UpdatedByUserId);
 
             // Receptionist cancels the appointment on behalf of the patient
             var receptionist = TestDataFactory.CreateEmployee(role: "Receptionist");
-            currentUser.UserId = receptionist.Person.User.Id;
+            currentUser.UserId = receptionist.Person.IdentityUserId!.Value;
             currentUser.GrantPermission("appointment.edit.any");
             var command2 = new CancelAppointmentCommand(AppointmentId: appointment2.Id);
             await handler.Handle(command2, CancellationToken.None);
             Assert.Equal(AppointmentStatus.Cancelled, appointment2.Status);
-            Assert.Equal(receptionist.Person.User.Id, appointment2.UpdatedByUserId);
+            Assert.Equal(receptionist.Person.IdentityUserId!.Value, appointment2.UpdatedByUserId);
         }
 
         [Fact]
@@ -51,7 +51,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var receptionist = TestDataFactory.CreateEmployee(role: "Receptionist");
             var workSchedule = TestDataFactory.CreateWorkSchedule();
             var appointment = TestDataFactory.CreateAppointment(patient, workSchedule);
-            currentUser.UserId = patient.Person.User.Id;
+            currentUser.UserId = patient.Person.IdentityUserId!.Value;
             await appointmentRepository.AddAsync(appointment);
             var command = new CancelAppointmentCommand(AppointmentId: Guid.NewGuid());
             await Assert.ThrowsAsync<NotFoundException>(async () => await handler.Handle(command, CancellationToken.None));
@@ -72,10 +72,11 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             await Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await handler.Handle(command, CancellationToken.None));
 
             var admin = TestDataFactory.CreateEmployee(role: "Admin");
-            currentUser.UserId = admin.Person.User.Id;
+            currentUser.UserId = admin.Person.IdentityUserId!.Value;
             currentUser.GrantPermission("appointment.edit.own");
             var command2 = new CancelAppointmentCommand(AppointmentId: appointment.Id);
             await Assert.ThrowsAsync<ForbiddenException>(async () => await handler.Handle(command2, CancellationToken.None));
         }
     }
 }
+

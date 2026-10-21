@@ -19,12 +19,12 @@ namespace Clinic.Application.Features.WorkSchedules.Queries
     {
         private readonly IDoctorRepository _doctorRepository;
         private readonly IWorkScheduleRepository _workScheduleRepository;
-        private readonly IUserRepository _userRepository;
-        public GetDoctorRequestedShiftsHandler(IDoctorRepository doctorRepository, IWorkScheduleRepository workScheduleRepository, IUserRepository userRepository)
+        private readonly ICurrentUser _currentUser;
+        public GetDoctorRequestedShiftsHandler(IDoctorRepository doctorRepository, IWorkScheduleRepository workScheduleRepository, ICurrentUser currentUser)
         {
             _doctorRepository = doctorRepository;
             _workScheduleRepository = workScheduleRepository;
-            _userRepository = userRepository;
+            _currentUser = currentUser;
         }
 
         public async Task<DoctorScheduleDto<RequestedShiftDto>> Handle(GetDoctorRequestedShiftsQuery request, CancellationToken cancellationToken)
@@ -33,16 +33,17 @@ namespace Clinic.Application.Features.WorkSchedules.Queries
             {
                 throw new ArgumentException("The date range cannot exceed one month");
             }
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            if (_currentUser.UserId != request.UserId || request.UserId == null)
             {
                 throw new UnauthorizedAccessException();
             }
-            if (!(user.UserRoles.Any(ur => ur.Role.Name == "Admin") || (user.UserRoles.Any(ur => ur.Role.Name == "Doctor") && request.DoctorId == null)))
+            if (!(_currentUser.HasRole("Admin") || (_currentUser.HasRole("Doctor") && request.DoctorId == null)))
             {
                 throw new ForbiddenException("You are not authorized to make this request");
             }
-            var doctor = request.DoctorId == null ? user.Person.Employee.Doctor : await _doctorRepository.GetInfoByIdAsync(request.DoctorId);
+            var doctor = request.DoctorId == null
+                ? (_currentUser.DoctorId == null ? null : await _doctorRepository.GetInfoByIdAsync(_currentUser.DoctorId.Value))
+                : await _doctorRepository.GetInfoByIdAsync(request.DoctorId);
             if (doctor == null)
             {
                 throw new NotFoundException("Doctor not found");

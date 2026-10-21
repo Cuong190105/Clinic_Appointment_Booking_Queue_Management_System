@@ -12,24 +12,18 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
         [Fact]
         public async Task CreateEmployeeCommandHandler_Should_Create_Employee_Successfully()
         {
-            var userRepository = new FakeUserRepository();
             var employeeRepository = new FakeEmployeeRepository();
             var personRepository = new FakePersonRepository();
-            var passwordHasher = new FakePasswordHasher();
-            var roleRepository = new FakeRoleRepository();
             var unitOfWork = new FakeUnitOfWork();
             var handler = new CreateEmployeeCommandHandler(
-                new UserService(userRepository, personRepository, passwordHasher),
                 new PersonService(personRepository),
+                new FakePatientRepository(),
                 employeeRepository,
-                roleRepository,
                 unitOfWork
             );
 
             var command = new CreateEmployeeCommand
             (
-                Username: "testuser",
-                Password: "testpassword",
                 FullName: "John Doe",
                 PhoneNumber: "1234567890",
                 Email: "johndoe@example.com",
@@ -37,7 +31,8 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
                 Gender: Gender.Male,
                 Address: "123 Main St",
                 HireDate: DateOnly.FromDateTime(DateTime.Now),
-                Roles: new List<string> { "Receptionist" }
+                Roles: new List<string> { "Receptionist" },
+                IdentityUserId: Guid.NewGuid()
             );
 
             var result = await handler.Handle(command, CancellationToken.None);
@@ -45,26 +40,20 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
         }
 
         [Fact]
-        public async Task CreateEmployeeCommandHandler_WrongRoleName_Should_Throw_ArgumentException()
+        public async Task CreateEmployeeCommandHandler_Uses_Identity_Account_Projection_Without_Local_Role_Writes()
         {
-            var userRepository = new FakeUserRepository();
             var employeeRepository = new FakeEmployeeRepository();
             var personRepository = new FakePersonRepository();
-            var passwordHasher = new FakePasswordHasher();
-            var roleRepository = new FakeRoleRepository();
             var unitOfWork = new FakeUnitOfWork();
             var handler = new CreateEmployeeCommandHandler(
-                new UserService(userRepository, personRepository, passwordHasher),
                 new PersonService(personRepository),
+                new FakePatientRepository(),
                 employeeRepository,
-                roleRepository,
                 unitOfWork
             );
 
             var command = new CreateEmployeeCommand
             (
-                Username: "testuser",
-                Password: "testpassword",
                 FullName: "John Doe",
                 PhoneNumber: "1234567890",
                 Email: "johndoe@example.com",
@@ -72,10 +61,13 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
                 Gender: Gender.Male,
                 Address: "123 Main St",
                 HireDate: DateOnly.FromDateTime(DateTime.Now),
-                Roles: new List<string> { "WrongRole" }
+                Roles: new List<string> { "Receptionist" },
+                IdentityUserId: Guid.NewGuid()
             );
 
-            await Assert.ThrowsAsync<ArgumentException>(async () => await handler.Handle(command, CancellationToken.None));
+            var result = await handler.Handle(command, CancellationToken.None);
+            Assert.NotNull(await employeeRepository.GetByIdAsync(result.Id));
         }
     }
 }
+

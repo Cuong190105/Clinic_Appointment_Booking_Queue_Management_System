@@ -49,20 +49,24 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 ## Giai đoạn 1: Tách Identity Service
 
+**Trạng thái: đã kiểm thử phát hành sau cutover; các luồng Identity/Clinic trong phạm vi giai đoạn đã được xác nhận trên Docker. Identity Service tests đạt 4/4; các failure còn lại của full solution thuộc fixture thời gian/nghiệp vụ cũ ngoài phạm vi Identity.**
+
 ### Nhiệm vụ
 
 1. Tạo Identity Service.
-2. Di chuyển `User`, `Role`, `Permission`, `UserRole`, `RolePermission` và `RefreshToken` sang Identity DB.
-3. Xây API đăng ký, đăng nhập, refresh token, revoke token và permission.
-4. Triển khai JWT/OIDC và public key/JWKS.
-5. Thay dependency trực tiếp vào User/Person bằng `userId`, claims và permission.
-6. Bổ sung key rotation và chính sách token expiration.
+2. Chuyển quyền sở hữu xác thực, credentials, `User`, `Role`, `Permission`, `UserRole`, `RolePermission`, `RefreshToken` và password-reset token sang Identity DB. Clinic có thể tạm giữ `Person` và hồ sơ nghiệp vụ.
+3. Cung cấp API đăng ký, đăng nhập, refresh token, revoke token, đổi/đặt lại mật khẩu và permission.
+4. Triển khai JWT RS256, discovery/JWKS có URL cấu hình theo môi trường và key rotation.
+5. Thay truy vấn role database dùng để phân quyền request bằng role/permission claims; đặt authorization policy ở API khi phù hợp. Chỉ giữ kiểm tra trong Application nếu cần xác minh quan hệ hoặc quyền sở hữu tài nguyên.
+6. Chuyển luồng tạo/cập nhật tài khoản nhân viên, bác sĩ và gán role sang Identity; loại bỏ credentials khỏi Clinic khi các luồng đó đã chuyển.
+7. Bổ sung chính sách token expiration, test, migration và rollback.
 
 ### Yêu cầu cần đạt
 
-- Identity Service sở hữu toàn bộ dữ liệu tài khoản và phân quyền.
+- Identity Service là nguồn chuẩn duy nhất cho credential, account, role và permission. Clinic `Person`/hồ sơ nghiệp vụ có thể tiếp tục được sở hữu riêng; bản chiếu `User/Role` không được dùng làm nguồn phân quyền.
+- Không có handler phân quyền request bằng cách query `UserRoles`/`Role` trong Clinic DB.
 - Service khác validate JWT bằng JWKS, không truy cập Identity DB.
-- Login, refresh, revoke và permission test pass.
+- Login, refresh, revoke, permission, reset-password và các luồng account provisioning có test pass.
 - Có migration và rollback plan cho dữ liệu Identity.
 
 ### Lưu ý
@@ -70,6 +74,28 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 - Gateway không phải điểm tin cậy duy nhất; từng service vẫn phải validate JWT.
 - Không đưa dữ liệu cá nhân không cần thiết vào access token.
 - Không xóa endpoint auth cũ trước khi regression test hoàn tất.
+
+### Phạm vi đã chuyển
+
+Đã có Identity DB/service, import dữ liệu, JWT RS256, JWKS/discovery, key rotation, đăng ký Patient, login/refresh/revoke, đổi mật khẩu và luồng reset bằng mã dùng một lần. Các kiểm tra quyền cho appointment, patient, doctor, employee profile và shift request đang dùng role/permission từ claims; kiểm tra ownership của tài nguyên vẫn ở Application.
+
+Đã chuyển trong phạm vi hiện tại: login, refresh, logout/revoke, change/reset-password và `/auth/me` gọi Identity; tạo account nhân viên/bác sĩ, gán/cập nhật role, danh sách/chi tiết account quản trị và role catalog cũng gọi Identity. Đã xóa Clinic login/refresh/logout/patient-registration/account-query handlers, dịch vụ phát hành token đối xứng và seeder tạo credentials cục bộ. API không còn fallback đọc credential/profile Clinic. Test hợp đồng auth, smoke Docker và việc tạo account thực đã được xác nhận thành công.
+
+### Bằng chứng kiểm thử phát hành sau cutover (2026-10-21)
+
+- Đối soát: `backend/Clinic.Identity.Service/Persistence/verify-identity-import.sql` chạy thành công trên Docker SQL Server.
+- Đối soát mapping: `Persons linked to Identity = 56/56`, `Identity Users = 56`; `Clinic IdentityUserId links missing from Identity = 0`.
+- Đối soát liên kết: user/person, user-role, role-permission, refresh-token và inactive account đều có `MismatchCount = 0`.
+- Docker readiness: `GET http://localhost:5000/readyz = 200`, `GET http://localhost:5001/readyz = 200`.
+- Login flow: register test account `201`, login `200`, `/auth/me` `200` qua API Gateway.
+- Provisioning flow: `POST /v1/internal/users/provision = 200`; account mới trả `created = true`, `isActive = false` trước khi Clinic hoàn tất liên kết hồ sơ, đúng lifecycle thiết kế.
+- Identity Service tests: `4 passed, 0 failed`, bao phủ registration/login, single-use reset, refresh revoke, inactive staff provisioning và role linking.
+- Database migration: `ClinicDB` đã có migration hợp nhất `20261020155017_RenamePatientLimitToRecommendedCapacity`; các bảng auth legacy không còn trong ClinicDB.
+
+### Chuyển sang giai đoạn sau
+
+- Clinic có thể tiếp tục sở hữu `Person` và hồ sơ Patient/Employee/Doctor trong giai đoạn này. Hợp nhất hoặc chuyển `Person` sang profile service chỉ thực hiện khi ranh giới Patient/Staff đã sẵn sàng, tránh tạo distributed transaction cho hồ sơ nghiệp vụ.
+- OAuth authorization-code flow và federation với nhà cung cấp bên ngoài chưa cần cho bản chạy Docker của môn học; discovery/JWKS và JWT validation là phạm vi hiện tại. Đưa OAuth/OIDC đầy đủ vào kế hoạch nếu có client/federation bên ngoài.
 
 ---
 

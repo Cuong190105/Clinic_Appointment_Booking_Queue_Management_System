@@ -335,10 +335,8 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const access = tokenStorage.getAccess()
       if (access) {
-        // Avoid an automatic network round-trip to /auth/me on app start which may be 404/403
-        // in some deployment states. Use the JWT payload to hydrate the user synchronously.
-        // This reduces noisy 404s and keeps the UI usable while still allowing explicit
-        // fetchMe() calls later when necessary (e.g., after login/register).
+        // Hydrate synchronously from the validated session token; fetchMe() can refresh the
+        // profile from Identity when a screen explicitly needs the current server-side data.
         const fallbackUser = buildUserFromToken(access)
         setUser(fallbackUser, tokenStorage.isPersistent())
         return fallbackUser
@@ -377,9 +375,7 @@ export const useAuthStore = defineStore('auth', () => {
       setToken(res.accessToken, res.refreshToken, persistent)
       setUser(normalizedUser, persistent)
 
-      // Do not aggressively fetch /auth/me during login when this backend does not expose it.
-      // The JWT payload already contains the user identity, and the app can fall back gracefully
-      // when the server-side profile endpoints are unavailable or forbidden.
+      // Keep login responsive from the token claims; fetchMe() can load the Identity profile on demand.
       status.value = 'idle'
       return normalizedUser
     } catch (e: any) {
@@ -418,8 +414,7 @@ export const useAuthStore = defineStore('auth', () => {
         setToken(token, res.refreshToken, persistent)
         setUser(normalizedUser, persistent)
 
-        // Avoid noisy /auth/me calls during register when the backend route is missing.
-        // Store the token-derived user directly and let explicit profile flows handle server-backed data.
+        // Registration provisions the Clinic Patient profile, while login establishes a session separately.
 
         // After registration, attempt to create patient profile using provided payload
         try {

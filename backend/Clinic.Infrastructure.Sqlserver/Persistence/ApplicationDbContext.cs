@@ -14,11 +14,6 @@ namespace Clinic.Infrastructure.Sqlserver.Persistence
         }
 
         public DbSet<Person> Persons => Set<Person>();
-        public DbSet<User> Users => Set<User>();
-        public DbSet<Role> Roles => Set<Role>();
-        public DbSet<Permission> Permissions => Set<Permission>();
-        public DbSet<UserRole> UserRoles => Set<UserRole>();
-        public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
         public DbSet<Employee> Employees => Set<Employee>();
         public DbSet<Doctor> Doctors => Set<Doctor>();
         public DbSet<Specialty> Specialties => Set<Specialty>();
@@ -30,7 +25,6 @@ namespace Clinic.Infrastructure.Sqlserver.Persistence
         public DbSet<QueueCounter> QueueCounters => Set<QueueCounter>();
         public DbSet<MedicalReport> MedicalReports => Set<MedicalReport>();
         public DbSet<Notification> Notifications => Set<Notification>();
-        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
         public DbSet<WorkHistory> WorkHistories => Set<WorkHistory>();
         public DbSet<ShiftRequest> ShiftRequests => Set<ShiftRequest>();
         public DbSet<AppointmentSnapshot> AppointmentSnapshots => Set<AppointmentSnapshot>();

@@ -24,45 +24,42 @@ namespace Clinic.Application.Features.Doctors.Commands
     ) : IRequest<DoctorSummaryDto>;
     public class CreateDoctorFromUserCommandHandler : IRequestHandler<CreateDoctorFromUserCommand, DoctorSummaryDto>
     {
-        private readonly IUserRepository _userRepository;
+        private readonly IPersonRepository _personRepository;
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IDoctorRepository _doctorRepository;
         private readonly ISpecialtyRepository _specialtyRepository;
-        private readonly IRoleRepository _roleRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateDoctorFromUserCommandHandler(
-            IUserRepository userRepository,
+            IPersonRepository personRepository,
             IEmployeeRepository employeeRepository,
             IDoctorRepository doctorRepository,
             ISpecialtyRepository specialtyRepository,
-            IRoleRepository roleRepository,
             IUnitOfWork unitOfWork)
         {
-            _userRepository = userRepository;
+            _personRepository = personRepository;
             _employeeRepository = employeeRepository;
             _doctorRepository = doctorRepository;
             _specialtyRepository = specialtyRepository;
-            _roleRepository = roleRepository;
             _unitOfWork = unitOfWork;
         }
 
         public async Task<DoctorSummaryDto> Handle(CreateDoctorFromUserCommand request, CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            var person = await _personRepository.GetByIdentityUserIdAsync(request.UserId);
+            if (person == null)
             {
                 throw new ArgumentException($"User with ID '{request.UserId}' does not exist.");
             }
-            if (user.Person.Employee?.Doctor != null)
+            if (person.Employee?.Doctor != null)
             {
                 throw new InvalidOperationException($"User with ID '{request.UserId}' is already a doctor.");
             }
-            if (string.IsNullOrWhiteSpace(user.Person.Email) && string.IsNullOrWhiteSpace(request.Email))
+            if (string.IsNullOrWhiteSpace(person.Email) && string.IsNullOrWhiteSpace(request.Email))
             {
                 throw new ArgumentException("Employee must have an email address.");
             }
-            if (string.IsNullOrWhiteSpace(user.Person.Address) && string.IsNullOrWhiteSpace(request.Address))
+            if (string.IsNullOrWhiteSpace(person.Address) && string.IsNullOrWhiteSpace(request.Address))
             {
                 throw new ArgumentException("Employee must have an address.");
             }
@@ -71,44 +68,36 @@ namespace Clinic.Application.Features.Doctors.Commands
             {
                 throw new ArgumentException($"Specialty with ID '{request.SpecialtyId}' does not exist.");
             }
-            var role = await _roleRepository.GetByNameAsync("Doctor");
-            if (role == null)
-            {
-                throw new ArgumentException("Role 'Doctor' does not exist");
-            }
-            user.AssignRole(role);
-            user.Person.UpdateDetails(
-                email: string.IsNullOrWhiteSpace(request.Email) ? user.Person.Email : request.Email,
-                gender: user.Person.Gender,
-                address: string.IsNullOrWhiteSpace(request.Address) ? user.Person.Address : request.Address
+            // Doctor role ownership and assignment are handled by Identity Service.
+            person.UpdateDetails(
+                email: string.IsNullOrWhiteSpace(request.Email) ? person.Email : request.Email,
+                gender: person.Gender,
+                address: string.IsNullOrWhiteSpace(request.Address) ? person.Address : request.Address
             );
-            var employee = user.Person.Employee;
+            var employee = person.Employee;
             if (employee == null)
             {
-                employee = new Employee(user.Person, request.HireDate);
+                employee = new Employee(person, request.HireDate);
                 await _employeeRepository.AddAsync(employee);
             }
             var doctor = new Doctor(employee, request.LicenseNumber, request.Qualification, specialty, request.ExperienceYears, request.Biography, request.Status);
-            if (user.Person.Patient == null)
+            if (person.Patient == null)
             {
-                var patient = new Patient(user.Person, null, null);
-                var patientRole = await _roleRepository.GetByNameAsync("Patient");
-                if (patientRole == null)
-                {
-                    throw new ArgumentException("Role 'Patient' does not exist");
-                }
-                user.AssignRole(patientRole);
-                user.Person.Patient = patient;
+                var patient = new Patient(person, null, null);
+                // Patient role assignment is handled by Identity Service.
+                person.Patient = patient;
             }
             await _doctorRepository.AddAsync(doctor);
             await _unitOfWork.SaveChangesAsync();
             return new DoctorSummaryDto
             {
                 Id = doctor.Id,
-                FullName = user.Person.FullName,
-                PhoneNumber = user.Person.PhoneNumber,
-                Email = user.Person.Email,
-                Gender = user.Person.Gender,
+                EmployeeId = employee.Id,
+                PatientId = person.Patient?.Id,
+                FullName = person.FullName,
+                PhoneNumber = person.PhoneNumber,
+                Email = person.Email,
+                Gender = person.Gender,
                 LicenseNumber = request.LicenseNumber
             };
         }

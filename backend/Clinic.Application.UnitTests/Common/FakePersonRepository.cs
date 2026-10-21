@@ -32,6 +32,11 @@ namespace Clinic.Application.UnitTests.Common
             return _people.FirstOrDefault(p => p.Id == id);
         }
 
+        public Task<Person?> GetByIdentityUserIdAsync(Guid userId)
+        {
+            return Task.FromResult(_people.FirstOrDefault(p => p.IdentityUserId == userId));
+        }
+
         public async Task<Person?> GetByPhoneNumberAsync(string phoneNumber)
         {
             return _people.FirstOrDefault(p => p.PhoneNumber == phoneNumber);
@@ -43,3 +48,4 @@ namespace Clinic.Application.UnitTests.Common
         }
     }
 }
+

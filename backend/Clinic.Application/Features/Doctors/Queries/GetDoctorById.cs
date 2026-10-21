@@ -21,6 +21,8 @@ namespace Clinic.Application.Features.Doctors.Queries
             return new DoctorDetailDto
             {
                 Id = doctor.Id,
+                EmployeeId = doctor.Employee.Id,
+                PatientId = doctor.Employee.Person.Patient?.Id,
                 FullName = doctor.Employee.Person.FullName,
                 PhoneNumber = doctor.Employee.Person.PhoneNumber,
                 Email = doctor.Employee.Person.Email,

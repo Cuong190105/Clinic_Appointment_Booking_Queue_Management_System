@@ -61,3 +61,4 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Commands
         }
     }
 }
+

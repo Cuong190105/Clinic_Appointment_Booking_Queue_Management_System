@@ -11,20 +11,20 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
     ) : IRequest<Guid>;
     public class CancelRequestCommandHandler : IRequestHandler<CancelRequestCommand, Guid>
     {
-        private readonly IUserRepository _userRepository;
+        private readonly IPersonRepository _personRepository;
         private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly IUnitOfWork _unitOfWork;
-        public CancelRequestCommandHandler(IUserRepository userRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
+        public CancelRequestCommandHandler(IPersonRepository personRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
         {
-            _userRepository = userRepository;
+            _personRepository = personRepository;
             _workScheduleRepository = workScheduleRepository;
             _unitOfWork = unitOfWork;
         }
 
         public async Task<Guid> Handle(CancelRequestCommand request, CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            var person = request.UserId is Guid userId ? await _personRepository.GetByIdentityUserIdAsync(userId) : null;
+            if (person == null)
             {
                 throw new UnauthorizedAccessException();
             }
@@ -33,7 +33,7 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
             {
                 throw new NotFoundException("Shift request not found");
             }
-            if (shiftRequest.DoctorId != user.Person.Employee.Doctor.Id)
+            if (person.Employee?.Doctor == null || shiftRequest.DoctorId != person.Employee.Doctor.Id)
             {
                 throw new ForbiddenException("You are not authorized to cancel this shift request");
             }

@@ -1,4 +1,4 @@
-using Clinic.Application.Common.Exceptions;
+﻿using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Employees.Commands;
 using Clinic.Application.Interfaces;
 using Clinic.Application.UnitTests.Common;
@@ -14,12 +14,11 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
         [Fact]
         public async Task TestValidUpdateEmployeeCommand()
         {
-            var userRepository = new FakeUserRepository();
             var personRepository = new FakePersonRepository();
             var employeeRepository = new FakeEmployeeRepository();
-            var roleRepository = new FakeRoleRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new UpdateEmployeeCommandHandler(userRepository, personRepository, employeeRepository, roleRepository, unitOfWork);
+            var currentUser = new FakeCurrentUser();
+            var handler = new UpdateEmployeeCommandHandler(currentUser, personRepository, employeeRepository, unitOfWork);
             var person = TestDataFactory.CreatePerson();
             var user = TestDataFactory.CreateUser(person: person);
             var employee = TestDataFactory.CreateEmployee(person: person);
@@ -27,11 +26,11 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
 
             await employeeRepository.AddAsync(employee);
             await employeeRepository.AddAsync(admin);
-            await userRepository.AddAsync(admin.Person.User);
-            await userRepository.AddAsync(user);
+            currentUser.UserId = admin.Person.IdentityUserId!.Value;
+            currentUser.GrantRole("Admin");
 
             var command = new UpdateEmployeeCommand(
-                UserId: admin.Person.User.Id,
+                UserId: admin.Person.IdentityUserId!.Value,
                 FullName: "New FName",
                 PhoneNumber: "0111222333",
                 Email: "newemail@example.com",
@@ -44,8 +43,10 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
             var result = await handler.Handle(command, CancellationToken.None);
 
             Assert.Equal("New FName", employee.Person.FullName);
-            Assert.NotNull(employee.Person.User.UserRoles.FirstOrDefault(r => r.Role.Name == "Receptionist"));
 
+            currentUser.UserId = user.Id;
+            currentUser.EmployeeId = employee.Id;
+            currentUser.GrantRole("Employee");
             var command2 = new UpdateEmployeeCommand(
                 UserId: user.Id,
                 FullName: "New FName2",
@@ -63,17 +64,17 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
         [Fact]
         public async Task TestUpdateNonExistentEmployeeCommand()
         {
-            var userRepository = new FakeUserRepository();
             var personRepository = new FakePersonRepository();
             var employeeRepository = new FakeEmployeeRepository();
-            var roleRepository = new FakeRoleRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new UpdateEmployeeCommandHandler(userRepository, personRepository, employeeRepository, roleRepository, unitOfWork);
+            var currentUser = new FakeCurrentUser();
+            var handler = new UpdateEmployeeCommandHandler(currentUser, personRepository, employeeRepository, unitOfWork);
             var admin = TestDataFactory.CreateEmployee(role: "Admin");
             await employeeRepository.AddAsync(admin);
-            await userRepository.AddAsync(admin.Person.User);
+            currentUser.UserId = admin.Person.IdentityUserId!.Value;
+            currentUser.GrantRole("Admin");
             var command = new UpdateEmployeeCommand(
-                UserId: admin.Person.User.Id,
+                UserId: admin.Person.IdentityUserId!.Value,
                 FullName: "New FName",
                 PhoneNumber: "0111222333",
                 Email: "newemail@example.com",
@@ -89,20 +90,19 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
         [Fact]
         public async Task TestInvalidRoleUpdateEmployeeCommand()
         {
-            var userRepository = new FakeUserRepository();
             var personRepository = new FakePersonRepository();
             var employeeRepository = new FakeEmployeeRepository();
-            var roleRepository = new FakeRoleRepository();
             var unitOfWork = new FakeUnitOfWork();
-            var handler = new UpdateEmployeeCommandHandler(userRepository, personRepository, employeeRepository, roleRepository, unitOfWork);
+            var currentUser = new FakeCurrentUser();
+            var handler = new UpdateEmployeeCommandHandler(currentUser, personRepository, employeeRepository, unitOfWork);
             var employee = TestDataFactory.CreateEmployee();
             var otherEmployee = TestDataFactory.CreateEmployee(role: "Receptionist");
             await employeeRepository.AddAsync(employee);
             await employeeRepository.AddAsync(otherEmployee);
-            await userRepository.AddAsync(otherEmployee.Person.User);
-            await userRepository.AddAsync(employee.Person.User);
+            currentUser.UserId = otherEmployee.Person.IdentityUserId!.Value;
+            currentUser.EmployeeId = otherEmployee.Id;
             var command = new UpdateEmployeeCommand(
-                UserId: otherEmployee.Person.User.Id,
+                UserId: otherEmployee.Person.IdentityUserId!.Value,
                 FullName: "New FName",
                 PhoneNumber: "0111222333",
                 Email: "newemail@example.com",
@@ -115,7 +115,7 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
             await Assert.ThrowsAsync<ForbiddenException>(async () => await handler.Handle(command, CancellationToken.None));
 
             var command2 = new UpdateEmployeeCommand(
-                UserId: employee.Person.User.Id,
+                UserId: employee.Person.IdentityUserId!.Value,
                 FullName: "New FName2",
                 PhoneNumber: "0111222334",
                 Email: "newemail2@example.com",
@@ -124,7 +124,10 @@ namespace Clinic.Application.UnitTests.Features.Employees.Commands
                 Address: "123 New Address",
                 Roles: new List<string> { "Receptionist" }
             );
+            currentUser.UserId = employee.Person.IdentityUserId!.Value;
+            currentUser.EmployeeId = employee.Id;
             await Assert.ThrowsAsync<ForbiddenException>(async () => await handler.Handle(command2, CancellationToken.None));
         }
     }
 }
+

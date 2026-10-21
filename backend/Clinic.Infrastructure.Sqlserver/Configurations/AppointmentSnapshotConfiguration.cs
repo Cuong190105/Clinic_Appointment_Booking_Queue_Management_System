@@ -26,10 +26,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 .HasForeignKey(a => a.OldWorkScheduleId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasOne(a => a.Updator)
-                .WithMany()
-                .HasForeignKey(a => a.UpdatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

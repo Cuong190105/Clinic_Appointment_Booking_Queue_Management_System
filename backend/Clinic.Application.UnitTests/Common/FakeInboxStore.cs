@@ -1,4 +1,4 @@
-using Clinic.Application.Interfaces;
+﻿using Clinic.Application.Interfaces;
 using Clinic.Contracts.Events;
 
 namespace Clinic.Application.UnitTests.Common;
@@ -30,3 +30,4 @@ public sealed class FakeInboxStore : IInboxStore
     {
     }
 }
+

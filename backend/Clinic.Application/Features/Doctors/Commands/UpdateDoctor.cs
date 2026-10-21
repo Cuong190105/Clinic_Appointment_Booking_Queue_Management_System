@@ -24,28 +24,29 @@ namespace Clinic.Application.Features.Doctors.Commands
     {
         private readonly IDoctorRepository _doctorRepository;
         private readonly IPersonRepository _personRepository;
-        private readonly IUserRepository _userRepository;
+        private readonly ICurrentUser _currentUser;
         private readonly IUnitOfWork _unitOfWork;
 
-        public UpdateDoctorCommandHandler(IDoctorRepository doctorRepository, IPersonRepository personRepository, IUserRepository userRepository, IUnitOfWork unitOfWork)
+        public UpdateDoctorCommandHandler(IDoctorRepository doctorRepository, IPersonRepository personRepository, ICurrentUser currentUser, IUnitOfWork unitOfWork)
         {
             _doctorRepository = doctorRepository;
             _personRepository = personRepository;
-            _userRepository = userRepository;
+            _currentUser = currentUser;
             _unitOfWork = unitOfWork;
         }
         public async Task<Guid> Handle(UpdateDoctorCommand request, CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            if (_currentUser.UserId != request.UserId || request.UserId == null)
             {
                 throw new UnauthorizedAccessException();
             }
-            if (user.UserRoles.All(ur => ur.Role.Name != "Admin") && request.DoctorId != null)
+            if (!_currentUser.HasRole("Admin") && request.DoctorId != null)
             {
                 throw new ForbiddenException("You are not authorized to update this information.");
             }
-            var doctor = request.DoctorId == null ? user.Person.Employee?.Doctor : await _doctorRepository.GetInfoByIdAsync(request.DoctorId);
+            var doctor = request.DoctorId == null
+                ? (_currentUser.DoctorId == null ? null : await _doctorRepository.GetInfoByIdAsync(_currentUser.DoctorId.Value))
+                : await _doctorRepository.GetInfoByIdAsync(request.DoctorId);
             if (doctor == null)
             {
                 throw new NotFoundException("Doctor not found.");

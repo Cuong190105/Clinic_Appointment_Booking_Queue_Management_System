@@ -246,7 +246,16 @@ export const authApi = {
   async getMe(): Promise<AuthUser> {
     try {
       const response = await http.get<AuthUser>('/auth/me')
-      return response.data
+      const profile = unwrapApiResult<any>(response.data)
+      const roles = normalizeRoleValues(profile?.roles) as AuthUser['roles']
+      return {
+        id: profile?.userId ?? profile?.id ?? 'user',
+        name: profile?.fullName ?? profile?.name ?? profile?.username ?? 'User',
+        email: profile?.email ?? '',
+        role: roles?.[0],
+        roles,
+        activeRole: roles?.[0],
+      }
     } catch (error: any) {
       const token = tokenStorage.getAccess()
       const looksLikeJwt = typeof token === 'string' && token.split('.').length === 3 && !!token.split('.')[1]
@@ -276,6 +285,17 @@ export const authApi = {
         phoneNumberOrEmail: phoneNumberOrEmail.trim(),
       })
       .then((r) => r.data)
+  },
+
+  resetPassword(payload: { token: string; newPassword: string }): Promise<{ message: string }> {
+    if (env.enableMock) {
+      return Promise.resolve({ message: 'Nếu mã đặt lại hợp lệ, mật khẩu đã được cập nhật.' })
+    }
+
+    return http.post<{ message: string }>('/reset-password', {
+      token: payload.token.trim(),
+      newPassword: payload.newPassword,
+    }).then((r) => r.data)
   },
 
   changePassword(payload: { currentPassword: string; newPassword: string }): Promise<{ message: string }> {

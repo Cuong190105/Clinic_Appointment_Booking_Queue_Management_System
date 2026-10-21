@@ -11,23 +11,23 @@ namespace Clinic.Application.Features.WorkSchedules.Commands
 
     public class AddDoctorShiftRequestCommandHandler : IRequestHandler<AddDoctorShiftRequestCommand, RequestedShiftDto>
     {
-        private readonly IUserRepository _userRepository;
+        private readonly IPersonRepository _personRepository;
         private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly IUnitOfWork _unitOfWork;
-        public AddDoctorShiftRequestCommandHandler(IUserRepository userRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
+        public AddDoctorShiftRequestCommandHandler(IPersonRepository personRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
         {
-            _userRepository = userRepository;
+            _personRepository = personRepository;
             _workScheduleRepository = workScheduleRepository;
             _unitOfWork = unitOfWork;
         }
         public async Task<RequestedShiftDto> Handle(AddDoctorShiftRequestCommand request, CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
+            var person = request.UserId is Guid userId ? await _personRepository.GetByIdentityUserIdAsync(userId) : null;
+            if (person == null)
             {
                 throw new UnauthorizedAccessException("User not found.");
             }
-            var doctor = user.Person.Employee?.Doctor;
+            var doctor = person.Employee?.Doctor;
             if (doctor == null)
             {
                 throw new ForbiddenException("The user is not a doctor and cannot add shift requests.");

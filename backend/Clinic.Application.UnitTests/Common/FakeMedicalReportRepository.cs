@@ -1,4 +1,4 @@
-using Clinic.Application.Interfaces;
+﻿using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 
 namespace Clinic.Application.UnitTests.Common
@@ -41,3 +41,4 @@ namespace Clinic.Application.UnitTests.Common
         }
     }
 }
+
