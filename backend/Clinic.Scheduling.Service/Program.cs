@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using Clinic.Scheduling.Service.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +11,16 @@ var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://l
 var issuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:5000";
 var audience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services";
 var requireHttpsMetadata = builder.Configuration.GetValue<bool>("Identity:RequireHttpsMetadata", false);
+var schedulingConnection = builder.Configuration.GetConnectionString("SchedulingConnection");
+
+// Persistence
+builder.Services.AddDbContext<SchedulingDbContext>(options =>
+{
+    if (!string.IsNullOrEmpty(schedulingConnection))
+    {
+        options.UseSqlServer(schedulingConnection);
+    }
+});
 
 // Authentication via Identity Service JWKS
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -44,7 +56,19 @@ app.UseAuthorization();
 
 // Health checks
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy", service = "Clinic.Scheduling.Service" }));
-app.MapGet("/readyz", () => Results.Ok(new { status = "Ready", service = "Clinic.Scheduling.Service" }));
+app.MapGet("/readyz", async (SchedulingDbContext db, CancellationToken ct) =>
+{
+    try
+    {
+        if (db.Database.IsRelational() && !await db.Database.CanConnectAsync(ct))
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        return Results.Ok(new { status = "Ready", service = "Clinic.Scheduling.Service" });
+    }
+    catch
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+});
 app.MapGet("/", () => Results.Ok(new { service = "Clinic.Scheduling.Service", version = "1.0.0" }));
 
 // Authenticated introspection endpoint (verifies JWT & Claims against Identity JWKS)
@@ -56,6 +80,16 @@ app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
     employeeId = user.FindFirstValue("employeeId"),
     roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value)
 })).RequireAuthorization();
+
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<SchedulingDbContext>();
+    if (db.Database.IsRelational())
+    {
+        await db.Database.MigrateAsync();
+    }
+}
 
 app.Run();
 
