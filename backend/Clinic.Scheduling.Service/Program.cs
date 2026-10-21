@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using Clinic.Scheduling.Service.Endpoints;
 using Clinic.Scheduling.Service.Persistence;
+using Clinic.Scheduling.Service.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -21,6 +23,11 @@ builder.Services.AddDbContext<SchedulingDbContext>(options =>
         options.UseSqlServer(schedulingConnection);
     }
 });
+
+// Domain & Application Services
+builder.Services.AddScoped<ISchedulingOutboxWriter, SchedulingOutboxWriter>();
+builder.Services.AddScoped<ISchedulingManager, SchedulingManager>();
+builder.Services.AddHostedService<ReservationExpirationWorker>();
 
 // Authentication via Identity Service JWKS
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -80,6 +87,9 @@ app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
     employeeId = user.FindFirstValue("employeeId"),
     roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value)
 })).RequireAuthorization();
+
+// Scheduling Business APIs
+app.MapSchedulingApi();
 
 if (!app.Environment.IsEnvironment("Testing"))
 {
