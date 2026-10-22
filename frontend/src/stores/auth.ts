@@ -5,6 +5,7 @@ import { authApi } from '@/features/auth/auth.api'
 import { ApiError, http } from '@/lib/api/http'
 import { logger } from '@/lib/logger'
 import { enableProtectedPatientEndpoints } from '@/features/patients/patient.api'
+import { usePatientStore } from '@/stores/patient'
 import type { AuthUser, LoginPayload, UserRole, RegisterPayload } from '@/features/auth/auth.types'
 
 const USER_KEY = 'auth.user'
@@ -181,6 +182,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function setUser(userData: AuthUser | null, persistent = tokenStorage.isPersistent()) {
+    if (userData === null || (user.value && userData && String(user.value.id) !== String(userData.id))) {
+      try {
+        usePatientStore().reset()
+      } catch {
+        // ignore
+      }
+    }
     user.value = normalizeUser(userData)
     safeSetStoredUser(user.value, persistent)
   }
@@ -379,16 +387,23 @@ export const useAuthStore = defineStore('auth', () => {
 
       const persistent = payload.rememberMe === true
       setToken(res.accessToken, res.refreshToken, persistent)
+      try {
+        usePatientStore().reset()
+      } catch {
+        // ignore
+      }
       setUser(normalizedUser, persistent)
 
       // Ensure patient protected endpoints are enabled on fresh login
       enableProtectedPatientEndpoints()
 
       try {
-        const fetched = await fetchMe()
-        if (fetched) {
-          normalizedUser.name = fetched.name
-          normalizedUser.email = fetched.email
+        if (!normalizedUser.name || normalizedUser.name === 'User') {
+          const fetched = await fetchMe()
+          if (fetched) {
+            normalizedUser.name = fetched.name || normalizedUser.name
+            normalizedUser.email = fetched.email || normalizedUser.email
+          }
         }
       } catch (err) {
         logger.warn('fetchMe after login failed', err)
@@ -462,6 +477,11 @@ export const useAuthStore = defineStore('auth', () => {
     status.value = 'idle'
     error.value = null
     enableProtectedPatientEndpoints()
+    try {
+      usePatientStore().reset()
+    } catch {
+      // ignore
+    }
   }
 
   return {

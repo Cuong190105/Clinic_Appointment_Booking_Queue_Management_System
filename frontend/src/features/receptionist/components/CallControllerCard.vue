@@ -20,7 +20,8 @@ const emit = defineEmits<{
 function formatTime(timeStr?: string | null): string {
   if (!timeStr) return '--:--'
   try {
-    const d = new Date(timeStr)
+    const isIsoWithoutTz = timeStr.includes('T') && !timeStr.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(timeStr)
+    const d = new Date(isIsoWithoutTz ? `${timeStr}Z` : timeStr)
     if (isNaN(d.getTime())) return timeStr.slice(11, 16) || timeStr
     return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
   } catch {

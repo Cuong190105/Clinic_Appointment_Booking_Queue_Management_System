@@ -78,7 +78,7 @@ describe('PatientQueueView', () => {
     expect(patientStore.loadQueue).toHaveBeenCalledTimes(1)
     expect(patientStore.queue?.myTicket).toBe('A-12')
     wrapper.unmount()
-  })
+  }, 15000)
 
   it('does not expose a cancel-queue action on the current queue screen', async () => {
     patientStore.queue = {

@@ -110,8 +110,36 @@ async function togglePriority(ticket: QueueTicket) {
   )
 }
 
+const selectedTicket = computed(() => {
+  if (!selected.value) return null
+  return queue.value.find((x) => x.appointmentId === selected.value?.id) ?? null
+})
+
+function parseUtcDate(value?: string | Date | null): Date | null {
+  if (!value) return null
+  if (value instanceof Date) return value
+  const str = String(value).trim()
+  if (!str) return null
+  const isIsoWithoutTz = str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str)
+  const d = new Date(isIsoWithoutTz ? `${str}Z` : str)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function formatLocalTime(value?: string | Date | null): string {
+  const d = parseUtcDate(value)
+  if (!d) return '—'
+  return d.toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function formatDate(value?: string) {
   if (!value) return '—'
+  if (value.includes('T')) {
+    const d = parseUtcDate(value)
+    return d ? new Intl.DateTimeFormat('vi-VN').format(d) : value
+  }
   return new Intl.DateTimeFormat('vi-VN').format(new Date(`${value}T00:00:00`))
 }
 
@@ -268,15 +296,12 @@ onBeforeUnmount(() => timer && clearInterval(timer))
                   </button>
 
                   <p class="mt-1 text-xs text-slate-500">
-                    {{
-                      new Date(ticket.checkInTime).toLocaleTimeString(
-                        'vi-VN',
-                        {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        },
-                      )
-                    }}
+                    <span v-if="ticket.calledAt && ['Called', 'InProgress', 'Completed'].includes(ticket.status)">
+                      Khám: {{ formatLocalTime(ticket.calledAt) }} <span class="text-slate-400">(Check-in: {{ formatLocalTime(ticket.checkInTime) }})</span>
+                    </span>
+                    <span v-else>
+                      Check-in: {{ formatLocalTime(ticket.checkInTime) }}
+                    </span>
                   </p>
                 </td>
 
@@ -431,6 +456,16 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 
               <dd class="mt-1 font-semibold text-slate-800">
                 {{ selected.queueNumber || '—' }}
+              </dd>
+            </div>
+
+            <div v-if="selectedTicket">
+              <dt class="font-medium text-slate-500">
+                Thời gian vào khám
+              </dt>
+
+              <dd class="mt-1 font-semibold text-slate-800">
+                {{ formatLocalTime(selectedTicket.calledAt || selectedTicket.checkInTime) }}
               </dd>
             </div>
 

@@ -24,11 +24,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasOne(a => a.BookingSlot)
-                .WithOne(slot => slot.Appointment)
-                .HasForeignKey<Appointment>(a => a.BookingSlotId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             builder.Property(a => a.DoctorId).IsRequired();
             builder.Property(a => a.DoctorName).HasMaxLength(200).IsRequired();
             builder.Property(a => a.SpecialtyName).HasMaxLength(100);

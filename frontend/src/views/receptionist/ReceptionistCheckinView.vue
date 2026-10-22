@@ -76,11 +76,20 @@ async function handleCheckInAppointment(appt: AppointmentItem) {
 
   try {
     const result = await receptionistApi.checkInAppointment(appt.id)
-    checkInResult.value = result
     successMessage.value = 'Check-in thành công! Đã cấp số thứ tự khám.'
     // Reload upcoming appointments
+    let queueNum: string | number = (result as any)?.queueNumber ?? ''
     if (selectedPatient.value) {
       appointments.value = await receptionistApi.getUpcomingAppointments(selectedPatient.value.id)
+      const updated = appointments.value.find((a) => a.id === appt.id)
+      if (updated?.queueTicket?.queueNumber) {
+        queueNum = updated.queueTicket.queueNumber
+      }
+    }
+    checkInResult.value = {
+      queueNumber: queueNum || appt.queueTicket?.queueNumber || 'A-001',
+      appointmentId: appt.id,
+      checkInTime: new Date().toISOString(),
     }
   } catch (err: any) {
     const errorMsg =

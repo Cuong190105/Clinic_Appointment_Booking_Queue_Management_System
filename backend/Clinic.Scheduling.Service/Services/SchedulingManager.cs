@@ -38,6 +38,23 @@ public class SchedulingManager : ISchedulingManager
         _logger = logger;
     }
 
+    private static readonly TimeZoneInfo ClinicTimeZone = GetClinicTimeZone();
+
+    private static TimeZoneInfo GetClinicTimeZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh"); }
+        catch { }
+        try { return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); }
+        catch { }
+        return TimeZoneInfo.CreateCustomTimeZone("ClinicTimeZone", TimeSpan.FromHours(7), "Clinic Time", "Clinic Time");
+    }
+
+    private static DateTime ConvertSlotToUtc(DateOnly date, TimeOnly time)
+    {
+        var localDateTime = date.ToDateTime(time);
+        return TimeZoneInfo.ConvertTimeToUtc(localDateTime, ClinicTimeZone);
+    }
+
     public async Task<IReadOnlyList<AvailableSlotDto>> GetAvailabilityAsync(AvailabilityQuery query, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
@@ -98,9 +115,18 @@ public class SchedulingManager : ISchedulingManager
             // Generate 15-minute slots across [ShiftStart, ShiftEnd)
             var slotInterval = TimeSpan.FromMinutes(WorkSchedule.SlotIntervalMinutes);
             var currentSlot = ws.ShiftStart;
+            var minBookingTimeUtc = now.UtcDateTime.AddMinutes(30);
 
             while (currentSlot.AddMinutes(WorkSchedule.SlotIntervalMinutes) <= ws.ShiftEnd)
             {
+                // Only generate slots in the future at least 30 minutes from now
+                var slotUtc = ConvertSlotToUtc(ws.Date, currentSlot);
+                if (slotUtc < minBookingTimeUtc)
+                {
+                    currentSlot = currentSlot.AddMinutes(WorkSchedule.SlotIntervalMinutes);
+                    continue;
+                }
+
                 // Slot is only available if not already reserved/confirmed
                 if (!reservedTimeSlots.Contains(currentSlot))
                 {
@@ -177,6 +203,11 @@ public class SchedulingManager : ISchedulingManager
             }
 
             var now = DateTimeOffset.UtcNow;
+            var slotUtc = ConvertSlotToUtc(schedule.Date, timeSlot);
+            if (slotUtc < now.UtcDateTime.AddMinutes(30))
+            {
+                throw new InvalidOperationException("Chỉ có thể đặt hoặc giữ chỗ trước giờ khám ít nhất 30 phút.");
+            }
 
             // Count valid active reservations
             var activeReservations = await _dbContext.SlotReservations

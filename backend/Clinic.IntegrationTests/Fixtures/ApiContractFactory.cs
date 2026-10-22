@@ -27,6 +27,7 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
     private readonly string _databaseName = $"ClinicBaselineTests_{Environment.ProcessId}_{Guid.NewGuid():N}";
     private string? _testConnectionString;
     private bool _databaseInitialized;
+    private static int _cleanedUpOrphans;
 
     public ApiContractFactory()
     {
@@ -43,6 +44,8 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         connectionBuilder.Remove("Initial Catalog");
         connectionBuilder["Database"] = _databaseName;
         _testConnectionString = connectionBuilder.ConnectionString;
+
+        CleanupOrphanTestDatabases(sourceConnectionString);
     }
 
     public string TestConnectionString => _testConnectionString
@@ -126,14 +129,113 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         if (!_databaseInitialized)
             return;
 
-        await using var dbContext = CreateDbContext();
-        await dbContext.Database.EnsureDeletedAsync();
+        try
+        {
+            Microsoft.Data.SqlClient.SqlConnection.ClearAllPools();
+
+            var masterBuilder = new DbConnectionStringBuilder { ConnectionString = _testConnectionString };
+            masterBuilder.Remove("Initial Catalog");
+            masterBuilder["Database"] = "master";
+
+            await using var connection = new Microsoft.Data.SqlClient.SqlConnection(masterBuilder.ConnectionString);
+            await connection.OpenAsync();
+
+            var dropSql = $@"
+IF EXISTS (SELECT 1 FROM sys.databases WHERE name = '{_databaseName}')
+BEGIN
+    ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [{_databaseName}];
+END";
+            await using var command = new Microsoft.Data.SqlClient.SqlCommand(dropSql, connection);
+            await command.ExecuteNonQueryAsync();
+        }
+        catch
+        {
+            try
+            {
+                await using var dbContext = CreateDbContext();
+                await dbContext.Database.EnsureDeletedAsync();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+        finally
+        {
+            _databaseInitialized = false;
+        }
     }
 
     public override async ValueTask DisposeAsync()
     {
-        await DeleteTestDatabaseAsync();
         await base.DisposeAsync();
+        await DeleteTestDatabaseAsync();
+    }
+
+    private static void CleanupOrphanTestDatabases(string connectionString)
+    {
+        if (Interlocked.Exchange(ref _cleanedUpOrphans, 1) != 0)
+            return;
+
+        try
+        {
+            var masterBuilder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            masterBuilder.Remove("Initial Catalog");
+            masterBuilder["Database"] = "master";
+
+            using var connection = new Microsoft.Data.SqlClient.SqlConnection(masterBuilder.ConnectionString);
+            connection.Open();
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT name FROM sys.databases WHERE name LIKE 'ClinicBaselineTests_%'";
+            using var reader = cmd.ExecuteReader();
+            var staleDatabases = new List<string>();
+            while (reader.Read())
+            {
+                var dbName = reader.GetString(0);
+                var parts = dbName.Split('_');
+                if (parts.Length >= 2 && int.TryParse(parts[1], out var pid))
+                {
+                    bool isRunning = false;
+                    try
+                    {
+                        var proc = System.Diagnostics.Process.GetProcessById(pid);
+                        isRunning = !proc.HasExited;
+                    }
+                    catch
+                    {
+                        isRunning = false;
+                    }
+
+                    if (!isRunning)
+                    {
+                        staleDatabases.Add(dbName);
+                    }
+                }
+            }
+            reader.Close();
+
+            foreach (var staleDb in staleDatabases)
+            {
+                try
+                {
+                    using var dropCmd = connection.CreateCommand();
+                    dropCmd.CommandText = $@"
+ALTER DATABASE [{staleDb}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+DROP DATABASE [{staleDb}];";
+                    dropCmd.ExecuteNonQuery();
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
+        }
+        catch
+        {
+            // ignore
+        }
     }
 }
 

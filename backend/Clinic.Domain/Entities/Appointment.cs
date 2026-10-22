@@ -14,14 +14,11 @@ namespace Clinic.Domain.Entities
 
         public Guid WorkScheduleId { get; protected set; }
         public WorkSchedule? WorkSchedule { get; protected set; }
-        public BookingSlot? BookingSlot { get; protected set; }
 
         public Guid DoctorId { get; protected set; }
         public string DoctorName { get; protected set; } = string.Empty;
         public string? SpecialtyName { get; protected set; }
         public DateOnly ScheduleDate { get; protected set; }
-
-        public Guid? BookingSlotId { get; protected set; }
 
         public string Reason { get; protected set; }
 

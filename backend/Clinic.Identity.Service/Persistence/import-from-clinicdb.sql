@@ -62,7 +62,7 @@ BEGIN TRY
         )
         AND (
             EXISTS (SELECT 1 FROM ClinicDB.dbo.Employees e WHERE e.PersonId = p.Id AND e.IsDeleted = 0)
-            OR EXISTS (SELECT 1 FROM ClinicDB.dbo.Users u WHERE u.PersonId = p.Id AND u.IsDeleted = 0)
+            OR EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Users u WHERE u.PersonId = p.Id AND u.IsActive = 1)
         );
     END;
 
@@ -97,6 +97,18 @@ BEGIN TRY
           AND EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Permissions AS p WHERE p.Id = rp.PermissionId)
           AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.RolePermissions AS target WHERE target.RoleId = rp.RoleId AND target.PermissionId = rp.PermissionId);
     END;
+
+    -- Ensure Doctor role has necessary queue permissions
+    INSERT INTO ClinicIdentityDB.dbo.RolePermissions (RoleId, PermissionId)
+    SELECT r.Id, p.Id
+    FROM ClinicIdentityDB.dbo.Roles r
+    CROSS JOIN ClinicIdentityDB.dbo.Permissions p
+    WHERE r.Name = 'Doctor'
+      AND p.Name IN ('queue.call-next', 'queue.skip', 'queue.priority')
+      AND NOT EXISTS (
+          SELECT 1 FROM ClinicIdentityDB.dbo.RolePermissions target
+          WHERE target.RoleId = r.Id AND target.PermissionId = p.Id
+      );
 
     IF OBJECT_ID(N'ClinicDB.dbo.RefreshTokens', N'U') IS NOT NULL
     BEGIN

@@ -21,13 +21,16 @@ namespace Clinic.API.Controllers
             [FromQuery] Guid? doctorId,
             [FromQuery] Guid? specialtyId,
             [FromQuery] DateTime? fromDate,
-            [FromQuery] DateTime? toDate)
+            [FromQuery] DateTime? toDate,
+            [FromQuery] DateTime? date)
         {
+            var actualFrom = fromDate ?? date;
+            var actualTo = toDate ?? date;
             var query = new List<string>();
             if (doctorId.HasValue) query.Add($"doctorId={doctorId.Value}");
             if (specialtyId.HasValue) query.Add($"specialtyId={specialtyId.Value}");
-            if (fromDate.HasValue) query.Add($"fromDate={fromDate.Value:yyyy-MM-dd}");
-            if (toDate.HasValue) query.Add($"toDate={toDate.Value:yyyy-MM-dd}");
+            if (actualFrom.HasValue) query.Add($"fromDate={actualFrom.Value:yyyy-MM-dd}");
+            if (actualTo.HasValue) query.Add($"toDate={actualTo.Value:yyyy-MM-dd}");
 
             var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
             var response = await _schedulingClient.GetAsync($"schedules/availability{queryString}");
@@ -41,13 +44,16 @@ namespace Clinic.API.Controllers
             [FromQuery] Guid? doctorId,
             [FromQuery] Guid? specialtyId,
             [FromQuery] DateOnly? fromDate,
-            [FromQuery] DateOnly? toDate)
+            [FromQuery] DateOnly? toDate,
+            [FromQuery] DateOnly? date)
         {
+            var actualFrom = fromDate ?? date;
+            var actualTo = toDate ?? date;
             var query = new List<string>();
             if (doctorId.HasValue) query.Add($"doctorId={doctorId.Value}");
             if (specialtyId.HasValue) query.Add($"specialtyId={specialtyId.Value}");
-            if (fromDate.HasValue) query.Add($"fromDate={fromDate.Value:yyyy-MM-dd}");
-            if (toDate.HasValue) query.Add($"toDate={toDate.Value:yyyy-MM-dd}");
+            if (actualFrom.HasValue) query.Add($"fromDate={actualFrom.Value:yyyy-MM-dd}");
+            if (actualTo.HasValue) query.Add($"toDate={actualTo.Value:yyyy-MM-dd}");
 
             var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
             var response = await _schedulingClient.GetAsync($"schedules/availability{queryString}");

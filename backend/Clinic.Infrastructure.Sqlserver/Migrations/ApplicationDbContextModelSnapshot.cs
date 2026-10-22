@@ -28,9 +28,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("BookingSlotId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -81,10 +78,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("BookingSlotId")
-                        .IsUnique()
-                        .HasFilter("[BookingSlotId] IS NOT NULL");
 
                     b.HasIndex("PatientId");
 
@@ -12665,31 +12658,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.ToTable("AppointmentSnapshots", (string)null);
                 });
 
-            modelBuilder.Entity("Clinic.Domain.Entities.BookingSlot", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<TimeOnly>("TimeSlot")
-                        .HasColumnType("time");
-
-                    b.Property<Guid>("WorkScheduleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkScheduleId", "TimeSlot")
-                        .IsUnique();
-
-                    b.ToTable("BookingSlots", (string)null);
-                });
-
             modelBuilder.Entity("Clinic.Domain.Entities.Doctor", b =>
                 {
                     b.Property<Guid>("Id")
@@ -23309,11 +23277,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
 
             modelBuilder.Entity("Clinic.Domain.Entities.Appointment", b =>
                 {
-                    b.HasOne("Clinic.Domain.Entities.BookingSlot", "BookingSlot")
-                        .WithOne("Appointment")
-                        .HasForeignKey("Clinic.Domain.Entities.Appointment", "BookingSlotId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Clinic.Domain.Entities.Patient", "Patient")
                         .WithMany("Appointments")
                         .HasForeignKey("PatientId")
@@ -23324,8 +23287,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         .WithMany("Appointments")
                         .HasForeignKey("WorkScheduleId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("BookingSlot");
 
                     b.Navigation("Patient");
 
@@ -23343,23 +23304,11 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.HasOne("Clinic.Domain.Entities.WorkSchedule", "OldWorkSchedule")
                         .WithMany()
                         .HasForeignKey("OldWorkScheduleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Appointment");
 
                     b.Navigation("OldWorkSchedule");
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.BookingSlot", b =>
-                {
-                    b.HasOne("Clinic.Domain.Entities.WorkSchedule", "WorkSchedule")
-                        .WithMany()
-                        .HasForeignKey("WorkScheduleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("WorkSchedule");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.Doctor", b =>
@@ -23491,11 +23440,6 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.Navigation("QueueTicket");
 
                     b.Navigation("Snapshots");
-                });
-
-            modelBuilder.Entity("Clinic.Domain.Entities.BookingSlot", b =>
-                {
-                    b.Navigation("Appointment");
                 });
 
             modelBuilder.Entity("Clinic.Domain.Entities.Doctor", b =>

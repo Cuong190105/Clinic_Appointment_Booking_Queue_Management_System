@@ -142,6 +142,6 @@ export const receptionistApi = {
   },
 
   async setPriority(queueTicketId: string, priority: boolean): Promise<void> {
-    await http.post(`/queue/${queueTicketId}/priority`, { priority })
+    await http.patch(`/queue/${queueTicketId}/priority`, { priority })
   },
 }

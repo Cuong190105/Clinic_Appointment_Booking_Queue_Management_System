@@ -522,6 +522,34 @@ static async Task SeedRolesAsync(IdentityDbContext db)
         if (!await db.Roles.AnyAsync(x => x.Name == roleName))
             db.Roles.Add(new IdentityRole { Id = roleId, Name = roleName, Description = roleName });
     await db.SaveChangesAsync();
+
+    var doctorRole = await db.Roles.Include(r => r.RolePermissions).FirstOrDefaultAsync(r => r.Name == "Doctor");
+    if (doctorRole != null)
+    {
+        var doctorQueuePermissions = new[] { "queue.call-next", "queue.skip", "queue.priority" };
+        var permissions = await db.Permissions
+            .Where(p => doctorQueuePermissions.Contains(p.Name))
+            .ToListAsync();
+
+        var existingPermissionIds = doctorRole.RolePermissions.Select(rp => rp.PermissionId).ToHashSet();
+        var added = false;
+        foreach (var perm in permissions)
+        {
+            if (!existingPermissionIds.Contains(perm.Id))
+            {
+                db.RolePermissions.Add(new IdentityRolePermission
+                {
+                    RoleId = doctorRole.Id,
+                    PermissionId = perm.Id
+                });
+                added = true;
+            }
+        }
+        if (added)
+        {
+            await db.SaveChangesAsync();
+        }
+    }
 }
 
 public partial class Program { }

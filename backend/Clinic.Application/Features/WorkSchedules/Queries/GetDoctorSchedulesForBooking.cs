@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Contracts;
+using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Common;
 using Clinic.Domain.Entities;
@@ -50,7 +50,7 @@ namespace Clinic.Application.Features.WorkSchedules.Queries
                 while (slotTime < workSchedule.ShiftEnd)
                 {
                     // Check if the slot is available for booking (not in the past and not already booked)
-                    if (slotTimeUtc >= DateTime.UtcNow.AddHours(2) && !workSchedule.Appointments.Any(a => a.TimeSlot == slotTime))
+                    if (slotTimeUtc >= DateTime.UtcNow.AddMinutes(30) && !workSchedule.Appointments.Any(a => a.TimeSlot == slotTime))
                     {
                         workScheduleDto.TimeSlot.Add(slotTime);
                     }

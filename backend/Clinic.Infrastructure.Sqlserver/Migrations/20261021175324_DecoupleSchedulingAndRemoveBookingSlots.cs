@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Clinic.Infrastructure.Sqlserver.Migrations
 {
     /// <inheritdoc />
-    public partial class AddDenormalizedColumnsAndDecoupleScheduleInAppointments : Migration
+    public partial class DecoupleSchedulingAndRemoveBookingSlots : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -62,6 +62,26 @@ END
 IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_AppointmentSnapshots_WorkSchedules_OldWorkScheduleId')
 BEGIN
     ALTER TABLE [AppointmentSnapshots] DROP CONSTRAINT [FK_AppointmentSnapshots_WorkSchedules_OldWorkScheduleId];
+END
+
+IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Appointments_BookingSlots_BookingSlotId')
+BEGIN
+    ALTER TABLE [Appointments] DROP CONSTRAINT [FK_Appointments_BookingSlots_BookingSlotId];
+END
+
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Appointments_BookingSlotId' AND object_id = OBJECT_ID('Appointments'))
+BEGIN
+    DROP INDEX [IX_Appointments_BookingSlotId] ON [Appointments];
+END
+
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Appointments') AND name = 'BookingSlotId')
+BEGIN
+    ALTER TABLE [Appointments] DROP COLUMN [BookingSlotId];
+END
+
+IF OBJECT_ID('BookingSlots', 'U') IS NOT NULL
+BEGIN
+    DROP TABLE [BookingSlots];
 END
 ");
 

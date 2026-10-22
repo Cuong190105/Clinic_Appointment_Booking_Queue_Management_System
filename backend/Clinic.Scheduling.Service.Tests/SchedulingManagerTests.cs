@@ -182,6 +182,81 @@ public class SchedulingManagerTests
     }
 
     [Fact]
+    public async Task GetAvailability_ExcludesSlotsInPastOrLessThan30MinutesAway()
+    {
+        var (db, manager) = CreateTestManager();
+
+        var doctorId = Guid.NewGuid();
+        var doctor = CreateTestDoctor(doctorId);
+        var localNow = DateTime.UtcNow.AddHours(7);
+        var today = DateOnly.FromDateTime(localNow);
+        var currentTime = TimeOnly.FromDateTime(localNow);
+
+        if (currentTime.Hour < 2 || currentTime.Hour > 20) return;
+
+        var shiftStart = new TimeOnly(currentTime.Hour - 1, 0);
+        var shiftEnd = new TimeOnly(currentTime.Hour + 2, 0);
+
+        var schedule = new WorkSchedule
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = doctorId,
+            Doctor = doctor,
+            Date = today,
+            ShiftStart = shiftStart,
+            ShiftEnd = shiftEnd,
+            RecommendedCapacity = 20,
+            Status = WorkScheduleStatus.Active
+        };
+
+        db.Doctors.Add(doctor);
+        db.WorkSchedules.Add(schedule);
+        await db.SaveChangesAsync();
+
+        var query = new AvailabilityQuery(doctorId, null, today, today);
+        var slots = await manager.GetAvailabilityAsync(query);
+
+        var minTime = currentTime.AddMinutes(30);
+        foreach (var slot in slots)
+        {
+            Assert.True(slot.TimeSlot >= minTime);
+        }
+    }
+
+    [Fact]
+    public async Task ReserveSlot_WhenSlotIsLessThan30MinutesInFuture_ThrowsInvalidOperationException()
+    {
+        var (db, manager) = CreateTestManager();
+
+        var doctorId = Guid.NewGuid();
+        var localNow = DateTime.UtcNow.AddHours(7);
+        var today = DateOnly.FromDateTime(localNow);
+        var currentTime = TimeOnly.FromDateTime(localNow);
+
+        if (currentTime.Hour < 2 || currentTime.Hour > 21) return;
+
+        var schedule = new WorkSchedule
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = doctorId,
+            Date = today,
+            ShiftStart = new TimeOnly(currentTime.Hour - 1, 0),
+            ShiftEnd = new TimeOnly(currentTime.Hour + 2, 0),
+            RecommendedCapacity = 10,
+            Status = WorkScheduleStatus.Active
+        };
+
+        db.WorkSchedules.Add(schedule);
+        await db.SaveChangesAsync();
+
+        var pastSlot = currentTime.AddMinutes(-15);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            manager.ReserveSlotAsync(schedule.Id, pastSlot, Guid.NewGuid(), "key-past"));
+
+        Assert.Contains("30 phút", ex.Message);
+    }
+
+    [Fact]
     public async Task ReserveSlot_WhenValid_ReturnsReservedWith10MinuteTimeout()
     {
         var (db, manager) = CreateTestManager();

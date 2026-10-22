@@ -46,7 +46,8 @@ function formatQueueNumber(number: number | string): string {
 
 function formatApiTime(value?: string | null): string {
   if (!value) return ''
-  const date = new Date(value)
+  const isIsoWithoutTz = value.includes('T') && !value.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(value)
+  const date = new Date(isIsoWithoutTz ? `${value}Z` : value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleTimeString('vi-VN', {
     hour: '2-digit',
