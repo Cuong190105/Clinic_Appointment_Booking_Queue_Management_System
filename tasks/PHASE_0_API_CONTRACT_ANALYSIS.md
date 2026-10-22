@@ -64,8 +64,12 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
     - Endpoint: `GET /slots?doctorId=&specialtyId=&fromDate=&toDate=` (trong `SlotsController.cs`) và `GET /doctors/available`.
     - Luồng xử lý: `GetAvailableSlotsQueryHandler` query `WorkScheduleRepository`, sau đó join với bảng `Appointment` để trừ đi các khung giờ đã có người đặt.
 - **Thay đổi khi chuyển sang Microservices**:
-    - **Đổi quyền sở hữu**: Chuyển API này hoàn toàn về **Staff & Scheduling Service** (`GET /api/v1/schedules/availability` hoặc `GET /api/v1/slots`).
-    - **Ranh giới dữ liệu**: Scheduling Service **tuyệt đối không được query sang Appointment DB**. Service này tự quản lý capacity, ca làm việc và các slot đã được giữ chỗ/đã xác nhận (`BookedSlots` / `ReservedSlots`) ngay trong cơ sở dữ liệu của mình.
+    - **Đổi quyền sở hữu**: Chuyển API này hoàn toàn về **Staff & Scheduling Service** (`GET /schedules/availability` hoặc `GET /slots`).
+    - **Ranh giới dữ liệu & Xóa bỏ BookingSlot cũ**: Scheduling Service **tuyệt đối không được query sang Appointment DB**. Service này tự quản lý capacity, ca làm việc và các slot giữ chỗ/xác nhận thông qua `SlotReservations` ngay trong cơ sở dữ liệu `ClinicSchedulingDB`. Bảng `BookingSlots` trong monolith `ClinicDB` đã được xóa bỏ hoàn toàn (không còn entity `BookingSlot`).
+    - **Quy tắc sinh slot thời gian thực**:
+      - Các slot 15 phút được sinh tự động phủ kín ca trực nếu ca trực chưa đạt ngưỡng `RecommendedCapacity`.
+      - **Chặn khung giờ quá khứ**: Chỉ sinh các slot trong tương lai cách thời điểm hiện tại tối thiểu 30 phút (`>= UtcNow + 30m`) để bệnh nhân có đủ thời gian chuẩn bị và di chuyển tới phòng khám.
+      - Chuẩn hóa thời gian: Lưu trữ và tính toán theo UTC ở backend; frontend hiển thị theo múi giờ địa phương của người dùng (GMT+7).
 
 ---
 
@@ -91,7 +95,12 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
     - Endpoint: `POST /appointments`, `PATCH /appointments/{id}`, `POST /appointments/{id}/cancel`, `POST /appointments/{id}/confirm` (trong `AppointmentsController.cs`).
     - Luồng xử lý: `CreateAppointmentCommandHandler` tiêm `IWorkScheduleRepository`, `IPatientRepository`, `IAppointmentRepository`. DTO trả về lấy tên qua quan hệ `workSchedule.Doctor.Employee.Person.FullName`.
 - **Thay đổi khi chuyển sang Microservices**:
-    - **Endpoint chuẩn hóa**: `/api/v1/appointments/...`, bắt buộc header `Idempotency-Key` khi tạo lịch.
+    - **Endpoint chuẩn hóa**: `/appointments/...` (không bắt buộc tiền tố `/api/v1`), bắt buộc header `Idempotency-Key` khi tạo lịch.
+    - **Cắt chuyển sớm quan hệ với WorkSchedule (Monolith)**:
+      - Loại bỏ Foreign Key `FK_Appointments_WorkSchedules_WorkScheduleId` trong `ClinicDB`.
+      - Bổ sung các cột denormalized: `DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate` trực tiếp vào bảng `Appointments`.
+      - Phân tách 2 luồng: **Đặt lịch Online** (bắt buộc giữ chỗ qua `ReserveSlot`, ràng buộc bởi `RecommendedCapacity` và slot 15p) và **Khách Vãng lai (Walk-in)** (lễ tân tiếp nhận linh hoạt, không chiếm slot online, được phép vượt ngưỡng đề xuất).
+      - Đã gộp toàn bộ thay đổi schema của giai đoạn này trong Monolith vào migration `20261021175324_DecoupleSchedulingAndRemoveBookingSlots.cs`.
     - **Quy trình Saga Booking (Orchestration)**:
         ```text
         Client -> Appointment Service: CreateAppointment(idempotencyKey)

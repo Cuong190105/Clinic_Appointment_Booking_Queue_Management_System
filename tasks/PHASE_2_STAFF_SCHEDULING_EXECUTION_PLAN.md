@@ -512,3 +512,58 @@ sequenceDiagram
 | Viết Concurrency Test & Contract Test tự động | Phối hợp | **Chủ trì** |
 | Cấu hình Metrics (Reservation latency, failures, lag) | Hỗ trợ | **Chủ trì** |
 | Tái cấu trúc Monolith `Appointments` và bỏ FK xuyên service | **Chủ trì** | Phối hợp |
+
+
+---
+
+## 7. Báo Cáo Nghiệm Thu & Cập Nhật Thay Đổi Thực Tế Sau Giai Đoạn 2
+
+### 7.1. Trạng Thái Hoàn Thành Các Bước Kỹ Thuật
+Toàn bộ 7 bước trong kế hoạch triển khai đã được hoàn tất và nghiệm thu đạt 100%:
+1. **Bước 1 (Hạ tầng)**: Đã tạo `Clinic.Scheduling.Service` (.NET 10 Web API), thiết lập JWT Bearer qua discovery/JWKS của Identity Service (`/.well-known/jwks.json`), cấu hình Docker và Docker Compose.
+2. **Bước 2 (Domain & Database)**: Thiết lập schema `ClinicSchedulingDB` với các bảng độc lập (`Employees`, `Doctors`, `Specialties`, `WorkHistories`, `WorkSchedules`, `ShiftRequests`, `SlotReservations`, `OutboxMessages`).
+3. **Bước 3 (Di chuyển dữ liệu)**: Kịch bản import `import-from-clinicdb.sql` và kịch bản đối soát `verify-scheduling-import.sql` bảo đảm dữ liệu toàn vẹn giữa `ClinicDB` và `ClinicSchedulingDB`.
+4. **Bước 4 (API nghiệp vụ cốt lõi)**:
+   - Xây dựng API Availability (`GET /schedules/availability` / `/slots`) áp dụng Dual-Constraint capacity rule.
+   - Xây dựng bộ API Reservation (`POST .../reservations`, `POST .../confirm`, `POST .../release`) với hạn 10 phút, RowLock transaction và Idempotency.
+   - Background worker `ReservationExpirationWorker` chạy mỗi 30s giải phóng các slot quá hạn.
+   - Duyệt ca `ShiftRequest.Approve()` atomic kèm conflict detection (trùng ca trong ngày).
+5. **Bước 5 (Outbox & Integration Events)**:
+   - Ghi outbox trong cùng local transaction cho `WorkScheduleCreated`, `WorkScheduleUpdated`, `WorkScheduleCancelled`.
+   - Consumer cập nhật projection nhân viên khi nhận `UserProfileUpdated`.
+6. **Bước 6 (Cutover phía Monolith)**:
+   - Denormalize các trường `DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate` vào bảng `Appointments`.
+   - Xóa bỏ hoàn toàn Foreign Key `FK_Appointments_WorkSchedules_WorkScheduleId`.
+   - Xóa bỏ hoàn toàn entity và bảng thừa `BookingSlot` khỏi `ClinicDB`.
+   - Cài đặt Booking Saga trong `CreateAppointmentCommandHandler` (`ReserveSlot -> CreateAppointment -> ConfirmSlot / ReleaseSlot`).
+7. **Bước 7 (Kiểm thử & Nghiệm thu)**:
+   - `Clinic.Scheduling.Service.Tests`: 100% passed.
+   - `Clinic.IntegrationTests` (`BaselineBusinessWorkflowTests`): 3/3 passed.
+   - Không còn foreign key hoặc join xuyên database giữa Monolith và Scheduling Service.
+
+### 7.2. Các Điểm Điều Chỉnh Kỹ Thuật Thực Tế So Với Thiết Kế Ban Đầu
+Trong quá trình phát triển, kiểm thử và tích hợp thực tế, 6 nội dung kỹ thuật sau đã được tinh chỉnh:
+
+1. **Xóa Bỏ Hoàn Toàn Entity & Bảng `BookingSlot` Trong Monolith (`ClinicDB`)**:
+   - *Thực tế*: Trước đây trong Monolith tồn tại bảng `BookingSlots` được sinh trước. Khi quyền sở hữu lịch trực và năng lực phục vụ chuyển giao sang Scheduling Service, việc duy trì bảng `BookingSlots` trong `ClinicDB` trở nên dư thừa và gây phân mảnh dữ liệu.
+   - *Điều chỉnh*: Toàn bộ entity `BookingSlot`, cấu hình `BookingSlotConfiguration` và bảng tương ứng trong `ClinicDB` đã được xóa bỏ hoàn toàn. Việc tính toán slot và giữ chỗ được ủy quyền 100% cho `Clinic.Scheduling.Service` qua cơ chế sinh slot động và bảng `SlotReservations`.
+
+2. **Bổ Sung Quy Tắc Chặn Slot Trong Quá Khứ & Giới Hạn Tối Thiểu 30 Phút (`>= UtcNow + 30m`)**:
+   - *Thực tế*: Thuật toán ban đầu sinh tất cả các slot từ `ShiftStart` đến `ShiftEnd` trong ngày, dẫn đến việc người dùng có thể thấy và đặt các slot thuộc ca trực của ngày hiện tại nhưng giờ khám đã trôi qua.
+   - *Điều chỉnh*: Logic sinh slot tại `SchedulingManager` và Monolith `GetDoctorSchedulesForBooking` đã được bổ sung bộ lọc: chỉ sinh và hiển thị các slot trong tương lai cách thời điểm hiện tại tối thiểu 30 phút (`slotDateTimeUtc >= nowUtc.AddMinutes(30)`).
+
+3. **Chuẩn Hóa Múi Giờ: UTC tại Backend & Giờ Địa Phương (GMT+7) tại Frontend**:
+   - *Thực tế*: Backend chuẩn hóa lưu trữ và trả về toàn bộ mốc thời gian dạng UTC (ISO 8601). Tuy nhiên trên giao diện khám bệnh của Bác sĩ (`DoctorExaminationView.vue`), thời gian bắt đầu khám (`startExam`) bị hiển thị thô theo UTC, gây lệch 7 tiếng so với giờ thực tế của người dùng.
+   - *Điều chỉnh*: Cập nhật frontend để chuyển đổi và format thời gian khám theo múi giờ địa phương của trình duyệt (GMT+7) khi hiển thị.
+
+4. **Khắc Phục Lỗi Quản Lý Phiên & Điều Hướng Đa Vai Trò (Multi-Role) trên Frontend**:
+   - *Header Profile*: Tên người dùng không cập nhật khi đăng xuất tài khoản này và đăng nhập tài khoản khác (phải F5 thủ công). Đã khắc phục bằng cách xóa sạch state khi logout và kích hoạt `fetchMe` đồng bộ profile ngay khi đăng nhập thành công.
+   - *Sidebar Navigation*: Người dùng có nhiều vai trò (ví dụ: Lễ tân + Bác sĩ + Bệnh nhân) khi chọn vai trò Bác sĩ/Bệnh nhân thì Sidebar bên trái vẫn ghim cứng menu của Lễ tân. Đã sửa logic Sidebar để phản ứng linh hoạt theo `activeRole` được người dùng chọn.
+
+5. **Gộp (Squash) Các Migration Trong Giai Đoạn 2 Phía Monolith (`ClinicDB`)**:
+   - *Thực tế*: Trong quá trình phát triển Giai đoạn 2, nhiều migration trung gian được tạo ra (thêm cột denormalized, xóa FK, xóa BookingSlot).
+   - *Điều chỉnh*: Toàn bộ các migration của giai đoạn 2 phía `Clinic.Infrastructure.Sqlserver` đã được gộp lại thành 1 migration duy nhất sạch sẽ: `20261021175324_DecoupleSchedulingAndRemoveBookingSlots.cs`.
+
+6. **Tự Động Hóa Vòng Đời Database Kiểm Thử Tích Hợp (`ApiContractFactory.cs`)**:
+   - *Thực tế*: Khi chạy `BaselineBusinessWorkflowTests`, hệ thống tạo database tạm `ClinicBaselineTests_<guid>`. Do Web Host và connection pool chưa giải phóng khi gọi `EnsureDeletedAsync`, SQL Server từ chối xóa DB, dẫn đến tồn đọng 21 database test trên SQL Server.
+   - *Điều chỉnh*: Cập nhật `ApiContractFactory.DisposeAsync` để dừng WebHost trước (`base.DisposeAsync()`), dọn dẹp connection pool (`SqlConnection.ClearAllPools()`), kết nối tới `master` và thực thi lệnh ngắt kết nối cưỡng bức `SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ...`. Đồng thời bổ sung bộ dọn dẹp mồ côi (Orphan Cleanup) quét và xóa các DB test từ các PID đã chết.

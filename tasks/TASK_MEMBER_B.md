@@ -80,6 +80,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 2: Tách Staff & Scheduling Service
 
+**Trạng thái: Đã hoàn thành outbox integration, contract/concurrency testing, background workers, và sửa các lỗi hiển thị múi giờ/phiên người dùng trên Frontend.**
+
 ### Nhiệm vụ
 
 1. Tích hợp schedule events vào outbox publisher.
@@ -102,6 +104,17 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 - Không tự động retry vô hạn khi slot đã đầy.
 - Phân biệt lỗi `slot unavailable` với lỗi broker hoặc database.
 - Phải test consumer crash sau khi ghi projection hoặc inbox.
+
+### Phạm vi đã chuyển & Nghiệm thu
+
+- Outbox publisher tích hợp với bảng `OutboxMessages` của Scheduling Service, hỗ trợ các event `WorkScheduleCreated`, `WorkScheduleUpdated`, `WorkScheduleCancelled`.
+- Consumer cập nhật projection nhân viên `UserProfileUpdated` từ Identity Service sang Scheduling Service (`Employees`).
+- Background worker `ReservationExpirationWorker` tự động quét và thu hồi các slot `Reserved` đã hết hạn mỗi 30 giây.
+- Tinh chỉnh giao diện người dùng (Frontend):
+  - Chuyển đổi và format mốc thời gian khám của Bác sĩ (`DoctorExaminationView.vue`) theo múi giờ địa phương (GMT+7) thay vì hiển thị UTC thô.
+  - Sửa lỗi không cập nhật tên người dùng trên Header khi logout/login tài khoản khác (đồng bộ profile qua `fetchMe`).
+  - Sửa lỗi Sidebar Menu không phản ứng theo vai trò đang được chọn khi người dùng có nhiều role.
+- Kiểm thử: Concurrency test và Idempotency test xác nhận không bao giờ xảy ra overbooking khi nhiều request giữ chỗ cùng lúc; `BaselineBusinessWorkflowTests` đạt 3/3 passed; cơ chế tự động dọn dẹp test database hoạt động ổn định.
 
 ---
 

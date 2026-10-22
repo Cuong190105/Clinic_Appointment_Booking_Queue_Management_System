@@ -101,6 +101,8 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 ## Giai đoạn 2: Tách Staff & Scheduling Service
 
+**Trạng thái: Đã kiểm thử phát hành sau cutover; các luồng Staff & Scheduling, Booking Saga và Availability đã được xác nhận trên Docker và Integration Tests. 100% test cases pass; SQL Server test databases được tự động dọn dẹp sạch sẽ.**
+
 ### Nhiệm vụ
 
 1. Tạo Staff & Scheduling Service.
@@ -124,6 +126,32 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 - Không triển khai flow `CheckAvailability` rồi mới `CreateAppointment`.
 - Capacity phải được giữ atomic trong Scheduling Service.
 - Reservation phải có timeout để tránh giữ slot vô thời hạn.
+
+### Phạm vi đã chuyển
+
+- Đã khởi tạo `Clinic.Scheduling.Service` (.NET 10 Web API) và cơ sở dữ liệu `ClinicSchedulingDB` hoàn toàn độc lập, cấu hình JWT authentication qua discovery/JWKS của Identity Service.
+- Chuyển quyền sở hữu các aggregate/entity: `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`, `SlotReservation`, `OutboxMessage`.
+- Nghiệp vụ duyệt ca `ShiftRequest.Approve()` atomic trong local transaction kèm conflict detection (trùng ca trong ngày) và ghi `WorkScheduleCreated` vào bảng `OutboxMessages`.
+- API Availability (`GET /schedules/availability` / `/slots`) áp dụng Dual-Constraint capacity rule (`RecommendedCapacity` + unique 15-minute slots), chặn các slot trong quá khứ và cách hiện tại dưới 30 phút.
+- Bộ API Reservation (`POST /schedules/{id}/reservations`, `POST .../confirm`, `POST .../release`) với hạn 10 phút, hỗ trợ Idempotency-Key và RowLock transaction. Background service `ReservationExpirationWorker` quét mỗi 30s giải phóng slot hết hạn.
+- Phía Monolith (`ClinicDB`):
+  - Denormalize các cột `DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate` vào bảng `Appointments`.
+  - Xóa bỏ hoàn toàn Foreign Key `FK_Appointments_WorkSchedules_WorkScheduleId`.
+  - Xóa bỏ hoàn toàn entity và bảng thừa `BookingSlot` trong `ClinicDB` (chuyển trọn vẹn việc quản lý slot sang Scheduling Service).
+  - Triển khai Booking Saga trong `CreateAppointmentCommandHandler` (`ReserveSlot -> CreateAppointment -> ConfirmSlot / ReleaseSlot`). Phân định rạch ròi luồng Online (ràng buộc capacity) và Walk-in (linh hoạt, không chiếm slot online, được phép vượt `RecommendedCapacity`).
+  - Gộp các migration của giai đoạn 2 phía Monolith thành 1 migration duy nhất: `20261021175324_DecoupleSchedulingAndRemoveBookingSlots.cs`.
+
+### Bằng chứng kiểm thử phát hành sau cutover
+
+- Kịch bản import dữ liệu `backend/Clinic.Scheduling.Service/Persistence/import-from-clinicdb.sql` và kịch bản đối soát `verify-scheduling-import.sql` đạt `MismatchCount = 0`.
+- Unit tests `Clinic.Scheduling.Service.Tests`: 100% pass (bao gồm Capacity rule, 15m intervals, slot expiration, concurrency simulation, conflict detection).
+- Integration tests `Clinic.IntegrationTests` (`BaselineBusinessWorkflowTests`): 3/3 passed.
+- Tự động hóa dọn dẹp DB test tích hợp: `ApiContractFactory.DisposeAsync` dọn sạch 100% test database trên SQL Server sau khi test kết thúc (`0 rows affected` trong `sys.databases`).
+
+### Chuyển sang giai đoạn sau (Giai đoạn 3: Tách Appointment Service)
+
+- Cắt chuyển hoàn toàn `Appointment` và `AppointmentSnapshot` sang `ClinicAppointmentDB`.
+- Chuyển `CreateAppointmentCommandHandler` và Saga từ Monolith sang Appointment Service độc lập.
 
 ---
 
