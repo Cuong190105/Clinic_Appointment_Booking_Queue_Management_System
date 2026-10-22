@@ -292,6 +292,40 @@ public static class SchedulingEndpoints
             return Results.Ok(new { isSuccess = true, result = schedules, totalCount = schedules.Count });
         });
 
+        app.MapGet("/schedules/{id:guid}", async (
+            Guid id,
+            SchedulingDbContext db,
+            CancellationToken ct) =>
+        {
+            var ws = await db.WorkSchedules
+                .AsNoTracking()
+                .Include(ws => ws.Doctor)
+                    .ThenInclude(d => d.Employee)
+                .Include(ws => ws.Doctor)
+                    .ThenInclude(d => d.WorkHistories)
+                    .ThenInclude(wh => wh.Specialty)
+                .FirstOrDefaultAsync(ws => ws.Id == id && !ws.IsDeleted, ct);
+
+            if (ws == null)
+                return Results.NotFound(new { error = $"Schedule '{id}' not found." });
+
+            var specialty = ws.Doctor.WorkHistories.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null)?.Specialty?.Name;
+            var detail = new ScheduleDetailDto(
+                ws.Id,
+                ws.DoctorId,
+                ws.Doctor.Employee.FullName,
+                specialty,
+                ws.Date,
+                ws.ShiftStart,
+                ws.ShiftEnd,
+                ws.RecommendedCapacity,
+                ws.Status.ToString(),
+                ws.CancellationReason
+            );
+
+            return Results.Ok(new { isSuccess = true, result = detail });
+        });
+
         app.MapPut("/schedules/{id:guid}", async (
             Guid id,
             [FromBody] UpdateScheduleRequest request,

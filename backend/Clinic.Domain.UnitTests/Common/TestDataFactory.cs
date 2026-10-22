@@ -33,11 +33,21 @@ namespace Clinic.Domain.UnitTests.Common
                 isDeleted: false
             );
 
+            var localNow = new Clinic.Domain.Common.TimeConverter().ConvertFromUtc(DateTime.UtcNow);
+            var scheduleDate = DateOnly.FromDateTime(localNow.AddDays(day.Value));
+            var effectiveStart = startTime ?? TimeOnly.FromDateTime(localNow.AddMinutes(30));
+            var effectiveEnd = endTime ?? effectiveStart.AddHours(2);
+            if (effectiveEnd <= effectiveStart)
+            {
+                scheduleDate = scheduleDate.AddDays(1);
+                effectiveStart = new TimeOnly(8, 0);
+                effectiveEnd = new TimeOnly(10, 0);
+            }
             var workSchedule = new WorkSchedule(
                 doctor,
-                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(day.Value)),
-                TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(8)), // UTC+7 +1
-                TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(9)), // UTC+7 +2
+                scheduleDate,
+                effectiveStart,
+                effectiveEnd,
                 5
             );
 
@@ -47,7 +57,7 @@ namespace Clinic.Domain.UnitTests.Common
                 patientPerson, "", ""
             );
 
-            var appointment = new Appointment(patient, workSchedule, TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(8)), "Reason", Guid.NewGuid());
+            var appointment = new Appointment(patient, workSchedule, workSchedule.ShiftStart, "Reason", Guid.NewGuid());
 
             if (confirmed || checkedIn)
             {

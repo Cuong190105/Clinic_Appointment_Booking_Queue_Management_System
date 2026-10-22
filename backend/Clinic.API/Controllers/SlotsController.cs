@@ -1,6 +1,3 @@
-using Clinic.Application.Features.Slots.Queries;
-using Clinic.Application.Contracts;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,11 +7,11 @@ namespace Clinic.API.Controllers
     [Route("/slots")]
     public class SlotsController : ControllerBase
     {
-        private readonly ISender _sender;
+        private readonly HttpClient _schedulingClient;
 
-        public SlotsController(ISender sender)
+        public SlotsController(IHttpClientFactory httpClientFactory)
         {
-            _sender = sender;
+            _schedulingClient = httpClientFactory.CreateClient("Scheduling");
         }
 
         // Public: bệnh nhân cần xem khung giờ trống để chọn trước khi đăng nhập/đặt lịch.
@@ -26,23 +23,36 @@ namespace Clinic.API.Controllers
             [FromQuery] DateTime? fromDate,
             [FromQuery] DateTime? toDate)
         {
-            var result = await _sender.Send(new GetAvailableSlotsQuery(doctorId, specialtyId, fromDate, toDate));
-            return Ok(result);
+            var query = new List<string>();
+            if (doctorId.HasValue) query.Add($"doctorId={doctorId.Value}");
+            if (specialtyId.HasValue) query.Add($"specialtyId={specialtyId.Value}");
+            if (fromDate.HasValue) query.Add($"fromDate={fromDate.Value:yyyy-MM-dd}");
+            if (toDate.HasValue) query.Add($"toDate={toDate.Value:yyyy-MM-dd}");
+
+            var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+            var response = await _schedulingClient.GetAsync($"schedules/availability{queryString}");
+            var content = await response.Content.ReadAsStringAsync();
+            return Content(content, "application/json");
         }
 
-        // Phase 0 contract endpoint. Availability ownership moves to Scheduling Service;
-        // this stub documents the request and response shape without calling Application.
         [HttpGet("/schedules/availability")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(List<SlotDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-        public IActionResult GetAvailability(
+        public async Task<IActionResult> GetAvailability(
             [FromQuery] Guid? doctorId,
             [FromQuery] Guid? specialtyId,
             [FromQuery] DateOnly? fromDate,
             [FromQuery] DateOnly? toDate)
         {
-            return Ok(Array.Empty<SlotDto>());
+            var query = new List<string>();
+            if (doctorId.HasValue) query.Add($"doctorId={doctorId.Value}");
+            if (specialtyId.HasValue) query.Add($"specialtyId={specialtyId.Value}");
+            if (fromDate.HasValue) query.Add($"fromDate={fromDate.Value:yyyy-MM-dd}");
+            if (toDate.HasValue) query.Add($"toDate={toDate.Value:yyyy-MM-dd}");
+
+            var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+            var response = await _schedulingClient.GetAsync($"schedules/availability{queryString}");
+            var content = await response.Content.ReadAsStringAsync();
+            return Content(content, "application/json");
         }
     }
 }

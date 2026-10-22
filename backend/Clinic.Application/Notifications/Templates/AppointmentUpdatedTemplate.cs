@@ -1,8 +1,5 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Clinic.Application.Notifications.Templates
 {
@@ -10,19 +7,27 @@ namespace Clinic.Application.Notifications.Templates
     {
         public EmailContent RenderEmail(Appointment appointment)
         {
+            var doctorName = !string.IsNullOrWhiteSpace(appointment.DoctorName)
+                ? appointment.DoctorName
+                : appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? "Bác sĩ";
+            var scheduleDate = appointment.ScheduleDate != default
+                ? appointment.ScheduleDate.ToString()
+                : (appointment.WorkSchedule != null ? appointment.WorkSchedule.Date.ToString() : string.Empty);
+            var patientName = appointment.Patient?.Person?.FullName ?? "Quý khách";
+
             var body = $"""
                 <!DOCTYPE html>
                 <html>
                 <body style="font-family: Arial, sans-serif;">
                     <h2 style="color: #333;">Xác nhận lịch khám</h2>
 
-                    <p>Xin chào {appointment.Patient.Person.FullName},</p>
+                    <p>Xin chào {patientName},</p>
 
                     <p>Lịch khám của bạn đã được cập nhật.</p>
 
                     <p>
-                        <strong>Bác sĩ:</strong> {appointment.WorkSchedule.Doctor.Employee.Person.FullName}<br>
-                        <strong>Ngày:</strong> {appointment.WorkSchedule.Date}<br>
+                        <strong>Bác sĩ:</strong> {doctorName}<br>
+                        <strong>Ngày:</strong> {scheduleDate}<br>
                         <strong>Thời gian:</strong> {appointment.TimeSlot}
                     </p>
 
@@ -39,7 +44,15 @@ namespace Clinic.Application.Notifications.Templates
 
         public InAppContent RenderInApp(Appointment appointment)
         {
-            var message = $"Lịch khám của khách hàng {appointment.Patient.Person.FullName} với bác sĩ {appointment.WorkSchedule.Doctor.Employee.Person.FullName} vào ngày {appointment.WorkSchedule.Date} lúc {appointment.TimeSlot} đã được cập nhật.";
+            var doctorName = !string.IsNullOrWhiteSpace(appointment.DoctorName)
+                ? appointment.DoctorName
+                : appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? "Bác sĩ";
+            var scheduleDate = appointment.ScheduleDate != default
+                ? appointment.ScheduleDate.ToString()
+                : (appointment.WorkSchedule != null ? appointment.WorkSchedule.Date.ToString() : string.Empty);
+            var patientName = appointment.Patient?.Person?.FullName ?? "Quý khách";
+
+            var message = $"Lịch khám của khách hàng {patientName} với bác sĩ {doctorName} vào ngày {scheduleDate} lúc {appointment.TimeSlot} đã được cập nhật.";
             return new InAppContent("Cập nhật lịch khám", message);
         }
     }

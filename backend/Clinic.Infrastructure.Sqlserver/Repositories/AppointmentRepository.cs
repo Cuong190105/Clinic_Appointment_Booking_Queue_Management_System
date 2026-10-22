@@ -19,10 +19,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<PagedResult<Appointment>> GetAppointmentsByPatientIdAsync(Guid patientId, string category)
         {
             var query = _context.Appointments
-                .Include(a => a.WorkSchedule)
-                    .ThenInclude(ws => ws.Doctor)
-                        .ThenInclude(d => d.Employee)
-                            .ThenInclude(e => e.Person)
                 .Include(a => a.Patient)
                     .ThenInclude(p => p.Person)
                 .Include(a => a.QueueTicket)
@@ -41,7 +37,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             }
 
             var count = await query.CountAsync();
-            var items = await query.OrderByDescending(a => a.WorkSchedule.Date).ThenByDescending(a => a.TimeSlot).AsNoTracking().ToListAsync();
+            var items = await query.OrderByDescending(a => a.ScheduleDate).ThenByDescending(a => a.TimeSlot).AsNoTracking().ToListAsync();
 
             return new PagedResult<Appointment>
             (
@@ -52,7 +48,8 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<Appointment?> GetByIdAsync(Guid appointmentId)
         {
-            return await _context.Appointments.Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
+            return await _context.Appointments
+                .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
                 .Include(a => a.Patient).ThenInclude(p => p.Person)
                 .Include(a => a.QueueTicket)
                 .FirstOrDefaultAsync(a => a.Id == appointmentId && a.IsDeleted == false);
@@ -71,26 +68,18 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<bool> ExistsForDoctorAndPatientAsync(Guid doctorId, Guid patientId)
         {
             return await _context.Appointments
-                .AnyAsync(a => a.PatientId == patientId && a.WorkSchedule.DoctorId == doctorId);
+                .AnyAsync(a => a.PatientId == patientId && (a.DoctorId == doctorId || (a.WorkSchedule != null && a.WorkSchedule.DoctorId == doctorId)));
         }
 
         public async Task<TotalAppointmentSummaryDto> GetTotalAppointmentSummaryAsync(DateOnly startDate, DateOnly endDate, Guid doctorId, Guid specialtyId)
         {
             var query = _context.Appointments
-                .Include(a => a.WorkSchedule)
-                    .ThenInclude(ws => ws.Doctor)
-                        .ThenInclude(d => d.WorkHistories.Where(wh => wh.IsDeleted == false && wh.EndDate == null))
-                            .ThenInclude(d => d.Specialty)
                 .Include(a => a.QueueTicket)
-                .Where(a => a.IsDeleted == false && a.WorkSchedule.Date >= startDate && a.WorkSchedule.Date <= endDate);
+                .Where(a => a.IsDeleted == false && a.ScheduleDate >= startDate && a.ScheduleDate <= endDate);
 
             if (doctorId != Guid.Empty)
             {
-                query = query.Where(a => a.WorkSchedule.DoctorId == doctorId);
-            }
-            else if (specialtyId != Guid.Empty)
-            {
-                query = query.Where(a => a.WorkSchedule.Doctor.WorkHistories.Any(wh => wh.SpecialtyId == specialtyId));
+                query = query.Where(a => a.DoctorId == doctorId);
             }
 
             var result = await query.GroupBy(a => 1).Select(g => new TotalAppointmentSummaryDto
@@ -110,8 +99,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<Appointment?> GetAppointmentChangelogAsync(Guid appointmentId)
         {
             var query = _context.Appointments.Include(a => a.Snapshots)
-                .Include(a => a.Snapshots).ThenInclude(s => s.OldWorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
-                .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
                 .Include(a => a.Patient).ThenInclude(p => p.Person)
                 .Where(a => a.Id == appointmentId);
             return await query.FirstOrDefaultAsync();
@@ -130,15 +117,15 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .GroupBy(a => 1)
                 .Select(g => new
                 {
-                    CurrentTotal = g.Count(a => a.WorkSchedule.Date >= currentPeriodStart && a.WorkSchedule.Date < today),
-                    PreviousTotal = g.Count(a => a.WorkSchedule.Date >= previousPeriodStart && a.WorkSchedule.Date < currentPeriodStart),
-                    TodayTotal = g.Count(a => a.WorkSchedule.Date == today),
-                    YesterdayTotal = g.Count(a => a.WorkSchedule.Date == yesterday),
-                    CurrentCompleted = g.Count(a => a.Status == AppointmentStatus.Completed && a.WorkSchedule.Date >= currentPeriodStart && a.WorkSchedule.Date < today),
-                    PreviousCompleted = g.Count(a => a.Status == AppointmentStatus.Completed && a.WorkSchedule.Date >= previousPeriodStart && a.WorkSchedule.Date < currentPeriodStart),
-                    CurrentWaitingTime = g.Where(a => a.Status == AppointmentStatus.Completed && a.WorkSchedule.Date >= currentPeriodStart && a.WorkSchedule.Date < today)
+                    CurrentTotal = g.Count(a => a.ScheduleDate >= currentPeriodStart && a.ScheduleDate < today),
+                    PreviousTotal = g.Count(a => a.ScheduleDate >= previousPeriodStart && a.ScheduleDate < currentPeriodStart),
+                    TodayTotal = g.Count(a => a.ScheduleDate == today),
+                    YesterdayTotal = g.Count(a => a.ScheduleDate == yesterday),
+                    CurrentCompleted = g.Count(a => a.Status == AppointmentStatus.Completed && a.ScheduleDate >= currentPeriodStart && a.ScheduleDate < today),
+                    PreviousCompleted = g.Count(a => a.Status == AppointmentStatus.Completed && a.ScheduleDate >= previousPeriodStart && a.ScheduleDate < currentPeriodStart),
+                    CurrentWaitingTime = g.Where(a => a.Status == AppointmentStatus.Completed && a.ScheduleDate >= currentPeriodStart && a.ScheduleDate < today)
                         .Average(a => EF.Functions.DateDiffMinute(a.QueueTicket.CheckInTime, a.QueueTicket.CalledAt)) ?? 0,
-                    PreviousWaitingTime = g.Where(a => a.Status == AppointmentStatus.Completed && a.WorkSchedule.Date >= previousPeriodStart && a.WorkSchedule.Date < currentPeriodStart)
+                    PreviousWaitingTime = g.Where(a => a.Status == AppointmentStatus.Completed && a.ScheduleDate >= previousPeriodStart && a.ScheduleDate < currentPeriodStart)
                         .Average(a => EF.Functions.DateDiffMinute(a.QueueTicket.CheckInTime, a.QueueTicket.CalledAt)) ?? 0
                 })
                 .FirstOrDefaultAsync();
@@ -197,8 +184,8 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             var startDate = endDate.AddDays(-(totalDays - 1));
 
             var countsByDate = await _context.Appointments
-                .Where(a => !a.IsDeleted && a.WorkSchedule.Date >= startDate && a.WorkSchedule.Date <= endDate)
-                .GroupBy(a => a.WorkSchedule.Date)
+                .Where(a => !a.IsDeleted && a.ScheduleDate >= startDate && a.ScheduleDate <= endDate)
+                .GroupBy(a => a.ScheduleDate)
                 .Select(g => new
                 {
                     Date = g.Key,
@@ -220,7 +207,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             }
 
             var appointmentsByStatus = await _context.Appointments
-                .Where(a => !a.IsDeleted && a.WorkSchedule.Date >= startDate && a.WorkSchedule.Date <= endDate)
+                .Where(a => !a.IsDeleted && a.ScheduleDate >= startDate && a.ScheduleDate <= endDate)
                 .GroupBy(a => a.Status)
                 .Select(g => new AppointmentByStatusDto
                 {
@@ -242,8 +229,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             var query = _context.Appointments
                 .Include(a => a.Patient).ThenInclude(p => p.Person)
                 .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
-                .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.WorkHistories.Where(wh => date >= wh.StartDate && (wh.EndDate == null || date <= wh.EndDate))).ThenInclude(wh => wh.Specialty)
-                .Where(a => !a.IsDeleted && a.WorkSchedule.Date == date);
+                .Where(a => !a.IsDeleted && (a.ScheduleDate == date || (a.WorkSchedule != null && a.WorkSchedule.Date == date)));
 
             var count = await query.CountAsync();
             var items = await query.OrderByDescending(a => a.TimeSlot)
@@ -257,15 +243,16 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<PagedResult<Appointment>> GetPendingAppointmentsAsync(string search, string sortBy, bool descending, int pageNumber, int pageSize)
         {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var query = _context.Appointments
                 .Include(a => a.Patient).ThenInclude(p => p.Person)
-                .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
-                .Where(a => !a.IsDeleted && a.Status == AppointmentStatus.Pending && a.WorkSchedule.Date >= DateOnly.FromDateTime(DateTime.UtcNow));
+                .Where(a => !a.IsDeleted && a.Status == AppointmentStatus.Pending && a.ScheduleDate >= today);
 
             // Apply search filter if provided
             if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(a => a.Patient.Person.FullName.Contains(search) || a.WorkSchedule.Doctor.Employee.Person.FullName.Contains(search));
+                query = query.Where(a => (a.Patient.Person.FullName != null && a.Patient.Person.FullName.Contains(search)) ||
+                                         (a.DoctorName != null && a.DoctorName.Contains(search)));
             }
 
             // Apply sorting
@@ -277,10 +264,10 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             query = sortBy.ToLower() switch
             {
                 "patientname" => descending ? query.OrderByDescending(a => a.Patient.Person.FullName) : query.OrderBy(a => a.Patient.Person.FullName),
-                "doctorname" => descending ? query.OrderByDescending(a => a.WorkSchedule.Doctor.Employee.Person.FullName) : query.OrderBy(a => a.WorkSchedule.Doctor.Employee.Person.FullName),
+                "doctorname" => descending ? query.OrderByDescending(a => a.DoctorName) : query.OrderBy(a => a.DoctorName),
                 "createdat" => descending ? query.OrderByDescending(a => a.CreatedAt) : query.OrderBy(a => a.CreatedAt),
-                "date" => descending ? query.OrderByDescending(a => a.WorkSchedule.Date).ThenByDescending(a => a.TimeSlot) : query.OrderBy(a => a.WorkSchedule.Date).ThenBy(a => a.TimeSlot),
-                _ => descending ? query.OrderByDescending(a => a.CreatedAt) : query.OrderBy(a => a.CreatedAt), // Default sorting by CreatedAt
+                "date" => descending ? query.OrderByDescending(a => a.ScheduleDate).ThenByDescending(a => a.TimeSlot) : query.OrderBy(a => a.ScheduleDate).ThenBy(a => a.TimeSlot),
+                _ => descending ? query.OrderByDescending(a => a.CreatedAt) : query.OrderBy(a => a.CreatedAt),
             };
 
             var count = await query.CountAsync();

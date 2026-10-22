@@ -1,8 +1,11 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using MediatR;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Clinic.Application.Features.Appointments.Queries
 {
@@ -45,18 +48,18 @@ namespace Clinic.Application.Features.Appointments.Queries
 
             var appointments = await _appointmentRepository.GetAppointmentsByPatientIdAsync(patient.Id, request.Category);
             return appointments.Items.Select(a => new AppointmentDto
-                {
-                    Id = a.Id,
-                    PatientId = a.PatientId,
-                    DoctorId = a.WorkSchedule.DoctorId,
-                    PatientName = a.Patient.Person.FullName,
-                    DoctorName = a.WorkSchedule.Doctor.Employee.Person.FullName,
-                    TimeSlot = a.TimeSlot,
-                    Date = a.WorkSchedule.Date,
-                    Reason = a.Reason,
-                    Status = a.Status,
-                    CreatedAt = a.CreatedAt
-                }).ToList();
+            {
+                Id = a.Id,
+                PatientId = a.PatientId,
+                DoctorId = a.DoctorId != Guid.Empty ? a.DoctorId : (a.WorkSchedule?.DoctorId ?? Guid.Empty),
+                PatientName = a.Patient?.Person?.FullName ?? string.Empty,
+                DoctorName = !string.IsNullOrEmpty(a.DoctorName) ? a.DoctorName : (a.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty),
+                TimeSlot = a.TimeSlot,
+                Date = a.ScheduleDate != default ? a.ScheduleDate : (a.WorkSchedule?.Date ?? default),
+                Reason = a.Reason,
+                Status = a.Status,
+                CreatedAt = a.CreatedAt
+            }).ToList();
         }
     }
 }

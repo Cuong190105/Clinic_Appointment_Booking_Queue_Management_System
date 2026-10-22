@@ -19,7 +19,7 @@ namespace Clinic.Domain.UnitTests
         [Fact]
         public void Cancel_ConfirmedAppointment_ShouldCancel()
         {
-            var appointment = TestDataFactory.CreateAppointment(confirmed: true, day: 1);
+            var appointment = TestDataFactory.CreateAppointment(confirmed: true, day: 2);
 
             appointment.Cancel(Guid.NewGuid());
 

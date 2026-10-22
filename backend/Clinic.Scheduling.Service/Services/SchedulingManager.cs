@@ -218,6 +218,16 @@ public class SchedulingManager : ISchedulingManager
             _logger.LogInformation("Reserved slot {TimeSlot} on schedule {ScheduleId} for patient {PatientId}. Expires at {ExpiresAt}.",
                 timeSlot, scheduleId, patientId, reservation.ExpiresAt);
 
+            var doctor = await _dbContext.Doctors
+                .AsNoTracking()
+                .Include(d => d.Employee)
+                .Include(d => d.WorkHistories)
+                    .ThenInclude(wh => wh.Specialty)
+                .FirstOrDefaultAsync(d => d.Id == schedule.DoctorId, ct);
+
+            var specialtyName = doctor?.WorkHistories?.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null)?.Specialty?.Name;
+            var doctorName = doctor?.Employee?.FullName ?? string.Empty;
+
             return new ReservationResponse(
                 reservation.Id,
                 reservation.WorkScheduleId,
@@ -225,7 +235,11 @@ public class SchedulingManager : ISchedulingManager
                 reservation.PatientId,
                 reservation.Status.ToString(),
                 reservation.ExpiresAt,
-                reservation.IdempotencyKey
+                reservation.IdempotencyKey,
+                schedule.DoctorId,
+                doctorName,
+                specialtyName,
+                schedule.Date
             );
         });
     }

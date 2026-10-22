@@ -1,9 +1,10 @@
-﻿using Clinic.Application.Common.Models;
+using Clinic.Application.Common.Models;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using MediatR;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Clinic.Application.Features.Admin.Queries
@@ -28,12 +29,12 @@ namespace Clinic.Application.Features.Admin.Queries
                 {
                     Id = a.Id,
                     PatientId = a.PatientId,
-                    PatientName = a.Patient.Person.FullName,
-                    DoctorId = a.WorkSchedule.DoctorId,
-                    DoctorName = a.WorkSchedule.Doctor.Employee.Person.FullName,
-                    SpecialtyId = a.WorkSchedule.Doctor.WorkHistories.FirstOrDefault()?.SpecialtyId ?? Guid.Empty,
-                    SpecialtyName = a.WorkSchedule.Doctor.WorkHistories.FirstOrDefault()?.Specialty?.Name ?? "Unknown",
-                    Date = a.WorkSchedule.Date,
+                    PatientName = a.Patient?.Person?.FullName ?? string.Empty,
+                    DoctorId = a.DoctorId != Guid.Empty ? a.DoctorId : (a.WorkSchedule?.DoctorId ?? Guid.Empty),
+                    DoctorName = !string.IsNullOrEmpty(a.DoctorName) ? a.DoctorName : (a.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty),
+                    SpecialtyId = a.WorkSchedule?.Doctor?.WorkHistories?.FirstOrDefault()?.SpecialtyId ?? Guid.Empty,
+                    SpecialtyName = a.SpecialtyName ?? a.WorkSchedule?.Doctor?.WorkHistories?.FirstOrDefault()?.Specialty?.Name ?? "Unknown",
+                    Date = a.ScheduleDate != default ? a.ScheduleDate : (a.WorkSchedule?.Date ?? default),
                     TimeSlot = a.TimeSlot,
                     Status = a.Status,
                     CreatedAt = a.CreatedAt,

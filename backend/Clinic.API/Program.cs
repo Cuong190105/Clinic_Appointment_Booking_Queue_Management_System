@@ -89,6 +89,12 @@ builder.Services.AddHttpClient("Identity", client =>
     client.BaseAddress = new Uri(identityAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
 });
+builder.Services.AddHttpClient("Scheduling", client =>
+{
+    var schedulingAuthority = builder.Configuration["Scheduling:Authority"] ?? "http://localhost:5002";
+    client.BaseAddress = new Uri(schedulingAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddTransient<IdentityAccountClient>();
 
 builder.Services
@@ -216,6 +222,23 @@ app.MapGet("/.well-known/openid-configuration", () => Results.Json(new
     id_token_signing_alg_values_supported = new[] { "RS256" },
     token_endpoint = $"{identityPublicBaseUrl}/auth/login"
 })).AllowAnonymous();
+
+app.MapGet("/schedules", async (IHttpClientFactory clients, HttpContext context) =>
+{
+    var client = clients.CreateClient("Scheduling");
+    var queryString = context.Request.QueryString.Value ?? string.Empty;
+    var response = await client.GetAsync($"schedules{queryString}");
+    var content = await response.Content.ReadAsStringAsync();
+    return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
+}).AllowAnonymous();
+
+app.MapGet("/schedules/{id:guid}", async (Guid id, IHttpClientFactory clients) =>
+{
+    var client = clients.CreateClient("Scheduling");
+    var response = await client.GetAsync($"schedules/{id}");
+    var content = await response.Content.ReadAsStringAsync();
+    return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
+}).AllowAnonymous();
 
 app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();

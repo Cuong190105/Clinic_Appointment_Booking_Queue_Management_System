@@ -32,7 +32,11 @@ public record ReservationResponse(
     Guid PatientId,
     string Status,
     DateTimeOffset ExpiresAt,
-    string IdempotencyKey
+    string IdempotencyKey,
+    Guid DoctorId = default,
+    string? DoctorName = null,
+    string? SpecialtyName = null,
+    DateOnly ScheduleDate = default
 );
 
 public record ShiftSuggestionApprovalRequest(
@@ -68,6 +72,19 @@ public record WorkScheduleDto(
     Guid Id,
     Guid DoctorId,
     string DoctorName,
+    DateOnly Date,
+    TimeOnly ShiftStart,
+    TimeOnly ShiftEnd,
+    int RecommendedCapacity,
+    string Status,
+    string? CancellationReason
+);
+
+public record ScheduleDetailDto(
+    Guid Id,
+    Guid DoctorId,
+    string DoctorName,
+    string? SpecialtyName,
     DateOnly Date,
     TimeOnly ShiftStart,
     TimeOnly ShiftEnd,

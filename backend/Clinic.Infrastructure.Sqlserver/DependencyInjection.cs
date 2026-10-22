@@ -53,6 +53,7 @@ namespace Clinic.Infrastructure.Sqlserver
             services.AddScoped<IEventContext, EventContext>();
             services.AddScoped<IInboxStore, InboxStore>();
             services.AddScoped<ICorrelationContext, CorrelationContext>();
+            services.AddScoped<ISchedulingServiceClient, Services.SchedulingServiceClient>();
             return services;
         }
     }

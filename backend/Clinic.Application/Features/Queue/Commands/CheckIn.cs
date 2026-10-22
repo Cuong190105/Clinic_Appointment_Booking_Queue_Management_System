@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Interfaces;
 using Clinic.Contracts.Events;
 using Clinic.Domain.Common.Exceptions;
@@ -68,7 +68,7 @@ namespace Clinic.Application.Features.Queue.Commands
                 var appointment = await _appointmentRepository.GetByIdAsync(command.AppointmentId)
                     ?? throw new NotFoundException($"Appointment '{command.AppointmentId}' not found.");
 
-                var doctorId = appointment.WorkSchedule.DoctorId;
+                var doctorId = appointment.DoctorId != Guid.Empty ? appointment.DoctorId : (appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
                 var checkInTime = DateTime.UtcNow;
                 var queueNumber = await _queueTicketRepository.GetNextQueueNumberAsync(doctorId, checkInTime.Date, cancellationToken);
                 var queueTicket = appointment.CheckIn(checkInTime, queueNumber);

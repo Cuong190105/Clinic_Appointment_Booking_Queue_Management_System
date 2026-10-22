@@ -82,7 +82,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.Patient)
                         .ThenInclude(p => p.Person)
-                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId && q.CheckInTime.Date == date.Date)
+                .Where(q => (q.Appointment.DoctorId == doctorId || (q.Appointment.WorkSchedule != null && q.Appointment.WorkSchedule.DoctorId == doctorId)) && q.CheckInTime.Date == date.Date)
                 .OrderByDescending(q => q.Priority)
                 .ThenBy(q => q.QueueNumber)
                 .ToListAsync();
@@ -111,7 +111,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.Patient)
                         .ThenInclude(p => p.Person)
-                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId
+                .Where(q => (q.Appointment.DoctorId == doctorId || (q.Appointment.WorkSchedule != null && q.Appointment.WorkSchedule.DoctorId == doctorId))
                     && q.CheckInTime.Date == date.Date
                     && q.Status == QueueStatus.Waiting)
                 .OrderByDescending(q => q.Priority)
@@ -132,7 +132,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.Patient)
                         .ThenInclude(p => p.Person)
-                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId
+                .Where(q => (q.Appointment.DoctorId == doctorId || (q.Appointment.WorkSchedule != null && q.Appointment.WorkSchedule.DoctorId == doctorId))
                     && q.CheckInTime.Date == date.Date
                     && (q.Status == QueueStatus.Called || q.Status == QueueStatus.InProgress))
                 .FirstOrDefaultAsync();

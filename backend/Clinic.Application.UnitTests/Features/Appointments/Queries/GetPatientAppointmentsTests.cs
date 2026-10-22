@@ -15,7 +15,7 @@ public sealed class GetPatientAppointmentsTests
         var currentUser = new FakeCurrentUser();
         var handler = new GetPatientAppointmentsQueryHandler(appointments, patients, currentUser);
         var patient = TestDataFactory.CreatePatient();
-        var schedule = TestDataFactory.CreateWorkSchedule(date: DateOnly.FromDateTime(DateTime.UtcNow));
+        var schedule = TestDataFactory.CreateWorkSchedule(date: new Clinic.Domain.Common.TimeConverter().Today);
         var completed = TestDataFactory.CreateAppointment(patient, schedule, checkedIn: true);
         var pending = TestDataFactory.CreateAppointment(patient, schedule, schedule.ShiftStart.AddMinutes(30));
         completed.Complete(patient.Person.IdentityUserId!.Value);

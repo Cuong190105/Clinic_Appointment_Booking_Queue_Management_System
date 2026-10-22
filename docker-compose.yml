@@ -50,6 +50,7 @@ services:
             - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
             - Identity__Authority=http://identity-service:8080
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
+            - Scheduling__Authority=http://scheduling-service:8080
             - Identity__RequireHttpsMetadata=false
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__PublicBaseUrl=${IDENTITY_PUBLIC_BASE_URL:-http://localhost:5000}
@@ -67,6 +68,8 @@ services:
             - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
         depends_on:
             identity-service:
+                condition: service_healthy
+            scheduling-service:
                 condition: service_healthy
             rabbitmq:
                 condition: service_healthy

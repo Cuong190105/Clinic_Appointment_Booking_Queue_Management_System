@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
@@ -53,7 +53,9 @@ namespace Clinic.Application.Features.Queue.Queries
 
             foreach (var myTicket in myTickets)
             {
-                var doctorId = myTicket.Appointment.WorkSchedule.DoctorId;
+                var doctorId = myTicket.Appointment.DoctorId != Guid.Empty
+                    ? myTicket.Appointment.DoctorId
+                    : (myTicket.Appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
 
                 if (!queueByDoctor.TryGetValue(doctorId, out var dayQueue))
                 {
@@ -77,12 +79,16 @@ namespace Clinic.Application.Features.Queue.Queries
                     }
                 }
 
+                var doctorName = !string.IsNullOrEmpty(myTicket.Appointment.DoctorName)
+                    ? myTicket.Appointment.DoctorName
+                    : (myTicket.Appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty);
+
                 result.Add(new MyQueueStatusDto
                 {
                     QueueTicketId = myTicket.Id,
                     QueueNumber = myTicket.QueueNumber,
                     Status = myTicket.Status.ToString(),
-                    DoctorName = myTicket.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                    DoctorName = doctorName,
                     PositionInQueue = waitingAhead + 1,
                     EstimatedWaitMinutes = waitingAhead * EstimatedMinutesPerPatient
                 });

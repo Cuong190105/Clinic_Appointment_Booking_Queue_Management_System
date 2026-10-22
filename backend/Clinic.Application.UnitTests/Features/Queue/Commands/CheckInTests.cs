@@ -38,7 +38,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
             var handler = new CheckInHandler(appointmentRepository, queueTicketRepository, unitOfWork, new FakeOutboxWriter(), new FakeInboxStore());
-            var ws = TestDataFactory.CreateWorkSchedule(date: DateOnly.FromDateTime(DateTime.UtcNow));
+            var ws = TestDataFactory.CreateWorkSchedule(date: new Clinic.Domain.Common.TimeConverter().Today);
             var firstAppointment = TestDataFactory.CreateAppointment(confirmed: true, workSchedule: ws);
             var secondAppointment = TestDataFactory.CreateAppointment(confirmed: true, workSchedule: ws);
             await appointmentRepository.AddAsync(firstAppointment);

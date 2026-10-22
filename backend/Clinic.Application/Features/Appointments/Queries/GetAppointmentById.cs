@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using MediatR;
@@ -31,6 +31,16 @@ namespace Clinic.Application.Features.Appointments.Queries
                 throw new NotFoundException("Appointment not found.");
             }
 
+            var doctorId = appointment.DoctorId != Guid.Empty
+                ? appointment.DoctorId
+                : (appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
+            var doctorName = !string.IsNullOrEmpty(appointment.DoctorName)
+                ? appointment.DoctorName
+                : (appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty);
+            var date = appointment.ScheduleDate != default
+                ? appointment.ScheduleDate
+                : (appointment.WorkSchedule?.Date ?? default);
+
             // Only the receptionist, the patient who owns the appointment, or the doctor assigned to the appointment can access it
             if (_currentUser.UserId != request.UserId)
             {
@@ -39,7 +49,7 @@ namespace Clinic.Application.Features.Appointments.Queries
 
             if (!_currentUser.HasRole("Receptionist") && !_currentUser.HasRole("Admin") &&
                 !(_currentUser.HasRole("Patient") && _currentUser.PatientId == appointment.PatientId) &&
-                !(_currentUser.HasRole("Doctor") && _currentUser.DoctorId == appointment.WorkSchedule.DoctorId)
+                !(_currentUser.HasRole("Doctor") && _currentUser.DoctorId == doctorId)
             )
             {
                 throw new ForbiddenException("Forbidden.");
@@ -49,11 +59,11 @@ namespace Clinic.Application.Features.Appointments.Queries
             {
                 Id = appointment.Id,
                 PatientId = appointment.PatientId,
-                DoctorId = appointment.WorkSchedule.DoctorId,
+                DoctorId = doctorId,
                 PatientName = appointment.Patient.Person.FullName,
-                DoctorName = appointment.WorkSchedule.Doctor.Employee.Person.FullName,
+                DoctorName = doctorName,
                 TimeSlot = appointment.TimeSlot,
-                Date = appointment.WorkSchedule.Date,
+                Date = date,
                 Reason = appointment.Reason,
                 Status = appointment.Status,
                 CreatedAt = appointment.CreatedAt

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Enums;
@@ -40,7 +40,9 @@ namespace Clinic.Application.Features.Queue.Commands
             // chặn ở tầng Domain rồi). Vé Waiting bị skip thì bác sĩ chưa hề bận với vé này -> không
             // cần/không nên tự động gọi số tiếp theo thay cho lễ tân.
             var wasHoldingDoctor = queueTicket.Status == QueueStatus.Called;
-            var doctorId = queueTicket.Appointment.WorkSchedule.DoctorId;
+            var doctorId = queueTicket.Appointment.DoctorId != Guid.Empty
+                ? queueTicket.Appointment.DoctorId
+                : (queueTicket.Appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
             var checkInDate = queueTicket.CheckInTime.Date;
 
             queueTicket.Skip();

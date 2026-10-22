@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Interfaces;
 using Clinic.Contracts.Events;
 using MediatR;
@@ -42,8 +42,12 @@ namespace Clinic.Application.Features.Queue.Commands
             var queueTicket = await _queueTicketRepository.GetByIdAsync(command.QueueTicketId)
                 ?? throw new NotFoundException($"Queue ticket '{command.QueueTicketId}' not found.");
 
+            var doctorId = queueTicket.Appointment.DoctorId != Guid.Empty
+                ? queueTicket.Appointment.DoctorId
+                : (queueTicket.Appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
+
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any");
-            if (!hasAnyScope && queueTicket.Appointment.WorkSchedule.DoctorId != _currentUser.DoctorId)
+            if (!hasAnyScope && doctorId != _currentUser.DoctorId)
             {
                 throw new ForbiddenException("You are not allowed to complete exam for another doctor's queue.");
             }
@@ -73,7 +77,7 @@ namespace Clinic.Application.Features.Queue.Commands
                         queueTicket.AppointmentId,
                         queueTicket.Id,
                         queueTicket.AppointmentId,
-                        queueTicket.Appointment.WorkSchedule.DoctorId,
+                        doctorId,
                         completedAt)
                 },
                 "queue.exam-completed");

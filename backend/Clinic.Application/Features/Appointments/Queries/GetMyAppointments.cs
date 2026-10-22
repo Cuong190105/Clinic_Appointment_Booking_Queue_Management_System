@@ -1,7 +1,10 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using MediatR;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Clinic.Application.Features.Appointments.Queries
 {
@@ -32,12 +35,14 @@ namespace Clinic.Application.Features.Appointments.Queries
                 Id = a.Id,
                 PatientId = a.PatientId,
                 PatientName = a.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = a.WorkSchedule.DoctorId,
-                DoctorName = a.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                DoctorId = a.DoctorId != Guid.Empty ? a.DoctorId : (a.WorkSchedule?.DoctorId ?? Guid.Empty),
+                DoctorName = !string.IsNullOrEmpty(a.DoctorName) ? a.DoctorName : (a.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty),
+                Date = a.ScheduleDate != default ? a.ScheduleDate : (a.WorkSchedule?.Date ?? default),
                 TimeSlot = a.TimeSlot,
                 Status = a.Status,
                 Reason = a.Reason,
-                IsWalkIn = a.IsWalkIn
+                IsWalkIn = a.IsWalkIn,
+                CreatedAt = a.CreatedAt
             }).ToList();
         }
     }

@@ -138,8 +138,8 @@ namespace Clinic.Domain.UnitTests
             var doctor = new Doctor(employee, "123ABC", "Tien si", new Specialty("name", "", DateOnly.FromDateTime(DateTime.UtcNow)), 0);
             // Act
             var now = DateTime.UtcNow;
-            var shift = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(1)), TimeOnly.FromDateTime(now.AddDays(1)), TimeOnly.FromDateTime(now.AddDays(1).AddHours(4)), 5);
-            var overlappedShift = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(1).AddHours(2)), TimeOnly.FromDateTime(now.AddDays(1).AddHours(2)), TimeOnly.FromDateTime(now.AddDays(1).AddHours(6)), 5);
+            var shift = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(2)), new TimeOnly(8, 0), new TimeOnly(12, 0), 5);
+            var overlappedShift = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(2)), new TimeOnly(10, 0), new TimeOnly(14, 0), 5);
             doctor.AddWorkSchedule(shift);
             // Assert
             Assert.Contains(shift, doctor.WorkSchedules);

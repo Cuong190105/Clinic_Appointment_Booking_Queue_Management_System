@@ -13,8 +13,13 @@ namespace Clinic.Domain.Entities
         public Patient Patient { get; protected set; } = null!;
 
         public Guid WorkScheduleId { get; protected set; }
-        public WorkSchedule WorkSchedule { get; protected set; } = null!;
+        public WorkSchedule? WorkSchedule { get; protected set; }
         public BookingSlot? BookingSlot { get; protected set; }
+
+        public Guid DoctorId { get; protected set; }
+        public string DoctorName { get; protected set; } = string.Empty;
+        public string? SpecialtyName { get; protected set; }
+        public DateOnly ScheduleDate { get; protected set; }
 
         public Guid? BookingSlotId { get; protected set; }
 
@@ -40,6 +45,10 @@ namespace Clinic.Domain.Entities
             Guid id,
             Guid patientId,
             Guid workScheduleId,
+            Guid doctorId,
+            string doctorName,
+            string? specialtyName,
+            DateOnly scheduleDate,
             TimeOnly timeSlot,
             string reason,
             AppointmentStatus status,
@@ -52,11 +61,31 @@ namespace Clinic.Domain.Entities
         {
             PatientId = patientId;
             WorkScheduleId = workScheduleId;
+            DoctorId = doctorId;
+            DoctorName = doctorName;
+            SpecialtyName = specialtyName;
+            ScheduleDate = scheduleDate;
             TimeSlot = timeSlot;
             Reason = reason;
             Status = status;
             IsWalkIn = isWalkIn;
             UpdatedByUserId = updatedByUserId;
+        }
+
+        public Appointment( // Legacy compatibility constructor for sample data
+            Guid id,
+            Guid patientId,
+            Guid workScheduleId,
+            TimeOnly timeSlot,
+            string reason,
+            AppointmentStatus status,
+            bool isWalkIn,
+            Guid updatedByUserId,
+            DateTime createdAt,
+            DateTime? updatedAt,
+            bool isDeleted)
+            : this(id, patientId, workScheduleId, Guid.Empty, string.Empty, null, default, timeSlot, reason, status, isWalkIn, updatedByUserId, createdAt, updatedAt, isDeleted)
+        {
         }
 
         public Appointment(Patient patient, WorkSchedule workSchedule, TimeOnly timeSlot, string reason, Guid createdByUserId, bool isWalkIn = false)
@@ -79,9 +108,55 @@ namespace Clinic.Domain.Entities
             }
             PatientId = patient.Id;
             WorkScheduleId = workSchedule.Id;
+            DoctorId = workSchedule.DoctorId;
+            DoctorName = workSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty;
+            SpecialtyName = workSchedule.Doctor?.WorkHistories?.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null)?.Specialty?.Name;
+            ScheduleDate = workSchedule.Date;
             TimeSlot = timeSlot;
             IsWalkIn = isWalkIn;
             UpdatedByUserId = createdByUserId;
+        }
+
+        public Appointment(
+            Patient patient,
+            Guid workScheduleId,
+            Guid doctorId,
+            string doctorName,
+            string? specialtyName,
+            DateOnly scheduleDate,
+            TimeOnly timeSlot,
+            string reason,
+            Guid createdByUserId,
+            bool isWalkIn = false)
+        {
+            Patient = patient ?? throw new ArgumentNullException(nameof(patient));
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new ArgumentException("Reason cannot be null or whitespace.", nameof(reason));
+            }
+            var bookingTimeUtc = new TimeConverter().ConvertToUtc(new DateTime(scheduleDate, timeSlot));
+            if (bookingTimeUtc < DateTime.UtcNow)
+            {
+                throw new ArgumentException("Cannot create an appointment for a past time.");
+            }
+            PatientId = patient.Id;
+            WorkScheduleId = workScheduleId;
+            DoctorId = doctorId;
+            DoctorName = doctorName;
+            SpecialtyName = specialtyName;
+            ScheduleDate = scheduleDate;
+            TimeSlot = timeSlot;
+            Reason = reason;
+            IsWalkIn = isWalkIn;
+            UpdatedByUserId = createdByUserId;
+        }
+
+        public void SetDoctorDetails(Guid doctorId, string doctorName, string? specialtyName, DateOnly scheduleDate)
+        {
+            DoctorId = doctorId;
+            DoctorName = doctorName;
+            SpecialtyName = specialtyName;
+            ScheduleDate = scheduleDate;
         }
 
         public void AdminCancel(Guid adminId)
@@ -117,10 +192,12 @@ namespace Clinic.Domain.Entities
                 throw new ArgumentException($"Cannot check in an appointment with status '{Status}'. Appointment must be confirmed first.");
             }
 
-            if (WorkSchedule.Date != DateOnly.FromDateTime(checkInTime))
+            var scheduleDate = ScheduleDate != default ? ScheduleDate : WorkSchedule?.Date ?? default;
+            var checkInDate = new TimeConverter().ToLocalDate(checkInTime);
+            if (scheduleDate != checkInDate)
             {
                 throw new ConflictException(
-                    $"Cannot check in: appointment is scheduled for {new DateTime(WorkSchedule.Date, TimeSlot):yyyy-MM-dd}, not today ({checkInTime:yyyy-MM-dd}).");
+                    $"Cannot check in: appointment is scheduled for {new DateTime(scheduleDate, TimeSlot):yyyy-MM-dd}, not today ({checkInDate:yyyy-MM-dd}).");
             }
 
             var queueTicket = new QueueTicket
@@ -165,6 +242,10 @@ namespace Clinic.Domain.Entities
             Reason = reason;
             WorkSchedule = workSchedule;
             WorkScheduleId = workSchedule.Id;
+            DoctorId = workSchedule.DoctorId;
+            DoctorName = workSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty;
+            SpecialtyName = workSchedule.Doctor?.WorkHistories?.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null)?.Specialty?.Name;
+            ScheduleDate = workSchedule.Date;
             TimeSlot = timeSlot;
             UpdatedByUserId = updatedByUserId;
             MarkUpdated();
@@ -176,7 +257,8 @@ namespace Clinic.Domain.Entities
             {
                 throw new InvalidOperationException($"{Enum.GetName(Status)} appointments can't be cancelled.");
             }
-            var utcSlot = new TimeConverter().ConvertToUtc(new DateTime(WorkSchedule.Date, TimeSlot));
+            var scheduleDate = ScheduleDate != default ? ScheduleDate : WorkSchedule?.Date ?? default;
+            var utcSlot = new TimeConverter().ConvertToUtc(new DateTime(scheduleDate, TimeSlot));
             if (DateTime.UtcNow.AddHours(CancelLimitHours) > utcSlot)
             {
                 throw new InvalidOperationException($"Appointments can only be cancelled at least {CancelLimitHours} hours before the scheduled time.");
@@ -215,10 +297,12 @@ namespace Clinic.Domain.Entities
 
         public void CheckIn(QueueTicket queueTicket)
         {
-            if (DateOnly.FromDateTime(queueTicket.CheckInTime) != WorkSchedule.Date)
+            var scheduleDate = ScheduleDate != default ? ScheduleDate : WorkSchedule?.Date ?? default;
+            var checkInDate = new TimeConverter().ToLocalDate(queueTicket.CheckInTime);
+            if (checkInDate != scheduleDate)
             {
                 throw new ConflictException(
-                    $"Cannot check in: appointment is scheduled for {new DateTime(WorkSchedule.Date, TimeSlot):yyyy-MM-dd}, not today ({queueTicket.CheckInTime:yyyy-MM-dd}).");
+                    $"Cannot check in: appointment is scheduled for {new DateTime(scheduleDate, TimeSlot):yyyy-MM-dd}, not today ({checkInDate:yyyy-MM-dd}).");
             }
             QueueTicket = queueTicket;
             Status = AppointmentStatus.CheckedIn;

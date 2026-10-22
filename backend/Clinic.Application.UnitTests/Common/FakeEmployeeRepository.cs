@@ -37,7 +37,10 @@ namespace Clinic.Application.UnitTests.Common
             }
             if (roles != null && roles.Any())
             {
-                query = query.Where(e => roles.Any(role => string.Equals(role, "Doctor", StringComparison.OrdinalIgnoreCase)) == (e.Doctor is not null));
+                var hasDoctorRole = roles.Any(role => string.Equals(role, "Doctor", StringComparison.OrdinalIgnoreCase));
+                var hasOtherRole = roles.Any(role => !string.Equals(role, "Doctor", StringComparison.OrdinalIgnoreCase));
+                if (hasDoctorRole && !hasOtherRole) query = query.Where(e => e.Doctor != null);
+                else if (!hasDoctorRole && hasOtherRole) query = query.Where(e => e.Doctor == null);
             }
 
             if (!string.IsNullOrEmpty(sortBy))

@@ -1,9 +1,10 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using MediatR;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Clinic.Application.Features.Appointments.Queries
@@ -29,10 +30,10 @@ namespace Clinic.Application.Features.Appointments.Queries
             var currentUpdater = await _personRepository.GetByIdentityUserIdAsync(appointment.UpdatedByUserId);
             changelog.Add(new AppointmentHistoryDto
             {
-                DoctorId = appointment.WorkSchedule.DoctorId,
-                DoctorName = appointment.WorkSchedule.Doctor.Employee.Person.FullName,
+                DoctorId = appointment.DoctorId != Guid.Empty ? appointment.DoctorId : (appointment.WorkSchedule?.DoctorId ?? Guid.Empty),
+                DoctorName = !string.IsNullOrEmpty(appointment.DoctorName) ? appointment.DoctorName : (appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty),
                 TimeSlot = appointment.TimeSlot,
-                Date = appointment.WorkSchedule.Date,
+                Date = appointment.ScheduleDate != default ? appointment.ScheduleDate : (appointment.WorkSchedule?.Date ?? default),
                 Reason = appointment.Reason,
                 Status = appointment.Status,
                 UpdatedAt = appointment.UpdatedAt ?? appointment.CreatedAt,
@@ -45,10 +46,10 @@ namespace Clinic.Application.Features.Appointments.Queries
                 var updater = await _personRepository.GetByIdentityUserIdAsync(snapshot.UpdatedByUserId);
                 changelog.Add(new AppointmentHistoryDto
                 {
-                    DoctorId = snapshot.OldWorkSchedule.DoctorId,
-                    DoctorName = snapshot.OldWorkSchedule.Doctor.Employee.Person.FullName,
+                    DoctorId = snapshot.OldWorkSchedule?.DoctorId ?? Guid.Empty,
+                    DoctorName = snapshot.OldWorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty,
                     TimeSlot = snapshot.TimeSlot,
-                    Date = snapshot.OldWorkSchedule.Date,
+                    Date = snapshot.OldWorkSchedule?.Date ?? default,
                     Reason = snapshot.Reason,
                     Status = snapshot.Status,
                     UpdatedAt = snapshot.UpdatedAt,
@@ -60,7 +61,7 @@ namespace Clinic.Application.Features.Appointments.Queries
             {
                 AppointmentId = appointment.Id,
                 PatientId = appointment.PatientId,
-                PatientName = appointment.Patient.Person.FullName,
+                PatientName = appointment.Patient?.Person?.FullName ?? string.Empty,
                 Changelog = changelog
             };
         }

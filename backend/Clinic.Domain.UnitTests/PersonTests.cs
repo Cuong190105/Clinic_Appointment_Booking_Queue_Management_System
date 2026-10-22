@@ -75,7 +75,7 @@ namespace Clinic.Domain.UnitTests
         [Fact]
         public void TestFutureDateOfBirthThrows()
         {
-            var futureDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+            var futureDate = new Clinic.Domain.Common.TimeConverter().Today.AddDays(1);
             Assert.Throws<ArgumentException>(() => new Person("Hi Low", "1234567890", "main@example.com", futureDate, Gender.Male, "123 Main St"));
         }
 

@@ -184,14 +184,15 @@ public sealed class BaselineBusinessWorkflowTests : IClassFixture<ApiContractFac
     private async Task<Guid> SeedConfirmedAppointmentForTodayAsync()
     {
         await using var dbContext = _factory.CreateDbContext();
-        var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = new TimeConverter().Today;
         var now = DateTime.UtcNow;
         var schedule = new WorkSchedule(
-            Guid.NewGuid(), ApiContractFactory.DoctorId, todayUtc,
+            Guid.NewGuid(), ApiContractFactory.DoctorId, today,
             new TimeOnly(8, 0), new TimeOnly(12, 0), 10,
             WorkScheduleStatus.Active, now, null, false);
         var appointment = new Appointment(
             Guid.NewGuid(), ApiContractFactory.PatientId, schedule.Id,
+            ApiContractFactory.DoctorId, "Doctor Name", "Cardiology", today,
             new TimeOnly(9, 0), "baseline queue workflow", AppointmentStatus.Confirmed,
             false, ApiContractFactory.PatientUserId, now, null, false);
 

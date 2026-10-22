@@ -329,10 +329,17 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
                         var updatedByUserId = rng.Next(2) == 0 ? patientUserId : receptionistUserId;
 
+                        var doctorName = People[doctorIndex - 1].FullName;
+                        var specialtyName = Specialties[(doctorIndex - 1) % Specialties.Length].Name;
+
                         var appointment = new Appointment(
                             AppointmentId(appointmentIdCounter++),
                             patientId,
                             scheduleId,
+                            doctorId,
+                            doctorName,
+                            specialtyName,
+                            scheduleDate,
                             slot,
                             reason,
                             status,

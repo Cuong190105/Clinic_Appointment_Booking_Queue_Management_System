@@ -78,6 +78,8 @@ namespace Clinic.Application.UnitTests.Features.Employees.Queries
             var user2 = TestDataFactory.CreateUser(username: "user2", person: person2, role: "Doctor");
             var employee1 = TestDataFactory.CreateEmployee(person: person1);
             var employee2 = TestDataFactory.CreateEmployee(person: person2);
+            var doctor2 = TestDataFactory.CreateDoctor(employee: employee2);
+            employee2.AssignDoctor(doctor2);
             await employeeRepository.AddAsync(employee1);
             await employeeRepository.AddAsync(employee2);
             var query = new GetEmployeesQuery(Gender: Domain.Enums.Gender.Female);

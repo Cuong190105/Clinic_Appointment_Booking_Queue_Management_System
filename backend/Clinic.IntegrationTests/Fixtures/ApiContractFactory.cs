@@ -146,9 +146,63 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
 
     private sealed class TestIdentityHandler : HttpMessageHandler
     {
+        private readonly HashSet<string> _reservedSlots = new();
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.Contains("/reservations", StringComparison.OrdinalIgnoreCase))
+            {
+                if (path.EndsWith("/confirm", StringComparison.OrdinalIgnoreCase) || path.EndsWith("/release", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                
+                var bodyText = request.Content != null ? await request.Content.ReadAsStringAsync(cancellationToken) : string.Empty;
+                var timeSlot = "09:00:00";
+                if (!string.IsNullOrEmpty(bodyText))
+                {
+                    using var body = JsonDocument.Parse(bodyText);
+                    if (body.RootElement.TryGetProperty("timeSlot", out var ts))
+                    {
+                        timeSlot = ts.GetString() ?? "09:00:00";
+                    }
+                }
+                var slotKey = $"{request.RequestUri?.AbsolutePath}_{timeSlot}";
+                if (_reservedSlots.Contains(slotKey))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent("{\"error\":\"Slot already reserved\"}", System.Text.Encoding.UTF8, "application/json")
+                    };
+                }
+                _reservedSlots.Add(slotKey);
+
+                var reservationId = Guid.NewGuid();
+                var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var schedIdx = Array.FindIndex(segments, s => s.Equals("schedules", StringComparison.OrdinalIgnoreCase));
+                var scheduleId = Guid.NewGuid();
+                if (schedIdx != -1 && schedIdx + 1 < segments.Length && Guid.TryParse(segments[schedIdx + 1], out var parsedSchedId))
+                {
+                    scheduleId = parsedSchedId;
+                }
+
+                var res = JsonSerializer.Serialize(new
+                {
+                    id = reservationId,
+                    scheduleId = scheduleId,
+                    timeSlot = timeSlot,
+                    patientId = ApiContractFactory.PatientId,
+                    status = "Reserved",
+                    expiresAt = DateTimeOffset.UtcNow.AddMinutes(5),
+                    idempotencyKey = Guid.NewGuid().ToString("N"),
+                    doctorId = ApiContractFactory.DoctorId,
+                    doctorName = "Doctor Name",
+                    specialtyName = "Cardiology",
+                    scheduleDate = new Clinic.Domain.Common.TimeConverter().Today.AddDays(2).ToString("yyyy-MM-dd")
+                });
+                return Json(HttpStatusCode.OK, res);
+            }
+
             if (path.EndsWith("/v1/internal/users/provision", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));

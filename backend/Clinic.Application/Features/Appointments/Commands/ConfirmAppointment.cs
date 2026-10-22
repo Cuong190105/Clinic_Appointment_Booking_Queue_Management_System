@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
@@ -44,8 +44,12 @@ namespace Clinic.Application.Features.Appointments.Commands
             ));
 
             // Remind the patient about the appointment one day before at 8 AM (UTC+7)
+            var scheduleDate = appointment.ScheduleDate != default
+                ? appointment.ScheduleDate
+                : (appointment.WorkSchedule?.Date ?? DateOnly.FromDateTime(DateTime.UtcNow.Date));
+
             var notificationScheduledAt = new DateTimeOffset(
-                appointment.WorkSchedule.Date.AddDays(-1),
+                scheduleDate.AddDays(-1),
                 new TimeOnly(8, 0, 0),
                 TimeSpan.FromHours(7));
 
