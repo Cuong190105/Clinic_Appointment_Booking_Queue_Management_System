@@ -46,6 +46,26 @@ BEGIN TRY
           AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Permissions AS target WHERE target.Id = p.Id);
     END;
 
+    IF OBJECT_ID(N'ClinicDB.dbo.Patients', N'U') IS NOT NULL
+    BEGIN
+        INSERT INTO ClinicDB.dbo.Patients (Id, PersonId, InsuranceNumber, EmergencyContact, CreatedAt, IsDeleted)
+        SELECT 
+            NEWID() AS Id,
+            p.Id AS PersonId,
+            CONCAT('BHXH-STAFF-', SUBSTRING(CONVERT(NVARCHAR(36), p.Id), 1, 8)) AS InsuranceNumber,
+            p.PhoneNumber AS EmergencyContact,
+            GETUTCDATE() AS CreatedAt,
+            0 AS IsDeleted
+        FROM ClinicDB.dbo.Persons p
+        WHERE NOT EXISTS (
+            SELECT 1 FROM ClinicDB.dbo.Patients pt WHERE pt.PersonId = p.Id AND pt.IsDeleted = 0
+        )
+        AND (
+            EXISTS (SELECT 1 FROM ClinicDB.dbo.Employees e WHERE e.PersonId = p.Id AND e.IsDeleted = 0)
+            OR EXISTS (SELECT 1 FROM ClinicDB.dbo.Users u WHERE u.PersonId = p.Id AND u.IsDeleted = 0)
+        );
+    END;
+
     IF OBJECT_ID(N'ClinicDB.dbo.Users', N'U') IS NOT NULL
     BEGIN
         INSERT INTO ClinicIdentityDB.dbo.Users (Id, PersonId, PatientId, EmployeeId, DoctorId, Username, PasswordHash, IsActive, CreatedAt)

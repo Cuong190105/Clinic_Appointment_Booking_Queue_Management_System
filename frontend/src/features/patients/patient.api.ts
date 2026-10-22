@@ -298,7 +298,7 @@ export const patientApi = {
           })
         } catch (error: any) {
           const status = Number(error?.response?.status ?? error?.status ?? 0)
-          if (status === 403 || status === 404) {
+          if (status === 403) {
             disableProtectedPatientEndpoints()
           }
           throw error
@@ -377,7 +377,7 @@ export const patientApi = {
           }
         } catch (error: any) {
           const status = Number(error?.response?.status ?? error?.status ?? 0)
-          if (status === 403 || status === 404) {
+          if (status === 403) {
             disableProtectedPatientEndpoints()
           }
           throw error
@@ -427,7 +427,7 @@ export const patientApi = {
           })
         } catch (error: any) {
           const status = Number(error?.response?.status ?? error?.status ?? 0)
-          if (status === 403 || status === 404) {
+          if (status === 403) {
             disableProtectedPatientEndpoints()
           }
           throw error
@@ -463,7 +463,7 @@ export const patientApi = {
             }
           } catch (e: any) {
             const status = e?.response?.status
-            if (status === 403 || status === 404) {
+            if (status === 403) {
               disableProtectedPatientEndpoints()
               return fallback
             }

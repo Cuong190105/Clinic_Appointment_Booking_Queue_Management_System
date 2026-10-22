@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -13,6 +13,12 @@ const auth = useAuthStore()
 const patient = usePatientStore()
 
 const isChangePasswordOpen = ref(false)
+
+onMounted(() => {
+  if (auth.isAuthenticated) {
+    auth.fetchMe().catch(() => undefined)
+  }
+})
 
 function onLocaleChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value

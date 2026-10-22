@@ -484,8 +484,12 @@ static async Task<TokenResponse> IssueTokens(IdentityUser user, IdentityDbContex
     {
         new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
         new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        new(JwtRegisteredClaimNames.UniqueName, user.Username),
+        new("name", user.Person?.FullName ?? user.Username),
+        new("username", user.Username),
         new("personId", user.PersonId.ToString())
     };
+    if (!string.IsNullOrWhiteSpace(user.Person?.Email)) claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Person.Email));
     claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
     claims.AddRange(permissions.Select(permission => new Claim("permission", permission)));
     if (user.PatientId is Guid patientId) claims.Add(new Claim("patientId", patientId.ToString()));

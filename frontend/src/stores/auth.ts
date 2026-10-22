@@ -1,9 +1,10 @@
-﻿import { defineStore } from 'pinia'
+import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { tokenStorage } from '@/lib/api/token-storage'
 import { authApi } from '@/features/auth/auth.api'
 import { ApiError, http } from '@/lib/api/http'
 import { logger } from '@/lib/logger'
+import { enableProtectedPatientEndpoints } from '@/features/patients/patient.api'
 import type { AuthUser, LoginPayload, UserRole, RegisterPayload } from '@/features/auth/auth.types'
 
 const USER_KEY = 'auth.user'
@@ -204,6 +205,10 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchMe() {
     try {
       const me = await authApi.getMe()
+      if (user.value?.activeRole) {
+        me.activeRole = user.value.activeRole
+        me.role = user.value.activeRole
+      }
       setUser(me)
       return me
     } catch (e: any) {
@@ -339,6 +344,7 @@ export const useAuthStore = defineStore('auth', () => {
         // profile from Identity when a screen explicitly needs the current server-side data.
         const fallbackUser = buildUserFromToken(access)
         setUser(fallbackUser, tokenStorage.isPersistent())
+        void fetchMe().catch(() => undefined)
         return fallbackUser
       }
     } catch (e) {
@@ -374,6 +380,19 @@ export const useAuthStore = defineStore('auth', () => {
       const persistent = payload.rememberMe === true
       setToken(res.accessToken, res.refreshToken, persistent)
       setUser(normalizedUser, persistent)
+
+      // Ensure patient protected endpoints are enabled on fresh login
+      enableProtectedPatientEndpoints()
+
+      try {
+        const fetched = await fetchMe()
+        if (fetched) {
+          normalizedUser.name = fetched.name
+          normalizedUser.email = fetched.email
+        }
+      } catch (err) {
+        logger.warn('fetchMe after login failed', err)
+      }
 
       // Keep login responsive from the token claims; fetchMe() can load the Identity profile on demand.
       status.value = 'idle'
@@ -442,6 +461,7 @@ export const useAuthStore = defineStore('auth', () => {
     setUser(null)
     status.value = 'idle'
     error.value = null
+    enableProtectedPatientEndpoints()
   }
 
   return {
