@@ -1,4 +1,7 @@
 using System.Security.Claims;
+using Clinic.Contracts.Events;
+using Clinic.Queue.Service.Common.Exceptions;
+using Clinic.Queue.Service.DTOs;
 using Clinic.Queue.Service.Persistence;
 using Clinic.Queue.Service.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -20,11 +23,13 @@ var requireHttpsMetadata = builder.Configuration.GetValue<bool>("Identity:Requir
 var queueConnection = builder.Configuration.GetConnectionString("QueueConnection");
 
 // Persistence
-builder.Services.AddDbContext<QueueDbContext>(options =>
+builder.Services.AddDbContext<QueueDbContext>((sp, options) =>
 {
-    if (!string.IsNullOrEmpty(queueConnection))
+    var config = sp.GetRequiredService<IConfiguration>();
+    var conn = config.GetConnectionString("QueueConnection");
+    if (!string.IsNullOrEmpty(conn))
     {
-        options.UseSqlServer(queueConnection);
+        options.UseSqlServer(conn);
     }
 });
 
@@ -92,6 +97,251 @@ app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
     employeeId = user.FindFirstValue("employeeId"),
     roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value)
 })).RequireAuthorization();
+
+// Queue Endpoints
+app.MapGet("/doctors/{doctorId:guid}/queue", async (
+    Guid doctorId,
+    DateOnly? date,
+    ClaimsPrincipal user,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var isStaff = roles.Contains("Admin") || roles.Contains("Receptionist");
+    if (!isStaff)
+    {
+        var doctorClaim = user.FindFirstValue("doctorId");
+        if (string.IsNullOrEmpty(doctorClaim) || !Guid.TryParse(doctorClaim, out var docGuid) || docGuid != doctorId)
+        {
+            return Results.Forbid();
+        }
+    }
+
+    var tickets = await queueManager.GetQueueByDoctorAsync(doctorId, date, ct);
+    return Results.Ok(tickets);
+}).RequireAuthorization();
+
+app.MapPost("/doctors/{doctorId:guid}/queue/next", async (
+    Guid doctorId,
+    ClaimsPrincipal user,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var isStaff = roles.Contains("Admin") || roles.Contains("Receptionist");
+    if (!isStaff)
+    {
+        var doctorClaim = user.FindFirstValue("doctorId");
+        if (string.IsNullOrEmpty(doctorClaim) || !Guid.TryParse(doctorClaim, out var docGuid) || docGuid != doctorId)
+        {
+            return Results.Forbid();
+        }
+    }
+
+    try
+    {
+        var result = await queueManager.CallNextAsync(doctorId, null, ct);
+        return Results.Ok(result);
+    }
+    catch (QueueConflictException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
+    catch (QueueNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/queue/call-next/{doctorId:guid}", async (
+    Guid doctorId,
+    ClaimsPrincipal user,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var isStaff = roles.Contains("Admin") || roles.Contains("Receptionist");
+    if (!isStaff)
+    {
+        var doctorClaim = user.FindFirstValue("doctorId");
+        if (string.IsNullOrEmpty(doctorClaim) || !Guid.TryParse(doctorClaim, out var docGuid) || docGuid != doctorId)
+        {
+            return Results.Forbid();
+        }
+    }
+
+    try
+    {
+        var result = await queueManager.CallNextAsync(doctorId, null, ct);
+        return Results.Ok(result);
+    }
+    catch (QueueConflictException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
+    catch (QueueNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/queue/{queueTicketId:guid}/start-exam", async (
+    Guid queueTicketId,
+    ClaimsPrincipal user,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var hasAnyScope = roles.Contains("Admin") || roles.Contains("Receptionist");
+    Guid? actorDoctorId = null;
+    var doctorClaim = user.FindFirstValue("doctorId");
+    if (!string.IsNullOrEmpty(doctorClaim) && Guid.TryParse(doctorClaim, out var dId))
+    {
+        actorDoctorId = dId;
+    }
+
+    try
+    {
+        await queueManager.StartExamAsync(queueTicketId, actorDoctorId, hasAnyScope, ct);
+        return Results.NoContent();
+    }
+    catch (QueueForbiddenException)
+    {
+        return Results.Forbid();
+    }
+    catch (QueueNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/queue/{queueTicketId:guid}/complete-exam", async (
+    Guid queueTicketId,
+    ClaimsPrincipal user,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var hasAnyScope = roles.Contains("Admin") || roles.Contains("Receptionist");
+    Guid? actorDoctorId = null;
+    var doctorClaim = user.FindFirstValue("doctorId");
+    if (!string.IsNullOrEmpty(doctorClaim) && Guid.TryParse(doctorClaim, out var dId))
+    {
+        actorDoctorId = dId;
+    }
+
+    try
+    {
+        await queueManager.CompleteExamAsync(queueTicketId, actorDoctorId, hasAnyScope, ct);
+        return Results.NoContent();
+    }
+    catch (QueueForbiddenException)
+    {
+        return Results.Forbid();
+    }
+    catch (QueueNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/queue/{queueTicketId:guid}/skip", async (
+    Guid queueTicketId,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    try
+    {
+        var result = await queueManager.SkipAsync(queueTicketId, ct);
+        return Results.Ok(result);
+    }
+    catch (QueueNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapMethods("/queue/{queueTicketId:guid}/priority", new[] { "PATCH", "POST" }, async (
+    Guid queueTicketId,
+    SetQueuePriorityRequest request,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    try
+    {
+        await queueManager.SetPriorityAsync(queueTicketId, request.Priority, ct);
+        return Results.NoContent();
+    }
+    catch (QueueNotFoundException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapGet("/me/queue-status", async (
+    ClaimsPrincipal user,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    var patientClaim = user.FindFirstValue("patientId");
+    if (string.IsNullOrEmpty(patientClaim) || !Guid.TryParse(patientClaim, out var patientId))
+    {
+        return Results.Forbid();
+    }
+
+    var result = await queueManager.GetQueueStatusByPatientAsync(patientId, null, ct);
+    return result.Count == 0 ? Results.NoContent() : Results.Ok(result);
+}).RequireAuthorization();
+
+app.MapGet("/queue/{queueTicketId:guid}", async (
+    Guid queueTicketId,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    var ticket = await queueManager.GetByIdAsync(queueTicketId, ct);
+    return ticket != null ? Results.Ok(ticket) : Results.NotFound();
+}).RequireAuthorization();
+
+app.MapGet("/queue/appointment/{appointmentId:guid}", async (
+    Guid appointmentId,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    var ticket = await queueManager.GetByAppointmentIdAsync(appointmentId, ct);
+    return ticket != null ? Results.Ok(ticket) : Results.NotFound();
+}).RequireAuthorization();
+
+app.MapPost("/internal/events/appointment-checked-in", async (
+    EventEnvelope<AppointmentCheckedIn> envelope,
+    IQueueManager queueManager,
+    CancellationToken ct) =>
+{
+    try
+    {
+        var ticket = await queueManager.ProcessAppointmentCheckedInAsync(envelope, ct);
+        return Results.Ok(ticket);
+    }
+    catch (QueueValidationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
 
 if (!app.Environment.IsEnvironment("Testing"))
 {

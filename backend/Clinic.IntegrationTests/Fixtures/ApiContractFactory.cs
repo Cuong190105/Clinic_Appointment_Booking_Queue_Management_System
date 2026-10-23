@@ -351,6 +351,58 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
                 return Json(HttpStatusCode.OK, res);
             }
 
+            if (path.Contains("/queue/call-next/", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                var ticketJson = JsonSerializer.Serialize(new
+                {
+                    result = new
+                    {
+                        id = Guid.NewGuid(),
+                        appointmentId = Guid.NewGuid(),
+                        queueNumber = 1,
+                        status = "Called",
+                        checkInTime = DateTime.UtcNow,
+                        callTime = DateTime.UtcNow
+                    }
+                });
+                return Json(HttpStatusCode.OK, ticketJson);
+            }
+
+            if (path.Contains("/queue/") && path.EndsWith("/start-exam", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Contains("/queue/") && path.EndsWith("/complete-exam", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Contains("/queue/") && path.EndsWith("/skip", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return Json(HttpStatusCode.OK, "{\"result\":{\"hasAutoCalledNext\":false}}");
+            }
+
+            if (path.Contains("/queue/") && path.EndsWith("/priority", StringComparison.OrdinalIgnoreCase) && (request.Method == HttpMethod.Patch || request.Method.Method == "PATCH"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Contains("/doctors/") && path.EndsWith("/queue/next", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Contains("/doctors/") && path.EndsWith("/queue", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+            {
+                return Json(HttpStatusCode.OK, "{\"result\":[]}");
+            }
+
+            if (path.EndsWith("/me/queue-status", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
             if (path.EndsWith("/v1/internal/users/provision", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));

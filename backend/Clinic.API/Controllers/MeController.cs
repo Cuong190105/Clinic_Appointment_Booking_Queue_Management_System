@@ -1,4 +1,5 @@
-﻿using Clinic.Application.Contracts;
+using Clinic.API.Services;
+using Clinic.Application.Contracts;
 using Clinic.Application.Features.MedicalReports.Queries;
 using Clinic.Application.Features.Queue.Queries;
 using Clinic.Application.Features.Users.Queries;
@@ -18,10 +19,12 @@ namespace Clinic.API.Controllers
     public class MeController : ControllerBase
     {
         private readonly ISender _sender;
+        private readonly QueueServiceClient _queueClient;
 
-        public MeController(ISender sender)
+        public MeController(ISender sender, QueueServiceClient queueClient)
         {
             _sender = sender;
+            _queueClient = queueClient;
         }
 
         /// <summary>
@@ -34,8 +37,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> GetMyQueueStatus()
         {
-            var result = await _sender.Send(new GetMyQueueStatusQuery());
-            return result.Count == 0 ? NoContent() : Ok(result);
+            return await _queueClient.ProxyAsync(HttpContext, "/me/queue-status", HttpMethod.Get);
         }
 
         /// <summary>Lịch sử khám bệnh (các hồ sơ đã chốt) của bệnh nhân đang đăng nhập.</summary>

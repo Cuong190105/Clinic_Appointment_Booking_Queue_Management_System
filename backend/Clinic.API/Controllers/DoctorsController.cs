@@ -26,13 +26,20 @@ namespace Clinic.API.Controllers
         private readonly ISender _sender;
         private readonly ICurrentUser _currentUser;
         private readonly IdentityAccountClient _identityAccounts;
+        private readonly QueueServiceClient _queueClient;
 
-        public DoctorsController(IMapper mapper, ISender sender, ICurrentUser currentUser, IdentityAccountClient identityAccounts)
+        public DoctorsController(
+            IMapper mapper,
+            ISender sender,
+            ICurrentUser currentUser,
+            IdentityAccountClient identityAccounts,
+            QueueServiceClient queueClient)
         {
             _mapper = mapper;
             _sender = sender;
             _currentUser = currentUser;
             _identityAccounts = identityAccounts;
+            _queueClient = queueClient;
         }
 
         // Public: bệnh nhân (kể cả chưa đăng nhập) cần xem được danh sách bác sĩ/chuyên khoa
@@ -285,8 +292,8 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetQueue([FromRoute] Guid doctorId)
         {
-            var result = await _sender.Send(new GetQueueByDoctorQuery(doctorId));
-            return Ok(result);
+            var queryStr = Request.QueryString.HasValue ? Request.QueryString.Value : string.Empty;
+            return await _queueClient.ProxyAsync(HttpContext, $"/doctors/{doctorId}/queue{queryStr}", HttpMethod.Get);
         }
 
         [HttpPost("{doctorId}/queue/next")]
@@ -295,8 +302,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> CallNext([FromRoute] Guid doctorId)
         {
-            var result = await _sender.Send(new CallNextQueueCommand(doctorId));
-            return Ok(result);
+            return await _queueClient.ProxyAsync(HttpContext, $"/doctors/{doctorId}/queue/next", HttpMethod.Post);
         }
     }
 }

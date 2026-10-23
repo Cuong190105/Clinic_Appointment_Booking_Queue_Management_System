@@ -1,6 +1,8 @@
-﻿using Clinic.Application.Contracts;
+using Clinic.API.Services;
+using Clinic.Application.Contracts;
 using Clinic.Application.Features.Queue.Commands;
-using MediatR;
+using Clinic.Application.Interfaces;
+using Clinic.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,11 +12,18 @@ namespace Clinic.API.Controllers
     [Route("/queue")]
     public class QueueController : ControllerBase
     {
-        private readonly ISender _sender;
+        private readonly QueueServiceClient _queueClient;
+        private readonly IQueueTicketRepository? _queueTicketRepository;
+        private readonly IUnitOfWork? _unitOfWork;
 
-        public QueueController(ISender sender)
+        public QueueController(
+            QueueServiceClient queueClient,
+            IQueueTicketRepository? queueTicketRepository = null,
+            IUnitOfWork? unitOfWork = null)
         {
-            _sender = sender;
+            _queueClient = queueClient;
+            _queueTicketRepository = queueTicketRepository;
+            _unitOfWork = unitOfWork;
         }
 
         [HttpPost("call-next/{doctorId}")]
@@ -23,8 +32,25 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> CallNext([FromRoute] Guid doctorId)
         {
-            var result = await _sender.Send(new CallNextQueueCommand(doctorId));
-            return Ok(result);
+            var result = await _queueClient.ProxyAsync(HttpContext, $"/queue/call-next/{doctorId}", HttpMethod.Post);
+            try
+            {
+                if (_queueTicketRepository != null && _unitOfWork != null)
+                {
+                    var nextTicket = await _queueTicketRepository.GetNextWaitingAsync(doctorId, DateTime.UtcNow);
+                    if (nextTicket != null && nextTicket.Status == QueueStatus.Waiting)
+                    {
+                        nextTicket.Call();
+                        await _unitOfWork.SaveChangesAsync(HttpContext.RequestAborted);
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort cache in ClinicDB
+            }
+
+            return result;
         }
 
         [HttpPost("{queueTicketId}/start-exam")]
@@ -32,8 +58,32 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> StartExam([FromRoute] Guid queueTicketId)
         {
-            await _sender.Send(new StartExamCommand(queueTicketId));
-            return NoContent();
+            var result = await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/start-exam", HttpMethod.Post);
+            try
+            {
+                if (_queueTicketRepository != null && _unitOfWork != null)
+                {
+                    var ticket = await _queueTicketRepository.GetByIdAsync(queueTicketId);
+                    if (ticket != null && ticket.Status != QueueStatus.InProgress)
+                    {
+                        if (ticket.Status == QueueStatus.Waiting)
+                        {
+                            ticket.Call();
+                        }
+                        if (ticket.Status == QueueStatus.Called)
+                        {
+                            ticket.StartExam();
+                        }
+                        await _unitOfWork.SaveChangesAsync(HttpContext.RequestAborted);
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort cache in ClinicDB
+            }
+
+            return result;
         }
 
         [HttpPost("{queueTicketId}/complete-exam")]
@@ -41,8 +91,25 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> CompleteExam([FromRoute] Guid queueTicketId)
         {
-            await _sender.Send(new CompleteExamCommand(queueTicketId));
-            return NoContent();
+            var result = await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/complete-exam", HttpMethod.Post);
+            try
+            {
+                if (_queueTicketRepository != null && _unitOfWork != null)
+                {
+                    var ticket = await _queueTicketRepository.GetByIdAsync(queueTicketId);
+                    if (ticket != null && ticket.Status != QueueStatus.Completed)
+                    {
+                        ticket.Complete();
+                        await _unitOfWork.SaveChangesAsync(HttpContext.RequestAborted);
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort cache in ClinicDB
+            }
+
+            return result;
         }
 
         [HttpPost("{queueTicketId}/skip")]
@@ -50,10 +117,25 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(SkipQueueResult), StatusCodes.Status200OK)]
         public async Task<IActionResult> Skip([FromRoute] Guid queueTicketId)
         {
-            // Trả về 200 kèm SkipQueueResult (thay vì 204) vì FE cần biết bệnh nhân tiếp theo
-            // có được tự động gọi thay cho lễ tân hay không, để cập nhật màn hình "đang gọi số".
-            var result = await _sender.Send(new SkipQueueCommand(queueTicketId));
-            return Ok(result);
+            var result = await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/skip", HttpMethod.Post);
+            try
+            {
+                if (_queueTicketRepository != null && _unitOfWork != null)
+                {
+                    var ticket = await _queueTicketRepository.GetByIdAsync(queueTicketId);
+                    if (ticket != null && ticket.Status != QueueStatus.Skipped)
+                    {
+                        ticket.Skip();
+                        await _unitOfWork.SaveChangesAsync(HttpContext.RequestAborted);
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort cache in ClinicDB
+            }
+
+            return result;
         }
 
         [HttpPatch("{queueTicketId}/priority")]
@@ -61,8 +143,25 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> SetPriority([FromRoute] Guid queueTicketId, [FromBody] SetQueuePriorityRequest request)
         {
-            await _sender.Send(new SetQueuePriorityCommand(queueTicketId, request.Priority));
-            return NoContent();
+            var result = await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/priority", new HttpMethod("PATCH"), request);
+            try
+            {
+                if (_queueTicketRepository != null && _unitOfWork != null)
+                {
+                    var ticket = await _queueTicketRepository.GetByIdAsync(queueTicketId);
+                    if (ticket != null)
+                    {
+                        ticket.SetPriority(request.Priority);
+                        await _unitOfWork.SaveChangesAsync(HttpContext.RequestAborted);
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort cache in ClinicDB
+            }
+
+            return result;
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Entities;
+using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 
 namespace Clinic.Domain.UnitTests.Common
@@ -35,14 +35,23 @@ namespace Clinic.Domain.UnitTests.Common
 
             var localNow = new Clinic.Domain.Common.TimeConverter().ConvertFromUtc(DateTime.UtcNow);
             var scheduleDate = DateOnly.FromDateTime(localNow.AddDays(day.Value));
-            var effectiveStart = startTime ?? TimeOnly.FromDateTime(localNow.AddMinutes(30));
-            var effectiveEnd = endTime ?? effectiveStart.AddHours(2);
-            if (effectiveEnd <= effectiveStart)
+            TimeOnly effectiveStart;
+            TimeOnly effectiveEnd;
+            if (startTime.HasValue && endTime.HasValue)
             {
-                scheduleDate = scheduleDate.AddDays(1);
-                effectiveStart = new TimeOnly(8, 0);
-                effectiveEnd = new TimeOnly(10, 0);
+                effectiveStart = startTime.Value;
+                effectiveEnd = endTime.Value;
             }
+            else
+            {
+                effectiveStart = TimeOnly.FromDateTime(localNow.AddMinutes(5));
+                effectiveEnd = effectiveStart.AddHours(1);
+                if (effectiveEnd <= effectiveStart)
+                {
+                    effectiveEnd = new TimeOnly(23, 59, 59);
+                }
+            }
+
             var workSchedule = new WorkSchedule(
                 doctor,
                 scheduleDate,
