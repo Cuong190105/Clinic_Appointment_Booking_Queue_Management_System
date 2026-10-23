@@ -157,9 +157,9 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 ## Giai đoạn 3: Tách Appointment Service
 
-**Trạng thái: Đã triển khai `Clinic.Appointment.Service` độc lập (`ClinicAppointmentDB`), di chuyển & đối soát dữ liệu đạt 100%, hoàn thiện giao diện Bác sĩ (Medical Records) & Lễ tân (Đặt khám / Walk-in 4 bước), và vượt qua toàn bộ bộ test tự động (`Clinic.Appointment.Service.Tests` 28/28, `Clinic.Application.UnitTests` 187/187, `BaselineBusinessWorkflowTests` 3/3, `Frontend Vitest` 94/94). Qua kiểm thử chạy thực tế từ cổng Frontend (`http://localhost:3000/api/...`), phần định tuyến Gateway cutover sang `Clinic.Appointment.Service`, 2 điểm cấu hình/enum runtime trên container `5003` và các worker RabbitMQ của Thành viên B là các hạng mục còn lại cần hoàn tất.**
+**Trạng thái: Đã kiểm thử phát hành sau cutover; `Clinic.Appointment.Service` (`ClinicAppointmentDB`) đã tiếp nhận 100% lưu lượng lịch hẹn từ Frontend qua Gateway, hoàn thiện toàn bộ Booking Saga, Reschedule Saga, Event-Driven Check-in/ExamCompleted qua RabbitMQ, cùng giao diện Bác sĩ (Medical Records) & Lễ tân (Đặt khám / Walk-in 4 bước). 100% Unit, Integration, Frontend và Live E2E Tests pass.**
 
-> **Tài liệu kế hoạch & báo cáo đối sánh chi tiết**: `tasks/PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md` (Xem Mục 7)
+> **Tài liệu kế hoạch & báo cáo nghiệm thu chi tiết**: `tasks/PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md` (Xem Mục 7)
 
 ### Nhiệm vụ
 
@@ -169,7 +169,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
    `ReserveSlot -> CreateAppointment -> ConfirmReservation`.
 4. Xử lý compensation bằng `ReleaseReservation` khi tạo appointment thất bại.
 5. Lưu thông tin hiển thị denormalized trên `Appointment` (kèm bản chiếu `PatientProjections`) và giữ `AppointmentSnapshot` làm nhật ký chỉnh sửa (1-N changelog) để traceback.
-6. Xây các trạng thái `Pending`, `Confirmed`, `Cancelled`, `CheckedIn`, `Completed`.
+6. Xây các trạng thái `Pending`, `Confirmed`, `Cancelled`, `CheckedIn`, `Completed`, `NoShow`.
 7. Cung cấp API đặt lịch, đổi lịch (Reschedule Saga), hủy lịch, xác nhận lịch và check-in.
 
 ### Yêu cầu cần đạt
@@ -182,12 +182,12 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 ### Các quyết định thiết kế đã chốt
 
-1. **Vai trò `AppointmentSnapshot` & Denormalized Read Model**: `AppointmentSnapshot` giữ đúng vai trò lưu nhật ký chỉnh sửa (1-N) để traceback khi người khám có vấn đề về đặt/đổi lịch (lưu kèm `OldDoctorId`, `OldDoctorName`, `OldScheduleDate`, `UpdatedByUserName` để không cần join xuyên service). Thông tin hiển thị chính thức đọc trực tiếp từ các cột denormalized trên bảng `Appointments`.
+1. **Vai trò `AppointmentSnapshot` & Denormalized Read Model**: `AppointmentSnapshot` giữ đúng vai trò lưu nhật ký chỉnh sửa (1-N) để traceback khi người khám có vấn đề về đặt/đổi lịch (lưu kèm `OldDoctorId`, `OldDoctorName`, `OldSpecialtyName`, `OldScheduleDate`, `UpdatedByUserName` để không cần join xuyên service). Thông tin hiển thị chính thức đọc trực tiếp từ các cột denormalized trên bảng `Appointments`.
 2. **Bản chiếu `PatientProjections`**: Khi chưa tách Patient Service (GĐ 5), `ClinicAppointmentDB` lưu bản chiếu nhẹ `PatientProjections` được nạp từ script import và đồng bộ qua sự kiện `UserProfileUpdated` từ Identity Service.
 3. **Event-Driven Check-in**: `POST /appointments/{id}/check-in` tại Appointment Service chuyển trạng thái sang `CheckedIn` và ghi Outbox phát `AppointmentCheckedIn`. Monolith tiêu thụ sự kiện này để cấp `QueueNumber` và tạo `QueueTicket` trong `ClinicDB`.
 4. **Gỡ bỏ Foreign Key trên `ClinicDB`**: Tạo migration xóa `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId` trên `ClinicDB`, chuyển `AppointmentId` thành loose UUID reference.
-5. **Đồng bộ `ExamCompleted`**: Appointment Service lắng nghe sự kiện `ExamCompleted` từ Queue để tự động chuyển `Appointment.Status = Completed` (Eventual Consistency).
-6. **Hủy lịch & Đổi lịch với Scheduling Service**: Khi hủy lịch, phát sự kiện `AppointmentCancelled` để Scheduling Service giải phóng `SlotReservation` đã confirm; khi đổi lịch, thực hiện Reschedule Saga 2 pha (giữ slot mới $\rightarrow$ lưu snapshot & cập nhật $\rightarrow$ confirm slot mới & giải phóng slot cũ).
+5. **Đồng bộ `ExamCompleted`**: Appointment Service lắng nghe sự kiện `ExamCompleted` từ Queue/MedicalReports để tự động chuyển `Appointment.Status = Completed` (Eventual Consistency).
+6. **Hủy lịch & Đổi lịch với Scheduling Service**: Khi hủy lịch hoặc đổi lịch, giải phóng `SlotReservation` cũ qua cả internal API (`POST /internal/slots/release-by-appointment`) và sự kiện `AppointmentCancelled` trên RabbitMQ; khi đổi lịch, thực hiện Reschedule Saga 2 pha (giữ slot mới $\rightarrow$ lưu snapshot & cập nhật $\rightarrow$ confirm slot mới & giải phóng slot cũ).
 
 ### Lưu ý
 
@@ -196,23 +196,22 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 - Phân biệt lỗi nghiệp vụ và lỗi tạm thời.
 - Bản chiếu chỉ chứa dữ liệu hiển thị cần thiết, không sao chép toàn bộ Patient entity.
 
-### Phạm vi đã chuyển & Những gì đã đạt được (Achieved)
+### Phạm vi đã chuyển
 
-- **Khởi tạo Microservice & Database độc lập**: Đã khởi tạo `Clinic.Appointment.Service` (.NET 10 Web API, cổng `5003:8080`) và cơ sở dữ liệu `ClinicAppointmentDB` độc lập, xác thực JWT RS256 qua discovery/JWKS của Identity Service.
-- **Chuyển quyền sở hữu Aggregate & Read Model**: Chuyển `Appointment` (kèm đầy đủ các cột denormalized của Bác sĩ & Bệnh nhân), `AppointmentSnapshot` (1-N audit changelog traceback), `PatientProjection`, `OutboxMessage` sang `ClinicAppointmentDB`.
-- **Booking Saga & Reschedule Saga**:
-  - Triển khai Booking Saga (`ReserveSlot -> CreateAppointment -> ConfirmReservation`) kèm cơ chế compensation `ReleaseReservation` khi bước tạo lịch hoặc xác nhận thất bại.
-  - Phân định rõ luồng Online Booking (qua saga, ràng buộc slot & capacity) và Walk-in Receptionist (trực tiếp `Confirmed`, bỏ qua capacity online).
-  - Triển khai Reschedule Saga 2 pha (`Reserve new -> Reschedule & Snapshot -> Confirm new -> Outbox AppointmentCancelled old slot`).
-- **Event-Driven Check-in & Integration Hooks**:
-  - `CheckInAppointmentAsync` chuyển trạng thái sang `CheckedIn` và ghi Outbox `AppointmentCheckedIn`.
-  - Phía Monolith (`ClinicDB`): Tạo migration `20261023013218_DecoupleAppointmentForeignKeys.cs` gỡ bỏ hoàn toàn `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId`; đồng thời triển khai `AppointmentCheckedInConsumer` & `AppointmentCheckedInProcessor` nhận event để cấp `QueueTicket`.
-  - Cung cấp xử lý sự kiện `ExamCompleted` (cập nhật `Appointment.Status = Completed`) và `UserProfileUpdated` (cập nhật `PatientProjections`).
+- **Khởi tạo Microservice & Database độc lập**: Đã khởi tạo `Clinic.Appointment.Service` (.NET 10 Web API, cổng `5003:8080`) và cơ sở dữ liệu `ClinicAppointmentDB` độc lập, xác thực JWT RS256 qua discovery/JWKS của Identity Service và chuẩn hóa `JsonStringEnumConverter`.
+- **Chuyển quyền sở hữu Aggregate & Read Model**: Chuyển `Appointment` (kèm đầy đủ các cột denormalized của Bác sĩ & Bệnh nhân, cột `IdempotencyKey` có Filtered Unique Index và trạng thái `NoShow`), `AppointmentSnapshot` (1-N audit changelog traceback), `PatientProjection`, `OutboxMessage` sang `ClinicAppointmentDB`.
+- **Booking Saga, Idempotency & Reschedule Saga**:
+  - Triển khai Booking Saga (`ReserveSlot -> CreateAppointment -> ConfirmReservation`) kèm kiểm tra `IdempotencyKey` ở tầng bản ghi `Appointment` và cơ chế compensation `ReleaseReservation` khi bước tạo lịch hoặc xác nhận thất bại.
+  - Phân định rõ luồng Online Booking (qua saga, ràng buộc slot & capacity) và Walk-in Receptionist (trực tiếp `Confirmed`/`CheckedIn`, bỏ qua capacity online).
+  - Triển khai Reschedule Saga 2 pha (`Reserve new -> Reschedule & Snapshot -> Confirm new -> Release old slot & Outbox AppointmentCancelled`).
+- **Event-Driven Messaging (Outbox & RabbitMQ Consumers) & Cutover Gateway**:
+  - Triển khai `AppointmentOutboxPublisher` & `AppointmentEventConsumer` tại `Clinic.Appointment.Service` và `SchedulingEventConsumer` tại `Clinic.Scheduling.Service` kết nối qua RabbitMQ exchange `clinic.events`.
+  - Phía Monolith (`Clinic.API` & `ClinicDB`): Áp dụng migration `20261023013218_DecoupleAppointmentForeignKeys.cs` gỡ bỏ hoàn toàn `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId`; triển khai `AppointmentServiceClient` cắt chuyển toàn bộ định tuyến lịch hẹn (`/appointments/**`, `/me/appointments/**`, `/receptionist/appointments/**`, `/admin/appointments/**`) sang `Clinic.Appointment.Service`.
 - **Hoàn thiện tính năng Bác sĩ & Lễ tân trên Frontend và Backend**:
-  - **Bác sĩ (`/doctor/medical-records` & `/doctor/medical-records/:id`)**: Bổ sung API `GET /medical-reports` (hỗ trợ tìm kiếm từ khóa, lọc trạng thái `Draft`/`Finalized`, khoảng ngày khám, phân trang) và `PUT /medical-reports/{id}` (lưu bản nháp hoặc chốt hồ sơ); xây dựng giao diện danh sách và chi tiết hồ sơ (cho phép sửa/lưu nháp/finalize đối với `Draft`, khóa chỉnh sửa và hỗ trợ in ấn `window.print()` đối với `Finalized`).
-  - **Lễ tân (`/reception/booking`)**: Xây dựng quy trình đặt khám 4 bước (chọn bệnh nhân có sẵn hoặc tạo mới qua `POST /patients/add` $\rightarrow$ đối chiếu xác nhận thông tin $\rightarrow$ chọn Đặt lịch trước hoặc Đăng ký khám ngay Walk-in với API `GET /receptionist/working-doctors` và `POST /receptionist/appointments/walk-in` tự động phân bổ bác sĩ đang trực có ít ca khám nhất, tự động check-in cấp số thứ tự và gán cờ ưu tiên khẩn cấp `Priority = true` $\rightarrow$ màn hình xác nhận & in phiếu).
+  - **Bác sĩ (`/doctor/medical-records` & `/doctor/medical-records/:id`)**: Bổ sung API `GET /medical-reports` (hỗ trợ tìm kiếm từ khóa, lọc trạng thái `Draft`/`Finalized`, khoảng ngày khám, phân trang) và `PUT /medical-reports/{id}` (lưu bản nháp hoặc chốt hồ sơ kèm phát sự kiện `ExamCompleted`); xây dựng giao diện danh sách và chi tiết hồ sơ (cho phép sửa/lưu nháp/finalize đối với `Draft`, khóa chỉnh sửa và hỗ trợ in ấn `window.print()` đối với `Finalized`).
+  - **Lễ tân (`/reception/booking`)**: Xây dựng quy trình đặt khám 4 bước (chọn bệnh nhân có sẵn hoặc tạo mới qua `POST /patients/add` $\rightarrow$ đối chiếu xác nhận thông tin $\rightarrow$ chọn Đặt lịch trước hoặc Đăng ký khám ngay Walk-in với API `GET /receptionist/working-doctors` và `POST /receptionist/appointments/walk-in` tự động phân bổ bác sĩ đang trực có ít ca khám nhất, tự động check-in cấp số thứ tự và gán cờ ưu tiên khẩn cấp `Priority = true`, đồng bộ tức thời sang `ClinicAppointmentDB` $\rightarrow$ màn hình xác nhận & in phiếu).
 
-### Bằng chứng kiểm thử tự động & Chạy thực tế từ Frontend (2026-10-23)
+### Bằng chứng kiểm thử phát hành sau cutover (2026-10-23)
 
 - **Di chuyển & Đối soát dữ liệu**: `backend/Clinic.Appointment.Service/Persistence/import-from-clinicdb.sql` và `verify-appointment-import.sql` đạt `MismatchCount = 0` (**750 Appointments, 21 Snapshots, 59 PatientProjections** khớp 100%).
 - **Kiểm thử tự động (Unit & Integration Tests)**:
@@ -246,32 +245,10 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
     - `GET /api/admin/appointments?PageNumber=1&PageSize=10`: `200 OK` (`totalCount: 10, items: 10, totalPages: 1`).
     - `GET /api/receptionist/appointments/pending`: `200 OK`.
 
-### Những điểm tồn đọng trước đó và KẾT QUẢ KHẮC PHỤC (Resolved Gaps)
+### Chuyển sang giai đoạn sau (Giai đoạn 4: Tách Queue Service)
 
-> [!NOTE]
-> Toàn bộ 5 điểm tồn đọng dưới đây đã được lập kế hoạch chi tiết tại [PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md](file:///d:/Project/KHDV/Clinic_Appointment_Booking_Queue_Management_System/tasks/PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md) và đã được triển khai, kiểm thử thực tế thành công 100% (cả Unit Test, Docker Live Integration và Frontend Proxy `http://localhost:3000/api`).
-
-1. **Đã cắt chuyển (Cutover) toàn diện định tuyến API Gateway từ Frontend sang `Clinic.Appointment.Service` (Bước 6.3) - ĐÃ KHẮC PHỤC**:
-   - Đã triển khai `AppointmentServiceClient` trong `Clinic.API` hỗ trợ forward toàn bộ HTTP headers (`Authorization`, `Idempotency-Key`), body và query string.
-   - Các controller `AppointmentsController`, `MeAppointmentsController`, `ReceptionistController`, `AdminController` (bao gồm cả `GET /admin/appointments/summary` và `GET /admin/appointments`) đã chuyển sang ủy quyền cho `Clinic.Appointment.Service` (`http://appointment-service:8080`, `ClinicAppointmentDB`), đồng thời đồng bộ tức thời lịch khám Walk-in (`POST /internal/appointments/sync-walkin`) và hồ sơ bệnh nhân mới sang `ClinicAppointmentDB`.
-   - Thao tác đổi lịch `PATCH /api/appointments/{id}` và hủy lịch `POST /api/appointments/{id}/cancel` hoạt động trơn tru qua `ISchedulingClient` của `Clinic.Appointment.Service` (tự động giải phóng slot cũ qua `POST /internal/slots/release-by-appointment`), giải quyết triệt để lỗi `404 Work schedule not found`.
-
-2. **Lệch tên biến môi trường URL của Scheduling Service trong container `clinic_appointment_service` - ĐÃ KHẮC PHỤC**:
-   - `Clinic.Appointment.Service/Program.cs` đã bổ sung cơ chế fallback: đọc `Services:Scheduling:BaseUrl` -> `Scheduling:Authority` -> `http://localhost:5002`.
-   - `docker-compose.yml` đã được bổ sung biến môi trường `Services__Scheduling__BaseUrl=http://scheduling-service:8080`. Container `clinic_appointment_service` gọi sang Scheduling Service hoàn toàn thông suốt.
-
-3. **Thiếu trạng thái `NoShow` trong Enum `AppointmentStatus` của `Clinic.Appointment.Service` - ĐÃ KHẮC PHỤC**:
-   - Đã bổ sung `NoShow = 5` vào enum `AppointmentStatus`.
-   - Đã cấu hình `JsonStringEnumConverter` cho `Clinic.Appointment.Service`.
-   - Endpoint `GET /api/me/appointments` trả về `200 OK`, đọc đủ 38 lịch hẹn của `patient1`, `status` hiển thị chuỗi chuẩn (`"NoShow"`, `"Confirmed"`, `"Completed"`, `"Cancelled"`, `"Pending"`).
-
-4. **Idempotency ở tầng tạo bản ghi `Appointment` khi retry cùng `Idempotency-Key` - ĐÃ KHẮC PHỤC**:
-   - Đã thêm cột `IdempotencyKey` và filtered unique index `[IdempotencyKey] IS NOT NULL AND [IsDeleted] = 0` trên bảng `Appointments` của `ClinicAppointmentDB` qua migration `20261023064050_AddAppointmentIdempotencyKey`.
-   - `AppointmentManager.CreateAppointmentAsync` trả về ngay bản ghi hiện có (`200/201`) khi phát hiện trùng `IdempotencyKey` hợp lệ mà không chiếm thêm slot đặt khám.
-
-5. **Tích hợp RabbitMQ Outbox Publisher & Event Consumer hai chiều cho `Clinic.Appointment.Service` và `Clinic.Scheduling.Service` - ĐÃ KHẮC PHỤC**:
-   - Đã cài đặt `RabbitMQ.Client` 7.2.2 và đăng ký đầy đủ các Background Worker: `AppointmentOutboxPublisher` & `AppointmentEventConsumer` trong `Clinic.Appointment.Service`, cùng `SchedulingEventConsumer` trong `Clinic.Scheduling.Service`.
-   - Xác nhận thực tế toàn bộ luồng bất đồng bộ qua RabbitMQ (`clinic.events`): sự kiện `ExamCompleted` từ Monolith cập nhật lịch hẹn sang `Completed` trên `ClinicAppointmentDB`, sự kiện `UserProfileUpdated` cập nhật `PatientProjections`, và sự kiện `AppointmentCancelled` giải phóng slot trên `ClinicSchedulingDB`.
+- Tách `QueueTicket` và bộ đếm số thứ tự (`QueueCounter`) sang `Clinic.Queue.Service` (`ClinicQueueDB`) với dữ liệu denormalized (`appointmentId`, `patientId`, `doctorId`, `scheduleDate`, `visitId`), giải phóng sự phụ thuộc cuối cùng của hàng đợi vào thực thể `Appointment` trong `ClinicDB`.
+- Chuyển Consumer lắng nghe `AppointmentCheckedIn` từ Monolith sang `Clinic.Queue.Service`.
 
 ---
 
