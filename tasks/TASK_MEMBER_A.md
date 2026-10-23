@@ -157,16 +157,18 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 ## Giai đoạn 3: Tách Appointment Service
 
+> **Tài liệu kế hoạch chi tiết**: `tasks/PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md`
+
 ### Nhiệm vụ
 
-1. Tạo Appointment Service.
-2. Di chuyển `Appointment` và `AppointmentSnapshot` sang Appointment DB.
-3. Xây saga:
+1. Tạo Appointment Service (`Clinic.Appointment.Service`, cổng `5003`, DB `ClinicAppointmentDB`).
+2. Di chuyển `Appointment` và `AppointmentSnapshot` sang `ClinicAppointmentDB`.
+3. Xây saga đặt lịch:
    `ReserveSlot -> CreateAppointment -> ConfirmReservation`.
 4. Xử lý compensation bằng `ReleaseReservation` khi tạo appointment thất bại.
-5. Lưu snapshot thông tin cần hiển thị.
+5. Lưu thông tin hiển thị denormalized trên `Appointment` (kèm bản chiếu `PatientProjections`) và giữ `AppointmentSnapshot` làm nhật ký chỉnh sửa (1-N changelog) để traceback.
 6. Xây các trạng thái `Pending`, `Confirmed`, `Cancelled`, `CheckedIn`, `Completed`.
-7. Cung cấp API đổi lịch, hủy lịch và xác nhận lịch.
+7. Cung cấp API đặt lịch, đổi lịch (Reschedule Saga), hủy lịch, xác nhận lịch và check-in.
 
 ### Yêu cầu cần đạt
 
@@ -174,14 +176,23 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 - Không overbooking khi có request đồng thời.
 - Saga resume được sau khi service restart.
 - Reservation được release khi bước tạo appointment thất bại.
-- Appointment DB độc lập với Scheduling DB.
+- Appointment DB độc lập hoàn toàn với Scheduling DB và ClinicDB.
+
+### Các quyết định thiết kế đã chốt
+
+1. **Vai trò `AppointmentSnapshot` & Denormalized Read Model**: `AppointmentSnapshot` giữ đúng vai trò lưu nhật ký chỉnh sửa (1-N) để traceback khi người khám có vấn đề về đặt/đổi lịch (lưu kèm `OldDoctorId`, `OldDoctorName`, `OldScheduleDate`, `UpdatedByUserName` để không cần join xuyên service). Thông tin hiển thị chính thức đọc trực tiếp từ các cột denormalized trên bảng `Appointments`.
+2. **Bản chiếu `PatientProjections`**: Khi chưa tách Patient Service (GĐ 5), `ClinicAppointmentDB` lưu bản chiếu nhẹ `PatientProjections` được nạp từ script import và đồng bộ qua sự kiện `UserProfileUpdated` từ Identity Service.
+3. **Event-Driven Check-in**: `POST /appointments/{id}/check-in` tại Appointment Service chuyển trạng thái sang `CheckedIn` và ghi Outbox phát `AppointmentCheckedIn`. Monolith tiêu thụ sự kiện này để cấp `QueueNumber` và tạo `QueueTicket` trong `ClinicDB`.
+4. **Gỡ bỏ Foreign Key trên `ClinicDB`**: Tạo migration xóa `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId` trên `ClinicDB`, chuyển `AppointmentId` thành loose UUID reference.
+5. **Đồng bộ `ExamCompleted`**: Appointment Service lắng nghe sự kiện `ExamCompleted` từ Queue để tự động chuyển `Appointment.Status = Completed` (Eventual Consistency).
+6. **Hủy lịch & Đổi lịch với Scheduling Service**: Khi hủy lịch, phát sự kiện `AppointmentCancelled` để Scheduling Service giải phóng `SlotReservation` đã confirm; khi đổi lịch, thực hiện Reschedule Saga 2 pha (giữ slot mới $\rightarrow$ lưu snapshot & cập nhật $\rightarrow$ confirm slot mới & giải phóng slot cũ).
 
 ### Lưu ý
 
 - Không dùng distributed transaction giữa Appointment và Scheduling.
 - Không sửa trực tiếp dữ liệu của Scheduling Service để rollback.
 - Phân biệt lỗi nghiệp vụ và lỗi tạm thời.
-- Snapshot chỉ chứa dữ liệu cần thiết, không sao chép toàn bộ Patient entity.
+- Bản chiếu chỉ chứa dữ liệu hiển thị cần thiết, không sao chép toàn bộ Patient entity.
 
 ---
 

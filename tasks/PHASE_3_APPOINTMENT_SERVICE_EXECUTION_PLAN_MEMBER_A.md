@@ -26,121 +26,79 @@ Dịch vụ này sở hữu cơ sở dữ liệu riêng biệt: **`ClinicAppoint
 | Entity / Aggregate | Vai trò nghiệp vụ trong Appointment Service | Cơ sở dữ liệu |
 | :--- | :--- | :--- |
 | `Appointment` *(Aggregate Root)* | Quản lý thông tin lịch khám, thời gian, trạng thái, ghi chú và các trường denormalized. | `ClinicAppointmentDB` |
-| `AppointmentSnapshot` *(Changelog)* | Lưu trữ lịch sử các lần đổi ca, đổi giờ khám, lý do thay đổi hoặc hủy lịch (1-N). | `ClinicAppointmentDB` |
+| `AppointmentSnapshot` *(Nhật ký chỉnh sửa / Traceback)* | Lưu nhật ký các lần chỉnh sửa lịch hẹn (đổi lịch, xác nhận, hủy lịch...) để traceback khi có khiếu nại/sự cố đặt lịch (1-N), không dùng làm nơi đọc thông tin chính thức. | `ClinicAppointmentDB` |
 | `PatientProjection` *(Bản chiếu)* | Lưu bản chiếu nhân thân tối thiểu của bệnh nhân để xác thực và hỗ trợ truy vấn cục bộ. | `ClinicAppointmentDB` |
 | `OutboxMessage` | Lưu trữ các sự kiện tích hợp trong cùng local transaction để publisher gửi sang RabbitMQ. | `ClinicAppointmentDB` |
 
 ---
 
-## 2. Phân Tích & Giải Quyết 6 Điểm Mâu Thuẫn Thiết Kế Cốt Lõi
+## 2. Các Quyết Định Kiến Trúc Đã Chốt Cho Giai Đoạn 3
 
-Trước khi bước vào triển khai, 6 điểm mâu thuẫn / xung đột kiến trúc sau đây đã được rà soát và thống nhất phương án xử lý:
+Dựa trên quá trình đối soát mã nguồn và thống nhất định hướng thiết kế, dưới đây là **6 quyết định kiến trúc chính thức** cho Giai đoạn 3:
 
 ```mermaid
 flowchart TD
-    subgraph Conflicts ["6 Điểm Cần Chốt Quyết Định Kiến Trúc GĐ 3"]
-        C1["1. Vai trò AppointmentSnapshot: Audit Changelog hay Read Model?"]
-        C2["2. Nguồn dữ liệu Patient khi Patient Service chưa tách (GĐ 5)?"]
-        C3["3. Ranh giới Check-in: Ai đổi trạng thái và ai tạo QueueTicket?"]
-        C4["4. Khóa ngoại QueueTicket/MedicalReport tới Appointments trong ClinicDB?"]
-        C5["5. Đồng bộ khi khám xong: ExamCompleted -> Appointment.Completed?"]
-        C6["6. Cơ chế Hủy lịch / Đổi lịch tác động tới Slot bên Scheduling Service?"]
+    subgraph Decisions ["6 Quyết Định Kiến Trúc Đã Chốt (GĐ 3)"]
+        D1["1. AppointmentSnapshot giữ vai trò Nhật ký chỉnh sửa (Traceback); Đọc chính thức từ Appointments"]
+        D2["2. Dùng PatientProjections trong ClinicAppointmentDB & đồng bộ qua UserProfileUpdated"]
+        D3["3. Event-Driven Check-in: Appointment đổi CheckedIn & phát AppointmentCheckedIn để Queue cấp số"]
+        D4["4. Gỡ bỏ FK từ QueueTickets và MedicalReports tới Appointments trong ClinicDB"]
+        D5["5. Đồng bộ hoàn tất khám qua ExamCompletedConsumer (Eventual Consistency)"]
+        D6["6. Hủy lịch phát AppointmentCancelled giải phóng slot; Đổi lịch dùng Reschedule Saga 2 pha"]
     end
 ```
 
 ---
 
-### 2.1. Mâu thuẫn 1: Vai trò của `AppointmentSnapshot` (Audit History hay Denormalized Read Model?)
-
-- **Bối cảnh & Xung đột**:
-  - Trong Monolith (`AppointmentSnapshot.cs`), entity này là **Changelog / Audit Log** (quan hệ 1-N). Mỗi khi cập nhật (`Update`) hoặc hủy (`Cancel`), domain tự động ghi lại: `OldWorkScheduleId`, `TimeSlot`, `Reason`, `Status`, `UpdatedAt`, `UpdatedByUserId`.
-  - Trong tài liệu kiến trúc (`PHASE_0_API_CONTRACT_ANALYSIS.md` mục 3.4), `AppointmentSnapshot` lại được mô tả như một **Bản sao thông tin hiển thị tĩnh (1-1)**: `PatientFullName`, `DoctorFullName`, `SpecialtyName`, `RoomNumber`, `ContactPhone` để chống join phân tán.
-- **Phương án đề xuất**:
-  - *Phương án 1.1 (Khuyên dùng - Đã chốt)*:
-    - **Denormalize trực tiếp vào bảng `Appointments`**: Bổ sung các cột thông tin hiển thị: `PatientName` (nvarchar 200), `PatientPhone` (nvarchar 20), `PatientGender` (nvarchar 10), `PatientDateOfBirth` (DateOnly) trực tiếp vào bảng `Appointments` (song song với các cột `DoctorName`, `SpecialtyName`, `ScheduleDate` đã có từ GĐ 2). Bảng `Appointments` tự nó là Self-Contained Read Model, truy vấn danh sách và chi tiết đạt hiệu năng tối đa (Zero Join).
-    - **Duy trì bảng `AppointmentSnapshots` làm Changelog (1-N)**: Bảng này chỉ lưu lại lịch sử thay đổi ca/giờ/lý do mỗi khi đổi lịch hoặc hủy lịch, phục vụ tính năng `GetAppointmentChangelogQuery`.
-  - *Phương án 1.2*: Tách thành 2 bảng riêng biệt: `AppointmentViewSnapshots` (1-1) và `AppointmentChangelogs` (1-N). Gây cồng kềnh bảng không cần thiết.
-- **Quyết định**: **Áp dụng Phương án 1.1**.
+### 2.1. Quyết định 1: Vai trò của `AppointmentSnapshot` (Nhật ký chỉnh sửa để Traceback) & Đọc thông tin chính thức trên `Appointments`
+1. **Giữ nguyên vai trò của `AppointmentSnapshot` là bảng Nhật ký chỉnh sửa phục vụ Traceback (1-N)**:
+   - `AppointmentSnapshot` lưu nhật ký các lần chỉnh sửa (`Update`, `Confirm`, `Cancel`, `AdminCancel`) để traceback khi người khám có vấn đề hoặc khiếu nại về đặt lịch (đặt sai, bị đổi lịch, hủy lịch...), **không dùng** làm nơi đọc thông tin hiển thị chính thức.
+   - Bổ sung các trường lịch sử tự thân vào `AppointmentSnapshot` ngay lúc ghi nhật ký: `OldWorkScheduleId`, `OldDoctorId`, `OldDoctorName`, `OldScheduleDate`, `TimeSlot`, `Reason`, `Status`, `UpdatedAt`, `UpdatedByUserId`, `UpdatedByUserName` để phục vụ API `GET /admin/appointments/{appointmentId}/history` độc lập mà không cần join sang `ClinicSchedulingDB` hay `ClinicIdentityDB`.
+2. **Đọc thông tin hiển thị chính thức trực tiếp từ bảng `Appointments`**:
+   - Bảng `Appointments` là nguồn chuẩn duy nhất để đọc thông tin lịch hẹn hiện hành, lưu trực tiếp các cột denormalized của Bác sĩ (`DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate` - đã có từ GĐ 2) và Bệnh nhân (`PatientName`, `PatientPhone`, `PatientGender`, `PatientDateOfBirth`).
 
 ---
 
-### 2.2. Mâu thuẫn 2: Nguồn dữ liệu Bệnh nhân (`Patient`) khi Patient Service chưa được tách (GĐ 5 mới tách)
-
-- **Bối cảnh & Xung đột**:
-  - Thông tin bệnh nhân hiện tại: Tài khoản và nhân thân cơ bản (`Persons`) nằm ở `ClinicIdentityDB`; Hồ sơ y tế (`Patients`) vẫn tạm thời nằm ở `ClinicDB` của Monolith. Đến Giai đoạn 5 mới chính thức tách `Patient Service`.
-  - Khi đặt lịch hẹn qua Appointment Service (`POST /appointments`), service cần biết `PatientId`, `FullName`, `PhoneNumber` để kiểm tra quyền và lưu snapshot. Appointment Service tuyệt đối không được truy cập trực tiếp `ClinicDB`.
-- **Phương án đề xuất**:
-  - *Phương án 2.1 (Khuyên dùng - Đã chốt)*:
-    - **Single Identity & Role Projection**: Access Token JWT của bệnh nhân đã có sẵn các claims: `sub` (UserId), `patientId`, `personId`.
-    - Tạo bảng bản chiếu nhẹ `PatientProjections` (`Id`, `IdentityUserId`, `PersonId`, `FullName`, `PhoneNumber`, `Gender`, `DateOfBirth`) trong `ClinicAppointmentDB`.
-    - Nạp dữ liệu ban đầu bằng kịch bản import từ `ClinicDB`. Khi người dùng đổi thông tin cá nhân, Identity Service phát `UserProfileUpdated`, Appointment Service đón nhận để cập nhật bản chiếu (đồng nhất với cách `Clinic.Scheduling.Service` đã làm với `Employees` ở GĐ 2).
-    - Khi đặt lịch online: Lấy `PatientId` từ Token claims. Khi Lễ tân đặt hộ hoặc Walk-in: Lễ tân truyền `PatientId` (kèm thông tin họ tên, số điện thoại) trong request body.
-  - *Phương án 2.2*: Gọi đồng bộ HTTP sang Monolith `/internal/patients/{id}`. Nhược điểm: Tạo network latency và phụ thuộc đồng bộ.
-- **Quyết định**: **Áp dụng Phương án 2.1**.
+### 2.2. Quyết định 2: Quản lý dữ liệu Bệnh nhân qua Bản chiếu `PatientProjections` (Single Identity & Role Projection)
+- Access Token JWT của bệnh nhân chứa sẵn các claims định danh: `sub` (`UserId`), `patientId`, `personId`.
+- Trong `ClinicAppointmentDB`, duy trì bảng bản chiếu `PatientProjections` (`Id`, `IdentityUserId`, `PersonId`, `FullName`, `PhoneNumber`, `Gender`, `DateOfBirth`).
+- Nạp dữ liệu ban đầu bằng kịch bản import từ `ClinicDB`. Khi người dùng cập nhật thông tin cá nhân tại Identity Service, sự kiện `UserProfileUpdated` được phát qua RabbitMQ để Appointment Service tự động cập nhật bản chiếu (nhất quán với mô hình của `Clinic.Scheduling.Service` ở GĐ 2).
+- Khi bệnh nhân tự đặt lịch online: lấy `PatientId` từ JWT claims và tra cứu nhanh trên `PatientProjections`. Khi Lễ tân đặt hộ hoặc tiếp nhận Walk-in: nhận `PatientId` (và cập nhật/đồng bộ bản chiếu nếu là bệnh nhân mới tạo).
 
 ---
 
-### 2.3. Mâu thuẫn 3: Ranh giới Check-in: Ai đổi trạng thái `CheckedIn` và ai tạo `QueueTicket`?
-
-- **Bối cảnh & Xung đột**:
-  - Monolith hiện tại xử lý `POST /appointments/{id}/check-in` bằng cách vừa đổi `Appointment.Status = CheckedIn`, vừa insert bản ghi `QueueTicket` vào `ClinicDB` trong cùng 1 transaction.
-  - Trong Giai đoạn 3, `Appointment` chuyển sang `ClinicAppointmentDB`, nhưng `QueueTicket` vẫn ở `ClinicDB` (Giai đoạn 4 mới tách Queue Service). Appointment Service không thể và không được phép insert trực tiếp `QueueTicket` vào `ClinicDB`.
-- **Phương án đề xuất**:
-  - *Phương án 3.1 (Khuyên dùng - Đã chốt - Event-Driven Check-in)*:
-    - Endpoint `POST /appointments/{id}/check-in` chuyển giao cho `Appointment Service` quản lý.
-    - Appointment Service kiểm tra điều kiện hợp lệ (`Status == Confirmed`, đúng ngày khám `ScheduleDate == Today`) $\to$ Chuyển `Appointment.Status = CheckedIn` $\to$ Ghi Outbox phát sự kiện `AppointmentCheckedIn { AppointmentId, PatientId, DoctorId, ScheduleDate, TimeSlot, VisitId, PatientName }`.
-    - Phía Monolith: Cấu hình một Consumer lắng nghe `AppointmentCheckedIn` từ RabbitMQ để tự động cấp số và tạo `QueueTicket` trong `ClinicDB`.
-    - *Lợi ích dài hạn*: Đúng chuẩn kiến trúc Event-Driven. Đến Giai đoạn 4 tách Queue Service, chỉ cần chuyển Consumer này từ Monolith sang `Queue Service` mà **không cần sửa đổi bất kỳ dòng code nào của Appointment Service**.
-  - *Phương án 3.2*: Tạm thời để endpoint Check-in ở Monolith. Monolith tạo `QueueTicket` rồi gọi HTTP sang Appointment Service để đổi trạng thái. Nhược điểm: Nhập nhằng quyền sở hữu vòng đời lịch hẹn.
-- **Quyết định**: **Áp dụng Phương án 3.1**.
+### 2.3. Quyết định 3: Ranh giới Check-in theo mô hình Event-Driven
+- Endpoint `POST /appointments/{id}/check-in` do `Clinic.Appointment.Service` sở hữu và xử lý.
+- Khi nhận request check-in (kèm `Idempotency-Key`):
+  1. Appointment Service kiểm tra lịch hẹn hợp lệ (`Status == Confirmed` và đúng ngày khám `ScheduleDate == Today`).
+  2. Chuyển trạng thái `Appointment.Status = CheckedIn` và ghi Outbox phát sự kiện `AppointmentCheckedIn { AppointmentId, PatientId, DoctorId, ScheduleDate, TimeSlot, VisitId, PatientName }` trong cùng local transaction.
+  3. Phía Monolith (đang tạm giữ module Queue trước khi tách ở GĐ 4) sử dụng Consumer lắng nghe `AppointmentCheckedIn` từ RabbitMQ để cấp `QueueNumber` và tạo `QueueTicket` trong `ClinicDB`.
+- **Lợi ích**: Tách biệt hoàn toàn ranh giới database giữa Appointment và Queue; đến Giai đoạn 4 chỉ cần chuyển Consumer này sang `Clinic.Queue.Service` mà không cần sửa đổi `Clinic.Appointment.Service`.
 
 ---
 
-### 2.4. Mâu thuẫn 4: Khóa ngoại của `QueueTicket` và `MedicalReport` tới `Appointments` trong `ClinicDB`
-
-- **Bối cảnh & Xung đột**:
-  - Bảng `QueueTickets` và `MedicalReports` trong `ClinicDB` đang có Foreign Key `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId`.
-  - Khi tách `Appointments` sang `ClinicAppointmentDB`, nếu giữ lại 2 Foreign Key này trong `ClinicDB`, dữ liệu hàng đợi và bệnh án sẽ bị "khóa cứng" vào bảng legacy của Monolith, không thể tiếp nhận các lịch hẹn mới được tạo từ Appointment Service.
-- **Phương án đề xuất**:
-  - *Phương án 4.1 (Khuyên dùng - Đã chốt)*:
-    - Tạo migration trên `ClinicDB` để **DROP hoàn toàn 2 Foreign Key**:
-      ```sql
-      ALTER TABLE QueueTickets DROP CONSTRAINT FK_QueueTickets_Appointments_AppointmentId;
-      ALTER TABLE MedicalReports DROP CONSTRAINT FK_MedicalReports_Appointments_AppointmentId;
-      ```
-    - Cột `AppointmentId` trên `QueueTickets` và `MedicalReports` trở thành loose reference identifier (UUID độc lập).
-    - Bảng `Appointments` cũ trong `ClinicDB` được giữ nguyên dữ liệu lịch sử để tra cứu chuyển tiếp.
-- **Quyết định**: **Áp dụng Phương án 4.1**.
+### 2.4. Quyết định 4: Gỡ bỏ Khóa ngoại (Foreign Key) từ `QueueTickets` và `MedicalReports` tới `Appointments` trong `ClinicDB`
+- Tạo migration trên Monolith (`ClinicDB`) để gỡ bỏ 2 ràng buộc khóa ngoại:
+  - `FK_QueueTickets_Appointments_AppointmentId`
+  - `FK_MedicalReports_Appointments_AppointmentId`
+- Cột `AppointmentId` trên `QueueTickets` và `MedicalReports` chuyển thành loose UUID reference (liên kết logic, không khóa cứng ở tầng vật lý SQL Server), cho phép tạo vé khám và bệnh án cho các lịch hẹn mới sinh ra bên `ClinicAppointmentDB`.
 
 ---
 
-### 2.5. Mâu thuẫn 5: Đồng bộ trạng thái khi Khám xong (`ExamCompleted` $\to$ `Appointment.Completed`)
-
-- **Bối cảnh & Xung đột**:
-  - Khi bác sĩ khám xong một ca (`POST /queue/{ticketId}/complete-exam`), Monolith hiện tại đang gọi trực tiếp `queueTicket.Appointment.Complete(...)` trong local transaction.
-  - Khi `Appointment` nằm ở `ClinicAppointmentDB`, Queue (Monolith) không thể sửa trực tiếp bảng `Appointments` được nữa.
-- **Phương án đề xuất**:
-  - Queue (Monolith) đã có sẵn logic phát sự kiện `ExamCompleted { VisitId, QueueTicketId, AppointmentId, DoctorId, CompletedAt }` qua Outbox.
-  - Tại `Clinic.Appointment.Service`: Triển khai `ExamCompletedConsumer` lắng nghe sự kiện `ExamCompleted` từ RabbitMQ $\to$ Tra cứu `Appointment` theo `AppointmentId` $\to$ Cập nhật trạng thái `Appointment.Status = Completed` (Eventual Consistency).
-- **Quyết định**: **Triển khai `ExamCompletedConsumer` trong Appointment Service**.
+### 2.5. Quyết định 5: Đồng bộ trạng thái Hoàn tất khám (`ExamCompleted` $	o$ `Appointment.Completed`)
+- Khi bác sĩ hoàn tất khám (`POST /queue/{ticketId}/complete-exam`), module Queue chỉ cập nhật `QueueTicket.Status = Completed` và phát sự kiện `ExamCompleted { VisitId, QueueTicketId, AppointmentId, DoctorId, CompletedAt }` qua Outbox.
+- `Clinic.Appointment.Service` triển khai `ExamCompletedConsumer` lắng nghe sự kiện `ExamCompleted` (idempotent qua Inbox) $	o$ Tra cứu `Appointment` theo `AppointmentId` $	o$ Chuyển trạng thái sang `Completed` (Eventual Consistency).
 
 ---
 
-### 2.6. Mâu thuẫn 6: Quy trình Hủy lịch (`CancelAppointment`) và Đổi lịch (`UpdateAppointment`) với Scheduling Service
-
-- **Bối cảnh & Xung đột**:
-  - Khi Hủy lịch: Cần giải phóng slot tương ứng trong Scheduling Service để phục hồi `RecommendedCapacity` cho bệnh nhân khác đặt chỗ.
-  - Khi Đổi lịch: Cần giữ chỗ slot tại ca mới (`ReserveSlot`), nếu thành công thì cập nhật lịch hẹn và giải phóng slot ở ca cũ; nếu giữ chỗ ca mới thất bại thì phải giữ nguyên lịch hẹn cũ (chống mất lịch).
-- **Phương án đề xuất**:
-  - **Hủy lịch khám (Cancellation)**:
-    - Appointment Service chuyển trạng thái `Appointment.Status = Cancelled`, ghi Outbox phát sự kiện:
-      `AppointmentCancelled { AppointmentId, WorkScheduleId, TimeSlot, DoctorId, PatientId, CancelledAt }`.
-    - Scheduling Service lắng nghe sự kiện `AppointmentCancelled` $\to$ Chuyển trạng thái `SlotReservation` thành `Released` $\to$ Phục hồi capacity ca trực tức thì.
-  - **Đổi lịch khám (Reschedule Saga)**:
-    - Pha 1: Gọi HTTP `POST /schedules/{newScheduleId}/reservations` (kèm `Idempotency-Key`) để giữ chỗ slot mới.
-    - Pha 2: Cập nhật thông tin ca mới vào `Appointment`, ghi changelog vào `AppointmentSnapshots`, gọi `ConfirmReservation` cho slot mới, và phát sự kiện giải phóng slot cũ.
-    - Pha 3 (Bồi hoàn): Nếu pha 2 thất bại $\to$ Gọi `ReleaseReservation` cho slot mới, giữ nguyên trạng thái lịch hẹn ban đầu.
-- **Quyết định**: **Áp dụng quy trình trên**.
+### 2.6. Quyết định 6: Quy trình Hủy lịch (`CancelAppointment`) và Đổi lịch (`UpdateAppointment`) với Scheduling Service
+1. **Hủy lịch khám (Event-Driven Cancellation)**:
+   - Khi hủy lịch hợp lệ (trước giờ khám $\ge 24$ tiếng đối với bệnh nhân, hoặc hủy bởi Admin/Lễ tân), Appointment Service ghi nhận `AppointmentSnapshot`, chuyển `Appointment.Status = Cancelled`, và ghi Outbox phát sự kiện `AppointmentCancelled { AppointmentId, WorkScheduleId, TimeSlot, DoctorId, PatientId, CancelledAt }`.
+   - `Clinic.Scheduling.Service` lắng nghe sự kiện `AppointmentCancelled` để chuyển trạng thái `SlotReservation` tương ứng (`WorkScheduleId`, `TimeSlot`, `PatientId`) sang `Released`, khôi phục `RecommendedCapacity` cho ca trực.
+2. **Đổi lịch khám (Reschedule Saga 2 pha)**:
+   - **Pha 1**: Gọi HTTP `POST /schedules/{newScheduleId}/reservations` (kèm `Idempotency-Key`) để giữ chỗ slot mới tại Scheduling Service.
+   - **Pha 2**: Ghi bản ghi trạng thái cũ vào `AppointmentSnapshots`, cập nhật thông tin ca mới vào `Appointment`, gọi `ConfirmReservation` cho slot mới, và phát sự kiện giải phóng slot cũ.
+   - **Bồi hoàn (Compensation)**: Nếu bước lưu DB hoặc xác nhận slot mới thất bại $	o$ Gọi `ReleaseReservation` cho slot mới và giữ nguyên lịch hẹn ban đầu.
 
 ---
 
@@ -184,11 +142,15 @@ erDiagram
         guid Id PK
         guid AppointmentId FK
         guid OldWorkScheduleId
+        guid OldDoctorId "Denormalized for Traceback"
+        string OldDoctorName "Denormalized for Traceback"
+        date OldScheduleDate "Denormalized for Traceback"
         time TimeSlot
         string Reason
         string Status
         datetime UpdatedAt
         guid UpdatedByUserId
+        string UpdatedByUserName "Denormalized for Traceback"
     }
 
     PatientProjections {
