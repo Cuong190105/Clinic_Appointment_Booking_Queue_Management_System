@@ -126,12 +126,29 @@ public sealed class AppointmentEventConsumer : BackgroundService
 
                 if (args.RoutingKey == "queue.exam-completed" || json.Contains(EventTypes.ExamCompleted))
                 {
-                    var envelope = JsonSerializer.Deserialize<EventEnvelope<ExamCompleted>>(
-                        json,
-                        EventJsonSerializerOptions.Default);
-                    var payload = envelope?.Payload ?? JsonSerializer.Deserialize<ExamCompleted>(
-                        json,
-                        EventJsonSerializerOptions.Default);
+                    ExamCompleted? payload = null;
+                    try
+                    {
+                        var envelope = JsonSerializer.Deserialize<EventEnvelope<ExamCompleted>>(
+                            json,
+                            EventJsonSerializerOptions.Default);
+                        payload = envelope?.Payload;
+                    }
+                    catch
+                    {
+                        // Fallback to direct deserialization
+                    }
+
+                    if (payload == null)
+                    {
+                        try
+                        {
+                            payload = JsonSerializer.Deserialize<ExamCompleted>(
+                                json,
+                                EventJsonSerializerOptions.Default);
+                        }
+                        catch { }
+                    }
 
                     if (payload != null)
                     {

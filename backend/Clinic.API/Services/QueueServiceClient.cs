@@ -65,5 +65,20 @@ public sealed class QueueServiceClient
             StatusCode = (int)response.StatusCode
         };
     }
+
+    public async Task<bool> PostInternalAsync(string targetPath, object jsonBody, CancellationToken ct = default)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(jsonBody);
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using var response = await _client.PostAsync(targetPath, content, ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 

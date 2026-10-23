@@ -24,13 +24,20 @@ namespace Clinic.API.Controllers
         private readonly IMapper _mapper;
         private readonly ICurrentUser _currentUser;
         private readonly AppointmentServiceClient _appointmentClient;
+        private readonly QueueServiceClient? _queueClient;
 
-        public ReceptionistController(ISender sender, IMapper mapper, ICurrentUser currentUser, AppointmentServiceClient appointmentClient)
+        public ReceptionistController(
+            ISender sender,
+            IMapper mapper,
+            ICurrentUser currentUser,
+            AppointmentServiceClient appointmentClient,
+            QueueServiceClient? queueClient = null)
         {
             _sender = sender;
             _mapper = mapper;
             _currentUser = currentUser;
             _appointmentClient = appointmentClient;
+            _queueClient = queueClient;
         }
 
         // Lấy danh sách bác sĩ đang có ca trực hôm nay (theo chuyên khoa)
@@ -81,6 +88,30 @@ namespace Clinic.API.Controllers
                 reason = result.Reason,
                 createdByUserId = userId
             }, HttpContext.RequestAborted);
+
+            // Sync walk-in ticket to Clinic.Queue.Service
+            if (_queueClient != null)
+            {
+                _ = await _queueClient.PostInternalAsync("internal/events/appointment-checked-in", new
+                {
+                    eventId = Guid.NewGuid(),
+                    eventType = "AppointmentCheckedIn",
+                    schemaVersion = 1,
+                    occurredAt = DateTimeOffset.UtcNow,
+                    correlationId = Guid.NewGuid(),
+                    producer = "monolith-receptionist",
+                    payload = new
+                    {
+                        appointmentId = result.AppointmentId,
+                        patientId = result.PatientId,
+                        doctorId = result.DoctorId,
+                        checkedInAt = result.CheckInTime,
+                        priority = result.IsUrgent,
+                        patientName = result.PatientName,
+                        doctorName = result.DoctorName
+                    }
+                }, HttpContext.RequestAborted);
+            }
 
             return StatusCode(StatusCodes.Status201Created, result);
         }

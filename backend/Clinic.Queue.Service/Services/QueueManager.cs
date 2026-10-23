@@ -464,7 +464,17 @@ public class QueueManager : IQueueManager
             CorrelationId = correlationId != Guid.Empty ? correlationId : Guid.NewGuid(),
             CausationId = causationId,
             Producer = "Clinic.Queue.Service",
-            Payload = JsonSerializer.Serialize(payload),
+            Payload = JsonSerializer.Serialize(new EventEnvelope<T>
+            {
+                EventId = Guid.NewGuid(),
+                EventType = eventType,
+                SchemaVersion = 1,
+                OccurredAt = DateTimeOffset.UtcNow,
+                CorrelationId = correlationId != Guid.Empty ? correlationId : Guid.NewGuid(),
+                CausationId = causationId,
+                Producer = "Clinic.Queue.Service",
+                Payload = payload
+            }),
             RoutingKey = routingKey,
             Status = OutboxMessageStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow
