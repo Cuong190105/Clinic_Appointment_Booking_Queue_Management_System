@@ -31,6 +31,7 @@ public interface ISchedulingClient
     Task<ScheduleReservationResult?> ReserveSlotAsync(Guid scheduleId, TimeOnly timeSlot, Guid patientId, string idempotencyKey, CancellationToken ct = default);
     Task<bool> ConfirmReservationAsync(Guid scheduleId, Guid reservationId, CancellationToken ct = default);
     Task<bool> ReleaseReservationAsync(Guid scheduleId, Guid reservationId, CancellationToken ct = default);
+    Task<bool> ReleaseSlotByAppointmentAsync(Guid appointmentId, Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid cancelledBy, CancellationToken ct = default);
     Task<ScheduleInfoResult?> GetScheduleAsync(Guid scheduleId, CancellationToken ct = default);
 }
 

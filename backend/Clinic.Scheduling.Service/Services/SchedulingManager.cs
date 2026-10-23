@@ -20,6 +20,7 @@ public interface ISchedulingManager
     Task<WorkSchedule> UpdateScheduleAsync(Guid scheduleId, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int recommendedCapacity, CancellationToken ct = default);
     Task<bool> CancelScheduleAsync(Guid scheduleId, string reason, CancellationToken ct = default);
     Task<int> HandleUserProfileUpdatedAsync(UserProfileUpdated evt, CancellationToken ct = default);
+    Task<bool> ReleaseSlotByAppointmentAsync(Guid scheduleId, TimeOnly timeSlot, Guid patientId, CancellationToken ct = default);
 }
 
 public class SchedulingManager : ISchedulingManager
@@ -298,6 +299,28 @@ public class SchedulingManager : ISchedulingManager
 
         reservation.Release();
         await _dbContext.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> ReleaseSlotByAppointmentAsync(Guid scheduleId, TimeOnly timeSlot, Guid patientId, CancellationToken ct = default)
+    {
+        var reservations = await _dbContext.SlotReservations
+            .Where(r => r.WorkScheduleId == scheduleId &&
+                        r.TimeSlot == timeSlot &&
+                        (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.Reserved))
+            .ToListAsync(ct);
+
+        if (reservations.Count == 0)
+            return false;
+
+        foreach (var r in reservations)
+        {
+            r.Release();
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Released {Count} slot reservation(s) on schedule {ScheduleId} at {TimeSlot} for patient {PatientId}.",
+            reservations.Count, scheduleId, timeSlot, patientId);
         return true;
     }
 

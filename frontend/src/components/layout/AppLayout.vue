@@ -183,6 +183,29 @@ function logout() {
             </RouterLink>
 
 
+            <!-- Đặt khám & Tiếp nhận -->
+            <RouterLink
+              to="/reception/booking"
+              class="flex items-center gap-3
+                     rounded-lg px-3 py-2.5
+                     text-sm font-medium
+                     text-slate-600
+                     transition-colors
+                     hover:bg-slate-50"
+              active-class="bg-violet-50 text-violet-700"
+            >
+              <!-- Calendar plus icon -->
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 2v4" />
+                <path d="M16 2v4" />
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M3 10h18" />
+                <path d="M12 14v4" />
+                <path d="M10 16h4" />
+              </svg>
+              <span>Đặt khám</span>
+            </RouterLink>
+
             <!-- Check-in -->
             <RouterLink
               to="/reception/checkin"
@@ -362,6 +385,13 @@ function logout() {
               exact-active-class="bg-violet-50 text-violet-700"
             >
               Khám bệnh & hàng đợi
+            </RouterLink>
+            <RouterLink
+              to="/doctor/medical-records"
+              class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              active-class="bg-violet-50 text-violet-700"
+            >
+              Hồ sơ bệnh án
             </RouterLink>
             <RouterLink
               to="/doctor/schedule"

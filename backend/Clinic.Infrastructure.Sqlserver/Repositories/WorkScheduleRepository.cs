@@ -1,4 +1,4 @@
-using Azure;
+﻿using Azure;
 using Clinic.Application.Common.Models;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
@@ -211,6 +211,25 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
             var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync();
             return new PagedResult<Doctor>(items, totalCount);
+        }
+        public async Task<List<WorkSchedule>> GetActiveWorkSchedulesForDateAsync(DateOnly date, Guid? specialtyId, CancellationToken cancellationToken = default)
+        {
+            var query = _context.WorkSchedules
+                .Include(w => w.Appointments)
+                .Include(w => w.Doctor)
+                    .ThenInclude(d => d.Employee)
+                        .ThenInclude(e => e.Person)
+                .Include(w => w.Doctor)
+                    .ThenInclude(d => d.WorkHistories)
+                        .ThenInclude(wh => wh.Specialty)
+                .Where(w => !w.IsDeleted && w.Status == WorkScheduleStatus.Active && w.Date == date);
+
+            if (specialtyId.HasValue && specialtyId.Value != Guid.Empty)
+            {
+                query = query.Where(w => w.Doctor.WorkHistories.Any(wh => !wh.IsDeleted && wh.EndDate == null && wh.SpecialtyId == specialtyId.Value));
+            }
+
+            return await query.ToListAsync(cancellationToken);
         }
     }
 }

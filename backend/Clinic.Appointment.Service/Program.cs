@@ -8,13 +8,20 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
+
 // Configuration
 var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5001";
 var issuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:5000";
 var audience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services";
 var requireHttpsMetadata = builder.Configuration.GetValue<bool>("Identity:RequireHttpsMetadata", false);
 var appointmentConnection = builder.Configuration.GetConnectionString("AppointmentConnection");
-var schedulingBaseUrl = builder.Configuration["Services:Scheduling:BaseUrl"] ?? "http://localhost:5002";
+var schedulingBaseUrl = builder.Configuration["Services:Scheduling:BaseUrl"]
+    ?? builder.Configuration["Scheduling:Authority"]
+    ?? "http://localhost:5002";
 
 // Persistence
 builder.Services.AddDbContext<AppointmentDbContext>(options =>
@@ -28,6 +35,11 @@ builder.Services.AddDbContext<AppointmentDbContext>(options =>
 // Outbox & Application Services
 builder.Services.AddScoped<IAppointmentOutboxWriter, AppointmentOutboxWriter>();
 builder.Services.AddScoped<IAppointmentManager, AppointmentManager>();
+builder.Services.AddHostedService<AppointmentOutboxPublisher>();
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<AppointmentEventConsumer>();
+}
 
 // HTTP Client for Scheduling Service
 builder.Services.AddHttpClient<ISchedulingClient, SchedulingClient>(client =>

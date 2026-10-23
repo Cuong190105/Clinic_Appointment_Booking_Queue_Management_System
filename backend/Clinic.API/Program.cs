@@ -95,7 +95,14 @@ builder.Services.AddHttpClient("Scheduling", client =>
     client.BaseAddress = new Uri(schedulingAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
 });
+builder.Services.AddHttpClient("Appointment", client =>
+{
+    var appointmentAuthority = builder.Configuration["Appointment:Authority"] ?? "http://localhost:5003";
+    client.BaseAddress = new Uri(appointmentAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddTransient<IdentityAccountClient>();
+builder.Services.AddTransient<Clinic.API.Services.AppointmentServiceClient>();
 
 builder.Services
     .AddAuthentication(options =>

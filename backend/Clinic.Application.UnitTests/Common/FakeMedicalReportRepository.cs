@@ -1,5 +1,11 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
+using Clinic.Domain.Enums;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.UnitTests.Common
 {
@@ -39,6 +45,60 @@ namespace Clinic.Application.UnitTests.Common
 
             return Task.FromResult(history);
         }
+
+        public Task<(List<MedicalReport> Items, int TotalCount)> SearchAsync(
+            Guid? doctorId,
+            string? search,
+            MedicalReportStatus? status,
+            DateOnly? fromDate,
+            DateOnly? toDate,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            IEnumerable<MedicalReport> query = _reports.Where(r => !r.IsDeleted);
+
+            if (doctorId.HasValue)
+            {
+                query = query.Where(r => (r.Appointment != null && r.Appointment.WorkSchedule != null && r.Appointment.WorkSchedule.DoctorId == doctorId.Value) ||
+                                         (r.Appointment != null && r.Appointment.DoctorId == doctorId.Value));
+            }
+
+            if (status.HasValue)
+            {
+                query = query.Where(r => r.Status == status.Value);
+            }
+
+            if (fromDate.HasValue)
+            {
+                query = query.Where(r => (r.Appointment != null && r.Appointment.WorkSchedule != null && r.Appointment.WorkSchedule.Date >= fromDate.Value) ||
+                                         (r.Appointment != null && r.Appointment.ScheduleDate >= fromDate.Value));
+            }
+
+            if (toDate.HasValue)
+            {
+                query = query.Where(r => (r.Appointment != null && r.Appointment.WorkSchedule != null && r.Appointment.WorkSchedule.Date <= toDate.Value) ||
+                                         (r.Appointment != null && r.Appointment.ScheduleDate <= toDate.Value));
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(r =>
+                    (r.Patient != null && r.Patient.Person != null && r.Patient.Person.FullName.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                    (r.Diagnosis != null && r.Diagnosis.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                    (r.Symptoms != null && r.Symptoms.Contains(term, StringComparison.OrdinalIgnoreCase))
+                );
+            }
+
+            var totalCount = query.Count();
+            var items = query
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            return Task.FromResult((items, totalCount));
+        }
     }
 }
-

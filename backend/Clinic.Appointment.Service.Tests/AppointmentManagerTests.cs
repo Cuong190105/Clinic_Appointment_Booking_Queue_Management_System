@@ -1,6 +1,7 @@
 using Clinic.Appointment.Service.DTOs;
 using Clinic.Appointment.Service.Entities;
 using Clinic.Appointment.Service.Enums;
+using AppointmentEntity = Clinic.Appointment.Service.Entities.Appointment;
 using Clinic.Appointment.Service.Persistence;
 using Clinic.Appointment.Service.Services;
 using Clinic.Contracts.Events;
@@ -15,12 +16,12 @@ public class AppointmentManagerTests
 {
     private sealed class FakeSchedulingClient : ISchedulingClient
     {
-        public SlotReservationResponse? ReserveResult { get; set; }
+        public ScheduleReservationResult? ReserveResult { get; set; }
         public bool ConfirmResult { get; set; } = true;
-        public ScheduleInfoDto? ScheduleInfoResult { get; set; }
+        public ScheduleInfoResult? ScheduleInfoResult { get; set; }
         public List<(Guid ScheduleId, Guid ReservationId)> ReleasedReservations { get; } = new();
 
-        public Task<SlotReservationResponse?> ReserveSlotAsync(Guid workScheduleId, TimeOnly timeSlot, Guid patientId, string idempotencyKey, CancellationToken ct = default)
+        public Task<ScheduleReservationResult?> ReserveSlotAsync(Guid workScheduleId, TimeOnly timeSlot, Guid patientId, string idempotencyKey, CancellationToken ct = default)
         {
             return Task.FromResult(ReserveResult);
         }
@@ -36,7 +37,12 @@ public class AppointmentManagerTests
             return Task.FromResult(true);
         }
 
-        public Task<ScheduleInfoDto?> GetScheduleAsync(Guid workScheduleId, CancellationToken ct = default)
+        public Task<bool> ReleaseSlotByAppointmentAsync(Guid appointmentId, Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid cancelledBy, CancellationToken ct = default)
+        {
+            return Task.FromResult(true);
+        }
+
+        public Task<ScheduleInfoResult?> GetScheduleAsync(Guid workScheduleId, CancellationToken ct = default)
         {
             return Task.FromResult(ScheduleInfoResult);
         }
@@ -67,16 +73,18 @@ public class AppointmentManagerTests
         var date = new DateOnly(2026, 11, 1);
         var slot = new TimeOnly(9, 0);
 
-        client.ReserveResult = new SlotReservationResponse(
+        client.ReserveResult = new ScheduleReservationResult(
             reservationId,
             scheduleId,
+            slot,
+            patientId,
+            "Reserved",
+            DateTimeOffset.UtcNow.AddMinutes(5),
+            "key-1",
             doctorId,
             "Dr. House",
             "General",
-            date,
-            slot,
-            patientId,
-            DateTimeOffset.UtcNow.AddMinutes(5));
+            date);
         client.ConfirmResult = true;
 
         var request = new CreateAppointmentRequest(
@@ -152,16 +160,18 @@ public class AppointmentManagerTests
         var reservationId = Guid.NewGuid();
         var patientId = Guid.NewGuid();
 
-        client.ReserveResult = new SlotReservationResponse(
+        client.ReserveResult = new ScheduleReservationResult(
             reservationId,
             scheduleId,
+            new TimeOnly(11, 0),
+            patientId,
+            "Reserved",
+            DateTimeOffset.UtcNow.AddMinutes(5),
+            "key-2",
             Guid.NewGuid(),
             "Dr. Strange",
             "Magic",
-            new DateOnly(2026, 11, 2),
-            new TimeOnly(11, 0),
-            patientId,
-            DateTimeOffset.UtcNow.AddMinutes(5));
+            new DateOnly(2026, 11, 2));
         client.ConfirmResult = false; // Confirm fails in Scheduling Service
 
         var request = new CreateAppointmentRequest(
@@ -185,6 +195,66 @@ public class AppointmentManagerTests
     }
 
     [Fact]
+    public async Task CreateAppointmentAsync_WhenSameIdempotencyKeyRetried_ReturnsExistingAppointmentWithoutReservingNewSlot()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var scheduleId = Guid.NewGuid();
+        var reservationId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+
+        client.ReserveResult = new ScheduleReservationResult(
+            reservationId,
+            scheduleId,
+            new TimeOnly(10, 0),
+            patientId,
+            "Reserved",
+            DateTimeOffset.UtcNow.AddMinutes(5),
+            "idemp-key-repeat",
+            Guid.NewGuid(),
+            "Dr. House",
+            "General",
+            new DateOnly(2026, 11, 1));
+        client.ConfirmResult = true;
+
+        var request = new CreateAppointmentRequest(
+            scheduleId,
+            new TimeOnly(10, 0),
+            "Fever",
+            patientId);
+
+        // 1st request
+        var (success1, _, result1, statusCode1) = await manager.CreateAppointmentAsync(
+            request,
+            currentUserId: patientId,
+            tokenPatientId: patientId,
+            isStaff: false,
+            idempotencyKey: "idemp-key-repeat");
+
+        Assert.True(success1);
+        Assert.Equal(StatusCodes.Status201Created, statusCode1);
+        Assert.NotNull(result1);
+
+        // Remove reserve result so any subsequent reserve attempt would fail
+        client.ReserveResult = null;
+
+        // 2nd request with exact same idempotency key
+        var (success2, _, result2, statusCode2) = await manager.CreateAppointmentAsync(
+            request,
+            currentUserId: patientId,
+            tokenPatientId: patientId,
+            isStaff: false,
+            idempotencyKey: "idemp-key-repeat");
+
+        Assert.True(success2);
+        Assert.Equal(StatusCodes.Status200OK, statusCode2);
+        Assert.NotNull(result2);
+        Assert.Equal(result1.Id, result2.Id);
+
+        // Only 1 appointment in DB
+        Assert.Single(db.Appointments);
+    }
+
+    [Fact]
     public async Task CreateAppointmentAsync_WalkIn_BypassesReservationAndConfirmedDirectly()
     {
         var (db, client, manager) = CreateTestSetup();
@@ -193,12 +263,16 @@ public class AppointmentManagerTests
         var patientId = Guid.NewGuid();
         var receptionistId = Guid.NewGuid();
 
-        client.ScheduleInfoResult = new ScheduleInfoDto(
+        client.ScheduleInfoResult = new ScheduleInfoResult(
             scheduleId,
             doctorId,
             "Dr. Watson",
             "General",
-            new DateOnly(2026, 11, 3));
+            new DateOnly(2026, 11, 3),
+            new TimeOnly(8, 0),
+            new TimeOnly(12, 0),
+            20,
+            "Active");
 
         var request = new CreateAppointmentRequest(
             scheduleId,
@@ -232,10 +306,10 @@ public class AppointmentManagerTests
     public async Task ConfirmAppointmentAsync_WhenPending_TransitionsToConfirmedAndPublishesOutbox()
     {
         var (db, client, manager) = CreateTestSetup();
-        var app = new Appointment(
+        var app = new AppointmentEntity(
             Guid.NewGuid(), "Patient", "090", "Male", null,
             Guid.NewGuid(), Guid.NewGuid(), "Dr. A", "General",
-            new DateOnly(2026, 11, 1), new TimeOnly(9, 0), "Reason",
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)), new TimeOnly(9, 0), "Reason",
             Guid.NewGuid(), isWalkIn: false);
         db.Appointments.Add(app);
         await db.SaveChangesAsync();
@@ -260,10 +334,10 @@ public class AppointmentManagerTests
     public async Task CheckInAppointmentAsync_WhenConfirmed_TransitionsToCheckedInAndPublishesOutbox()
     {
         var (db, client, manager) = CreateTestSetup();
-        var app = new Appointment(
+        var app = new AppointmentEntity(
             Guid.NewGuid(), "Patient", "090", "Male", null,
             Guid.NewGuid(), Guid.NewGuid(), "Dr. A", "General",
-            new DateOnly(2026, 11, 1), new TimeOnly(9, 0), "Reason",
+            DateOnly.FromDateTime(DateTime.UtcNow), new TimeOnly(9, 0), "Reason",
             Guid.NewGuid(), isWalkIn: false);
         app.Confirm(Guid.NewGuid());
         db.Appointments.Add(app);
@@ -278,7 +352,7 @@ public class AppointmentManagerTests
         var updated = await db.Appointments.FindAsync(app.Id);
         Assert.NotNull(updated);
         Assert.Equal(AppointmentStatus.CheckedIn, updated.Status);
-        Assert.NotNull(updated.CheckInTime);
+        Assert.NotNull(updated.UpdatedAt);
 
         var outbox = await db.OutboxMessages.ToListAsync();
         Assert.Single(outbox);
@@ -290,10 +364,10 @@ public class AppointmentManagerTests
     {
         var (db, client, manager) = CreateTestSetup();
         var patientId = Guid.NewGuid();
-        var app = new Appointment(
+        var app = new AppointmentEntity(
             patientId, "Patient", "090", "Male", null,
             Guid.NewGuid(), Guid.NewGuid(), "Dr. A", "General",
-            new DateOnly(2026, 11, 1), new TimeOnly(9, 0), "Reason",
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)), new TimeOnly(9, 0), "Reason",
             patientId, isWalkIn: false);
         db.Appointments.Add(app);
         await db.SaveChangesAsync();
@@ -323,7 +397,7 @@ public class AppointmentManagerTests
         var oldDate = new DateOnly(2026, 11, 1);
         var oldSlot = new TimeOnly(9, 0);
 
-        var app = new Appointment(
+        var app = new AppointmentEntity(
             patientId, "Patient", "090", "Male", null,
             oldScheduleId, oldDoctorId, "Dr. Old", "General",
             oldDate, oldSlot, "Old reason",
@@ -337,16 +411,18 @@ public class AppointmentManagerTests
         var newDate = new DateOnly(2026, 11, 5);
         var newSlot = new TimeOnly(14, 0);
 
-        client.ReserveResult = new SlotReservationResponse(
+        client.ReserveResult = new ScheduleReservationResult(
             newReservationId,
             newScheduleId,
+            newSlot,
+            patientId,
+            "Reserved",
+            DateTimeOffset.UtcNow.AddMinutes(5),
+            "resched-key-1",
             newDoctorId,
             "Dr. New",
             "Specialty",
-            newDate,
-            newSlot,
-            patientId,
-            DateTimeOffset.UtcNow.AddMinutes(5));
+            newDate);
         client.ConfirmResult = true;
 
         var request = new UpdateAppointmentRequest(newScheduleId, newSlot, "Rescheduled reason");
@@ -363,8 +439,8 @@ public class AppointmentManagerTests
         // Verify Snapshot created for traceback
         var changelogResult = await manager.GetAppointmentChangelogAsync(app.Id);
         Assert.True(changelogResult.Success);
-        Assert.Single(changelogResult.Result!.Changelog);
-        var entry = changelogResult.Result.Changelog.First();
+        Assert.Equal(2, changelogResult.Result!.Changelog.Count);
+        var entry = changelogResult.Result.Changelog.Last();
         Assert.Equal("Dr. Old", entry.DoctorName);
         Assert.Equal(oldDate, entry.Date);
         Assert.Equal(oldSlot, entry.TimeSlot);
@@ -379,10 +455,10 @@ public class AppointmentManagerTests
     public async Task ProcessExamCompletedAsync_UpdatesStatusToCompleted()
     {
         var (db, client, manager) = CreateTestSetup();
-        var app = new Appointment(
+        var app = new AppointmentEntity(
             Guid.NewGuid(), "Patient", "090", "Male", null,
             Guid.NewGuid(), Guid.NewGuid(), "Dr. A", "General",
-            new DateOnly(2026, 11, 1), new TimeOnly(9, 0), "Reason",
+            DateOnly.FromDateTime(DateTime.UtcNow), new TimeOnly(9, 0), "Reason",
             Guid.NewGuid(), isWalkIn: false);
         app.Confirm(Guid.NewGuid());
         app.CheckIn(DateTime.UtcNow);

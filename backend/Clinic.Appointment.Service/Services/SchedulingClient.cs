@@ -51,6 +51,29 @@ public class SchedulingClient : ISchedulingClient
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<bool> ReleaseSlotByAppointmentAsync(Guid appointmentId, Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid cancelledBy, CancellationToken ct = default)
+    {
+        try
+        {
+            var payload = new
+            {
+                appointmentId,
+                patientId,
+                cancelledBy,
+                cancelledAt = DateTimeOffset.UtcNow,
+                workScheduleId = scheduleId,
+                timeSlot
+            };
+            var response = await _client.PostAsJsonAsync("internal/events/appointment-cancelled", payload, ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Best-effort direct slot release failed for schedule {ScheduleId} slot {TimeSlot}; outbox consumer will retry.", scheduleId, timeSlot);
+            return false;
+        }
+    }
+
     public async Task<ScheduleInfoResult?> GetScheduleAsync(Guid scheduleId, CancellationToken ct = default)
     {
         var response = await _client.GetAsync($"schedules/{scheduleId}", ct);

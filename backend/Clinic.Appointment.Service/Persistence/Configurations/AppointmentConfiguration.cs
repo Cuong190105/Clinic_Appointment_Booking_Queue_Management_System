@@ -32,9 +32,15 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .IsRequired();
 
         builder.Property(a => a.IsWalkIn).IsRequired();
+        builder.Property(a => a.IdempotencyKey).HasMaxLength(128);
         builder.Property(a => a.UpdatedByUserId).IsRequired();
         builder.Property(a => a.CreatedAt).IsRequired();
         builder.Property(a => a.IsDeleted).IsRequired().HasDefaultValue(false);
+
+        // Unique index for idempotency key retry safety
+        builder.HasIndex(a => a.IdempotencyKey)
+            .IsUnique()
+            .HasFilter("[IdempotencyKey] IS NOT NULL AND [IsDeleted] = 0");
 
         // Unique index preventing overlapping bookings for the same doctor, date and time slot
         builder.HasIndex(a => new { a.DoctorId, a.ScheduleDate, a.TimeSlot })

@@ -291,25 +291,42 @@ public static class AppointmentEndpoints
         app.MapPatch("/receptionist/appointments/{appointmentId:guid}", rescheduleHandler).RequireAuthorization("StaffOnly");
 
         // 10. ADMIN & DOCTOR APPOINTMENTS LIST BY DATE
-        var listByDateHandler = async (
+        app.MapGet("/appointments", async (
             [FromQuery] DateOnly? date,
             IAppointmentManager manager,
             CancellationToken ct) =>
         {
-            var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
             var list = await manager.GetAppointmentsByDateAsync(targetDate, ct);
             return Results.Ok(list);
-        };
+        }).RequireAuthorization("StaffOnly");
 
-        app.MapGet("/appointments", listByDateHandler).RequireAuthorization("StaffOnly");
-        app.MapGet("/admin/appointments", listByDateHandler).RequireAuthorization("StaffOnly");
-
-        // 11. SUMMARY STATISTICS
-        var summaryHandler = async (
+        app.MapGet("/admin/appointments", async (
+            [FromQuery] DateOnly? date,
+            [FromQuery] int? pageNumber,
+            [FromQuery] int? pageSize,
             IAppointmentManager manager,
             CancellationToken ct) =>
         {
-            var summary = await manager.GetSummaryAsync(ct);
+            var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var paged = await manager.GetPagedAppointmentsByDateAsync(
+                targetDate,
+                pageNumber ?? 1,
+                pageSize ?? 10,
+                ct);
+            return Results.Ok(paged);
+        }).RequireAuthorization("StaffOnly");
+
+        // 11. SUMMARY STATISTICS
+        var summaryHandler = async (
+            [FromQuery] DateOnly? startDate,
+            [FromQuery] DateOnly? endDate,
+            [FromQuery] Guid? doctorId,
+            [FromQuery] Guid? specialtyId,
+            IAppointmentManager manager,
+            CancellationToken ct) =>
+        {
+            var summary = await manager.GetSummaryAsync(startDate, endDate, doctorId, specialtyId, ct);
             return Results.Ok(summary);
         };
 
@@ -355,6 +372,15 @@ public static class AppointmentEndpoints
             return handled ? Results.Ok(new { handled = true }) : Results.BadRequest(new { handled = false });
         });
 
+        app.MapPost("/internal/appointments/sync-walkin", async (
+            [FromBody] SyncWalkInAppointmentRequest request,
+            IAppointmentManager manager,
+            CancellationToken ct) =>
+        {
+            var handled = await manager.SyncWalkInAppointmentAsync(request, ct);
+            return handled ? Results.Ok(new { synced = true }) : Results.BadRequest(new { synced = false });
+        });
+
         return app;
     }
 
@@ -371,7 +397,11 @@ public static class AppointmentEndpoints
 
     private static List<string> GetRoles(ClaimsPrincipal user)
     {
-        return user.FindAll(ClaimTypes.Role).Select(r => r.Value).ToList();
+        return user.FindAll(ClaimTypes.Role)
+            .Concat(user.FindAll("role"))
+            .Select(r => r.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static Guid? GetPatientId(ClaimsPrincipal user)

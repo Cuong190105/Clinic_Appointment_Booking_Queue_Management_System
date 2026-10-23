@@ -23,14 +23,16 @@ namespace Clinic.API.Controllers
         private readonly HttpClient _identityClient;
         private readonly string? _identityServiceToken;
         private readonly IdentityAccountClient _identityAccounts;
+        private readonly AppointmentServiceClient _appointmentClient;
 
-        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts)
+        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient)
         {
             _sender = sender;
             _mapper = mapper;
             _identityClient = httpClientFactory.CreateClient("Identity");
             _identityServiceToken = configuration["Identity:ServiceToken"];
             _identityAccounts = identityAccounts;
+            _appointmentClient = appointmentClient;
         }
 
         [HttpGet("ping")]
@@ -119,9 +121,8 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetAppointmentSummary([FromQuery] GetAppointmentSummaryQueryRequest request)
         {
-            var command = _mapper.Map<GetAppointmentSummaryQueryRequest, GetTotalAppointmentSummaryQuery>(request);
-            var result = await _sender.Send(command);
-            return Ok(result);
+            var queryString = HttpContext.Request.QueryString.HasValue ? HttpContext.Request.QueryString.Value : string.Empty;
+            return await _appointmentClient.ProxyAsync(HttpContext, $"admin/appointments/summary{queryString}", HttpMethod.Get);
         }
 
         [HttpGet("appointments/{appointmentId}/history")]
@@ -129,9 +130,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(AppointmentChangelogDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAppointmentChangelog(Guid appointmentId)
         {
-            var command = new GetAppointmentChangelogQuery(appointmentId);
-            var result = await _sender.Send(command);
-            return Ok(result);
+            return await _appointmentClient.ProxyAsync(HttpContext, $"appointments/{appointmentId}/history", HttpMethod.Get);
         }
 
         [HttpGet("dashboard")]
@@ -177,10 +176,8 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(PaginationResponse<AppointmentExtended>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAppointmentsByDate([FromQuery] GetAppointmentsByDateRequest request)
         {
-            // placeholder: implement dashboard data retrieval
-            var command = _mapper.Map<GetAppointmentByDateQuery>(request);
-            var result = await _sender.Send(command);
-            return Ok(result);
+            var queryString = HttpContext.Request.QueryString.HasValue ? HttpContext.Request.QueryString.Value : string.Empty;
+            return await _appointmentClient.ProxyAsync(HttpContext, $"admin/appointments{queryString}", HttpMethod.Get);
         }
     }
 }

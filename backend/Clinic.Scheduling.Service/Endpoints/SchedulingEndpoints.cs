@@ -372,6 +372,19 @@ public static class SchedulingEndpoints
             return Results.Ok(new { isSuccess = true, message = $"Synchronized {updatedCount} employee profile(s)." });
         });
 
+        app.MapPost("/internal/events/appointment-cancelled", async (
+            [FromBody] Clinic.Contracts.Events.AppointmentCancelled evt,
+            ISchedulingManager manager,
+            CancellationToken ct) =>
+        {
+            if (evt.WorkScheduleId != Guid.Empty)
+            {
+                var released = await manager.ReleaseSlotByAppointmentAsync(evt.WorkScheduleId, evt.TimeSlot, evt.PatientId, ct);
+                return Results.Ok(new { isSuccess = true, released });
+            }
+            return Results.Ok(new { isSuccess = true, released = false });
+        });
+
         return app;
     }
 }

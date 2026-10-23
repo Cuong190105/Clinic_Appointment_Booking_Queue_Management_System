@@ -1,4 +1,9 @@
 using Clinic.Domain.Entities;
+using Clinic.Domain.Enums;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.Interfaces
 {
@@ -24,5 +29,18 @@ namespace Clinic.Application.Interfaces
         /// Lấy toàn bộ lịch sử khám bệnh (các MedicalReport) của 1 bệnh nhân, sắp xếp mới nhất trước.
         /// </summary>
         Task<List<MedicalReport>> GetHistoryByPatientIdAsync(Guid patientId);
+
+        /// <summary>
+        /// Tìm kiếm và phân trang hồ sơ khám bệnh.
+        /// </summary>
+        Task<(List<MedicalReport> Items, int TotalCount)> SearchAsync(
+            Guid? doctorId,
+            string? search,
+            MedicalReportStatus? status,
+            DateOnly? fromDate,
+            DateOnly? toDate,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default);
     }
 }

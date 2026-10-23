@@ -66,7 +66,20 @@ public interface IAppointmentManager
         string? idempotencyKey,
         CancellationToken ct = default);
 
-    Task<TotalAppointmentSummaryDto> GetSummaryAsync(CancellationToken ct = default);
+    Task<TotalAppointmentSummaryDto> GetSummaryAsync(
+        DateOnly? startDate = null,
+        DateOnly? endDate = null,
+        Guid? doctorId = null,
+        Guid? specialtyId = null,
+        CancellationToken ct = default);
+
+    Task<PagedAppointmentsDto> GetPagedAppointmentsByDateAsync(
+        DateOnly date,
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken ct = default);
+
+    Task<bool> SyncWalkInAppointmentAsync(SyncWalkInAppointmentRequest request, CancellationToken ct = default);
 
     Task<bool> ProcessExamCompletedAsync(ExamCompleted evt, CancellationToken ct = default);
 
@@ -100,6 +113,19 @@ public class AppointmentManager : IAppointmentManager
         string? idempotencyKey,
         CancellationToken ct = default)
     {
+        // 0. Idempotency Check
+        if (!string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            var existingApp = await _db.Appointments
+                .FirstOrDefaultAsync(a => a.IdempotencyKey == idempotencyKey && !a.IsDeleted, ct);
+            if (existingApp != null)
+            {
+                _logger.LogInformation("Idempotent retry detected for key '{IdempotencyKey}', returning existing appointment {AppointmentId}.",
+                    idempotencyKey, existingApp.Id);
+                return (true, null, ToDto(existingApp), StatusCodes.Status200OK);
+            }
+        }
+
         // 1. Resolve Patient
         Guid patientId;
         string patientName = request.PatientName ?? string.Empty;
@@ -188,7 +214,10 @@ public class AppointmentManager : IAppointmentManager
                 request.TimeSlot,
                 request.Reason,
                 currentUserId,
-                false);
+                false)
+            {
+                IdempotencyKey = idempotencyKey
+            };
 
             await using var tx = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
             try
@@ -285,7 +314,10 @@ public class AppointmentManager : IAppointmentManager
                 request.TimeSlot,
                 request.Reason,
                 currentUserId,
-                true);
+                true)
+            {
+                IdempotencyKey = idempotencyKey
+            };
 
             _db.Appointments.Add(appointment);
 
@@ -503,6 +535,16 @@ public class AppointmentManager : IAppointmentManager
             }, "appointment.cancelled");
 
             await _db.SaveChangesAsync(ct);
+
+            // Best-effort direct release on Scheduling Service alongside Outbox event
+            _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
+                app.Id,
+                app.WorkScheduleId,
+                app.TimeSlot,
+                app.PatientId,
+                currentUserId,
+                ct);
+
             return (true, null, StatusCodes.Status204NoContent);
         }
         catch (InvalidOperationException ex)
@@ -592,6 +634,15 @@ public class AppointmentManager : IAppointmentManager
             await _db.SaveChangesAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);
 
+            // Best-effort direct release of old slot on Scheduling Service alongside Outbox event
+            _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
+                app.Id,
+                oldScheduleId,
+                oldTimeSlot,
+                app.PatientId,
+                currentUserId,
+                ct);
+
             return (true, null, ToDto(app), StatusCodes.Status200OK);
         }
         catch (Exception ex)
@@ -641,16 +692,119 @@ public class AppointmentManager : IAppointmentManager
         }
     }
 
-    public async Task<TotalAppointmentSummaryDto> GetSummaryAsync(CancellationToken ct = default)
+    public async Task<TotalAppointmentSummaryDto> GetSummaryAsync(
+        DateOnly? startDate = null,
+        DateOnly? endDate = null,
+        Guid? doctorId = null,
+        Guid? specialtyId = null,
+        CancellationToken ct = default)
     {
-        var total = await _db.Appointments.CountAsync(a => !a.IsDeleted, ct);
-        var pending = await _db.Appointments.CountAsync(a => a.Status == AppointmentStatus.Pending && !a.IsDeleted, ct);
-        var confirmed = await _db.Appointments.CountAsync(a => a.Status == AppointmentStatus.Confirmed && !a.IsDeleted, ct);
-        var checkedIn = await _db.Appointments.CountAsync(a => a.Status == AppointmentStatus.CheckedIn && !a.IsDeleted, ct);
-        var completed = await _db.Appointments.CountAsync(a => a.Status == AppointmentStatus.Completed && !a.IsDeleted, ct);
-        var cancelled = await _db.Appointments.CountAsync(a => a.Status == AppointmentStatus.Cancelled && !a.IsDeleted, ct);
+        var query = _db.Appointments.Where(a => !a.IsDeleted);
+        if (startDate.HasValue)
+        {
+            query = query.Where(a => a.ScheduleDate >= startDate.Value);
+        }
+        if (endDate.HasValue)
+        {
+            query = query.Where(a => a.ScheduleDate <= endDate.Value);
+        }
+        if (doctorId.HasValue && doctorId.Value != Guid.Empty)
+        {
+            query = query.Where(a => a.DoctorId == doctorId.Value);
+        }
 
-        return new TotalAppointmentSummaryDto(total, pending, confirmed, checkedIn, completed, cancelled);
+        var total = await query.CountAsync(ct);
+        var onlineCount = await query.CountAsync(a => !a.IsWalkIn, ct);
+        var pending = await query.CountAsync(a => a.Status == AppointmentStatus.Pending, ct);
+        var confirmed = await query.CountAsync(a => a.Status == AppointmentStatus.Confirmed, ct);
+        var checkedIn = await query.CountAsync(a => a.Status == AppointmentStatus.CheckedIn, ct);
+        var completed = await query.CountAsync(a => a.Status == AppointmentStatus.Completed, ct);
+        var cancelled = await query.CountAsync(a => a.Status == AppointmentStatus.Cancelled, ct);
+        var noShow = await query.CountAsync(a => a.Status == AppointmentStatus.NoShow, ct);
+        var onlineCancelled = await query.CountAsync(a => !a.IsWalkIn && a.Status == AppointmentStatus.Cancelled, ct);
+        var cancellationRate = onlineCount == 0 ? 0.0 : (double)onlineCancelled / onlineCount;
+
+        return new TotalAppointmentSummaryDto(
+            TotalAppointments: total,
+            PendingAppointments: pending,
+            ConfirmedAppointments: confirmed,
+            CheckedInAppointments: checkedIn,
+            CompletedAppointments: completed,
+            CancelledAppointments: cancelled,
+            NoShowAppointments: noShow,
+            AppointmentCount: total,
+            AppointmentOnlineCount: onlineCount,
+            CheckedIn: checkedIn,
+            CanceledAppointments: cancelled,
+            CancellationRate: cancellationRate,
+            AverageWaitingMinutes: 0
+        );
+    }
+
+    public async Task<PagedAppointmentsDto> GetPagedAppointmentsByDateAsync(
+        DateOnly date,
+        int pageNumber = 1,
+        int pageSize = 10,
+        CancellationToken ct = default)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 10;
+
+        var query = _db.Appointments
+            .Where(a => a.ScheduleDate == date && !a.IsDeleted);
+
+        var totalCount = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(a => a.TimeSlot)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+        return new PagedAppointmentsDto(
+            items.Select(ToDto).ToList(),
+            totalCount,
+            pageNumber,
+            pageSize,
+            totalPages);
+    }
+
+    public async Task<bool> SyncWalkInAppointmentAsync(SyncWalkInAppointmentRequest request, CancellationToken ct = default)
+    {
+        var existing = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct);
+        if (existing != null)
+        {
+            existing.Status = AppointmentStatus.CheckedIn;
+            existing.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        var appointment = new Appointment(
+            request.PatientId,
+            request.PatientName,
+            request.PatientPhone,
+            request.PatientGender,
+            request.PatientDateOfBirth,
+            request.WorkScheduleId,
+            request.DoctorId,
+            request.DoctorName,
+            request.SpecialtyName,
+            request.ScheduleDate,
+            request.TimeSlot,
+            request.Reason,
+            request.CreatedByUserId,
+            isWalkIn: true)
+        {
+            Id = request.AppointmentId,
+            Status = AppointmentStatus.CheckedIn,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _db.Appointments.Add(appointment);
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Synced walk-in appointment {AppointmentId} into ClinicAppointmentDB", request.AppointmentId);
+        return true;
     }
 
     public async Task<bool> ProcessExamCompletedAsync(ExamCompleted evt, CancellationToken ct = default)
@@ -744,6 +898,7 @@ public class AppointmentManager : IAppointmentManager
         a.Reason,
         a.Status,
         a.CreatedAt,
-        a.IsWalkIn
+        a.IsWalkIn,
+        a.WorkScheduleId
     );
 }

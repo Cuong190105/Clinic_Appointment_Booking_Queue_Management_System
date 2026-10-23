@@ -122,6 +122,12 @@ const routes: RouteRecordRaw[] = [
               import('@/views/receptionist/ReceptionistCheckinView.vue'),
           },
           {
+            path: 'booking',
+            name: 'reception-booking',
+            component: () =>
+              import('@/views/receptionist/ReceptionistBookingView.vue'),
+          },
+          {
             path: 'appointments/pending',
             name: 'reception-pending-appointments',
             component: () =>
@@ -136,6 +142,24 @@ const routes: RouteRecordRaw[] = [
         name: 'doctor-examination',
         component: () =>
           import('@/views/doctor/DoctorExaminationView.vue'),
+        meta: {
+          roles: ['Doctor'],
+        },
+      },
+      {
+        path: 'doctor/medical-records',
+        name: 'doctor-medical-records',
+        component: () =>
+          import('@/views/doctor/DoctorMedicalRecordsView.vue'),
+        meta: {
+          roles: ['Doctor'],
+        },
+      },
+      {
+        path: 'doctor/medical-records/:id',
+        name: 'doctor-medical-record-detail',
+        component: () =>
+          import('@/views/doctor/DoctorMedicalRecordDetailView.vue'),
         meta: {
           roles: ['Doctor'],
         },

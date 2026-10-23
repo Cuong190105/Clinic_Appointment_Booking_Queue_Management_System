@@ -57,7 +57,8 @@ public record AppointmentDetailDto(
     string Reason,
     AppointmentStatus Status,
     DateTime CreatedAt,
-    bool IsWalkIn = false
+    bool IsWalkIn = false,
+    Guid WorkScheduleId = default
 );
 
 public record AppointmentHistoryDto(
@@ -86,5 +87,37 @@ public record TotalAppointmentSummaryDto(
     int ConfirmedAppointments,
     int CheckedInAppointments,
     int CompletedAppointments,
-    int CancelledAppointments
+    int CancelledAppointments,
+    int NoShowAppointments = 0,
+    int AppointmentCount = 0,
+    int AppointmentOnlineCount = 0,
+    int CheckedIn = 0,
+    int CanceledAppointments = 0,
+    double CancellationRate = 0,
+    double AverageWaitingMinutes = 0
+);
+
+public record SyncWalkInAppointmentRequest(
+    Guid AppointmentId,
+    Guid PatientId,
+    string PatientName,
+    string? PatientPhone,
+    string? PatientGender,
+    DateOnly? PatientDateOfBirth,
+    Guid WorkScheduleId,
+    Guid DoctorId,
+    string DoctorName,
+    string? SpecialtyName,
+    DateOnly ScheduleDate,
+    TimeOnly TimeSlot,
+    string Reason,
+    Guid CreatedByUserId
+);
+
+public record PagedAppointmentsDto(
+    List<AppointmentDto> Items,
+    int TotalCount,
+    int PageNumber,
+    int PageSize,
+    int TotalPages
 );

@@ -24,6 +24,29 @@ namespace Clinic.API.Controllers
         }
 
         /// <summary>
+        /// Tìm kiếm và duyệt danh sách hồ sơ khám bệnh (phân trang, lọc theo từ khóa, trạng thái, ngày).
+        /// </summary>
+        [HttpGet]
+        [Authorize(Policy = "Permission:medical-report.view.related,medical-report.view.any,medical-report.view.own")]
+        [ProducesResponseType(typeof(PaginationResponse<MedicalReportDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetReports([FromQuery] GetMedicalReportsRequest request)
+        {
+            var query = new GetMedicalReportsQuery(
+                request.Search,
+                request.Status,
+                request.FromDate,
+                request.ToDate,
+                request.PageNumber ?? 1,
+                request.PageSize ?? 10
+            );
+
+            var result = await _sender.Send(query);
+            return Ok(result);
+        }
+
+        /// <summary>
         /// Tạo mới hoặc cập nhật hồ sơ khám bệnh (Draft hoặc Finalized) cho ca khám hiện tại.
         /// </summary>
         [HttpPost]
@@ -37,6 +60,31 @@ namespace Clinic.API.Controllers
         {
             var command = new SaveMedicalReportCommand(
                 request.AppointmentId,
+                request.Symptoms,
+                request.Diagnosis,
+                request.Prescription,
+                request.Notes,
+                request.IsFinalize
+            );
+
+            var result = await _sender.Send(command);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Cập nhật hồ sơ khám bệnh bản nháp (Draft) hoặc chốt hồ sơ (Finalize).
+        /// </summary>
+        [HttpPut("{id}")]
+        [Authorize(Policy = "Permission:medical-report.create")]
+        [ProducesResponseType(typeof(MedicalReportDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateDraft([FromRoute] Guid id, [FromBody] UpdateMedicalReportRequest request)
+        {
+            var command = new UpdateDraftMedicalReportCommand(
+                id,
                 request.Symptoms,
                 request.Diagnosis,
                 request.Prescription,

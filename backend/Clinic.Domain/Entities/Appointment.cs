@@ -95,7 +95,7 @@ namespace Clinic.Domain.Entities
                 throw new ArgumentOutOfRangeException(nameof(timeSlot), $"Time slot {timeSlot} must be within the work schedule ({workSchedule.ShiftStart} - {workSchedule.ShiftEnd}).");
             }
             var bookingTimeUtc = new TimeConverter().ConvertToUtc(new DateTime(workSchedule.Date, timeSlot));
-            if (bookingTimeUtc < DateTime.UtcNow)
+            if (!isWalkIn && bookingTimeUtc < DateTime.UtcNow)
             {
                 throw new ArgumentException("Cannot create an appointment for a past time.", nameof(workSchedule));
             }
@@ -132,7 +132,7 @@ namespace Clinic.Domain.Entities
                 throw new ArgumentException("Reason cannot be null or whitespace.", nameof(reason));
             }
             var bookingTimeUtc = new TimeConverter().ConvertToUtc(new DateTime(scheduleDate, timeSlot));
-            if (bookingTimeUtc < DateTime.UtcNow)
+            if (!isWalkIn && bookingTimeUtc < DateTime.UtcNow)
             {
                 throw new ArgumentException("Cannot create an appointment for a past time.");
             }
@@ -182,7 +182,7 @@ namespace Clinic.Domain.Entities
         /// TimeSlot của appointment không cùng ngày với checkInTime - ví dụ lịch hẹn của
         /// ngày mai không được phép vào hàng đợi của ngày hôm nay (và ngược lại).
         /// </exception>
-        public QueueTicket CheckIn(DateTime checkInTime, int queueNumber)
+        public QueueTicket CheckIn(DateTime checkInTime, int queueNumber, bool isUrgent = false)
         {
             if (Status != AppointmentStatus.Confirmed)
             {
@@ -204,6 +204,11 @@ namespace Clinic.Domain.Entities
                 CheckInTime = checkInTime,
                 Appointment = this
             };
+
+            if (isUrgent)
+            {
+                queueTicket.SetPriority(true);
+            }
 
             QueueTicket = queueTicket;
             Status = AppointmentStatus.CheckedIn;
@@ -231,7 +236,7 @@ namespace Clinic.Domain.Entities
                 throw new InvalidOperationException("No changes detected in the appointment details.");
             }
             var bookingTimeUtc = new TimeConverter().ConvertToUtc(new DateTime(workSchedule.Date, timeSlot));
-            if (bookingTimeUtc < DateTime.UtcNow)
+            if (!IsWalkIn && bookingTimeUtc < DateTime.UtcNow)
             {
                 throw new ArgumentException("Cannot create an appointment for a past time.", nameof(workSchedule));
             }

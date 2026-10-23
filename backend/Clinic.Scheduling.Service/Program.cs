@@ -28,6 +28,10 @@ builder.Services.AddDbContext<SchedulingDbContext>(options =>
 builder.Services.AddScoped<ISchedulingOutboxWriter, SchedulingOutboxWriter>();
 builder.Services.AddScoped<ISchedulingManager, SchedulingManager>();
 builder.Services.AddHostedService<ReservationExpirationWorker>();
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<SchedulingEventConsumer>();
+}
 
 // Authentication via Identity Service JWKS
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

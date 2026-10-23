@@ -2,9 +2,13 @@ import { http } from '@/lib/api/http'
 import type {
   AppointmentItem,
   CheckInResponse,
+  CreatePatientPayload,
   PaginationEnvelope,
   PatientSearchItem,
   QueueTicketDto,
+  WalkInPayload,
+  WalkInResult,
+  WorkingDoctor,
 } from './receptionist.types'
 
 function unwrap<T>(payload: any): T {
@@ -25,7 +29,7 @@ function unwrap<T>(payload: any): T {
 
 export const receptionistApi = {
   // ──────────────────────────────────────────────
-  // PATIENT SEARCH & CHECK-IN
+  // PATIENT SEARCH & MANAGEMENT
   // ──────────────────────────────────────────────
 
   async searchPatients(keyword: string, pageNumber = 1, pageSize = 20): Promise<PaginationEnvelope<PatientSearchItem>> {
@@ -49,6 +53,46 @@ export const receptionistApi = {
     }
   },
 
+  async createPatient(payload: CreatePatientPayload): Promise<PatientSearchItem> {
+    const res = await http.post('/patients/add', payload)
+    return unwrap<PatientSearchItem>(res.data)
+  },
+
+  // ──────────────────────────────────────────────
+  // DOCTORS WORKING TODAY & WALK-IN BOOKING
+  // ──────────────────────────────────────────────
+
+  async getWorkingDoctors(specialtyId?: string): Promise<WorkingDoctor[]> {
+    const res = await http.get('/receptionist/working-doctors', {
+      params: { specialtyId: specialtyId || undefined },
+    })
+    const unwrapped = unwrap<any>(res.data)
+    return Array.isArray(unwrapped) ? unwrapped : []
+  },
+
+  async createWalkInAppointment(payload: WalkInPayload): Promise<WalkInResult> {
+    const res = await http.post('/receptionist/appointments/walk-in', payload)
+    return unwrap<WalkInResult>(res.data)
+  },
+
+  async createScheduledAppointment(payload: {
+    patientId: string
+    workScheduleId: string
+    timeSlot: string
+    reason: string
+    isWalkIn?: boolean
+  }): Promise<any> {
+    const res = await http.post('/receptionist/appointments', {
+      ...payload,
+      isWalkIn: payload.isWalkIn ?? false,
+    })
+    return unwrap<any>(res.data)
+  },
+
+  // ──────────────────────────────────────────────
+  // APPOINTMENTS & CHECK-IN
+  // ──────────────────────────────────────────────
+
   async getUpcomingAppointments(patientId: string): Promise<AppointmentItem[]> {
     try {
       const res = await http.get(`/patients/${patientId}/appointments`)
@@ -71,8 +115,9 @@ export const receptionistApi = {
     }
   },
 
-  async checkInAppointment(appointmentId: string): Promise<CheckInResponse> {
+  async checkInAppointment(appointmentId: string, isUrgent = false): Promise<CheckInResponse> {
     const res = await http.post(`/appointments/${appointmentId}/check-in`, undefined, {
+      params: { isUrgent },
       headers: {
         'Idempotency-Key': crypto.randomUUID(),
       },

@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Clinic.Application.Features.Queue.Commands
 {
-    public record CheckInCommand(Guid AppointmentId, Guid IdempotencyKey) : IRequest;
+    public record CheckInCommand(Guid AppointmentId, Guid IdempotencyKey, bool IsUrgent = false) : IRequest;
 
     public class CheckInHandler : IRequestHandler<CheckInCommand>
     {
@@ -71,7 +71,7 @@ namespace Clinic.Application.Features.Queue.Commands
                 var doctorId = appointment.DoctorId != Guid.Empty ? appointment.DoctorId : (appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
                 var checkInTime = DateTime.UtcNow;
                 var queueNumber = await _queueTicketRepository.GetNextQueueNumberAsync(doctorId, checkInTime.Date, cancellationToken);
-                var queueTicket = appointment.CheckIn(checkInTime, queueNumber);
+                var queueTicket = appointment.CheckIn(checkInTime, queueNumber, command.IsUrgent);
 
                 await _queueTicketRepository.AddAsync(queueTicket);
 

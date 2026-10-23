@@ -1,5 +1,6 @@
 using Clinic.Appointment.Service.Entities;
 using Clinic.Appointment.Service.Enums;
+using AppointmentEntity = Clinic.Appointment.Service.Entities.Appointment;
 using Xunit;
 
 namespace Clinic.Appointment.Service.Tests;
@@ -14,7 +15,7 @@ public class DomainModelTests
         var scheduleId = Guid.NewGuid();
         var creatorId = Guid.NewGuid();
 
-        var appointment = new Appointment(
+        var appointment = new AppointmentEntity(
             patientId: patientId,
             patientName: "Nguyen Van A",
             patientPhone: "0901234567",
@@ -27,7 +28,7 @@ public class DomainModelTests
             scheduleDate: new DateOnly(2026, 11, 1),
             timeSlot: new TimeOnly(9, 0),
             reason: "Headache",
-            createdById: creatorId,
+            createdByUserId: creatorId,
             isWalkIn: false);
 
         Assert.Equal(patientId, appointment.PatientId);
@@ -48,7 +49,7 @@ public class DomainModelTests
         var scheduleId = Guid.NewGuid();
         var creatorId = Guid.NewGuid();
 
-        var appointment = new Appointment(
+        var appointment = new AppointmentEntity(
             patientId: patientId,
             patientName: "Tran Thi B",
             patientPhone: "0912345678",
@@ -61,7 +62,7 @@ public class DomainModelTests
             scheduleDate: new DateOnly(2026, 11, 2),
             timeSlot: new TimeOnly(10, 0),
             reason: "Checkup",
-            createdById: creatorId,
+            createdByUserId: creatorId,
             isWalkIn: true);
 
         Assert.Equal(AppointmentStatus.Confirmed, appointment.Status);
@@ -96,11 +97,11 @@ public class DomainModelTests
         var appointment = CreatePendingAppointment();
         appointment.Confirm(Guid.NewGuid());
 
-        var checkInTime = DateTime.UtcNow;
+        var checkInTime = appointment.ScheduleDate.ToDateTime(appointment.TimeSlot);
         appointment.CheckIn(checkInTime);
 
         Assert.Equal(AppointmentStatus.CheckedIn, appointment.Status);
-        Assert.Equal(checkInTime, appointment.CheckInTime);
+        Assert.NotNull(appointment.UpdatedAt);
     }
 
     [Fact]
@@ -117,7 +118,7 @@ public class DomainModelTests
         var appointment = CreatePendingAppointment();
         var userId = Guid.NewGuid();
 
-        appointment.Cancel(userId, isAdminOrReceptionist: false, updatorName: "Patient");
+        appointment.Cancel(userId, isAdminOrReceptionist: false, updaterName: "Patient");
 
         Assert.Equal(AppointmentStatus.Cancelled, appointment.Status);
         Assert.Equal(userId, appointment.UpdatedByUserId);
@@ -128,7 +129,7 @@ public class DomainModelTests
     {
         var appointment = CreatePendingAppointment();
         appointment.Confirm(Guid.NewGuid());
-        appointment.CheckIn(DateTime.UtcNow);
+        appointment.CheckIn(appointment.ScheduleDate.ToDateTime(appointment.TimeSlot));
         appointment.Status = AppointmentStatus.Completed;
 
         Assert.Throws<InvalidOperationException>(() => appointment.Cancel(Guid.NewGuid(), true));
@@ -142,7 +143,7 @@ public class DomainModelTests
         var oldDate = new DateOnly(2026, 11, 1);
         var oldSlot = new TimeOnly(8, 30);
 
-        var appointment = new Appointment(
+        var appointment = new AppointmentEntity(
             patientId: Guid.NewGuid(),
             patientName: "Nguyen Van A",
             patientPhone: "0901234567",
@@ -155,7 +156,7 @@ public class DomainModelTests
             scheduleDate: oldDate,
             timeSlot: oldSlot,
             reason: "Routine",
-            createdById: Guid.NewGuid(),
+            createdByUserId: Guid.NewGuid(),
             isWalkIn: false);
 
         var newScheduleId = Guid.NewGuid();
@@ -165,15 +166,15 @@ public class DomainModelTests
         var updaterId = Guid.NewGuid();
 
         appointment.Reschedule(
-            newWorkScheduleId: newScheduleId,
+            newScheduleId: newScheduleId,
             newDoctorId: newDoctorId,
             newDoctorName: "Dr. New",
             newSpecialtyName: "Pediatrics",
-            newScheduleDate: newDate,
+            newDate: newDate,
             newTimeSlot: newSlot,
             newReason: "Rescheduled checkup",
             updatedByUserId: updaterId,
-            updatorName: "Receptionist Alice");
+            updaterName: "Receptionist Alice");
 
         // Verify state
         Assert.Equal(newScheduleId, appointment.WorkScheduleId);
@@ -198,9 +199,9 @@ public class DomainModelTests
         Assert.Equal("Receptionist Alice", snapshot.UpdatedByUserName);
     }
 
-    private static Appointment CreatePendingAppointment()
+    private static AppointmentEntity CreatePendingAppointment()
     {
-        return new Appointment(
+        return new AppointmentEntity(
             patientId: Guid.NewGuid(),
             patientName: "Le Van C",
             patientPhone: "0987654321",
@@ -213,7 +214,7 @@ public class DomainModelTests
             scheduleDate: new DateOnly(2026, 11, 10),
             timeSlot: new TimeOnly(9, 30),
             reason: "Fever",
-            createdById: Guid.NewGuid(),
+            createdByUserId: Guid.NewGuid(),
             isWalkIn: false);
     }
 }

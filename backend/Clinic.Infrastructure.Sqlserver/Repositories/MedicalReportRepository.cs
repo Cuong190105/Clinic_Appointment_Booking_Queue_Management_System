@@ -1,7 +1,13 @@
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
+using Clinic.Domain.Enums;
 using Clinic.Infrastructure.Sqlserver.Persistence;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Infrastructure.Sqlserver.Repositories
 {
@@ -69,6 +75,80 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .Where(mr => mr.PatientId == patientId && !mr.IsDeleted)
                 .OrderByDescending(mr => mr.CreatedAt)
                 .ToListAsync();
+        }
+
+        public async Task<(List<MedicalReport> Items, int TotalCount)> SearchAsync(
+            Guid? doctorId,
+            string? search,
+            MedicalReportStatus? status,
+            DateOnly? fromDate,
+            DateOnly? toDate,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.MedicalReports
+                .Include(mr => mr.Appointment)
+                    .ThenInclude(a => a.WorkSchedule)
+                        .ThenInclude(ws => ws.Doctor)
+                            .ThenInclude(d => d.Employee)
+                                .ThenInclude(e => e.Person)
+                .Include(mr => mr.Appointment)
+                    .ThenInclude(a => a.QueueTicket)
+                .Include(mr => mr.Patient)
+                    .ThenInclude(p => p.Person)
+                .Where(mr => !mr.IsDeleted);
+
+            if (doctorId.HasValue)
+            {
+                query = query.Where(mr =>
+                    (mr.Appointment != null && mr.Appointment.WorkSchedule != null && mr.Appointment.WorkSchedule.DoctorId == doctorId.Value) ||
+                    (mr.Appointment != null && mr.Appointment.DoctorId == doctorId.Value));
+            }
+
+            if (status.HasValue)
+            {
+                query = query.Where(mr => mr.Status == status.Value);
+            }
+
+            if (fromDate.HasValue)
+            {
+                query = query.Where(mr =>
+                    (mr.Appointment != null && mr.Appointment.WorkSchedule != null && mr.Appointment.WorkSchedule.Date >= fromDate.Value) ||
+                    (mr.Appointment != null && mr.Appointment.ScheduleDate >= fromDate.Value));
+            }
+
+            if (toDate.HasValue)
+            {
+                query = query.Where(mr =>
+                    (mr.Appointment != null && mr.Appointment.WorkSchedule != null && mr.Appointment.WorkSchedule.Date <= toDate.Value) ||
+                    (mr.Appointment != null && mr.Appointment.ScheduleDate <= toDate.Value));
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(mr =>
+                    (mr.Patient != null && mr.Patient.Person != null && mr.Patient.Person.FullName.Contains(term)) ||
+                    (mr.Patient != null && mr.Patient.Person != null && mr.Patient.Person.PhoneNumber != null && mr.Patient.Person.PhoneNumber.Contains(term)) ||
+                    (mr.Diagnosis != null && mr.Diagnosis.Contains(term)) ||
+                    (mr.Symptoms != null && mr.Symptoms.Contains(term)) ||
+                    (mr.Notes != null && mr.Notes.Contains(term)) ||
+                    (mr.Prescription != null && mr.Prescription.Contains(term)) ||
+                    (mr.Appointment != null && mr.Appointment.DoctorName != null && mr.Appointment.DoctorName.Contains(term)) ||
+                    (mr.Appointment != null && mr.Appointment.WorkSchedule != null && mr.Appointment.WorkSchedule.Doctor != null && mr.Appointment.WorkSchedule.Doctor.Employee.Person.FullName.Contains(term))
+                );
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .OrderByDescending(mr => mr.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
         }
     }
 }

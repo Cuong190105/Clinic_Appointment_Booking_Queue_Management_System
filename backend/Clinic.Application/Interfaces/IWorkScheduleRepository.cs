@@ -1,8 +1,10 @@
-﻿using Clinic.Application.Common.Models;
+using Clinic.Application.Common.Models;
 using Clinic.Application.Contracts;
 using Clinic.Domain.Entities;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.Interfaces
 {
@@ -82,5 +84,10 @@ namespace Clinic.Application.Interfaces
 
         Task<IEnumerable<WorkSchedule>> GetDoctorSchedulesWithAppointmentByDateAsync(Guid? doctorId, DateOnly date);
         Task<PagedResult<Doctor>> GetWeeklyWorkSchedules(DateOnly startDate, DateOnly endDate, int pageNumber, int pageSize, Guid? specialtyId, string? searchTerm);
+
+        /// <summary>
+        /// Lấy các WorkSchedule đang hoạt động trong một ngày cụ thể (có thể lọc theo chuyên khoa).
+        /// </summary>
+        Task<List<WorkSchedule>> GetActiveWorkSchedulesForDateAsync(DateOnly date, Guid? specialtyId, CancellationToken cancellationToken = default);
     }
 }

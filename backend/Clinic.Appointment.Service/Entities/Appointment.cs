@@ -23,6 +23,7 @@ public class Appointment
 
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
     public bool IsWalkIn { get; set; } = false;
+    public string? IdempotencyKey { get; set; }
 
     public Guid UpdatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -88,11 +89,12 @@ public class Appointment
         {
             throw new InvalidOperationException($"Cannot check in an appointment with status '{Status}'. Appointment must be confirmed first.");
         }
-        var checkInDate = DateOnly.FromDateTime(checkInTime);
-        if (ScheduleDate != checkInDate)
+        var checkInDateUtc = DateOnly.FromDateTime(checkInTime);
+        var checkInDateVn = DateOnly.FromDateTime(checkInTime.AddHours(7));
+        if (ScheduleDate != checkInDateUtc && ScheduleDate != checkInDateVn)
         {
             throw new InvalidOperationException(
-                $"Cannot check in: appointment is scheduled for {ScheduleDate:yyyy-MM-dd}, not today ({checkInDate:yyyy-MM-dd}).");
+                $"Cannot check in: appointment is scheduled for {ScheduleDate:yyyy-MM-dd}, not today ({checkInDateVn:yyyy-MM-dd}).");
         }
         Status = AppointmentStatus.CheckedIn;
         UpdatedAt = DateTime.UtcNow;

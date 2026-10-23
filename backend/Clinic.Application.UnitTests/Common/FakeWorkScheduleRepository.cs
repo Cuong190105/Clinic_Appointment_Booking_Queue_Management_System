@@ -182,5 +182,10 @@ namespace Clinic.Application.UnitTests.Common
         {
             throw new NotImplementedException();
         }
+        public Task<List<WorkSchedule>> GetActiveWorkSchedulesForDateAsync(DateOnly date, Guid? specialtyId, CancellationToken cancellationToken = default)
+        {
+            var result = _workSchedules.Where(ws => !ws.IsDeleted && ws.Status == WorkScheduleStatus.Active && ws.Date == date).ToList();
+            return Task.FromResult(result);
+        }
     }
 }

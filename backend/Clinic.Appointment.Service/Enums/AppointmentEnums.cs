@@ -6,7 +6,8 @@ public enum AppointmentStatus
     Confirmed,
     CheckedIn,
     Completed,
-    Cancelled
+    Cancelled,
+    NoShow
 }
 
 public enum OutboxMessageStatus

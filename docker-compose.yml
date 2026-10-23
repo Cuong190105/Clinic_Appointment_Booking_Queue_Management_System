@@ -51,6 +51,8 @@ services:
             - Identity__Authority=http://identity-service:8080
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
             - Scheduling__Authority=http://scheduling-service:8080
+            - Services__Scheduling__BaseUrl=http://scheduling-service:8080
+            - Appointment__Authority=http://appointment-service:8080
             - Identity__RequireHttpsMetadata=false
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__PublicBaseUrl=${IDENTITY_PUBLIC_BASE_URL:-http://localhost:5000}
@@ -127,9 +129,16 @@ services:
             - Identity__RequireHttpsMetadata=false
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
+            - RabbitMq__Host=rabbitmq
+            - RabbitMq__Port=5672
+            - RabbitMq__Username=clinic
+            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__VirtualHost=/
             - ASPNETCORE_HTTP_PORTS=8080
         depends_on:
             db:
+                condition: service_healthy
+            rabbitmq:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy
@@ -189,11 +198,20 @@ services:
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Scheduling__Authority=http://scheduling-service:8080
+            - Services__Scheduling__BaseUrl=http://scheduling-service:8080
+            - Appointment__Authority=http://appointment-service:8080
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
+            - RabbitMq__Host=rabbitmq
+            - RabbitMq__Port=5672
+            - RabbitMq__Username=clinic
+            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__VirtualHost=/
             - ASPNETCORE_HTTP_PORTS=8080
         depends_on:
             db:
+                condition: service_healthy
+            rabbitmq:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy
