@@ -207,6 +207,7 @@ public static class AppointmentEndpoints
         var checkinHandler = async (
             Guid appointmentId,
             [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+            [FromQuery] bool isUrgent,
             ClaimsPrincipal user,
             IAppointmentManager manager,
             CancellationToken ct) =>
@@ -217,6 +218,7 @@ public static class AppointmentEndpoints
                 appointmentId,
                 userId,
                 idempotencyKey,
+                isUrgent,
                 ct);
 
             if (!success)

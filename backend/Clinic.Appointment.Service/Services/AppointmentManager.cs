@@ -64,6 +64,7 @@ public interface IAppointmentManager
         Guid appointmentId,
         Guid currentUserId,
         string? idempotencyKey,
+        bool isUrgent = false,
         CancellationToken ct = default);
 
     Task<TotalAppointmentSummaryDto> GetSummaryAsync(
@@ -658,6 +659,7 @@ public class AppointmentManager : IAppointmentManager
         Guid appointmentId,
         Guid currentUserId,
         string? idempotencyKey,
+        bool isUrgent = false,
         CancellationToken ct = default)
     {
         var app = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId && !a.IsDeleted, ct);
@@ -680,7 +682,10 @@ public class AppointmentManager : IAppointmentManager
                     app.PatientId,
                     app.DoctorId,
                     app.Id, // Stable VisitId
-                    DateTimeOffset.UtcNow)
+                    DateTimeOffset.UtcNow,
+                    isUrgent,
+                    app.PatientName,
+                    app.DoctorName)
             }, "appointment.checked-in");
 
             await _db.SaveChangesAsync(ct);

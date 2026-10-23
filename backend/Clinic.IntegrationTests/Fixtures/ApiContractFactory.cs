@@ -248,10 +248,56 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
 
     private sealed class TestIdentityHandler : HttpMessageHandler
     {
-        private readonly HashSet<string> _reservedSlots = new();
+        private static readonly HashSet<string> _reservedSlots = new();
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.Contains("/appointments/") && path.EndsWith("/check-in", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Equals("/appointments", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                var bodyText = request.Content != null ? await request.Content.ReadAsStringAsync(cancellationToken) : string.Empty;
+                var timeSlot = "09:00:00";
+                var schedId = Guid.Empty;
+                if (!string.IsNullOrEmpty(bodyText))
+                {
+                    using var body = JsonDocument.Parse(bodyText);
+                    var root = body.RootElement;
+                    if (root.TryGetProperty("timeSlot", out var ts) || root.TryGetProperty("TimeSlot", out ts)) timeSlot = ts.GetString() ?? "09:00:00";
+                    if (root.TryGetProperty("workScheduleId", out var ws) || root.TryGetProperty("WorkScheduleId", out ws)) schedId = ws.GetGuid();
+                }
+                var slotKey = $"app_{schedId}_{timeSlot}";
+                if (_reservedSlots.Contains(slotKey))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent("{\"error\":\"Slot already booked\"}", System.Text.Encoding.UTF8, "application/json")
+                    };
+                }
+                _reservedSlots.Add(slotKey);
+                var appId = Guid.NewGuid();
+                var result = JsonSerializer.Serialize(new
+                {
+                    result = new
+                    {
+                        id = appId,
+                        patientId = ApiContractFactory.PatientId,
+                        patientName = "Patient Name",
+                        doctorId = ApiContractFactory.DoctorId,
+                        doctorName = "Doctor Name",
+                        workScheduleId = schedId,
+                        specialtyName = "Cardiology",
+                        date = new Clinic.Domain.Common.TimeConverter().Today.AddDays(2).ToString("yyyy-MM-dd"),
+                        timeSlot = timeSlot,
+                        status = "Pending",
+                        reason = "baseline booking"
+                    }
+                });
+                return Json(HttpStatusCode.Created, result);
+            }
             if (path.Contains("/reservations", StringComparison.OrdinalIgnoreCase))
             {
                 if (path.EndsWith("/confirm", StringComparison.OrdinalIgnoreCase) || path.EndsWith("/release", StringComparison.OrdinalIgnoreCase))

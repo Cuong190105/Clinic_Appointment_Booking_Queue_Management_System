@@ -117,6 +117,10 @@ namespace Clinic.Domain.Entities
             }
             if (Appointments.Any(a => a.Id == appointment.Id))
             {
+                if (Appointments.Count(a => a.Status != AppointmentStatus.Cancelled && a.IsDeleted == false) >= RecommendedCapacity)
+                {
+                    Status = WorkScheduleStatus.Full;
+                }
                 return; // Appointment already belongs to this work schedule
             }
             if (appointment.TimeSlot < ShiftStart || appointment.TimeSlot >= ShiftEnd)

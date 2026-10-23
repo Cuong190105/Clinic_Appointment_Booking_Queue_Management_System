@@ -8,11 +8,13 @@
     <Project Path="Clinic.Identity.Service.Tests/Clinic.Identity.Service.Tests.csproj" />
     <Project Path="Clinic.Scheduling.Service.Tests/Clinic.Scheduling.Service.Tests.csproj" />
     <Project Path="Clinic.Appointment.Service.Tests/Clinic.Appointment.Service.Tests.csproj" />
+    <Project Path="Clinic.Queue.Service.Tests/Clinic.Queue.Service.Tests.csproj" />
   </Folder>
   <Project Path="Clinic.API/Clinic.API.csproj" />
   <Project Path="Clinic.Identity.Service/Clinic.Identity.Service.csproj" />
   <Project Path="Clinic.Scheduling.Service/Clinic.Scheduling.Service.csproj" />
   <Project Path="Clinic.Appointment.Service/Clinic.Appointment.Service.csproj" />
+  <Project Path="Clinic.Queue.Service/Clinic.Queue.Service.csproj" />
   <Project Path="Clinic.Application/Clinic.Application.csproj" />
   <Project Path="Clinic.Contracts/Clinic.Contracts.csproj" />
   <Project Path="Clinic.Domain/Clinic.Domain.csproj" />

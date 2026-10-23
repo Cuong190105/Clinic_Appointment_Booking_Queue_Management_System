@@ -5,5 +5,8 @@ public sealed record AppointmentCheckedIn(
     Guid PatientId,
     Guid DoctorId,
     Guid VisitId,
-    DateTimeOffset CheckedInAt
+    DateTimeOffset CheckedInAt,
+    bool Priority = false,
+    string? PatientName = null,
+    string? DoctorName = null
 );
