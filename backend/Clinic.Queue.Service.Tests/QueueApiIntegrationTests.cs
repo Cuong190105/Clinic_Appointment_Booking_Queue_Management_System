@@ -79,7 +79,8 @@ public class TestQueueAppFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["ConnectionStrings:QueueConnection"] = ""
+            ["ConnectionStrings:QueueConnection"] = "",
+            ["SkipBackgroundWorkers"] = "true"
         }));
 
         builder.ConfigureTestServices(services =>

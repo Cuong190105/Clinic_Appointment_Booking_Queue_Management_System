@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Common.Exceptions;
+using Clinic.Domain.Common.Exceptions;
 using Clinic.Domain.Entities;
 
 namespace Clinic.Domain.UnitTests
@@ -83,7 +83,8 @@ namespace Clinic.Domain.UnitTests
             var nowShift = new WorkSchedule(doctor, DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddSeconds(1)), TimeOnly.FromDateTime(now.AddHours(1)), 5);
             Thread.Sleep(2000); // Wait for 2 seconds to ensure the shift has started
             Assert.Throws<InvalidOperationException>(() => nowShift.UpdateShift(DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddHours(2)), TimeOnly.FromDateTime(now.AddHours(3)), 10));
-            nowShift.UpdateShift(DateOnly.FromDateTime(now), nowShift.ShiftStart, nowShift.ShiftEnd.AddHours(1), 15); // This should be valid since we are not changing the start time
+            var newEnd = nowShift.ShiftEnd.AddHours(1) <= nowShift.ShiftStart ? new TimeOnly(23, 59, 59) : nowShift.ShiftEnd.AddHours(1);
+            nowShift.UpdateShift(DateOnly.FromDateTime(now), nowShift.ShiftStart, newEnd, 15); // This should be valid since we are not changing the start time
             Assert.Equal(15, nowShift.RecommendedCapacity);
             Assert.Throws<InvalidOperationException>(() => nowShift.Delete());
         }

@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Entities;
+using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 
 namespace Clinic.Application.UnitTests.Common
@@ -74,12 +74,15 @@ namespace Clinic.Application.UnitTests.Common
 
         internal static WorkSchedule CreateWorkSchedule(Doctor? doctor = null, DateOnly? date = null, TimeOnly? startTime = null, TimeOnly? endTime = null, int RecommendedCapacity = 15)
         {
-            return new WorkSchedule(doctor ?? CreateDoctor(), date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)), startTime ?? (date != null ? TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddMinutes(1)) : new TimeOnly(9, 0)), endTime ?? (date != null ? TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(9)) : new TimeOnly(11, 0)), RecommendedCapacity);
+            var sTime = startTime ?? (date != null ? TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddMinutes(1)) : new TimeOnly(9, 0));
+            var eTime = endTime ?? (date != null ? (sTime.AddHours(2) <= sTime ? new TimeOnly(23, 59, 59) : sTime.AddHours(2)) : new TimeOnly(11, 0));
+            return new WorkSchedule(doctor ?? CreateDoctor(), date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)), sTime, eTime, RecommendedCapacity);
         }
 
         internal static Appointment CreateAppointment(Patient? patient = null, WorkSchedule? workSchedule = null, TimeOnly? timeSlot = null, string? reason = null, Guid? createdBy = null, bool confirmed = false, bool checkedIn = false, int queueNumber = 0, bool today = false)
         {
-            workSchedule ??= CreateWorkSchedule(date: checkedIn | today ? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddMinutes(1)) : null, startTime: timeSlot, endTime: timeSlot?.AddHours(8));
+            var scheduleEndTime = timeSlot.HasValue ? (timeSlot.Value.AddHours(2) <= timeSlot.Value ? new TimeOnly(23, 59, 59) : timeSlot.Value.AddHours(2)) : (TimeOnly?)null;
+            workSchedule ??= CreateWorkSchedule(date: checkedIn | today ? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddMinutes(1)) : null, startTime: timeSlot, endTime: scheduleEndTime);
             timeSlot ??= workSchedule.ShiftStart;
             var app = new Appointment(patient ?? CreatePatient(), workSchedule, timeSlot.Value, reason ?? "Reason", createdBy ?? Guid.NewGuid());
             if (confirmed || checkedIn)

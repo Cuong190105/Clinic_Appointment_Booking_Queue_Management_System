@@ -35,6 +35,8 @@ builder.Services.AddDbContext<QueueDbContext>((sp, options) =>
 
 // Services
 builder.Services.AddScoped<IQueueManager, QueueManager>();
+builder.Services.AddHostedService<QueueOutboxPublisher>();
+builder.Services.AddHostedService<QueueEventConsumer>();
 
 // Authentication via Identity Service JWKS
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
