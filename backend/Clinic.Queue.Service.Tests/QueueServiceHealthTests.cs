@@ -29,9 +29,9 @@ public class QueueServiceHealthTests : IClassFixture<QueueServiceFactory>
     public async Task Readyz_ReturnsReady()
     {
         var response = await _client.GetAsync("/readyz");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
         var content = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"Status: {response.StatusCode}, Body: {content}");
+
         using var json = JsonDocument.Parse(content);
         Assert.Equal("Ready", json.RootElement.GetProperty("status").GetString());
     }

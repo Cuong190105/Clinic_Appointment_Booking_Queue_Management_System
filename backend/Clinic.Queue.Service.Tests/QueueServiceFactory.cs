@@ -18,4 +18,3 @@ public sealed class QueueServiceFactory : WebApplicationFactory<Program>
         }));
     }
 }
-
