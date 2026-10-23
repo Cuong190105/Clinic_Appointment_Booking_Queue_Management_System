@@ -177,6 +177,54 @@ services:
                 condition: service_healthy
         restart: "no"
 
+    appointment-service:
+        build:
+            context: ./backend
+            dockerfile: Clinic.Appointment.Service/Dockerfile
+        container_name: clinic_appointment_service
+        ports:
+            - "5003:8080"
+        environment:
+            - ConnectionStrings__AppointmentConnection=Server=db,1433;Database=ClinicAppointmentDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - Identity__Authority=http://identity-service:8080
+            - Identity__RequireHttpsMetadata=false
+            - Scheduling__Authority=http://scheduling-service:8080
+            - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
+            - Jwt__Audience=Clinic.Services
+            - ASPNETCORE_HTTP_PORTS=8080
+        depends_on:
+            db:
+                condition: service_healthy
+            identity-service:
+                condition: service_healthy
+            scheduling-service:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        restart: always
+
+    appointment-data-importer:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        entrypoint: ["/bin/bash", "-c"]
+        command:
+            - >-
+              until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
+              /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql
+        environment:
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+        volumes:
+            - ./backend/Clinic.Appointment.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+        depends_on:
+            backend:
+                condition: service_healthy
+            appointment-service:
+                condition: service_healthy
+        restart: "no"
+
     frontend:
         build:
             context: ./frontend # Thay bằng đường dẫn tới thư mục Vue.js của bạn

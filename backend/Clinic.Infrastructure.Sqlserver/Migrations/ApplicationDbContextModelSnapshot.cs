@@ -23345,8 +23345,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.HasOne("Clinic.Domain.Entities.Appointment", "Appointment")
                         .WithOne("MedicalReport")
                         .HasForeignKey("Clinic.Domain.Entities.MedicalReport", "AppointmentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Clinic.Domain.Entities.Patient", "Patient")
                         .WithMany()
@@ -23386,8 +23385,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                     b.HasOne("Clinic.Domain.Entities.Appointment", "Appointment")
                         .WithOne("QueueTicket")
                         .HasForeignKey("Clinic.Domain.Entities.QueueTicket", "AppointmentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Appointment");
                 });

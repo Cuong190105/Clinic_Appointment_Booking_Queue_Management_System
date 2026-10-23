@@ -12,12 +12,11 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasKey(q => q.Id);
 
-            // AppointmentId bắt buộc + UNIQUE (Cách B):
-            // 1 Appointment sinh tối đa 1 QueueTicket, mọi QueueTicket đều
-            // phải xuất phát từ 1 Appointment (kể cả walk-in, xem Appointment.IsWalkIn).
+            // Decouple Appointment FK constraint across services
             builder.HasOne(q => q.Appointment)
                 .WithOne(a => a.QueueTicket)
                 .HasForeignKey<QueueTicket>(q => q.AppointmentId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasIndex(q => q.AppointmentId).IsUnique();

@@ -12,9 +12,11 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasKey(m => m.Id);
 
+            // Decouple Appointment FK constraint across services
             builder.HasOne(m => m.Appointment)
                 .WithOne(a => a.MedicalReport)
                 .HasForeignKey<MedicalReport>(m => m.AppointmentId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasIndex(m => m.AppointmentId).IsUnique();

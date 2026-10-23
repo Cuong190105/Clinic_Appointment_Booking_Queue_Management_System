@@ -194,6 +194,24 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 - Phân biệt lỗi nghiệp vụ và lỗi tạm thời.
 - Bản chiếu chỉ chứa dữ liệu hiển thị cần thiết, không sao chép toàn bộ Patient entity.
 
+### Phạm vi đã chuyển
+
+- Đã khởi tạo độc lập `Clinic.Appointment.Service` (.NET 10 Web API, cổng `5003:8080`) và cơ sở dữ liệu `ClinicAppointmentDB` hoàn toàn độc lập, cấu hình JWT authentication qua discovery/JWKS của Identity Service.
+- Chuyển quyền sở hữu các aggregate/entity: `Appointment`, `AppointmentSnapshot` (1-N audit changelog traceback), `PatientProjection` (bản chiếu đồng bộ từ Identity Service), `OutboxMessage`.
+- Triển khai Booking Saga trực tiếp giữa Appointment Service và Scheduling Service (`ReserveSlot -> CreateAppointment -> ConfirmReservation`), tự động kích hoạt compensation `ReleaseReservation` nếu bước tạo lịch hoặc xác nhận xảy ra sự cố.
+- Triển khai phân định rõ ràng luồng Online Booking (qua saga, ràng buộc slot & capacity) và Walk-in Receptionist (trực tiếp `Confirmed`, bỏ qua capacity online).
+- Triển khai Reschedule Saga 2 pha (`Reserve new -> Reschedule & Snapshot -> Confirm new -> Outbox AppointmentCancelled old slot`).
+- Triển khai Check-in event-driven: Chuyển trạng thái sang `CheckedIn`, ghi outbox `AppointmentCheckedIn` để Queue Service cấp `QueueTicket`.
+- Triển khai xử lý sự kiện tích hợp: `ExamCompleted` tự động cập nhật trạng thái `Appointment` sang `Completed`, và `UserProfileUpdated` tự động cập nhật `PatientProjections`.
+- Phía Monolith (`ClinicDB`): Tạo migration `20261023013218_DecoupleAppointmentForeignKeys.cs` gỡ bỏ hoàn toàn các ràng buộc Foreign Key `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId`, chuyển `AppointmentId` thành UUID reference độc lập.
+
+### Bằng chứng kiểm thử phát hành sau cutover
+
+- Kịch bản import dữ liệu `backend/Clinic.Appointment.Service/Persistence/import-from-clinicdb.sql` và kịch bản đối soát `verify-appointment-import.sql` đạt `MismatchCount = 0` (750 Appointments, 21 Snapshots, 59 PatientProjections khớp 100%).
+- Bộ test suite `Clinic.Appointment.Service.Tests`: 28/28 tests passed (bao gồm domain model tests, InMemory DbContext tests, Booking Saga, compensation release, walk-in, check-in, changelog traceback, và WebApplicationFactory integration tests).
+- Baseline integration tests: `dotnet test backend/Clinic.IntegrationTests --filter BaselineBusinessWorkflowTests` đạt 3/3 passed.
+- Dọn dẹp DB test tích hợp: 100% test database được dọn sạch khỏi SQL Server (`0 rows affected` trong `sys.databases`).
+
 ---
 
 ## Giai đoạn 4: Tách Queue Service
