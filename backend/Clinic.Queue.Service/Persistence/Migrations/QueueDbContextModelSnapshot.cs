@@ -188,6 +188,9 @@ namespace Clinic.Queue.Service.Persistence.Migrations
                     b.Property<DateTime?>("CalledAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CheckInTime")
                         .HasColumnType("datetime2");
 

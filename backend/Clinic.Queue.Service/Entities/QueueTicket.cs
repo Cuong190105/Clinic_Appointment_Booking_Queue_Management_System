@@ -19,6 +19,7 @@ public class QueueTicket
     public DateTime? ExamStartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public DateTime? SkippedAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
@@ -64,6 +65,17 @@ public class QueueTicket
         }
         Status = QueueStatus.Skipped;
         SkippedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void Cancel()
+    {
+        if (Status != QueueStatus.Waiting && Status != QueueStatus.Called)
+        {
+            throw new InvalidOperationException($"Cannot cancel a queue ticket with status '{Status}'. Must be Waiting or Called.");
+        }
+        Status = QueueStatus.Cancelled;
+        CancelledAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
 

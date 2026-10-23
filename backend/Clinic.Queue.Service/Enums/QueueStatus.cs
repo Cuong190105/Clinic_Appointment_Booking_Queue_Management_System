@@ -6,5 +6,6 @@ public enum QueueStatus
     Called = 1,
     InProgress = 2,
     Completed = 3,
-    Skipped = 4
+    Skipped = 4,
+    Cancelled = 5
 }

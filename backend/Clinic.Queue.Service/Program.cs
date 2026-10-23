@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Clinic.Queue.Service.Persistence;
+using Clinic.Queue.Service.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -26,6 +27,9 @@ builder.Services.AddDbContext<QueueDbContext>(options =>
         options.UseSqlServer(queueConnection);
     }
 });
+
+// Services
+builder.Services.AddScoped<IQueueManager, QueueManager>();
 
 // Authentication via Identity Service JWKS
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
