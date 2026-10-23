@@ -120,6 +120,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 3: Tách Appointment Service
 
+> Các nội dung trong phần này ghi lại trạng thái chuyển tiếp của Giai đoạn 3. Khi đó Queue vẫn ở Monolith; Giai đoạn 4 chuyển consumer và quyền tạo ticket sang Queue Service/Queue DB.
+
 ### Nhiệm vụ
 
 1. Tích hợp Appointment events (`AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentCheckedIn`) từ `ClinicAppointmentDB.OutboxMessages` vào broker.
@@ -153,9 +155,9 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ### Nhiệm vụ
 
-1. Tạo consumer cho `AppointmentCheckedIn`.
+1. Tạo consumer cho `AppointmentCheckedIn` từ Appointment Service trong Queue Service; đây là event đầu vào duy nhất để tạo QueueTicket. `PatientCheckedIn` không được dùng như một lệnh/event đầu vào trùng nghĩa.
 2. Đảm bảo duplicate event không tạo QueueTicket trùng.
-3. Tích hợp các event `PatientCheckedIn`, `PatientCalled`, `ExamStarted`, `ExamCompleted`.
+3. Tích hợp các event trạng thái Queue như `PatientCalled`, `ExamStarted`, `ExamCompleted` theo ownership đã chốt; nếu cần thông báo ticket mới, dùng event kết quả `QueueTicketCreated`. Mỗi check-in là một Appointment/event riêng, có thể xử lý đồng thời; không tạo batch check-in.
 4. Viết concurrency test cho cấp queue number.
 5. Kiểm thử consumer crash sau khi ticket được commit.
 6. Xây reconciliation job giữa Queue state và Appointment state.
@@ -165,7 +167,7 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 - Check-in retry được.
 - Duplicate `AppointmentCheckedIn` không tạo ticket thứ hai.
-- Queue number không trùng trong cùng bác sĩ/ngày hoặc phạm vi đã quy định.
+- Queue number không trùng trong phạm vi `(DoctorId, QueueDate)`; `QueueDate` là ngày địa phương theo timezone cấu hình của phòng khám.
 - `ExamCompleted` được xử lý bởi các consumer liên quan.
 - Reconciliation job phát hiện và báo cáo trạng thái lệch.
 
