@@ -812,7 +812,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 
 - Có owner rõ ràng cho trạng thái `Completed`.
-- Mỗi lần lễ tân check-in một appointment và có kết quả/trạng thái riêng; API có thể trả `RequestId`/`AppointmentId` cùng trạng thái pending để người tiếp theo được check-in trong lúc Queue tạo vé. Frontend theo dõi và in đúng ticket theo bệnh nhân khi ticket đã lưu; polling là phương án đầu, có thể thêm thông báo realtime. Không gom check-in thành batch; in lại không cấp số mới.
+- Mỗi lần lễ tân check-in một appointment riêng; frontend chờ Queue lưu ticket thật, hiển thị và in vé đó rồi mới cho tiếp nhận/check-in người tiếp theo. Khi còn pending không hiển thị số 0, không cho in hoặc chuyển lượt; retry/in lại dùng cùng AppointmentId/ticket và không cấp số lần hai. Không gom check-in thành batch.
 
 
 

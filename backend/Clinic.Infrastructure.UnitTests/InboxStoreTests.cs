@@ -164,7 +164,6 @@ public sealed class InboxStoreTests
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
-                Guid.NewGuid(),
                 DateTimeOffset.UtcNow)
         };
     }

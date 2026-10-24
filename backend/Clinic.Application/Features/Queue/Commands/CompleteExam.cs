@@ -72,9 +72,6 @@ namespace Clinic.Application.Features.Queue.Commands
                     CausationId = _eventContext?.CausationId,
                     Producer = "queue-service",
                     Payload = new ExamCompleted(
-                        // Transitional monolith mapping: AppointmentId is the stable visit key
-                        // until the Encounter/Visit aggregate is introduced.
-                        queueTicket.AppointmentId,
                         queueTicket.Id,
                         queueTicket.AppointmentId,
                         doctorId,

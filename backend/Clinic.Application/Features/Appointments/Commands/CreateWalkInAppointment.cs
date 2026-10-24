@@ -27,20 +27,17 @@ namespace Clinic.Application.Features.Appointments.Commands
         private readonly IPatientRepository _patientRepository;
         private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly IAppointmentRepository _appointmentRepository;
-        private readonly IQueueTicketRepository _queueTicketRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateWalkInAppointmentHandler(
             IPatientRepository patientRepository,
             IWorkScheduleRepository workScheduleRepository,
             IAppointmentRepository appointmentRepository,
-            IQueueTicketRepository queueTicketRepository,
             IUnitOfWork unitOfWork)
         {
             _patientRepository = patientRepository;
             _workScheduleRepository = workScheduleRepository;
             _appointmentRepository = appointmentRepository;
-            _queueTicketRepository = queueTicketRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -71,7 +68,7 @@ namespace Clinic.Application.Features.Appointments.Commands
                     .First();
             }
 
-            var nowTime = TimeOnly.FromDateTime(DateTime.UtcNow);
+            var nowTime = TimeOnly.FromDateTime(new TimeConverter().ConvertFromUtc(DateTime.UtcNow));
             var timeSlot = (nowTime >= selectedSchedule.ShiftStart && nowTime < selectedSchedule.ShiftEnd)
                 ? nowTime
                 : selectedSchedule.ShiftStart;
@@ -88,18 +85,14 @@ namespace Clinic.Application.Features.Appointments.Commands
                 isWalkIn: true
             );
 
-            // Xác nhận ngay
+            // Xác nhận và đánh dấu checked in (Queue Service sẽ cấp vé qua event)
             appointment.Confirm(request.UserId);
+            appointment.MarkCheckedIn();
 
             selectedSchedule.AddAppointment(appointment);
             await _appointmentRepository.AddAsync(appointment);
 
-            // Tự động check-in và sinh số thứ tự
             var checkInTime = DateTime.UtcNow;
-            var queueNumber = await _queueTicketRepository.GetNextQueueNumberAsync(selectedSchedule.DoctorId, checkInTime.Date, cancellationToken);
-            var queueTicket = appointment.CheckIn(checkInTime, queueNumber, request.IsUrgent);
-
-            await _queueTicketRepository.AddAsync(queueTicket);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -114,9 +107,9 @@ namespace Clinic.Application.Features.Appointments.Commands
                 DoctorId = selectedSchedule.DoctorId,
                 DoctorName = doctorName,
                 SpecialtyName = specialtyName,
-                QueueTicketId = queueTicket.Id,
-                QueueNumber = queueNumber,
-                IsUrgent = queueTicket.Priority,
+                QueueTicketId = Guid.Empty,
+                QueueNumber = 0,
+                IsUrgent = request.IsUrgent,
                 CheckInTime = checkInTime,
                 Status = appointment.Status.ToString(),
                 WorkScheduleId = selectedSchedule.Id,

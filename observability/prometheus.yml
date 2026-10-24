@@ -7,3 +7,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: [backend:8080]
+  - job_name: clinic-queue-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: [queue-service:8080]

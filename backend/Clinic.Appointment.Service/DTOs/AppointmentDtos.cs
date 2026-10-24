@@ -111,7 +111,8 @@ public record SyncWalkInAppointmentRequest(
     DateOnly ScheduleDate,
     TimeOnly TimeSlot,
     string Reason,
-    Guid CreatedByUserId
+    Guid CreatedByUserId,
+    bool IsUrgent = false
 );
 
 public record PagedAppointmentsDto(

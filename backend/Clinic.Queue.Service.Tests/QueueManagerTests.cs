@@ -1,4 +1,5 @@
 using Clinic.Contracts.Events;
+using Clinic.Contracts.Serialization;
 using Clinic.Queue.Service.Common.Exceptions;
 using Clinic.Queue.Service.Entities;
 using Clinic.Queue.Service.Enums;
@@ -39,7 +40,7 @@ public class QueueManagerTests
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, appointmentId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
         };
 
         var ticketDto = await manager.ProcessAppointmentCheckedInAsync(envelope);
@@ -82,7 +83,7 @@ public class QueueManagerTests
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, appointmentId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
         };
 
         var ticket1 = await manager.ProcessAppointmentCheckedInAsync(envelope);
@@ -118,7 +119,7 @@ public class QueueManagerTests
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, appointmentId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
         };
 
         var envelope2 = new EventEnvelope<AppointmentCheckedIn>
@@ -129,7 +130,7 @@ public class QueueManagerTests
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, appointmentId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
         };
 
         var ticket1 = await manager.ProcessAppointmentCheckedInAsync(envelope1);
@@ -160,7 +161,7 @@ public class QueueManagerTests
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(Guid.Empty, Guid.Empty, Guid.Empty, Guid.Empty, DateTimeOffset.UtcNow)
+            Payload = new AppointmentCheckedIn(Guid.Empty, Guid.Empty, Guid.Empty, DateTimeOffset.UtcNow)
         };
 
         await Assert.ThrowsAsync<QueueValidationException>(() => manager.ProcessAppointmentCheckedInAsync(envelope));
@@ -288,6 +289,12 @@ public class QueueManagerTests
         var examStartedOutbox = await db.OutboxMessages.FirstOrDefaultAsync(m => m.EventType == EventTypes.ExamStarted);
         Assert.NotNull(examStartedOutbox);
         Assert.Equal("queue.exam-started", examStartedOutbox.RoutingKey);
+        var startedEnvelope = System.Text.Json.JsonSerializer.Deserialize<EventEnvelope<ExamStarted>>(
+            examStartedOutbox.Payload,
+            EventJsonSerializerOptions.Default);
+        Assert.NotNull(startedEnvelope);
+        Assert.Equal(examStartedOutbox.EventId, startedEnvelope.EventId);
+        Assert.Equal(examStartedOutbox.CorrelationId, startedEnvelope.CorrelationId);
 
         // 2. CompleteExam
         await manager.CompleteExamAsync(ticketId, doctorId, false);

@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+_ = Clinic.Appointment.Service.Common.ClinicTime.TimeZone; // Fail fast on an invalid clinic timezone.
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {

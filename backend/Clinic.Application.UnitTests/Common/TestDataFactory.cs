@@ -74,17 +74,28 @@ namespace Clinic.Application.UnitTests.Common
 
         internal static WorkSchedule CreateWorkSchedule(Doctor? doctor = null, DateOnly? date = null, TimeOnly? startTime = null, TimeOnly? endTime = null, int RecommendedCapacity = 15)
         {
-            var sTime = startTime ?? (date != null ? TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddMinutes(1)) : new TimeOnly(9, 0));
-            var eTime = endTime ?? (date != null ? (sTime.AddHours(2) <= sTime ? new TimeOnly(23, 59, 59) : sTime.AddHours(2)) : new TimeOnly(11, 0));
-            return new WorkSchedule(doctor ?? CreateDoctor(), date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)), sTime, eTime, RecommendedCapacity);
+            var doc = doctor ?? CreateDoctor();
+            var sTime = startTime ?? new TimeOnly(8, 0);
+            var eTime = endTime ?? new TimeOnly(23, 59, 59);
+            var d = date ?? new Clinic.Domain.Common.TimeConverter().Today.AddDays(2);
+            var ws = new WorkSchedule(Guid.NewGuid(), doc.Id, d, sTime, eTime, RecommendedCapacity, WorkScheduleStatus.Active, DateTime.UtcNow, null, false);
+            typeof(WorkSchedule).GetProperty("Doctor")!.SetValue(ws, doc);
+            return ws;
         }
 
-        internal static Appointment CreateAppointment(Patient? patient = null, WorkSchedule? workSchedule = null, TimeOnly? timeSlot = null, string? reason = null, Guid? createdBy = null, bool confirmed = false, bool checkedIn = false, int queueNumber = 0, bool today = false)
+        internal static Appointment CreateAppointment(Patient? patient = null, WorkSchedule? workSchedule = null, TimeOnly? timeSlot = null, string? reason = null, Guid? createdBy = null, bool confirmed = false, bool checkedIn = false, int queueNumber = 0, bool today = false, bool isWalkIn = false)
         {
             var scheduleEndTime = timeSlot.HasValue ? (timeSlot.Value.AddHours(2) <= timeSlot.Value ? new TimeOnly(23, 59, 59) : timeSlot.Value.AddHours(2)) : (TimeOnly?)null;
-            workSchedule ??= CreateWorkSchedule(date: checkedIn | today ? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddMinutes(1)) : null, startTime: timeSlot, endTime: scheduleEndTime);
+            workSchedule ??= CreateWorkSchedule(date: (checkedIn || today) ? new Clinic.Domain.Common.TimeConverter().Today : null, startTime: timeSlot, endTime: scheduleEndTime);
             timeSlot ??= workSchedule.ShiftStart;
-            var app = new Appointment(patient ?? CreatePatient(), workSchedule, timeSlot.Value, reason ?? "Reason", createdBy ?? Guid.NewGuid());
+            var isPast = new Clinic.Domain.Common.TimeConverter().ConvertToUtc(new DateTime(workSchedule.Date, timeSlot.Value)) < DateTime.UtcNow;
+            var walkInFlag = isWalkIn || (isPast && (checkedIn || today || workSchedule.Date <= new Clinic.Domain.Common.TimeConverter().Today));
+
+            var app = new Appointment(patient ?? CreatePatient(), workSchedule, timeSlot.Value, reason ?? "Reason", createdBy ?? Guid.NewGuid(), walkInFlag);
+            if (!isWalkIn && walkInFlag)
+            {
+                typeof(Appointment).GetProperty("IsWalkIn")!.SetValue(app, false);
+            }
             if (confirmed || checkedIn)
             {
                 app.Confirm(new Guid());

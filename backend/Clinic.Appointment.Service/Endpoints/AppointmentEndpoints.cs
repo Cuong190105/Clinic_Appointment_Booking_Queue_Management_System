@@ -358,27 +358,36 @@ public static class AppointmentEndpoints
         // 13. INTERNAL EVENT HOOKS
         app.MapPost("/internal/events/exam-completed", async (
             [FromBody] ExamCompleted evt,
+            HttpRequest request,
+            IConfiguration configuration,
             IAppointmentManager manager,
             CancellationToken ct) =>
         {
+            if (!HasValidServiceToken(request, configuration)) return Results.Unauthorized();
             var handled = await manager.ProcessExamCompletedAsync(evt, ct);
             return handled ? Results.Ok(new { handled = true }) : Results.BadRequest(new { handled = false });
         });
 
         app.MapPost("/internal/events/user-profile-updated", async (
             [FromBody] UserProfileUpdated evt,
+            HttpRequest request,
+            IConfiguration configuration,
             IAppointmentManager manager,
             CancellationToken ct) =>
         {
+            if (!HasValidServiceToken(request, configuration)) return Results.Unauthorized();
             var handled = await manager.ProcessUserProfileUpdatedAsync(evt, ct);
             return handled ? Results.Ok(new { handled = true }) : Results.BadRequest(new { handled = false });
         });
 
         app.MapPost("/internal/appointments/sync-walkin", async (
             [FromBody] SyncWalkInAppointmentRequest request,
+            HttpRequest httpRequest,
+            IConfiguration configuration,
             IAppointmentManager manager,
             CancellationToken ct) =>
         {
+            if (!HasValidServiceToken(httpRequest, configuration)) return Results.Unauthorized();
             var handled = await manager.SyncWalkInAppointmentAsync(request, ct);
             return handled ? Results.Ok(new { synced = true }) : Results.BadRequest(new { synced = false });
         });
@@ -390,6 +399,16 @@ public static class AppointmentEndpoints
     {
         var raw = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
         return Guid.TryParse(raw, out var uid) ? uid : Guid.Empty;
+    }
+
+    private static bool HasValidServiceToken(HttpRequest request, IConfiguration configuration)
+    {
+        var expected = configuration["Identity:ServiceToken"];
+        var supplied = request.Headers["X-Clinic-Service-Token"].ToString();
+        if (string.IsNullOrWhiteSpace(expected) || string.IsNullOrWhiteSpace(supplied)) return false;
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(expected),
+            System.Text.Encoding.UTF8.GetBytes(supplied));
     }
 
     private static string? GetUserName(ClaimsPrincipal user)

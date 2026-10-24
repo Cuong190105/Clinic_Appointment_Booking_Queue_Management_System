@@ -15,6 +15,7 @@ public sealed class AppointmentServiceFactory : WebApplicationFactory<Program>
             ["Identity:Authority"] = "http://localhost:5001",
             ["Jwt:Issuer"] = "http://localhost:5000",
             ["Jwt:Audience"] = "Clinic.Services",
+            ["Identity:ServiceToken"] = "integration-test-service-token",
             ["Services:Scheduling:BaseUrl"] = "http://localhost:5002"
         }));
     }

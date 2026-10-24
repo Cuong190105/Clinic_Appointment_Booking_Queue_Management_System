@@ -30,17 +30,17 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
 
             // Doctor 1 has 2 appointments
             var doctor1 = TestDataFactory.CreateDoctor(specialty: specialty);
-            var ws1 = TestDataFactory.CreateWorkSchedule(doctor: doctor1, date: today);
-            ws1.AddAppointment(TestDataFactory.CreateAppointment(workSchedule: ws1, timeSlot: ws1.ShiftStart));
-            ws1.AddAppointment(TestDataFactory.CreateAppointment(workSchedule: ws1, timeSlot: ws1.ShiftStart.AddMinutes(15)));
+            var ws1 = new WorkSchedule(Guid.NewGuid(), doctor1.Id, today, new TimeOnly(8, 0), new TimeOnly(23, 59), 15, WorkScheduleStatus.Active, DateTime.UtcNow, null, false);
+            ws1.AddAppointment(TestDataFactory.CreateAppointment(workSchedule: ws1, timeSlot: new TimeOnly(9, 0)));
+            ws1.AddAppointment(TestDataFactory.CreateAppointment(workSchedule: ws1, timeSlot: new TimeOnly(9, 15)));
             await workScheduleRepo.AddWorkScheduleAsync(ws1);
 
             // Doctor 2 has 0 appointments
             var doctor2 = TestDataFactory.CreateDoctor(specialty: specialty);
-            var ws2 = TestDataFactory.CreateWorkSchedule(doctor: doctor2, date: today);
+            var ws2 = new WorkSchedule(Guid.NewGuid(), doctor2.Id, today, new TimeOnly(8, 0), new TimeOnly(23, 59), 15, WorkScheduleStatus.Active, DateTime.UtcNow, null, false);
             await workScheduleRepo.AddWorkScheduleAsync(ws2);
 
-            var handler = new CreateWalkInAppointmentHandler(patientRepo, workScheduleRepo, appointmentRepo, queueTicketRepo, unitOfWork);
+            var handler = new CreateWalkInAppointmentHandler(patientRepo, workScheduleRepo, appointmentRepo, unitOfWork);
 
             var command = new CreateWalkInAppointmentCommand(
                 UserId: Guid.NewGuid(),
@@ -56,7 +56,6 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             Assert.NotNull(result);
             Assert.Equal(doctor2.Id, result.DoctorId); // Should select Doctor 2 with 0 appointments!
             Assert.True(result.IsUrgent);
-            Assert.True(result.QueueNumber > 0);
         }
     }
 }

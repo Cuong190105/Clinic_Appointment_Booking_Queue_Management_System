@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Entities;
+using Clinic.Domain.Entities;
 
 namespace Clinic.Domain.UnitTests
 {
@@ -66,15 +66,15 @@ namespace Clinic.Domain.UnitTests
             Assert.Throws<InvalidOperationException>(() => shift.Approve());
             Assert.Throws<InvalidOperationException>(() => shift.Reject());
 
-            // Test deleting a shift that has already started
-            // Pls ignore if getting an error about shift start greater than shift end (wish i knew abt TimeProvider earlier).
-            // Better go to bed at that moment then
+            // Test updating a shift that has already started
             now = DateTime.UtcNow.AddHours(7);
-            var nowShift = new ShiftRequest(doctor, DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddSeconds(1)), TimeOnly.FromDateTime(now.AddHours(1)), 5, "");
+            var start = TimeOnly.FromDateTime(now.AddSeconds(1));
+            var end = start.AddMinutes(5) <= start ? new TimeOnly(23, 59, 59) : start.AddMinutes(5);
+            var nowShift = new ShiftRequest(doctor, DateOnly.FromDateTime(now), start, end, 5, "");
 
             Thread.Sleep(1500);
-            Assert.Throws<InvalidOperationException>(() => nowShift.UpdateShift(DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddHours(2)), TimeOnly.FromDateTime(now.AddHours(3)), 5, ""));
-
+            var updateEnd = end.AddMinutes(5) <= end ? new TimeOnly(23, 59, 59) : end.AddMinutes(5);
+            Assert.Throws<InvalidOperationException>(() => nowShift.UpdateShift(DateOnly.FromDateTime(now), end, updateEnd, 5, ""));
         }
     }
 }

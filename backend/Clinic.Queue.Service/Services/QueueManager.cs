@@ -187,10 +187,11 @@ public class QueueManager : IQueueManager
             return MapToDto(ticket);
         }
 
+        QueueTicketDto createdTicket;
         if (_dbContext.Database.IsSqlServer())
         {
             var strategy = _dbContext.Database.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            createdTicket = await strategy.ExecuteAsync(async () =>
             {
                 await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
                 try
@@ -218,7 +219,7 @@ public class QueueManager : IQueueManager
         {
             try
             {
-                return await CreateTicketAction();
+                createdTicket = await CreateTicketAction();
             }
             catch (DbUpdateException)
             {
@@ -232,6 +233,9 @@ public class QueueManager : IQueueManager
                 throw;
             }
         }
+
+        QueueTelemetry.TicketsCreated.Add(1);
+        return createdTicket;
     }
 
     public async Task<QueueTicketDto> CallNextAsync(Guid doctorId, DateOnly? date = null, CancellationToken ct = default)
@@ -264,6 +268,8 @@ public class QueueManager : IQueueManager
         {
             throw new QueueNotFoundException("There are no patients waiting in the queue for this doctor.");
         }
+
+        QueueTelemetry.WaitTime.Record(Math.Max(0, (DateTime.UtcNow - nextTicket.CheckInTime).TotalSeconds));
 
         nextTicket.Call();
 
@@ -311,7 +317,7 @@ public class QueueManager : IQueueManager
         ticket.CompleteExam();
 
         AddOutboxMessage(
-            new ExamCompleted(ticket.AppointmentId, ticket.Id, ticket.AppointmentId, ticket.DoctorId, DateTimeOffset.UtcNow),
+            new ExamCompleted(ticket.Id, ticket.AppointmentId, ticket.DoctorId, DateTimeOffset.UtcNow),
             EventTypes.ExamCompleted,
             "queue.exam-completed",
             Guid.NewGuid());
@@ -455,29 +461,35 @@ public class QueueManager : IQueueManager
 
     private void AddOutboxMessage<T>(T payload, string eventType, string routingKey, Guid correlationId, Guid? causationId = null)
     {
-        var outbox = new OutboxMessage
+        var eventId = Guid.NewGuid();
+        var occurredAt = DateTimeOffset.UtcNow;
+        var corrId = correlationId != Guid.Empty ? correlationId : Guid.NewGuid();
+
+        var envelope = new EventEnvelope<T>
         {
-            EventId = Guid.NewGuid(),
+            EventId = eventId,
             EventType = eventType,
             SchemaVersion = 1,
-            OccurredAt = DateTimeOffset.UtcNow,
-            CorrelationId = correlationId != Guid.Empty ? correlationId : Guid.NewGuid(),
+            OccurredAt = occurredAt,
+            CorrelationId = corrId,
             CausationId = causationId,
             Producer = "Clinic.Queue.Service",
-            Payload = JsonSerializer.Serialize(new EventEnvelope<T>
-            {
-                EventId = Guid.NewGuid(),
-                EventType = eventType,
-                SchemaVersion = 1,
-                OccurredAt = DateTimeOffset.UtcNow,
-                CorrelationId = correlationId != Guid.Empty ? correlationId : Guid.NewGuid(),
-                CausationId = causationId,
-                Producer = "Clinic.Queue.Service",
-                Payload = payload
-            }),
+            Payload = payload
+        };
+
+        var outbox = new OutboxMessage
+        {
+            EventId = eventId,
+            EventType = eventType,
+            SchemaVersion = 1,
+            OccurredAt = occurredAt,
+            CorrelationId = corrId,
+            CausationId = causationId,
+            Producer = "Clinic.Queue.Service",
+            Payload = JsonSerializer.Serialize(envelope),
             RoutingKey = routingKey,
             Status = OutboxMessageStatus.Pending,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = occurredAt
         };
         _dbContext.OutboxMessages.Add(outbox);
     }

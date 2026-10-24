@@ -45,7 +45,7 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         // Unique index preventing overlapping bookings for the same doctor, date and time slot
         builder.HasIndex(a => new { a.DoctorId, a.ScheduleDate, a.TimeSlot })
             .IsUnique()
-            .HasFilter("[Status] <> 'Cancelled' AND [IsDeleted] = 0");
+            .HasFilter("[Status] <> 'Cancelled' AND [IsDeleted] = 0 AND [IsWalkIn] = 0");
 
         // Indexes for fast lookup
         builder.HasIndex(a => new { a.PatientId, a.ScheduleDate });

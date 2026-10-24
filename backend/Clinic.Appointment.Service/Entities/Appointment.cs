@@ -1,6 +1,7 @@
 namespace Clinic.Appointment.Service.Entities;
 
 using Clinic.Appointment.Service.Enums;
+using Clinic.Appointment.Service.Common;
 
 public class Appointment
 {
@@ -89,12 +90,11 @@ public class Appointment
         {
             throw new InvalidOperationException($"Cannot check in an appointment with status '{Status}'. Appointment must be confirmed first.");
         }
-        var checkInDateUtc = DateOnly.FromDateTime(checkInTime);
-        var checkInDateVn = DateOnly.FromDateTime(checkInTime.AddHours(7));
-        if (ScheduleDate != checkInDateUtc && ScheduleDate != checkInDateVn)
+        var checkInDateLocal = ClinicTime.ToLocalDate(checkInTime);
+        if (ScheduleDate != checkInDateLocal)
         {
             throw new InvalidOperationException(
-                $"Cannot check in: appointment is scheduled for {ScheduleDate:yyyy-MM-dd}, not today ({checkInDateVn:yyyy-MM-dd}).");
+                $"Cannot check in: appointment is scheduled for {ScheduleDate:yyyy-MM-dd}, not today ({checkInDateLocal:yyyy-MM-dd}) in clinic timezone '{ClinicTime.TimeZone.Id}'.");
         }
         Status = AppointmentStatus.CheckedIn;
         UpdatedAt = DateTime.UtcNow;

@@ -1,6 +1,8 @@
 namespace Clinic.Queue.Service.Services;
 
 using System.Text;
+using Clinic.Queue.Service.Common;
+using Clinic.Queue.Service.Entities;
 using Clinic.Queue.Service.Enums;
 using Clinic.Queue.Service.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +13,9 @@ public class QueueOutboxPublisher : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly IConfiguration _configuration;
     private readonly ILogger<QueueOutboxPublisher> _logger;
+
+    private IConnection? _connection;
+    private IChannel? _channel;
 
     public QueueOutboxPublisher(
         IServiceProvider serviceProvider,
@@ -38,9 +43,14 @@ public class QueueOutboxPublisher : BackgroundService
             {
                 await PublishPendingOutboxMessagesAsync(stoppingToken);
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Error occurred during Queue outbox publishing cycle.");
+                await DisconnectAsync();
             }
 
             try
@@ -53,24 +63,18 @@ public class QueueOutboxPublisher : BackgroundService
             }
         }
 
+        await DisconnectAsync();
         _logger.LogInformation("QueueOutboxPublisher stopped.");
     }
 
-    private async Task PublishPendingOutboxMessagesAsync(CancellationToken ct)
+    private async Task EnsureConnectedAsync(CancellationToken ct)
     {
-        await using var scope = _serviceProvider.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<QueueDbContext>();
-
-        var pendingMessages = await db.OutboxMessages
-            .Where(m => m.Status == OutboxMessageStatus.Pending)
-            .OrderBy(m => m.CreatedAt)
-            .Take(20)
-            .ToListAsync(ct);
-
-        if (pendingMessages.Count == 0)
+        if (_connection is { IsOpen: true } && _channel is { IsOpen: true })
         {
             return;
         }
+
+        await DisconnectAsync();
 
         var host = _configuration["RabbitMq:Host"] ?? _configuration["RabbitMQ__Host"] ?? _configuration["RabbitMq:HostName"] ?? "rabbitmq";
         var portStr = _configuration["RabbitMq:Port"] ?? _configuration["RabbitMQ__Port"] ?? "5672";
@@ -91,24 +95,98 @@ public class QueueOutboxPublisher : BackgroundService
             ClientProvidedName = "clinic-queue-outbox-publisher"
         };
 
-        IConnection? connection = null;
-        IChannel? channel = null;
+        _connection = await factory.CreateConnectionAsync(ct);
+        _channel = await _connection.CreateChannelAsync(
+            new CreateChannelOptions(
+                publisherConfirmationsEnabled: true,
+                publisherConfirmationTrackingEnabled: true),
+            ct);
 
-        try
+        const string exchangeName = "clinic.events";
+        await _channel.ExchangeDeclareAsync(
+            exchange: exchangeName,
+            type: ExchangeType.Topic,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+        await _channel.ExchangeDeclareAsync(
+            exchange: "clinic.dead-letter",
+            type: ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+        await _channel.QueueDeclareAsync(
+            queue: "q.queue-service.outbox-dlq",
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            cancellationToken: ct);
+        await _channel.QueueBindAsync(
+            queue: "q.queue-service.outbox-dlq",
+            exchange: "clinic.dead-letter",
+            routingKey: "q.queue-service.outbox-dlq",
+            cancellationToken: ct);
+    }
+
+    private async Task PublishPendingOutboxMessagesAsync(CancellationToken ct)
+    {
+        await using var scope = _serviceProvider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<QueueDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        var leaseTimeout = now.AddMinutes(-5);
+
+        var candidateIds = await db.OutboxMessages
+            .Where(m => (m.Status == OutboxMessageStatus.Pending && (m.NextAttemptAt == null || m.NextAttemptAt <= now)) ||
+                        (m.Status == OutboxMessageStatus.Failed && m.RetryCount <= 5 && (m.NextAttemptAt == null || m.NextAttemptAt <= now)) ||
+                        (m.Status == OutboxMessageStatus.Publishing && m.PublishingStartedAt != null && m.PublishingStartedAt <= leaseTimeout) ||
+                        (m.Status == OutboxMessageStatus.DeadLetterPending && (m.NextAttemptAt == null || m.NextAttemptAt <= now)) ||
+                        (m.Status == OutboxMessageStatus.DeadLetterPublishing && m.PublishingStartedAt != null && m.PublishingStartedAt <= leaseTimeout))
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => m.Id)
+            .Take(20)
+            .ToListAsync(ct);
+
+        if (candidateIds.Count == 0)
         {
-            connection = await factory.CreateConnectionAsync(ct);
-            channel = await connection.CreateChannelAsync(cancellationToken: ct);
+            return;
+        }
 
-            const string exchangeName = "clinic.events";
-            await channel.ExchangeDeclareAsync(
-                exchange: exchangeName,
-                type: ExchangeType.Topic,
-                durable: true,
-                autoDelete: false,
-                cancellationToken: ct);
+        await EnsureConnectedAsync(ct);
 
-            foreach (var message in pendingMessages)
+        const string exchangeName = "clinic.events";
+
+        foreach (var id in candidateIds)
+        {
+            var claimed = await db.OutboxMessages
+                .Where(m => m.Id == id &&
+                            ((m.Status == OutboxMessageStatus.Pending && (m.NextAttemptAt == null || m.NextAttemptAt <= now)) ||
+                        (m.Status == OutboxMessageStatus.Failed && m.RetryCount <= 5 && (m.NextAttemptAt == null || m.NextAttemptAt <= now)) ||
+                             (m.Status == OutboxMessageStatus.Publishing && m.PublishingStartedAt != null && m.PublishingStartedAt <= leaseTimeout) ||
+                             (m.Status == OutboxMessageStatus.DeadLetterPending && (m.NextAttemptAt == null || m.NextAttemptAt <= now)) ||
+                             (m.Status == OutboxMessageStatus.DeadLetterPublishing && m.PublishingStartedAt != null && m.PublishingStartedAt <= leaseTimeout)))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.Status, x =>
+                        x.Status == OutboxMessageStatus.DeadLetterPending || x.Status == OutboxMessageStatus.DeadLetterPublishing ||
+                        (x.Status == OutboxMessageStatus.Failed && x.RetryCount >= 5)
+                            ? OutboxMessageStatus.DeadLetterPublishing
+                            : OutboxMessageStatus.Publishing)
+                    .SetProperty(x => x.PublishingStartedAt, now)
+                    .SetProperty(x => x.LastAttemptAt, now), ct);
+
+            if (claimed == 0)
             {
+                continue;
+            }
+
+            var message = await db.OutboxMessages.FirstOrDefaultAsync(m => m.Id == id, ct);
+            if (message == null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var isDeadLetter = message.Status == OutboxMessageStatus.DeadLetterPublishing;
                 var routingKey = string.IsNullOrWhiteSpace(message.RoutingKey)
                     ? message.EventType.ToLowerInvariant()
                     : message.RoutingKey;
@@ -119,34 +197,80 @@ public class QueueOutboxPublisher : BackgroundService
                 {
                     DeliveryMode = DeliveryModes.Persistent,
                     ContentType = "application/json",
-                    MessageId = message.EventId.ToString()
+                    MessageId = message.EventId.ToString(),
+                    CorrelationId = message.CorrelationId.ToString(),
+                    Type = message.EventType,
+                    Headers = new Dictionary<string, object?>
+                    {
+                        ["causation-id"] = message.CausationId?.ToString() ?? string.Empty,
+                        ["schema-version"] = message.SchemaVersion,
+                    ["x-retry-count"] = message.RetryCount,
+                    ["x-dead-letter-reason"] = message.LastError ?? string.Empty,
+                        ["traceparent"] = message.TraceParent ?? string.Empty,
+                        ["tracestate"] = message.TraceState ?? string.Empty
+                    }
                 };
 
-                await channel.BasicPublishAsync(
-                    exchange: exchangeName,
-                    routingKey: routingKey,
-                    mandatory: false,
+                await _channel!.BasicPublishAsync(
+                    exchange: isDeadLetter ? "clinic.dead-letter" : exchangeName,
+                    routingKey: isDeadLetter ? "q.queue-service.outbox-dlq" : routingKey,
+                    mandatory: true,
                     basicProperties: props,
                     body: bodyBytes,
                     cancellationToken: ct);
 
-                message.Status = OutboxMessageStatus.Published;
-                message.PublishedAt = DateTimeOffset.UtcNow;
-                message.LastAttemptAt = DateTimeOffset.UtcNow;
+                message.Status = isDeadLetter ? OutboxMessageStatus.DeadLettered : OutboxMessageStatus.Published;
+                if (!isDeadLetter) message.PublishedAt = DateTimeOffset.UtcNow;
+                message.PublishingStartedAt = null;
+                message.LastError = null;
+                _logger.LogInformation("Successfully published outbox event {EventType} ({EventId})", message.EventType, message.EventId);
+                if (isDeadLetter) QueueTelemetry.OutboxDeadLettered.Add(1);
+                else QueueTelemetry.OutboxPublished.Add(1);
+            }
+            catch (Exception ex)
+            {
+                QueueTelemetry.OutboxFailed.Add(1);
+                _logger.LogWarning(ex, "Failed to publish outbox event {EventType} ({EventId})", message.EventType, message.EventId);
+                var wasDeadLetterAttempt = message.Status == OutboxMessageStatus.DeadLetterPublishing;
+                if (!wasDeadLetterAttempt) message.RetryCount++;
+                message.PublishingStartedAt = null;
+                message.LastError = ex.Message;
+                if (wasDeadLetterAttempt)
+                {
+                    message.Status = OutboxMessageStatus.DeadLetterPending;
+                    message.NextAttemptAt = DateTimeOffset.UtcNow.AddSeconds(30);
+                }
+                else if (message.RetryCount >= 5)
+                {
+                    message.Status = OutboxMessageStatus.DeadLetterPending;
+                    message.NextAttemptAt = null;
+                }
+                else
+                {
+                    message.Status = OutboxMessageStatus.Failed;
+                    QueueTelemetry.OutboxRetries.Add(1);
+                    message.NextAttemptAt = DateTimeOffset.UtcNow.AddSeconds(Math.Min(300, Math.Pow(2, message.RetryCount) * 2));
+                }
             }
 
             await db.SaveChangesAsync(ct);
-            _logger.LogInformation("Published {Count} Queue outbox messages to RabbitMQ.", pendingMessages.Count);
         }
-        catch (Exception ex)
+    }
+
+    private async Task DisconnectAsync()
+    {
+        if (_channel != null)
         {
-            _logger.LogWarning("Failed to publish Queue outbox messages to RabbitMQ ({Host}:{Port}): {Message}", host, port, ex.Message);
+            try { await _channel.CloseAsync(); } catch { }
+            await _channel.DisposeAsync();
+            _channel = null;
         }
-        finally
+
+        if (_connection != null)
         {
-            if (channel != null) await channel.DisposeAsync();
-            if (connection != null) await connection.DisposeAsync();
+            try { await _connection.CloseAsync(); } catch { }
+            await _connection.DisposeAsync();
+            _connection = null;
         }
     }
 }
-

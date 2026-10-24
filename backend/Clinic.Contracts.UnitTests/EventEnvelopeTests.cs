@@ -28,7 +28,6 @@ public sealed class EventEnvelopeTests
                 appointmentId,
                 Guid.NewGuid(),
                 Guid.NewGuid(),
-                Guid.NewGuid(),
                 occurredAt)
         };
 
@@ -40,6 +39,7 @@ public sealed class EventEnvelopeTests
         Assert.Equal(1, document.RootElement.GetProperty("schemaVersion").GetInt32());
         Assert.Equal("appointment-service", document.RootElement.GetProperty("producer").GetString());
         Assert.Equal(appointmentId.ToString(), document.RootElement.GetProperty("payload").GetProperty("appointmentId").GetString());
+        Assert.False(document.RootElement.GetProperty("payload").TryGetProperty("visitId", out _));
     }
 
     [Fact]
@@ -58,7 +58,6 @@ public sealed class EventEnvelopeTests
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
-                Guid.NewGuid(),
                 DateTimeOffset.UtcNow)
         };
 
@@ -72,5 +71,21 @@ public sealed class EventEnvelopeTests
         Assert.Equal(envelope.CorrelationId, result.CorrelationId);
         Assert.Null(result.CausationId);
         Assert.Equal(envelope.Payload, result.Payload);
+    }
+
+    [Fact]
+    public void Exam_completed_uses_appointment_identity_without_visit_id()
+    {
+        var examCompleted = new ExamCompleted(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow);
+
+        var json = JsonSerializer.Serialize(examCompleted, EventJsonSerializerOptions.Default);
+        using var document = JsonDocument.Parse(json);
+
+        Assert.False(document.RootElement.TryGetProperty("visitId", out _));
+        Assert.True(document.RootElement.TryGetProperty("appointmentId", out _));
     }
 }

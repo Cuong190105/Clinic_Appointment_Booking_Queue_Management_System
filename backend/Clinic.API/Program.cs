@@ -9,6 +9,7 @@ using Clinic.Infrastructure.Sqlserver.Notifications;
 using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Clinic.Infrastructure.Sqlserver.Outbox;
+using Clinic.Domain.Common;
 using Microsoft.OpenApi;
 using System.Reflection;
 using System.Security.Claims;
@@ -17,6 +18,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+_ = new TimeConverter(); // Fail fast when the clinic timezone is invalid.
 const string ClinicJwtScheme = "ClinicJwt";
 const string IdentityJwtScheme = "IdentityJwt";
 const string LegacyJwtScheme = "LegacyJwt";
@@ -77,10 +79,10 @@ builder.Services.AddSignalR();
 if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
 {
     builder.Services.AddHostedService<NotificationWorker>();
-            builder.Services.AddHostedService<ScheduledNotificationWorker>();
-            builder.Services.AddHostedService<OutboxPublisher>();
-            builder.Services.AddHostedService<AppointmentCheckedInConsumer>();
-        }
+    builder.Services.AddHostedService<ScheduledNotificationWorker>();
+    builder.Services.AddHostedService<OutboxPublisher>();
+    // AppointmentCheckedInConsumer removed: Queue Service is the sole consumer of AppointmentCheckedIn
+}
 
 // Add Authentication and Authorization services
 builder.Services.AddHttpClient("Identity", client =>

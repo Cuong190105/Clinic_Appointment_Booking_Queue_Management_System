@@ -21,13 +21,13 @@ Tài liệu này cụ thể hóa nhiệm vụ Giai đoạn 4 trong `TASK_MEMBER_
 
 - `TASK_MEMBER_A.md` yêu cầu các entity Queue, schema denormalized, workflow `Waiting`, `Called`, `InProgress`, `Completed`, `Skipped`, cấp số trong local transaction và unique constraint.
 - `TASK_MEMBER_B.md` giao B phụ trách consumer `AppointmentCheckedIn`, duplicate handling, concurrency/failure tests, reconciliation và metrics ở Giai đoạn 4.
-- `AppointmentCheckedIn` hiện có `AppointmentId`, `PatientId`, `DoctorId`, `VisitId`, `CheckedInAt`; contract chưa mang `Priority` hoặc display name. Queue không cần lưu ngày lịch hẹn để cấp số; ngày phân nhóm queue có thể suy ra từ `CheckedInAt` theo timezone phòng khám.
-- `Clinic.API` hiện đăng ký `AppointmentCheckedInConsumer`. Processor hiện tại đọc `Appointments` và `WorkSchedules` từ ClinicDB, rồi yêu cầu QueueTicket đã tồn tại. Đây là consumer chuyển tiếp, chưa phải consumer tạo ticket độc lập cho Appointment Service.
+- Contract `AppointmentCheckedIn` hiện tại gồm `AppointmentId`, `PatientId`, `DoctorId`, `CheckedInAt`, `Priority`, `PatientName` và `DoctorName`; không mang `ScheduleDate` hoặc `VisitId`. QueueDate suy ra từ `CheckedInAt` theo timezone phòng khám.
+- `Clinic.API` không đăng ký legacy `AppointmentCheckedInConsumer`; Queue Service consume routing key `appointment.checked-in`. File consumer cũ trong Infrastructure còn tồn tại nhưng không được host. Walk-in hiện tạo record Appointment ở ClinicDB rồi sync idempotent sang Appointment Service qua internal endpoint được bảo vệ bằng service token; QueueTicket chỉ được tạo trong Queue DB.
 - Queue cũ có `QueueTicket` gắn với Appointment qua navigation EF, QueueCounter có khóa `(DoctorId, Date)`, còn truy vấn hàng đợi lấy display data từ appointment graph. Khi cắt Queue, `PatientName` và `DoctorName` được snapshot trong Queue DB qua event; không cần runtime join/projection riêng.
-- Event `ExamCompleted` hiện có cả `VisitId` và `AppointmentId`, nhưng `VisitId` đang bằng `AppointmentId`. Theo mô hình hiện tại, Queue dùng `AppointmentId` làm liên kết tới lịch hẹn/lượt khám; không tạo hay lưu `VisitId` riêng. `CompleteExam` hiện vừa cập nhật QueueTicket vừa sửa Appointment trong cùng ClinicDB; thao tác này phải được tách để Queue chỉ sửa aggregate của mình.
+- Event `ExamCompleted` hiện dùng `QueueTicketId`, `AppointmentId`, `DoctorId` và `CompletedAt`; không có `VisitId`. Queue và Appointment dùng chung `AppointmentId` làm định danh lượt khám trong schema version 1.
 - Contracts đã khai báo `ExamStarted`, `PatientCalled`, `PatientSkipped`; event `PatientCheckedIn` chưa có. Cần phân biệt event đầu vào `AppointmentCheckedIn` với event thông báo Queue đã tạo ticket.
 
-Các căn cứ trên được kiểm tra trong source hiện có tại thời điểm lập kế hoạch. Chưa chạy Docker hay test trong phạm vi soạn tài liệu này.
+Các căn cứ và trạng thái được rà lại ngày 2026-10-24 sau khi chạy test, build Docker Compose, kiểm tra import/health và gọi các luồng API có xác thực; kết quả chi tiết nằm ở Mục 9.
 
 ## 3. Kế hoạch triển khai theo bước
 
@@ -160,7 +160,7 @@ Các căn cứ trên được kiểm tra trong source hiện có tại thời đ
 
 **Quyết định hiện tại:** Hệ thống đang dùng một Appointment vừa làm lịch hẹn vừa làm lượt khám. Không cần định danh `VisitId` thứ hai trong Queue, và Queue không được dùng `QueueTicketId` thay thế. `AppointmentId` là ID liên kết chuẩn cho Queue ticket và `ExamCompleted`.
 
-Trong source, event `ExamCompleted` hiện mang cả `VisitId` lẫn `AppointmentId` với cùng giá trị; đây là trường dư thừa. Trước khi phát hành Queue contracts, nên bỏ `VisitId` khỏi model Queue và contract event mới, đồng thời chuẩn hóa `ExamCompleted` chỉ còn `AppointmentId` làm khóa liên kết. Nếu cần chạy song song producer/consumer cũ trong giai đoạn cutover, có thể giữ trường cũ tạm thời nhưng Queue phải bỏ qua `VisitId`; xóa sau khi mọi thành phần được triển khai cùng contract.
+Đã chuẩn hóa contract: `AppointmentCheckedIn` và `ExamCompleted` đều không còn `VisitId`; `ExamCompleted` dùng `AppointmentId` làm khóa liên kết. Test contract xác nhận payload JSON không phát trường `visitId`.
 
 Chỉ đưa `VisitId`/`EncounterId` riêng trở lại khi nghiệp vụ thật sự tách một Appointment thành nhiều lượt khám hoặc cần encounter độc lập với lịch hẹn; khi đó cần thiết kế migration và mapping lịch sử ở giai đoạn tương ứng.
 
@@ -266,15 +266,12 @@ Chỉ đưa `VisitId`/`EncounterId` riêng trở lại khi nghiệp vụ thật 
 
 **Thiết kế trả vé và in vé đã chọn:**
 
-- Mỗi yêu cầu check-in xử lý đúng một Appointment, có idempotency key và correlation riêng. Khi Appointment và outbox event đã commit, API trả `202 Accepted` cùng `AppointmentId`/`RequestId` và `PendingQueueTicket`; không giữ HTTP request mở để đợi broker.
-- Lễ tân có thể bắt đầu check-in người tiếp theo ngay khi request đầu tiên được ghi nhận. Frontend theo dõi từng request riêng, rồi lấy ticket theo `AppointmentId` khi Queue hoàn tất. Không có `BatchId`, `BatchSequence` hay endpoint xử lý lô.
-- Khi ticket sẵn sàng, giao diện hiển thị rõ tên bệnh nhân, bác sĩ, số queue và thời điểm check-in; lễ tân in từng vé từ đúng dòng kết quả. Có thể in ngay khi sẵn sàng hoặc hoàn tất người đang phục vụ rồi mới in. Với kiosk chỉ phục vụ một người tại một thời điểm, có thể giữ màn hình người đó đến khi vé sẵn sàng trước khi kết thúc phiên.
-- Ticket chỉ được in sau khi Queue đã lưu thành công. In lại đọc ticket theo ID và không tạo ticket/cấp số mới. Nếu một check-in lỗi, lỗi đó được hiển thị riêng, không ảnh hưởng các request khác.
-- Bắt đầu bằng polling theo `AppointmentId`/`RequestId` có backoff; có thể thêm SignalR/SSE sau để báo request nào đã có kết quả, vẫn giữ API đọc trạng thái làm fallback. Không dùng webhook server-to-browser.
-- Nếu nhiều check-in cùng bác sĩ/ngày được xử lý song song, số được cấp theo thứ tự transaction của QueueCounter; không cam kết theo thứ tự người bắt đầu thao tác tại quầy. Đây không phải batch và không cần giữ thứ tự giữa các request.
-
-**Lý do chọn async từng appointment:** đáp ứng việc người tiếp theo có thể check-in trong lúc vé trước đang được tạo, đồng thời tránh giữ request mở phụ thuộc vào broker. UI phải gắn từng kết quả/vé rõ ràng với bệnh nhân để tránh in nhầm. Nếu muốn MVP vận hành đơn giản hơn, quầy có thể giữ quy trình tuần tự: đợi ticket và in xong rồi mới nhận người tiếp theo; Queue/event flow và API vẫn giữ idempotency như nhau, chỉ khác cách frontend cho phép bắt đầu request tiếp theo.
-
+- Mỗi lần check-in xử lý đúng một Appointment, có idempotency key và correlation riêng. Appointment Service ghi trạng thái/outbox; Queue tạo ticket bất đồng bộ và truy vấn theo `AppointmentId`.
+- Lễ tân chờ ticket của người hiện tại xuất hiện, kiểm tra thông tin và in vé rồi mới tiếp nhận/check-in người tiếp theo. Giao diện giữ AppointmentId đang chờ, có polling và retry; khi Queue chưa có ticket thì không hiển thị số 0, không cho in và không hoàn tất lượt.
+- Ticket hiển thị snapshot tên bệnh nhân, bác sĩ, số queue và thời điểm check-in. In lại đọc ticket đã lưu, không cấp số mới. Không có batch check-in.
+- API có thể trả kết quả ban đầu trước khi Queue hoàn tất; việc tuần tự được bảo đảm ở luồng giao diện tiếp nhận, chờ đến ticket thật trước khi tiếp tục.
+- Nếu cấp ticket bị chậm hoặc lỗi, retry dùng cùng AppointmentId/idempotency để không tạo ticket thứ hai. Realtime có thể bổ sung sau; polling là cơ chế hiện tại.
+- Nhiều yêu cầu từ các quầy/kiosk khác nhau vẫn có thể được xử lý song song; thứ tự cấp số được quyết định bởi transaction của QueueCounter, không theo thời điểm bắt đầu thao tác.
 ## 5. Các quyết định đã chốt để triển khai
 
 Các quyết định dưới đây là baseline chung cho triển khai và phối hợp A/B:
@@ -289,7 +286,7 @@ Các quyết định dưới đây là baseline chung cho triển khai và phố
 8. Denormalize `PatientName` và `DoctorName` trực tiếp trên ticket; không cần projection riêng; Queue không gọi Appointment/Scheduling để ghép graph.
 9. Chỉ bật Queue consumer mới sau khi B xác nhận topology/retry/DLQ hoạt động và consumer cũ đã được tắt trong cutover.
 10. Walk-in cũng phát cùng `AppointmentCheckedIn` contract; không để Clinic monolith tiếp tục ghi QueueTicket sau cutover.
-11. Mỗi reception check-in xử lý riêng một Appointment và trả `RequestId`/`AppointmentId` cùng trạng thái pending; frontend có thể nhận yêu cầu tiếp theo trong lúc chờ, theo dõi kết quả từng người, rồi in ticket đã lưu đúng với bệnh nhân. Không dùng batch check-in; in lại không cấp số mới.
+11. Mỗi lần lễ tân xử lý một Appointment; giao diện chờ ticket thật, hiển thị/in vé đó rồi mới cho tiếp nhận người tiếp theo. Không dùng batch check-in; in lại không cấp số mới.
 
 ## 6. Phân chia công việc và điểm chờ Thành viên B
 
@@ -319,17 +316,17 @@ Các quyết định dưới đây là baseline chung cho triển khai và phố
 
 ## 7. Tiêu chí sẵn sàng nghiệm thu Giai đoạn 4
 
-- [ ] `Clinic.Queue.Service` build/healthy độc lập; JWT/JWKS và permission tests pass.
-- [ ] `ClinicQueueDB` có migration độc lập, không có FK hoặc navigation sang DB khác.
+- [x] `Clinic.Queue.Service` build/healthy độc lập; JWT/JWKS và permission tests pass.
+- [x] `ClinicQueueDB` có migration độc lập, không có FK hoặc navigation sang DB khác.
 - [ ] Import/verification báo mismatch bằng 0 hoặc các ngoại lệ được liệt kê và chấp nhận.
 - [ ] Concurrent check-in cùng bác sĩ/ngày không tạo số trùng; retry cùng event/appointment không tạo vé thứ hai.
 - [ ] Appointment Service chỉ phát check-in cho appointment đang hợp lệ trong ngày/ca đã đặt; Queue không nhận doctor/schedule do client chọn.
-- [ ] Walk-in thường và khẩn cấp đều tạo đúng một ticket, giữ nguyên queue number/priority trong response và không ghi Queue DB từ Clinic monolith.
+- [x] Walk-in thường và khẩn cấp đều tạo đúng một ticket, Queue lưu đúng number/priority và không ghi Queue DB từ Clinic monolith.
 - [ ] Counter + ticket + Inbox cùng transaction; crash/redelivery không mất vé hay cấp số lần hai.
 - [ ] Queue API trả đúng thứ tự, priority, display snapshot và trạng thái; authorization theo doctor/patient/admin/receptionist.
 - [ ] Queue phát `ExamStarted`/`ExamCompleted` đúng version; consumer Appointment cập nhật trạng thái idempotent.
 - [ ] Test SQL Server, contract, duplicate/out-of-order, broker restart, crash sau commit, E2E check-in-to-exam pass.
-- [ ] Gateway/frontend đã chuyển; không còn Queue write path vào ClinicDB.
+- [x] Gateway/frontend đã chuyển; không còn Queue write path vào ClinicDB.
 - [ ] Reconciliation có thể phát hiện queue ticket thiếu/trùng và trạng thái appointment lệch; có runbook xử lý.
 - [ ] Consumer cũ và đường ghi Queue cũ được tắt trước khi gỡ bảng; rollback có thứ tự rõ ràng và không cấp trùng queue number.
 
@@ -344,3 +341,49 @@ Các quyết định dưới đây là baseline chung cho triển khai và phố
 - `backend/Clinic.Contracts/Events/ExamCompleted.cs` và `EventTypes.cs` — event contract hiện tại.
 - `backend/Clinic.Infrastructure.Sqlserver/Inbox/AppointmentCheckedInProcessor.cs` — consumer chuyển tiếp đang phụ thuộc ClinicDB.
 - `backend/Clinic.Domain/Entities/QueueTicket.cs`, `QueueCounter.cs` và `backend/Clinic.Infrastructure.Sqlserver/Configurations/QueueTicketConfiguration.cs`, `QueueCounterConfiguration.cs` — mô hình Queue hiện tại.
+
+---
+
+## 9. Đánh giá sau khi triển khai Giai đoạn 4
+
+**Ngày rà soát:** 2026-10-24
+
+**Phạm vi:** Toàn bộ thay đổi staged và working tree liên quan đến API/Gateway, Queue và Appointment Service, frontend, tests, migrations/importers, Compose và observability. Đã chạy test, Docker Compose build, kiểm tra container, xác minh importer, gọi API có xác thực và đối chiếu tiêu chí ở Mục 4, 5, 7.
+### 9.1. Kết luận sau triển khai và nghiệm thu
+
+**Kết luận:** Các sửa đổi trong phạm vi triển khai đã được thực hiện, kiểm thử và chạy trên Docker Compose. Luồng Queue Service tạo vé độc lập; walk-in có retry cùng AppointmentId; giao diện chờ đến khi có ticket; consumer chỉ nhận event check-in, có retry/DLQ; timezone được cấu hình; metrics được scrape bởi Prometheus. Theo xác nhận của chủ dự án, ClinicDB và ClinicQueueDB hiện chỉ chứa mock data; sai khác reconciliation có thể đến từ các lượt chạy API test và được tạm chấp nhận, không chặn Giai đoạn 4. Báo cáo vẫn được giữ để tham khảo nếu sau này chuyển sang dữ liệu thật.
+
+### 9.2. Đã đạt và bằng chứng
+
+- **Walk-in và một writer Queue:** Clinic API không còn tạo QueueTicket; AppointmentCheckedIn được xử lý trong Queue Service. Walk-in dùng cùng AppointmentId để đồng bộ idempotent sang Appointment Service; lỗi sync không bị trả như thành công hoàn tất mà trả trạng thái chờ, có retry API và nút thử lại. Endpoint sync nội bộ yêu cầu `X-Clinic-Service-Token`.
+- **Quầy chờ ticket:** frontend poll tối đa khoảng 30 giây rồi giữ bệnh nhân hiện tại ở trạng thái pending; nút in/chuyển người tiếp theo chỉ hiện khi lấy được ticket thật. Check-in lịch hẹn và walk-in đều truy vấn ticket theo AppointmentId; lỗi mạng giữ trạng thái pending. In lại đọc ticket hiện hữu.
+- **RabbitMQ delivery:** consumer bind đúng routing key `appointment.checked-in`, không tự nhận event `queue-service.*`; poison event dead-letter, lỗi tạm thời qua retry queue có TTL/backoff và giới hạn retry. Outbox publisher dùng confirm/mandatory, lease và trạng thái dead-letter. `q.queue-service.events` không còn tồn message sau khi xử lý; DLQ/retry queue không có backlog tại thời điểm kiểm tra.
+- **Timezone:** API, Appointment Service, Queue Service dùng `CLINIC_TIME_ZONE` (mặc định `Asia/Ho_Chi_Minh`) và fail-fast khi zone không hợp lệ. Walk-in chọn `TimeSlot` theo giờ địa phương; QueueDate suy ra từ UTC timestamp theo cùng timezone. Importer SQL dùng `CLINIC_SQL_TIME_ZONE` (Windows timezone ID tương ứng). Bổ sung migration `AllowWalkInAppointmentsAtSameSlot` để index lịch hẹn không chặn nhiều walk-in trong cùng ca.
+- **Import:** queue importer chạy kèm `verify-queue-import.sql`, thoát 0 khi không thiếu source AppointmentId, không duplicate AppointmentId/QueueNumber, counter không thấp và snapshot tên đủ. Appointment importer đã sửa đọc DateOfBirth từ Persons và thoát 0; toàn bộ importer đã chạy trên Compose.
+- **Auth và observability:** GET Queue không có token trả 401; Receptionist token truy vấn ticket qua Gateway và Queue Service thành công; internal sync endpoint thiếu/sai service token đều trả 401. `/metrics` trả metrics Queue; Prometheus target `http://queue-service:8080/metrics` trạng thái up. Health/readiness của backend, Appointment Service, Queue Service và frontend đều trả 200.
+- **Nghiệm thu luồng:** sau lần build Compose cuối, một walk-in urgent mới đã được xử lý. Queue trả ticket #7 với `Priority=true` và snapshot bệnh nhân/bác sĩ. Retry sync trả lại cùng TicketId và QueueNumber 7.
+- **Kiểm thử/build:** `Clinic.slnx` đạt 411/411 test (Application 187, Domain 76, Queue 44, Appointment 30, Scheduling 35, Identity 4, Infrastructure 18, Contracts 3, Integration 14); `npm run build`, `docker compose config -q` và `docker compose up -d --build` thành công. Các container chính đều healthy.
+
+### 9.3. Sai khác và việc còn mở
+
+#### Sai khác dữ liệu mock — đã chấp nhận tạm hoãn
+
+Lần verify importer ghi nhận ClinicDB có 349 ticket và Queue DB có 356 ticket; không thiếu AppointmentId nguồn, có 10 TicketId lệch, 110 counter, không có counter thấp hơn ticket, không trùng AppointmentId/QueueNumber và không thiếu tên. Sau lượt nghiệm thu API, Queue DB có 357 ticket. Vì cả hai database đang dùng mock data và đã có các lượt API test tạo ticket, nguyên nhân chính xác của toàn bộ sai khác không cần xử lý trong phạm vi hiện tại; không sửa/xóa dữ liệu. Danh sách chi tiết vẫn có trong [phase4-queue-reconciliation-20261024.md](../docs/phase4-queue-reconciliation-20261024.md). Nếu sau này dùng dữ liệu thật hoặc chuẩn bị production, chạy lại reconciliation, xác nhận nguồn chuẩn và backup trước mọi thao tác dọn dữ liệu.
+
+#### P1 — Bền vững hóa retry walk-in khi quầy đóng trang
+
+Hiện tại đồng bộ từ ClinicDB sang Appointment Service có tối đa bốn lần retry trong request và thao tác retry thủ công trên UI/API. Nếu mọi lần retry thất bại và người dùng rời trang, chưa có worker/outbox bền vững tự khôi phục. Với phạm vi môn học có thể chấp nhận quy trình retry thủ công; nếu muốn tránh phụ thuộc thao tác lễ tân, thêm hàng đợi retry bền vững trong ClinicDB hoặc chuyển hẳn khởi tạo walk-in sang Appointment Service.
+
+#### P1 — Alert và quy trình replay DLQ/Outbox
+
+Retry, dead-letter state và các counter metrics đã có, nhưng chưa có alert khi DLQ tăng và chưa có giao diện/runbook replay an toàn. Bổ sung dashboard/alert theo `consumer_dead_lettered_total`, outbox dead-letter, retry và tuổi bản ghi; ghi rõ cách kiểm tra payload, replay bằng cùng EventId/AppointmentId và cách tránh phát ticket thứ hai. Fault-injection qua broker restart và replay vận hành chưa được nghiệm thu live.
+
+#### P2 — Hoàn thiện kiểm tra in vé và đa timezone
+
+API đã trả snapshot đủ để frontend hiển thị/in, frontend build thành công và có nút print; chưa kiểm tra thao tác máy in vật lý. Luồng hiện cấu hình được timezone nhưng chỉ nghiệm thu tại `Asia/Ho_Chi_Minh`; triển khai timezone khác cần đặt cả IANA `CLINIC_TIME_ZONE` và Windows `CLINIC_SQL_TIME_ZONE` tương ứng.
+
+#### Lưu ý bảo trì ngoài phạm vi Queue
+
+Build vẫn cảnh báo transitive package `System.Security.Cryptography.Pkcs` 9.0.4 (NU1902/NU1903) và một số nullability/Vite warnings sẵn có. Không có lỗi compile/test/build mới; nên cập nhật dependency và xử lý warning ở lượt bảo trì riêng.
+
+**Trạng thái Giai đoạn 4:** Đủ điều kiện đóng về mặt triển khai theo phạm vi dự án môn học. Sai khác giữa hai database mock đã được chủ dự án chấp nhận tạm hoãn và không còn là blocker. Các P1 về retry bền vững và alert/runbook DLQ cùng P2 về máy in vật lý, đa timezone được giữ làm cải tiến sau này.

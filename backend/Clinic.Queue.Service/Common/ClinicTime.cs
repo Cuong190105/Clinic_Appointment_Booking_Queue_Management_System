@@ -4,21 +4,8 @@ public static class ClinicTime
 {
     private static readonly Lazy<TimeZoneInfo> ClinicTz = new(() =>
     {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-            }
-            catch (TimeZoneNotFoundException)
-            {
-                return TimeZoneInfo.Utc;
-            }
-        }
+        var timeZoneId = Environment.GetEnvironmentVariable("CLINIC_TIME_ZONE") ?? "Asia/Ho_Chi_Minh";
+        return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
     });
 
     public static TimeZoneInfo TimeZone => ClinicTz.Value;

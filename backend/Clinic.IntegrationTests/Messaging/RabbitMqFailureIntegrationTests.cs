@@ -194,7 +194,6 @@ public sealed class RabbitMqFailureIntegrationTests : IClassFixture<ApiContractF
                 appointment.Id,
                 appointment.PatientId,
                 appointment.WorkSchedule.DoctorId,
-                appointment.Id,
                 DateTimeOffset.UtcNow)
         };
     }
@@ -211,7 +210,6 @@ public sealed class RabbitMqFailureIntegrationTests : IClassFixture<ApiContractF
             CorrelationId = Guid.NewGuid(),
             Producer = "integration-test",
             Payload = new AppointmentCheckedIn(
-                Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),

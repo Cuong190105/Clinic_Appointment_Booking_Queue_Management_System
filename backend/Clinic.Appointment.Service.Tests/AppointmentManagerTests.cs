@@ -467,7 +467,6 @@ public class AppointmentManagerTests
 
         var evt = new ExamCompleted(
             Guid.NewGuid(),
-            Guid.NewGuid(),
             app.Id,
             app.DoctorId,
             DateTimeOffset.UtcNow);

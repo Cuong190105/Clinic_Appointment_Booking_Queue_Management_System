@@ -46,7 +46,7 @@ BEGIN TRY
            q.AppointmentId,
            a.PatientId,
            a.DoctorId,
-           CAST(DATEADD(hour, 7, q.CheckInTime) AS date) AS QueueDate,
+           CAST((q.CheckInTime AT TIME ZONE 'UTC' AT TIME ZONE '$(ClinicWindowsTimeZone)') AS date) AS QueueDate,
            q.QueueNumber,
            COALESCE(pPer.FullName, N'Unknown Patient') AS PatientName,
            COALESCE(a.DoctorName, dPer.FullName, N'Unknown Doctor') AS DoctorName,

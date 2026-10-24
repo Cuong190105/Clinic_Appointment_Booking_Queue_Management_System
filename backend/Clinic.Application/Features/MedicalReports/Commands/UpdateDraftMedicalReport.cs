@@ -90,7 +90,6 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                             CausationId = _eventContext?.CausationId,
                             Producer = "queue-service",
                             Payload = new ExamCompleted(
-                                appointment.Id,
                                 ticket?.Id ?? Guid.Empty,
                                 appointment.Id,
                                 docId,

@@ -113,7 +113,7 @@ namespace Clinic.Appointment.Service.Persistence.Migrations
 
                     b.HasIndex("DoctorId", "ScheduleDate", "TimeSlot")
                         .IsUnique()
-                        .HasFilter("[Status] <> 'Cancelled' AND [IsDeleted] = 0");
+                        .HasFilter("[Status] <> 'Cancelled' AND [IsDeleted] = 0 AND [IsWalkIn] = 0");
 
                     b.ToTable("Appointments", (string)null);
                 });

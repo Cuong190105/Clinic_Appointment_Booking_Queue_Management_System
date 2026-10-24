@@ -124,7 +124,7 @@ public class QueueApiIntegrationTests : IClassFixture<TestQueueAppFactory>
     }
 
     [Fact]
-    public async Task InternalEvents_AppointmentCheckedIn_CreatesTicket_AndIsIdempotent()
+    public async Task ProcessAppointmentCheckedIn_CreatesTicket_AndIsIdempotent()
     {
         var doctorId = Guid.NewGuid();
         var patientId = Guid.NewGuid();
@@ -138,14 +138,14 @@ public class QueueApiIntegrationTests : IClassFixture<TestQueueAppFactory>
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, appointmentId, DateTimeOffset.UtcNow, false, "Nguyen Thi Mai", "Dr. House")
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow, false, "Nguyen Thi Mai", "Dr. House")
         };
 
-        // First call
-        var response1 = await _client.PostAsJsonAsync("/internal/events/appointment-checked-in", envelope);
-        Assert.Equal(HttpStatusCode.OK, response1.StatusCode);
+        using var scope1 = _factory.Services.CreateScope();
+        var queueManager1 = scope1.ServiceProvider.GetRequiredService<Clinic.Queue.Service.Services.IQueueManager>();
 
-        var ticket1 = await response1.Content.ReadFromJsonAsync<QueueTicketDto>();
+        // First call
+        var ticket1 = await queueManager1.ProcessAppointmentCheckedInAsync(envelope);
         Assert.NotNull(ticket1);
         Assert.Equal(appointmentId, ticket1.AppointmentId);
         Assert.Equal(1, ticket1.QueueNumber);
@@ -153,9 +153,9 @@ public class QueueApiIntegrationTests : IClassFixture<TestQueueAppFactory>
         Assert.Equal("Nguyen Thi Mai", ticket1.PatientName);
 
         // Duplicate call with same EventId
-        var response2 = await _client.PostAsJsonAsync("/internal/events/appointment-checked-in", envelope);
-        Assert.Equal(HttpStatusCode.OK, response2.StatusCode);
-        var ticket2 = await response2.Content.ReadFromJsonAsync<QueueTicketDto>();
+        using var scope2 = _factory.Services.CreateScope();
+        var queueManager2 = scope2.ServiceProvider.GetRequiredService<Clinic.Queue.Service.Services.IQueueManager>();
+        var ticket2 = await queueManager2.ProcessAppointmentCheckedInAsync(envelope);
         Assert.NotNull(ticket2);
         Assert.Equal(ticket1.Id, ticket2.Id);
         Assert.Equal(1, ticket2.QueueNumber);
@@ -171,9 +171,9 @@ public class QueueApiIntegrationTests : IClassFixture<TestQueueAppFactory>
             CorrelationId = Guid.NewGuid(),
             Payload = envelope.Payload
         };
-        var response3 = await _client.PostAsJsonAsync("/internal/events/appointment-checked-in", envelopeDifferentEventId);
-        Assert.Equal(HttpStatusCode.OK, response3.StatusCode);
-        var ticket3 = await response3.Content.ReadFromJsonAsync<QueueTicketDto>();
+        using var scope3 = _factory.Services.CreateScope();
+        var queueManager3 = scope3.ServiceProvider.GetRequiredService<Clinic.Queue.Service.Services.IQueueManager>();
+        var ticket3 = await queueManager3.ProcessAppointmentCheckedInAsync(envelopeDifferentEventId);
         Assert.NotNull(ticket3);
         Assert.Equal(ticket1.Id, ticket3.Id);
         Assert.Equal(1, ticket3.QueueNumber);
@@ -195,10 +195,11 @@ public class QueueApiIntegrationTests : IClassFixture<TestQueueAppFactory>
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, appointmentId, DateTimeOffset.UtcNow, true, "Bao Nguyen", "Dr. Strange")
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow, true, "Bao Nguyen", "Dr. Strange")
         };
-        var checkinRes = await _client.PostAsJsonAsync("/internal/events/appointment-checked-in", envelope);
-        var ticket = await checkinRes.Content.ReadFromJsonAsync<QueueTicketDto>();
+        using var scope = _factory.Services.CreateScope();
+        var queueManager = scope.ServiceProvider.GetRequiredService<Clinic.Queue.Service.Services.IQueueManager>();
+        var ticket = await queueManager.ProcessAppointmentCheckedInAsync(envelope);
         Assert.NotNull(ticket);
 
         // 2. Doctor views their queue
@@ -282,9 +283,11 @@ public class QueueApiIntegrationTests : IClassFixture<TestQueueAppFactory>
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(Guid.NewGuid(), patientId, doctorId, Guid.NewGuid(), DateTimeOffset.UtcNow, false, "Patient Patient", "Dr. Doctor")
+            Payload = new AppointmentCheckedIn(Guid.NewGuid(), patientId, doctorId, DateTimeOffset.UtcNow, false, "Patient Patient", "Dr. Doctor")
         };
-        await _client.PostAsJsonAsync("/internal/events/appointment-checked-in", envelope);
+        using var scope = _factory.Services.CreateScope();
+        var queueManager = scope.ServiceProvider.GetRequiredService<Clinic.Queue.Service.Services.IQueueManager>();
+        await queueManager.ProcessAppointmentCheckedInAsync(envelope);
 
         // 3. Now /me/queue-status returns 200 OK
         var statusReq = new HttpRequestMessage(HttpMethod.Get, "/me/queue-status");

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Clinic.API.Services;
@@ -8,10 +9,12 @@ namespace Clinic.API.Services;
 public sealed class AppointmentServiceClient
 {
     private readonly HttpClient _client;
+    private readonly string? _serviceToken;
 
-    public AppointmentServiceClient(IHttpClientFactory factory)
+    public AppointmentServiceClient(IHttpClientFactory factory, IConfiguration configuration)
     {
         _client = factory.CreateClient("Appointment");
+        _serviceToken = configuration["Identity:ServiceToken"];
     }
 
     public async Task<IActionResult> ProxyAsync(
@@ -68,17 +71,34 @@ public sealed class AppointmentServiceClient
 
     public async Task<bool> PostInternalAsync(string targetPath, object jsonBody, CancellationToken ct = default)
     {
-        try
+        var json = JsonSerializer.Serialize(jsonBody);
+        for (var attempt = 0; attempt < 4; attempt++)
         {
-            var json = JsonSerializer.Serialize(jsonBody);
-            using var content = new StringContent(json, Encoding.UTF8, "application/json");
-            using var response = await _client.PostAsync(targetPath, content, ct);
-            return response.IsSuccessStatusCode;
+            try
+            {
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var request = new HttpRequestMessage(HttpMethod.Post, targetPath) { Content = content };
+                if (!string.IsNullOrWhiteSpace(_serviceToken))
+                    request.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", _serviceToken);
+                using var response = await _client.SendAsync(request, ct);
+                if (response.IsSuccessStatusCode) return true;
+                if ((int)response.StatusCode < 500 && response.StatusCode != HttpStatusCode.RequestTimeout && response.StatusCode != HttpStatusCode.TooManyRequests)
+                    return false;
+            }
+            catch (HttpRequestException) when (!ct.IsCancellationRequested)
+            {
+                // Retry transient service/network failures; the receiving endpoint is idempotent by appointment ID.
+            }
+            catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+            {
+                // HttpClient timeout; retry with the same stable appointment ID.
+            }
+
+            if (attempt < 3)
+                await Task.Delay(TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt)), ct);
         }
-        catch
-        {
-            return false;
-        }
+
+        return false;
     }
 
     public async Task<JsonDocument?> GetJsonAsync(HttpContext httpContext, string targetPath, CancellationToken ct = default)

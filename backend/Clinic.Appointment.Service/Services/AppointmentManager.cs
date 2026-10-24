@@ -681,7 +681,6 @@ public class AppointmentManager : IAppointmentManager
                     app.Id,
                     app.PatientId,
                     app.DoctorId,
-                    app.Id, // Stable VisitId
                     DateTimeOffset.UtcNow,
                     isUrgent,
                     app.PatientName,
@@ -807,8 +806,28 @@ public class AppointmentManager : IAppointmentManager
         };
 
         _db.Appointments.Add(appointment);
+
+        var checkInTime = DateTimeOffset.UtcNow;
+        _outbox.Add(new EventEnvelope<AppointmentCheckedIn>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.AppointmentCheckedIn,
+            SchemaVersion = 1,
+            OccurredAt = checkInTime,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Appointment.Service",
+            Payload = new AppointmentCheckedIn(
+                appointment.Id,
+                appointment.PatientId,
+                appointment.DoctorId,
+                checkInTime,
+                request.IsUrgent,
+                appointment.PatientName,
+                appointment.DoctorName)
+        }, "appointment.checked-in");
+
         await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Synced walk-in appointment {AppointmentId} into ClinicAppointmentDB", request.AppointmentId);
+        _logger.LogInformation("Synced walk-in appointment {AppointmentId} and enqueued AppointmentCheckedIn into outbox", request.AppointmentId);
         return true;
     }
 

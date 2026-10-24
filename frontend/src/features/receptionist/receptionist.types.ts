@@ -114,4 +114,7 @@ export interface CheckInResponse {
   appointmentId?: string
   checkInTime?: string
   priority?: boolean
+  patientName?: string
+  doctorName?: string
+  status?: string
 }

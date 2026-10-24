@@ -89,9 +89,6 @@ namespace Clinic.Application.Features.Queue.Commands
                             appointment.Id,
                             appointment.PatientId,
                             doctorId,
-                            // Transitional monolith mapping: AppointmentId is the stable visit key
-                            // until the Encounter/Visit aggregate is introduced.
-                            appointment.Id,
                             checkInTime)
                     },
                     "appointment.checked-in");

@@ -24,20 +24,20 @@ namespace Clinic.API.Controllers
         private readonly IMapper _mapper;
         private readonly ICurrentUser _currentUser;
         private readonly AppointmentServiceClient _appointmentClient;
-        private readonly QueueServiceClient? _queueClient;
+        private readonly IAppointmentRepository _appointmentRepository;
 
         public ReceptionistController(
             ISender sender,
             IMapper mapper,
             ICurrentUser currentUser,
             AppointmentServiceClient appointmentClient,
-            QueueServiceClient? queueClient = null)
+            IAppointmentRepository appointmentRepository)
         {
             _sender = sender;
             _mapper = mapper;
             _currentUser = currentUser;
             _appointmentClient = appointmentClient;
-            _queueClient = queueClient;
+            _appointmentRepository = appointmentRepository;
         }
 
         // Lấy danh sách bác sĩ đang có ca trực hôm nay (theo chuyên khoa)
@@ -70,8 +70,8 @@ namespace Clinic.API.Controllers
 
             var result = await _sender.Send(command);
 
-            // Sync walk-in appointment to Clinic.Appointment.Service so ClinicAppointmentDB tracks it and handles ExamCompleted
-            _ = await _appointmentClient.PostInternalAsync("internal/appointments/sync-walkin", new
+            // Sync walk-in appointment to Clinic.Appointment.Service so ClinicAppointmentDB tracks it and publishes AppointmentCheckedIn
+            var synced = await _appointmentClient.PostInternalAsync("internal/appointments/sync-walkin", new
             {
                 appointmentId = result.AppointmentId,
                 patientId = result.PatientId,
@@ -86,34 +86,58 @@ namespace Clinic.API.Controllers
                 scheduleDate = result.ScheduleDate,
                 timeSlot = result.TimeSlot,
                 reason = result.Reason,
-                createdByUserId = userId
+                createdByUserId = userId,
+                isUrgent = result.IsUrgent
             }, HttpContext.RequestAborted);
 
-            // Sync walk-in ticket to Clinic.Queue.Service
-            if (_queueClient != null)
+            if (!synced)
             {
-                _ = await _queueClient.PostInternalAsync("internal/events/appointment-checked-in", new
-                {
-                    eventId = Guid.NewGuid(),
-                    eventType = "AppointmentCheckedIn",
-                    schemaVersion = 1,
-                    occurredAt = DateTimeOffset.UtcNow,
-                    correlationId = Guid.NewGuid(),
-                    producer = "monolith-receptionist",
-                    payload = new
-                    {
-                        appointmentId = result.AppointmentId,
-                        patientId = result.PatientId,
-                        doctorId = result.DoctorId,
-                        checkedInAt = result.CheckInTime,
-                        priority = result.IsUrgent,
-                        patientName = result.PatientName,
-                        doctorName = result.DoctorName
-                    }
-                }, HttpContext.RequestAborted);
+                // The appointment is durable in ClinicDB. Keep its ID so the receptionist can retry
+                // this idempotent projection without creating a second walk-in appointment.
+                return Accepted(result);
             }
 
             return StatusCode(StatusCodes.Status201Created, result);
+        }
+
+        [HttpPost("appointments/walk-in/{appointmentId:guid}/sync")]
+        [Authorize(Policy = "Permission:appointment.create")]
+        [ProducesResponseType(StatusCodes.Status202Accepted)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> RetryWalkInAppointmentSync([FromRoute] Guid appointmentId, [FromQuery] bool isUrgent = false)
+        {
+            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            if (appointment == null) return NotFound();
+            if (!appointment.IsWalkIn || appointment.Status != Clinic.Domain.Enums.AppointmentStatus.CheckedIn)
+            {
+                return Conflict(new { error = "Only checked-in walk-in appointments can be synchronized." });
+            }
+
+            var person = appointment.Patient?.Person;
+            var doctorName = appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? appointment.DoctorName;
+            var synced = await _appointmentClient.PostInternalAsync("internal/appointments/sync-walkin", new
+            {
+                appointmentId = appointment.Id,
+                patientId = appointment.PatientId,
+                patientName = person?.FullName ?? string.Empty,
+                patientPhone = person?.PhoneNumber,
+                patientGender = person?.Gender.ToString(),
+                patientDateOfBirth = person?.DateOfBirth,
+                workScheduleId = appointment.WorkScheduleId,
+                doctorId = appointment.DoctorId,
+                doctorName,
+                specialtyName = appointment.SpecialtyName,
+                scheduleDate = appointment.ScheduleDate,
+                timeSlot = appointment.TimeSlot,
+                reason = appointment.Reason,
+                createdByUserId = appointment.UpdatedByUserId,
+                isUrgent
+            }, HttpContext.RequestAborted);
+
+            return synced
+                ? Accepted(new { appointmentId, synced = true })
+                : StatusCode(StatusCodes.Status503ServiceUnavailable, new { appointmentId, synced = false, retryable = true });
         }
 
         // For receptionist only

@@ -74,12 +74,25 @@ public class AppointmentApiIntegrationTests : IClassFixture<AppointmentServiceFa
             "test@integration.local",
             "Male");
 
-        var response = await _client.PostAsJsonAsync("/internal/events/user-profile-updated", evt);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/internal/events/user-profile-updated")
+        {
+            Content = JsonContent.Create(evt)
+        };
+        request.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var content = await response.Content.ReadAsStringAsync();
         using var json = JsonDocument.Parse(content);
         Assert.True(json.RootElement.GetProperty("handled").GetBoolean());
+    }
+
+    [Fact]
+    public async Task InternalEvents_WithoutServiceToken_ReturnUnauthorized()
+    {
+        var evt = new UserProfileUpdated(Guid.NewGuid(), "Test", null, null, "Other");
+        var response = await _client.PostAsJsonAsync("/internal/events/user-profile-updated", evt);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }
 

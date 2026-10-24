@@ -175,6 +175,32 @@ const submitting = ref(false)
 // Result state for Step 4
 const walkInResult = ref<WalkInResult | null>(null)
 const scheduledResult = ref<any | null>(null)
+const walkInTicketPending = ref(false)
+const retryingWalkInTicket = ref(false)
+
+async function refreshWalkInTicket(retrySync = false) {
+  const appointmentId = walkInResult.value?.appointmentId
+  if (!appointmentId) return
+  retryingWalkInTicket.value = true
+  try {
+    if (retrySync) {
+      await receptionistApi.retryWalkInAppointmentSync(appointmentId, walkInResult.value?.isUrgent ?? false)
+    }
+    const ticket = await receptionistApi.pollQueueTicketByAppointmentId(appointmentId)
+    if (!ticket) {
+      walkInTicketPending.value = true
+      return
+    }
+    walkInResult.value!.queueNumber = Number(ticket.queueNumber)
+    walkInResult.value!.queueTicketId = ticket.id
+    walkInTicketPending.value = false
+  } catch (error: any) {
+    walkInTicketPending.value = true
+    errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể đồng bộ phiếu khám. Vui lòng thử lại.'
+  } finally {
+    retryingWalkInTicket.value = false
+  }
+}
 
 async function loadSpecialties() {
   try {
@@ -277,6 +303,10 @@ async function submitBooking() {
       })
 
       walkInResult.value = res
+
+      // Poll Queue Service for the real ticket number
+      await refreshWalkInTicket()
+
       currentStep.value = 4
     } else {
       // Scheduled booking
@@ -330,6 +360,7 @@ function resetWizard() {
   reason.value = ''
   isUrgent.value = false
   walkInResult.value = null
+  walkInTicketPending.value = false
   scheduledResult.value = null
   errorMessage.value = ''
   successMessage.value = ''
@@ -1123,7 +1154,7 @@ onMounted(async () => {
           <div class="bg-violet-50/50 py-8 text-center border-b border-dashed border-slate-300">
             <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">SỐ THỨ TỰ CỦA BẠN</div>
             <div class="mt-2 font-mono text-6xl font-black text-violet-700">
-              #{{ walkInResult.queueNumber }}
+              {{ walkInTicketPending ? 'Đang chờ' : `#${walkInResult.queueNumber}` }}
             </div>
             <div v-if="walkInResult.isUrgent" class="mt-3">
               <span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700">
@@ -1157,7 +1188,10 @@ onMounted(async () => {
             </div>
             <div class="flex items-center justify-between">
               <span class="text-slate-500">Trạng thái:</span>
-              <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+              <span v-if="walkInTicketPending" class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                Đang đồng bộ Queue; chưa thể in phiếu
+              </span>
+              <span v-else class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                 Đã vào hàng đợi (Waiting)
               </span>
             </div>
@@ -1172,6 +1206,16 @@ onMounted(async () => {
         <!-- Action Buttons -->
         <div class="no-print mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
           <BaseButton
+            v-if="walkInTicketPending"
+            variant="outline"
+            :loading="retryingWalkInTicket"
+            :disabled="retryingWalkInTicket"
+            @click="refreshWalkInTicket(true)"
+          >
+            Thử đồng bộ/lấy phiếu lại
+          </BaseButton>
+          <BaseButton
+            v-if="!walkInTicketPending"
             variant="outline"
             class="gap-1.5"
             @click="handlePrintTicket"
@@ -1187,6 +1231,7 @@ onMounted(async () => {
           <BaseButton
             variant="primary"
             class="bg-violet-600 hover:bg-violet-700 gap-1.5"
+            :disabled="walkInTicketPending"
             @click="resetWizard"
           >
             Tiếp đón bệnh nhân mới

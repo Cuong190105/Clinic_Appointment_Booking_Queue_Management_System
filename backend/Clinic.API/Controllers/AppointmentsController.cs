@@ -19,7 +19,6 @@ namespace Clinic.API.Controllers
         private readonly AppointmentServiceClient _appointmentClient;
         private readonly IAppointmentRepository _appointmentRepository;
         private readonly IWorkScheduleRepository _workScheduleRepository;
-        private readonly IQueueTicketRepository _queueTicketRepository;
         private readonly ICurrentUser _currentUser;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOutboxWriter? _outboxWriter;
@@ -28,7 +27,6 @@ namespace Clinic.API.Controllers
             AppointmentServiceClient appointmentClient,
             IAppointmentRepository appointmentRepository,
             IWorkScheduleRepository workScheduleRepository,
-            IQueueTicketRepository queueTicketRepository,
             ICurrentUser currentUser,
             IUnitOfWork unitOfWork,
             IOutboxWriter? outboxWriter = null)
@@ -36,7 +34,6 @@ namespace Clinic.API.Controllers
             _appointmentClient = appointmentClient;
             _appointmentRepository = appointmentRepository;
             _workScheduleRepository = workScheduleRepository;
-            _queueTicketRepository = queueTicketRepository;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
             _outboxWriter = outboxWriter;
@@ -174,121 +171,10 @@ namespace Clinic.API.Controllers
                 });
             }
 
-            var proxyResult = await _appointmentClient.ProxyAsync(HttpContext, $"appointments/{appointmentId}/check-in", HttpMethod.Post);
-            var statusCode = proxyResult switch
-            {
-                NoContentResult => StatusCodes.Status204NoContent,
-                ContentResult cr => cr.StatusCode ?? StatusCodes.Status200OK,
-                _ => StatusCodes.Status200OK
-            };
-
-            if (statusCode is >= 200 and < 300)
-            {
-                await EnsureQueueTicketInClinicDbAsync(appointmentId, isUrgent, HttpContext.RequestAborted);
-            }
-
-            return proxyResult;
-        }
-
-        private async Task EnsureQueueTicketInClinicDbAsync(Guid appointmentId, bool isUrgent, CancellationToken ct)
-        {
-            try
-            {
-                var existing = await _appointmentRepository.GetByIdAsync(appointmentId);
-                if (existing != null)
-                {
-                    if (existing.QueueTicket == null)
-                    {
-                        var doctorId = existing.DoctorId != Guid.Empty ? existing.DoctorId : (existing.WorkSchedule?.DoctorId ?? Guid.Empty);
-                        var checkInTime = DateTime.UtcNow;
-                        var queueNumber = await _queueTicketRepository.GetNextQueueNumberAsync(doctorId, checkInTime.Date, ct);
-                        var ticket = new QueueTicket
-                        {
-                            AppointmentId = existing.Id,
-                            QueueNumber = queueNumber,
-                            CheckInTime = checkInTime,
-                            Appointment = existing
-                        };
-                        if (isUrgent) ticket.SetPriority(true);
-                        existing.CheckIn(ticket);
-                        await _queueTicketRepository.AddAsync(ticket);
-                        _outboxWriter?.Add(
-                            new EventEnvelope<AppointmentCheckedIn>
-                            {
-                                EventId = Guid.NewGuid(),
-                                EventType = EventTypes.AppointmentCheckedIn,
-                                SchemaVersion = 1,
-                                OccurredAt = checkInTime,
-                                CorrelationId = Guid.NewGuid(),
-                                Producer = "appointment-service",
-                                Payload = new AppointmentCheckedIn(
-                                    existing.Id,
-                                    existing.PatientId,
-                                    doctorId,
-                                    existing.Id,
-                                    checkInTime,
-                                    isUrgent,
-                                    null,
-                                    null)
-                            },
-                            "appointment.checked-in");
-                        await _unitOfWork.SaveChangesAsync(ct);
-                    }
-                    return;
-                }
-
-                using var doc = await _appointmentClient.GetJsonAsync(HttpContext, $"appointments/{appointmentId}", ct);
-                if (doc == null) return;
-
-                var root = doc.RootElement;
-                var patientId = root.GetProperty("patientId").GetGuid();
-                var doctorIdVal = root.GetProperty("doctorId").GetGuid();
-                var workScheduleId = root.TryGetProperty("workScheduleId", out var wsEl) && wsEl.ValueKind != JsonValueKind.Null && wsEl.TryGetGuid(out var wsGuid)
-                    ? wsGuid
-                    : Guid.Empty;
-                var doctorName = root.TryGetProperty("doctorName", out var dnEl) ? dnEl.GetString() ?? string.Empty : string.Empty;
-                var specialtyName = root.TryGetProperty("specialtyName", out var snEl) ? snEl.GetString() : null;
-                var dateStr = root.GetProperty("date").GetString()!;
-                var timeStr = root.GetProperty("timeSlot").GetString()!;
-                var reason = root.TryGetProperty("reason", out var rEl) ? rEl.GetString() ?? string.Empty : string.Empty;
-                var isWalkIn = root.TryGetProperty("isWalkIn", out var wEl) && wEl.ValueKind == JsonValueKind.True;
-
-                var appStub = new Appointment(
-                    id: appointmentId,
-                    patientId: patientId,
-                    workScheduleId: workScheduleId,
-                    doctorId: doctorIdVal,
-                    doctorName: doctorName,
-                    specialtyName: specialtyName,
-                    scheduleDate: DateOnly.Parse(dateStr),
-                    timeSlot: TimeOnly.Parse(timeStr),
-                    reason: reason,
-                    status: AppointmentStatus.CheckedIn,
-                    isWalkIn: isWalkIn,
-                    updatedByUserId: patientId,
-                    createdAt: DateTime.UtcNow,
-                    updatedAt: DateTime.UtcNow,
-                    isDeleted: false);
-
-                await _appointmentRepository.AddAsync(appStub);
-
-                var now = DateTime.UtcNow;
-                var qNum = await _queueTicketRepository.GetNextQueueNumberAsync(doctorIdVal, now.Date, ct);
-                var qTicket = new QueueTicket
-                {
-                    AppointmentId = appStub.Id,
-                    QueueNumber = qNum,
-                    CheckInTime = now,
-                    Appointment = appStub
-                };
-                if (isUrgent) qTicket.SetPriority(true);
-                await _queueTicketRepository.AddAsync(qTicket);
-                await _unitOfWork.SaveChangesAsync(ct);
-            }
-            catch
-            {
-                // Best-effort transitional sync for Queue in ClinicDB
-            }
+            return await _appointmentClient.ProxyAsync(
+                HttpContext,
+                $"appointments/{appointmentId}/check-in?isUrgent={isUrgent.ToString().ToLowerInvariant()}",
+                HttpMethod.Post);
         }
 
         [HttpPost("{appointmentId}/cancel")]

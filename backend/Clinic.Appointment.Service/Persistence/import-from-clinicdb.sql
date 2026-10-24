@@ -29,7 +29,7 @@ BEGIN TRY
            per.FullName,
            per.PhoneNumber,
            CASE CONVERT(int, per.Gender) WHEN 0 THEN N'Male' WHEN 1 THEN N'Female' WHEN 2 THEN N'Other' ELSE N'Unspecified' END,
-           pat.DateOfBirth,
+           per.DateOfBirth,
            COALESCE(pat.UpdatedAt, pat.CreatedAt, GETUTCDATE())
     FROM ClinicDB.dbo.Patients AS pat
     JOIN ClinicDB.dbo.Persons AS per ON pat.PersonId = per.Id
@@ -63,7 +63,7 @@ BEGIN TRY
         COALESCE(per.FullName, N'Unknown Patient'),
         per.PhoneNumber,
         CASE CONVERT(int, per.Gender) WHEN 0 THEN N'Male' WHEN 1 THEN N'Female' WHEN 2 THEN N'Other' ELSE N'Unspecified' END,
-        pat.DateOfBirth,
+        per.DateOfBirth,
         a.WorkScheduleId,
         a.DoctorId,
         a.DoctorName,

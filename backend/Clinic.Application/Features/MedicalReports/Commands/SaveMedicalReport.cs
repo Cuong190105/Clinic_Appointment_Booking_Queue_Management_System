@@ -42,8 +42,7 @@ namespace Clinic.Application.Features.MedicalReports.Commands
         {
             var appointment = await _appointmentRepository.GetByIdAsync(request.AppointmentId)
                 ?? throw new NotFoundException($"Appointment '{request.AppointmentId}' not found.");
-            var ticket = appointment.QueueTicket
-                ?? throw new InvalidOperationException("The appointment has not been checked in.");
+            var ticket = appointment.QueueTicket;
 
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any") || _currentUser.HasPermission("medical-report.view.any");
             if (!hasAnyScope && appointment.WorkSchedule.DoctorId != _currentUser.DoctorId)
@@ -51,7 +50,7 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 throw new ForbiddenException("You are not allowed to record medical report for another doctor's queue.");
             }
 
-            if (ticket.Status != QueueStatus.InProgress)
+            if (ticket != null && ticket.Status != QueueStatus.InProgress)
             {
                 throw new InvalidOperationException($"Cannot record medical report for queue ticket with status '{ticket.Status}'. Examination must be in progress.");
             }
@@ -66,7 +65,7 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                     request.Diagnosis,
                     request.Prescription,
                     request.Notes,
-                    ticket.CalledAt ?? DateTime.UtcNow
+                    ticket?.CalledAt ?? DateTime.UtcNow
                 );
                 await _medicalReportRepository.AddAsync(report);
             }
@@ -78,7 +77,7 @@ namespace Clinic.Application.Features.MedicalReports.Commands
             if (request.IsFinalize)
             {
                 report.FinalizeReport();
-                ticket.Complete();
+                ticket?.Complete();
 
                 if (appointment.Status == AppointmentStatus.CheckedIn)
                 {

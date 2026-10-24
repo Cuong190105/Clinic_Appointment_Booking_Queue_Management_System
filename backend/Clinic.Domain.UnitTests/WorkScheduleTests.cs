@@ -77,13 +77,14 @@ namespace Clinic.Domain.UnitTests
             Assert.Throws<ArgumentException>(() => workSchedule.UpdateShift(DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddHours(2)), TimeOnly.FromDateTime(now.AddHours(3)), -1));
 
             // Test updating a shift that has already started
-            // Pls ignore if getting an error about shift start greater than shift end (wish i knew abt TimeProvider earlier).
-            // Better go to bed at that moment then
             now = DateTime.UtcNow.AddHours(7);
-            var nowShift = new WorkSchedule(doctor, DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddSeconds(1)), TimeOnly.FromDateTime(now.AddHours(1)), 5);
+            var start = TimeOnly.FromDateTime(now.AddSeconds(1));
+            var end = start.AddMinutes(5) <= start ? new TimeOnly(23, 59, 59) : start.AddMinutes(5);
+            var nowShift = new WorkSchedule(doctor, DateOnly.FromDateTime(now), start, end, 5);
             Thread.Sleep(2000); // Wait for 2 seconds to ensure the shift has started
-            Assert.Throws<InvalidOperationException>(() => nowShift.UpdateShift(DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddHours(2)), TimeOnly.FromDateTime(now.AddHours(3)), 10));
-            var newEnd = nowShift.ShiftEnd.AddHours(1) <= nowShift.ShiftStart ? new TimeOnly(23, 59, 59) : nowShift.ShiftEnd.AddHours(1);
+            var updateEnd = end.AddMinutes(5) <= end ? new TimeOnly(23, 59, 59) : end.AddMinutes(5);
+            Assert.Throws<InvalidOperationException>(() => nowShift.UpdateShift(DateOnly.FromDateTime(now), end, updateEnd, 10));
+            var newEnd = nowShift.ShiftEnd.AddMinutes(1) <= nowShift.ShiftStart ? new TimeOnly(23, 59, 59) : nowShift.ShiftEnd.AddMinutes(1);
             nowShift.UpdateShift(DateOnly.FromDateTime(now), nowShift.ShiftStart, newEnd, 15); // This should be valid since we are not changing the start time
             Assert.Equal(15, nowShift.RecommendedCapacity);
             Assert.Throws<InvalidOperationException>(() => nowShift.Delete());
@@ -105,10 +106,10 @@ namespace Clinic.Domain.UnitTests
             Assert.True(workSchedule.IsDeleted);
 
             // Test deleting a shift that has already started
-            // Pls ignore if getting an error about shift start greater than shift end (wish i knew abt TimeProvider earlier).
-            // Better go to bed at that moment then
             now = DateTime.UtcNow.AddHours(7);
-            var nowShift = new WorkSchedule(doctor, DateOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddSeconds(1)), TimeOnly.FromDateTime(now.AddHours(1)), 5);
+            var start = TimeOnly.FromDateTime(now.AddSeconds(1));
+            var end = start.AddMinutes(5) <= start ? new TimeOnly(23, 59, 59) : start.AddMinutes(5);
+            var nowShift = new WorkSchedule(doctor, DateOnly.FromDateTime(now), start, end, 5);
             Thread.Sleep(2000); // Wait for 2 seconds to ensure the shift has started
             Assert.Throws<InvalidOperationException>(() => nowShift.Delete());
         }

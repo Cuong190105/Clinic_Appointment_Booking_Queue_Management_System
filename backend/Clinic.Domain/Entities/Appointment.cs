@@ -310,5 +310,15 @@ namespace Clinic.Domain.Entities
             Status = AppointmentStatus.CheckedIn;
             MarkUpdated();
         }
+
+        public void MarkCheckedIn()
+        {
+            if (Status != AppointmentStatus.Confirmed && Status != AppointmentStatus.Pending)
+            {
+                throw new ArgumentException($"Cannot check in an appointment with status '{Status}'.");
+            }
+            Status = AppointmentStatus.CheckedIn;
+            MarkUpdated();
+        }
     }
 }

@@ -62,18 +62,13 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 throw new ForbiddenException("You are not allowed to finalize medical report for another doctor's queue.");
             }
 
-            if (ticket == null)
-            {
-                throw new InvalidOperationException("The appointment has no queue ticket to finalize.");
-            }
-
-            if (ticket.Status != QueueStatus.InProgress)
+            if (ticket != null && ticket.Status != QueueStatus.InProgress)
             {
                 throw new InvalidOperationException($"Cannot finalize medical report for queue ticket with status '{ticket.Status}'. Examination must be in progress.");
             }
 
             report.FinalizeReport();
-            ticket.Complete();
+            ticket?.Complete();
 
             if (appointment != null && appointment.Status == AppointmentStatus.CheckedIn)
             {

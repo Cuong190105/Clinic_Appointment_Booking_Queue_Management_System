@@ -75,6 +75,10 @@ export const receptionistApi = {
     return unwrap<WalkInResult>(res.data)
   },
 
+  async retryWalkInAppointmentSync(appointmentId: string, isUrgent: boolean): Promise<void> {
+    await http.post(`/receptionist/appointments/walk-in/${appointmentId}/sync`, undefined, { params: { isUrgent } })
+  },
+
   async createScheduledAppointment(payload: {
     patientId: string
     workScheduleId: string
@@ -188,5 +192,39 @@ export const receptionistApi = {
 
   async setPriority(queueTicketId: string, priority: boolean): Promise<void> {
     await http.patch(`/queue/${queueTicketId}/priority`, { priority })
+  },
+
+  async getQueueTicketByAppointmentId(appointmentId: string): Promise<QueueTicketDto | null> {
+    try {
+      const res = await http.get(`/queue/appointment/${appointmentId}`)
+      return unwrap<QueueTicketDto>(res.data)
+    } catch {
+      return null
+    }
+  },
+
+  async pollQueueTicketByAppointmentId(
+    appointmentId: string,
+    maxRetries: number = 60,
+    delayMs: number = 500
+  ): Promise<QueueTicketDto | null> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const res = await http.get(`/queue/appointment/${appointmentId}`)
+        const ticket = unwrap<QueueTicketDto>(res.data)
+        if (ticket && ticket.queueNumber) {
+          return ticket
+        }
+      } catch (error: any) {
+        const status = error?.response?.status
+        if (status !== 404 && status !== 502 && status !== 503 && status !== 504 && error?.response) {
+          throw error
+        }
+      }
+      if (i < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+    }
+    return null
   },
 }

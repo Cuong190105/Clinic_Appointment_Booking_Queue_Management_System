@@ -48,6 +48,7 @@ services:
             - "5000:8080"
         environment:
             - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+            - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
             - Scheduling__Authority=http://scheduling-service:8080
@@ -136,6 +137,8 @@ services:
             - RabbitMq__Username=clinic
             - RabbitMq__Password=clinic-dev-password
             - RabbitMq__VirtualHost=/
+            - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+            - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
             - ASPNETCORE_HTTP_PORTS=8080
         depends_on:
             db:
@@ -165,6 +168,8 @@ services:
             - ./backend/Clinic.Identity.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
         depends_on:
             backend:
+                condition: service_healthy
+            queue-service:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy
@@ -197,6 +202,8 @@ services:
             - "5003:8080"
         environment:
             - ConnectionStrings__AppointmentConnection=Server=db,1433;Database=ClinicAppointmentDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
+            - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Scheduling__Authority=http://scheduling-service:8080
@@ -256,6 +263,7 @@ services:
             - "5004:8080"
         environment:
             - ConnectionStrings__QueueConnection=Server=db,1433;Database=ClinicQueueDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Appointment__Authority=http://appointment-service:8080
@@ -266,6 +274,8 @@ services:
             - RabbitMq__Username=clinic
             - RabbitMq__Password=clinic-dev-password
             - RabbitMq__VirtualHost=/
+            - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+            - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
             - ASPNETCORE_HTTP_PORTS=8080
         depends_on:
             db:
@@ -288,11 +298,14 @@ services:
         command:
             - >-
               until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
-              /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql
+              /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -v ClinicWindowsTimeZone="$$CLINIC_SQL_TIME_ZONE" -i /migration.sql &&
+              /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /verify.sql
         environment:
             DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            CLINIC_SQL_TIME_ZONE: ${CLINIC_SQL_TIME_ZONE:-SE Asia Standard Time}
         volumes:
             - ./backend/Clinic.Queue.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+            - ./backend/Clinic.Queue.Service/Persistence/verify-queue-import.sql:/verify.sql:ro
         depends_on:
             backend:
                 condition: service_healthy
@@ -334,6 +347,8 @@ services:
             - prometheus_data:/prometheus
         depends_on:
             backend:
+                condition: service_healthy
+            queue-service:
                 condition: service_healthy
         healthcheck:
             test:
