@@ -71,7 +71,9 @@ public class SchedulingManager : ISchedulingManager
                 .ThenInclude(d => d.WorkHistories)
                 .ThenInclude(wh => wh.Specialty)
             .Include(ws => ws.SlotReservations)
-            .Where(ws => ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted)
+            .Where(ws => ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted &&
+                        ws.Doctor.Status == DoctorStatus.Active && ws.Doctor.Employee.Status == EmployeeStatus.Active &&
+                        !ws.Doctor.IsDeleted && !ws.Doctor.Employee.IsDeleted)
             .Where(ws => ws.Date >= fromDate && ws.Date <= toDate);
 
         if (query.DoctorId.HasValue)
@@ -519,6 +521,8 @@ public class SchedulingManager : ISchedulingManager
             if (evt.PhoneNumber != null) emp.PhoneNumber = evt.PhoneNumber;
             if (evt.Email != null) emp.Email = evt.Email;
             if (evt.Gender != null) emp.Gender = evt.Gender;
+            if (evt.DateOfBirth.HasValue) emp.DateOfBirth = evt.DateOfBirth;
+            if (evt.Address != null) emp.Address = evt.Address;
             emp.UpdatedAt = DateTime.UtcNow;
         }
 

@@ -1,9 +1,12 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
+
+const env = loadEnv('development', process.cwd(), '')
+const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:5000'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -20,75 +23,11 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/auth': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
       '/api': {
-        target: 'https://localhost:61658',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
-      },
-      '/appointments': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/doctors': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/slots': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/queue': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/me': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/medical-records': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/patients': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/users': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/shifts': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/specialties': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/employees': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/receptionist': {
-        target: 'https://localhost:61658',
-        changeOrigin: true,
-        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },

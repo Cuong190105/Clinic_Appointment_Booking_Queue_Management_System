@@ -13,7 +13,6 @@ namespace Clinic.Domain.Entities
         public Patient Patient { get; protected set; } = null!;
 
         public Guid WorkScheduleId { get; protected set; }
-        public WorkSchedule? WorkSchedule { get; protected set; }
 
         public Guid DoctorId { get; protected set; }
         public string DoctorName { get; protected set; } = string.Empty;
@@ -83,35 +82,6 @@ namespace Clinic.Domain.Entities
             bool isDeleted)
             : this(id, patientId, workScheduleId, Guid.Empty, string.Empty, null, default, timeSlot, reason, status, isWalkIn, updatedByUserId, createdAt, updatedAt, isDeleted)
         {
-        }
-
-        public Appointment(Patient patient, WorkSchedule workSchedule, TimeOnly timeSlot, string reason, Guid createdByUserId, bool isWalkIn = false)
-        {
-            WorkSchedule = workSchedule ?? throw new ArgumentNullException(nameof(workSchedule));
-            Patient = patient ?? throw new ArgumentNullException(nameof(patient));
-            Reason = reason;
-            if (timeSlot < workSchedule.ShiftStart || timeSlot >= workSchedule.ShiftEnd)
-            {
-                throw new ArgumentOutOfRangeException(nameof(timeSlot), $"Time slot {timeSlot} must be within the work schedule ({workSchedule.ShiftStart} - {workSchedule.ShiftEnd}).");
-            }
-            var bookingTimeUtc = new TimeConverter().ConvertToUtc(new DateTime(workSchedule.Date, timeSlot));
-            if (!isWalkIn && bookingTimeUtc < DateTime.UtcNow)
-            {
-                throw new ArgumentException("Cannot create an appointment for a past time.", nameof(workSchedule));
-            }
-            if (string.IsNullOrWhiteSpace(reason))
-            {
-                throw new ArgumentException("Reason cannot be null or whitespace.", nameof(reason));
-            }
-            PatientId = patient.Id;
-            WorkScheduleId = workSchedule.Id;
-            DoctorId = workSchedule.DoctorId;
-            DoctorName = workSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty;
-            SpecialtyName = workSchedule.Doctor?.WorkHistories?.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null)?.Specialty?.Name;
-            ScheduleDate = workSchedule.Date;
-            TimeSlot = timeSlot;
-            IsWalkIn = isWalkIn;
-            UpdatedByUserId = createdByUserId;
         }
 
         public Appointment(
@@ -189,7 +159,7 @@ namespace Clinic.Domain.Entities
                 throw new ArgumentException($"Cannot check in an appointment with status '{Status}'. Appointment must be confirmed first.");
             }
 
-            var scheduleDate = ScheduleDate != default ? ScheduleDate : WorkSchedule?.Date ?? default;
+            var scheduleDate = ScheduleDate;
             var checkInDate = new TimeConverter().ToLocalDate(checkInTime);
             if (scheduleDate != checkInDate)
             {
@@ -216,50 +186,13 @@ namespace Clinic.Domain.Entities
             return queueTicket;
         }
 
-        public void Update(WorkSchedule workSchedule, TimeOnly timeSlot, string reason, Guid updatedByUserId)
-        {
-            if (Status is AppointmentStatus.Completed or AppointmentStatus.Cancelled)
-            {
-                throw new InvalidOperationException($"{Enum.GetName(Status)} appointments can't be updated.");
-            }
-            ArgumentNullException.ThrowIfNull(workSchedule);
-            if (timeSlot < workSchedule.ShiftStart || timeSlot >= workSchedule.ShiftEnd)
-            {
-                throw new ArgumentOutOfRangeException(nameof(timeSlot), $"Time slot must be within the work schedule ({workSchedule.ShiftStart} - {workSchedule.ShiftEnd}).");
-            }
-            if (string.IsNullOrWhiteSpace(reason))
-            {
-                throw new ArgumentException("Reason cannot be null or whitespace.", nameof(reason));
-            }
-            if (WorkScheduleId == workSchedule.Id && TimeSlot == timeSlot && Reason == reason)
-            {
-                throw new InvalidOperationException("No changes detected in the appointment details.");
-            }
-            var bookingTimeUtc = new TimeConverter().ConvertToUtc(new DateTime(workSchedule.Date, timeSlot));
-            if (!IsWalkIn && bookingTimeUtc < DateTime.UtcNow)
-            {
-                throw new ArgumentException("Cannot create an appointment for a past time.", nameof(workSchedule));
-            }
-            Snapshots.Add(new AppointmentSnapshot(this));
-            Reason = reason;
-            WorkSchedule = workSchedule;
-            WorkScheduleId = workSchedule.Id;
-            DoctorId = workSchedule.DoctorId;
-            DoctorName = workSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty;
-            SpecialtyName = workSchedule.Doctor?.WorkHistories?.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null)?.Specialty?.Name;
-            ScheduleDate = workSchedule.Date;
-            TimeSlot = timeSlot;
-            UpdatedByUserId = updatedByUserId;
-            MarkUpdated();
-        }
-
         public void Cancel(Guid cancelledByUserId)
         {
             if (Status is AppointmentStatus.Completed or AppointmentStatus.Cancelled)
             {
                 throw new InvalidOperationException($"{Enum.GetName(Status)} appointments can't be cancelled.");
             }
-            var scheduleDate = ScheduleDate != default ? ScheduleDate : WorkSchedule?.Date ?? default;
+            var scheduleDate = ScheduleDate;
             var utcSlot = new TimeConverter().ConvertToUtc(new DateTime(scheduleDate, TimeSlot));
             if (DateTime.UtcNow.AddHours(CancelLimitHours) > utcSlot)
             {
@@ -299,7 +232,7 @@ namespace Clinic.Domain.Entities
 
         public void CheckIn(QueueTicket queueTicket)
         {
-            var scheduleDate = ScheduleDate != default ? ScheduleDate : WorkSchedule?.Date ?? default;
+            var scheduleDate = ScheduleDate;
             var checkInDate = new TimeConverter().ToLocalDate(queueTicket.CheckInTime);
             if (checkInDate != scheduleDate)
             {

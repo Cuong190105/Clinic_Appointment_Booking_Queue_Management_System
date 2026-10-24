@@ -29,6 +29,7 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(e => e.PhoneNumber).HasMaxLength(20);
         builder.Property(e => e.Email).HasMaxLength(150);
         builder.Property(e => e.Gender).HasMaxLength(20);
+        builder.Property(e => e.Address).HasMaxLength(500);
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
 
         builder.HasIndex(e => e.PersonId).IsUnique().HasFilter("[IsDeleted] = 0");

@@ -79,11 +79,12 @@ export interface WalkInResult {
   doctorId: string
   doctorName: string
   specialtyName: string
-  queueTicketId: string
-  queueNumber: number
+  queueTicketId?: string
+  queueNumber?: number
   isUrgent: boolean
   checkInTime: string
   status: string
+  queueTicketPending?: boolean
 }
 
 export interface AppointmentItem {

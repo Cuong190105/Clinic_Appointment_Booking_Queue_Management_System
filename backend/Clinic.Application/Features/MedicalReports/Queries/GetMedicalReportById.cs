@@ -29,7 +29,7 @@ namespace Clinic.Application.Features.MedicalReports.Queries
                 ?? throw new NotFoundException($"Medical report '{request.Id}' not found.");
 
             var appointment = report.Appointment;
-            var isAssignedDoctor = appointment.WorkSchedule.DoctorId == _currentUser.DoctorId;
+            var isAssignedDoctor = appointment.DoctorId == _currentUser.DoctorId;
             var isOwnerPatient = appointment.PatientId == _currentUser.PatientId;
             var hasAnyScope = _currentUser.HasPermission("medical-report.view.any");
 
@@ -44,9 +44,9 @@ namespace Clinic.Application.Features.MedicalReports.Queries
                 AppointmentId = appointment.Id,
                 PatientId = appointment.PatientId,
                 PatientName = appointment.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = appointment.WorkSchedule.DoctorId,
-                DoctorName = appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                ExamDate = appointment.WorkSchedule.Date,
+                DoctorId = appointment.DoctorId,
+                DoctorName = appointment.DoctorName,
+                ExamDate = appointment.ScheduleDate != default ? appointment.ScheduleDate : DateOnly.FromDateTime(report.CreatedAt),
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,

@@ -22,6 +22,9 @@ public record ReceptionistCreateAppointmentRequest(
     bool IsWalkIn = false
 );
 
+public record ReceptionistWalkInRequest(Guid PatientId, Guid SpecialtyId, Guid? DoctorId, string? Reason, bool IsUrgent = false);
+public record ReceptionistWalkInResult(Guid AppointmentId, Guid PatientId, string PatientName, Guid DoctorId, string DoctorName, string SpecialtyName, bool IsUrgent, DateTimeOffset CheckInTime, string Status, Guid WorkScheduleId, DateOnly ScheduleDate, TimeOnly TimeSlot, string Reason, bool QueueTicketPending = true);
+
 public record UpdateAppointmentRequest(
     Guid NewWorkScheduleId,
     TimeOnly TimeSlot,
@@ -95,24 +98,6 @@ public record TotalAppointmentSummaryDto(
     int CanceledAppointments = 0,
     double CancellationRate = 0,
     double AverageWaitingMinutes = 0
-);
-
-public record SyncWalkInAppointmentRequest(
-    Guid AppointmentId,
-    Guid PatientId,
-    string PatientName,
-    string? PatientPhone,
-    string? PatientGender,
-    DateOnly? PatientDateOfBirth,
-    Guid WorkScheduleId,
-    Guid DoctorId,
-    string DoctorName,
-    string? SpecialtyName,
-    DateOnly ScheduleDate,
-    TimeOnly TimeSlot,
-    string Reason,
-    Guid CreatedByUserId,
-    bool IsUrgent = false
 );
 
 public record PagedAppointmentsDto(

@@ -30,10 +30,10 @@ namespace Clinic.Application.Features.Appointments.Queries
             var currentUpdater = await _personRepository.GetByIdentityUserIdAsync(appointment.UpdatedByUserId);
             changelog.Add(new AppointmentHistoryDto
             {
-                DoctorId = appointment.DoctorId != Guid.Empty ? appointment.DoctorId : (appointment.WorkSchedule?.DoctorId ?? Guid.Empty),
-                DoctorName = !string.IsNullOrEmpty(appointment.DoctorName) ? appointment.DoctorName : (appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty),
+                DoctorId = appointment.DoctorId,
+                DoctorName = appointment.DoctorName,
                 TimeSlot = appointment.TimeSlot,
-                Date = appointment.ScheduleDate != default ? appointment.ScheduleDate : (appointment.WorkSchedule?.Date ?? default),
+                Date = appointment.ScheduleDate != default ? appointment.ScheduleDate : DateOnly.FromDateTime(appointment.CreatedAt),
                 Reason = appointment.Reason,
                 Status = appointment.Status,
                 UpdatedAt = appointment.UpdatedAt ?? appointment.CreatedAt,
@@ -46,10 +46,10 @@ namespace Clinic.Application.Features.Appointments.Queries
                 var updater = await _personRepository.GetByIdentityUserIdAsync(snapshot.UpdatedByUserId);
                 changelog.Add(new AppointmentHistoryDto
                 {
-                    DoctorId = snapshot.OldWorkSchedule?.DoctorId ?? Guid.Empty,
-                    DoctorName = snapshot.OldWorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                    DoctorId = appointment.DoctorId,
+                    DoctorName = appointment.DoctorName,
                     TimeSlot = snapshot.TimeSlot,
-                    Date = snapshot.OldWorkSchedule?.Date ?? default,
+                    Date = appointment.ScheduleDate != default ? appointment.ScheduleDate : DateOnly.FromDateTime(appointment.CreatedAt),
                     Reason = snapshot.Reason,
                     Status = snapshot.Status,
                     UpdatedAt = snapshot.UpdatedAt,

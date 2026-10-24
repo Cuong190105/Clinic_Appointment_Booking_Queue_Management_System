@@ -53,7 +53,6 @@ public sealed class AppointmentCheckedInProcessor
         }
 
         var appointment = await _dbContext.Appointments
-            .Include(x => x.WorkSchedule)
             .Include(x => x.QueueTicket)
             .SingleOrDefaultAsync(
                 x => x.Id == envelope.Payload.AppointmentId && !x.IsDeleted,
@@ -66,7 +65,7 @@ public sealed class AppointmentCheckedInProcessor
         }
 
         if (appointment.PatientId != envelope.Payload.PatientId ||
-            appointment.WorkSchedule.DoctorId != envelope.Payload.DoctorId)
+            appointment.DoctorId != envelope.Payload.DoctorId)
         {
             throw new InvalidOperationException(
                 $"AppointmentCheckedIn payload does not match appointment '{appointment.Id}'.");

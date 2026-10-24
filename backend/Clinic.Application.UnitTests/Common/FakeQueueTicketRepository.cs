@@ -10,7 +10,7 @@ namespace Clinic.Application.UnitTests.Common
         public async Task<int> GetNextQueueNumberAsync(Guid doctorId, DateTime date, CancellationToken cancellationToken = default)
         {
             var maxQueueNumber = _queueTickets
-                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId && q.CheckInTime.Date == date.Date)
+                .Where(q => q.Appointment.DoctorId == doctorId && q.CheckInTime.Date == date.Date)
                 .Select(q => (int?)q.QueueNumber)
                 .Max();
 
@@ -30,7 +30,7 @@ namespace Clinic.Application.UnitTests.Common
         public async Task<List<QueueTicket>> GetByDoctorAsync(Guid doctorId, DateTime date)
         {
             return _queueTickets
-                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId && q.CheckInTime.Date == date.Date)
+                .Where(q => q.Appointment.DoctorId == doctorId && q.CheckInTime.Date == date.Date)
                 .OrderByDescending(q => q.Priority)
                 .ThenBy(q => q.QueueNumber)
                 .ToList();
@@ -39,7 +39,7 @@ namespace Clinic.Application.UnitTests.Common
         public async Task<QueueTicket?> GetNextWaitingAsync(Guid doctorId, DateTime date)
         {
             return _queueTickets
-                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId
+                .Where(q => q.Appointment.DoctorId == doctorId
                     && q.CheckInTime.Date == date.Date
                     && q.Status == QueueStatus.Waiting)
                 .OrderByDescending(q => q.Priority)
@@ -58,7 +58,7 @@ namespace Clinic.Application.UnitTests.Common
         public async Task<QueueTicket?> GetActiveTicketAsync(Guid doctorId, DateTime date)
         {
             return _queueTickets
-                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId
+                .Where(q => q.Appointment.DoctorId == doctorId
                     && q.CheckInTime.Date == date.Date
                     && (q.Status == QueueStatus.Called || q.Status == QueueStatus.InProgress))
                 .FirstOrDefault();

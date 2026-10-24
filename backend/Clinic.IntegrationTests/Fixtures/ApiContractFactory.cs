@@ -72,7 +72,7 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
             services.RemoveAll<ApplicationDbContext>();
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(_testConnectionString!));
+                options.UseSqlServer(_testConnectionString!).ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
             services.AddAuthentication(options =>
             {
@@ -120,6 +120,7 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlServer(TestConnectionString)
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .Options;
         return new ApplicationDbContext(options);
     }
@@ -252,6 +253,29 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.Equals("/employees", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var root = body.RootElement;
+                var employeeId = root.TryGetProperty("id", out var requestedId) && requestedId.ValueKind == JsonValueKind.String
+                    && Guid.TryParse(requestedId.GetString(), out var parsedId) && parsedId != Guid.Empty
+                    ? parsedId
+                    : Guid.NewGuid();
+                return Json(HttpStatusCode.Created, JsonSerializer.Serialize(new { id = employeeId, fullName = root.GetProperty("fullName").GetString() }));
+            }
+            if (path.Contains("/doctors/dashboard-stats", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(HttpStatusCode.OK, JsonSerializer.Serialize(new { totalDoctors = 5, totalDoctorsChange = 0.0, activeDoctors = 5, activeDoctorsChange = 0.0 }));
+            }
+            if (path.Equals("/shifts/suggestions", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return Json(HttpStatusCode.Created, JsonSerializer.Serialize(new { result = new { id = Guid.NewGuid() } }));
+            }
+            if (path.StartsWith("/shifts/suggestions/", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/approve", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
             if (path.Contains("/appointments/") && path.EndsWith("/check-in", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
             {
                 return new HttpResponseMessage(HttpStatusCode.NoContent);

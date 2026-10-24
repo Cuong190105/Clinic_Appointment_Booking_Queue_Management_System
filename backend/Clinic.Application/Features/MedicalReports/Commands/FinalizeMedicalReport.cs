@@ -40,9 +40,9 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                     AppointmentId = report.AppointmentId,
                     PatientId = report.PatientId,
                     PatientName = report.Patient?.Person?.FullName ?? report.Appointment?.Patient?.Person?.FullName ?? string.Empty,
-                    DoctorId = report.Appointment?.WorkSchedule?.DoctorId ?? report.Appointment?.DoctorId ?? Guid.Empty,
-                    DoctorName = report.Appointment?.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? report.Appointment?.DoctorName ?? string.Empty,
-                    ExamDate = report.Appointment?.WorkSchedule?.Date ?? report.Appointment?.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
+                    DoctorId = report.Appointment?.DoctorId ?? Guid.Empty,
+                    DoctorName = report.Appointment?.DoctorName ?? string.Empty,
+                    ExamDate = report.Appointment?.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
                     Symptoms = report.Symptoms,
                     Diagnosis = report.Diagnosis,
                     Prescription = report.Prescription,
@@ -57,7 +57,7 @@ namespace Clinic.Application.Features.MedicalReports.Commands
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any") || _currentUser.HasPermission("medical-report.view.any");
             var appointment = report.Appointment;
             var ticket = appointment?.QueueTicket;
-            if (!hasAnyScope && appointment?.WorkSchedule?.DoctorId != _currentUser.DoctorId && appointment?.DoctorId != _currentUser.DoctorId)
+            if (!hasAnyScope && appointment?.DoctorId != _currentUser.DoctorId)
             {
                 throw new ForbiddenException("You are not allowed to finalize medical report for another doctor's queue.");
             }
@@ -83,9 +83,9 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 AppointmentId = report.AppointmentId,
                 PatientId = report.PatientId,
                 PatientName = report.Patient?.Person?.FullName ?? appointment?.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = appointment?.WorkSchedule?.DoctorId ?? appointment?.DoctorId ?? Guid.Empty,
-                DoctorName = appointment?.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? appointment?.DoctorName ?? string.Empty,
-                ExamDate = appointment?.WorkSchedule?.Date ?? appointment?.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
+                DoctorId = appointment?.DoctorId ?? Guid.Empty,
+                DoctorName = appointment?.DoctorName ?? string.Empty,
+                ExamDate = appointment?.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,

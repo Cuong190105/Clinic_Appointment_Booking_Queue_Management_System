@@ -94,6 +94,40 @@ namespace Clinic.API.Controllers
             return Ok(users);
         }
 
+        [HttpGet("doctors/brief")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetDoctorBriefs()
+        {
+            var doctors = new List<object>();
+            var pageNumber = 1;
+            while (true)
+            {
+                using var response = await SendIdentityRequest(HttpMethod.Get,
+                    $"v1/internal/users?role=Doctor&pageNumber={pageNumber}&pageSize=100&sortBy=username");
+                if (!response.IsSuccessStatusCode)
+                    return StatusCode(response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable ? 503 : (int)response.StatusCode);
+
+                var page = await response.Content.ReadFromJsonAsync<IdentityPagedAdminUsers>(HttpContext.RequestAborted);
+                if (page is null) return StatusCode(502);
+
+                doctors.AddRange(page.Items
+                    .Where(user => user.DoctorId.HasValue)
+                    .Select(user => new
+                    {
+                        doctorId = user.DoctorId,
+                        employeeId = user.EmployeeId,
+                        fullName = user.FullName,
+                        username = user.Username,
+                        isActive = user.IsActive
+                    }));
+
+                if (doctors.Count >= page.TotalCount || page.Items.Count == 0) break;
+                pageNumber++;
+            }
+
+            return Ok(doctors);
+        }
+
         [HttpGet("users/{userId}")]
         [Authorize(Policy = "Permission:user.manage")]
         [ProducesResponseType(typeof(UserDetailDto), StatusCodes.Status200OK)]

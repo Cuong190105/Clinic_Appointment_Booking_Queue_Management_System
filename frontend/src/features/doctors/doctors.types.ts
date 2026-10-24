@@ -6,6 +6,7 @@ export interface Doctor {
   id: string
   fullName: string
   name?: string
+  username?: string
   phoneNumber: string
   email: string
   gender: number | Gender

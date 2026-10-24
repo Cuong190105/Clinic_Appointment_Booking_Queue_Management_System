@@ -8,6 +8,9 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
 // Configuration
 var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5001";
 var issuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:5000";

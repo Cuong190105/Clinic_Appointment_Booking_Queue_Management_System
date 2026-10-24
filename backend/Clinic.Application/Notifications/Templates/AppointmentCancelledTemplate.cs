@@ -8,12 +8,10 @@ namespace Clinic.Application.Notifications.Templates
         {
             var doctorName = !string.IsNullOrWhiteSpace(appointment.DoctorName)
                 ? appointment.DoctorName
-                : appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? "Bác sĩ";
-            var scheduleDate = appointment.ScheduleDate != default
-                ? appointment.ScheduleDate.ToString()
-                : (appointment.WorkSchedule != null ? appointment.WorkSchedule.Date.ToString() : string.Empty);
+                : "Bác sĩ";
+            var scheduleDate = appointment.ScheduleDate != default ? appointment.ScheduleDate.ToString() : string.Empty;
             var patientName = appointment.Patient?.Person?.FullName ?? "Quý khách";
-            var cancellationReason = appointment.WorkSchedule?.CancellationReason ?? "Lý do thay đổi lịch làm việc";
+            var cancellationReason = "Lý do thay đổi lịch làm việc";
 
             var body = $"""
                 <!DOCTYPE html>
@@ -44,12 +42,10 @@ namespace Clinic.Application.Notifications.Templates
         {
             var doctorName = !string.IsNullOrWhiteSpace(appointment.DoctorName)
                 ? appointment.DoctorName
-                : appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? "Bác sĩ";
-            var scheduleDate = appointment.ScheduleDate != default
-                ? appointment.ScheduleDate.ToString()
-                : (appointment.WorkSchedule != null ? appointment.WorkSchedule.Date.ToString() : string.Empty);
+                : "Bác sĩ";
+            var scheduleDate = appointment.ScheduleDate != default ? appointment.ScheduleDate.ToString() : string.Empty;
             var patientName = appointment.Patient?.Person?.FullName ?? "Quý khách";
-            var cancellationReason = appointment.WorkSchedule?.CancellationReason ?? "Lý do thay đổi lịch làm việc";
+            var cancellationReason = "Lý do thay đổi lịch làm việc";
 
             var message = $"Lịch khám của khách hàng {patientName} với bác sĩ {doctorName} vào ngày {scheduleDate} lúc {appointment.TimeSlot} đã bị hủy với lí do: {cancellationReason}.";
             return new InAppContent("Hủy lịch khám", message);
@@ -59,11 +55,9 @@ namespace Clinic.Application.Notifications.Templates
         {
             var doctorName = !string.IsNullOrWhiteSpace(data.DoctorName)
                 ? data.DoctorName
-                : data.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? "Bác sĩ";
-            var scheduleDate = data.ScheduleDate != default
-                ? data.ScheduleDate.ToString()
-                : (data.WorkSchedule != null ? data.WorkSchedule.Date.ToString() : string.Empty);
-            var cancellationReason = data.WorkSchedule?.CancellationReason ?? "Lý do thay đổi lịch làm việc";
+                : "Bác sĩ";
+            var scheduleDate = data.ScheduleDate != default ? data.ScheduleDate.ToString() : string.Empty;
+            var cancellationReason = "Lý do thay đổi lịch làm việc";
 
             var message = $"Lịch khám của bạn với bác sĩ {doctorName} vào ngày {scheduleDate} lúc {data.TimeSlot} đã bị hủy với lí do: {cancellationReason}.";
             return new SmsContent(message);

@@ -89,6 +89,7 @@ const errorMessage = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 
 const scheduleRows = ref<DoctorSchedulePageItem[]>([])
+const allDoctors = ref<Doctor[]>([])
 const specialties = ref<Specialty[]>([])
 
 const search = ref('')
@@ -98,7 +99,7 @@ const pageSize = ref(10)
 const totalPages = ref(1)
 const totalCount = ref(0)
 
-const doctors = computed<Doctor[]>(() =>
+const scheduleDoctors = computed<Doctor[]>(() =>
   scheduleRows.value.map((row) => ({
     id: row.doctorId,
     fullName: row.doctorName,
@@ -116,6 +117,10 @@ const doctors = computed<Doctor[]>(() =>
   })),
 )
 
+const doctors = computed<Doctor[]>(() =>
+  allDoctors.value.length > 0 ? allDoctors.value : scheduleDoctors.value,
+)
+
 // Modals
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)
@@ -128,7 +133,29 @@ const defaultDoctorIdForCreate = ref<string | undefined>(undefined)
 // ==========================================
 
 async function loadInitialData() {
-  await loadWeekSlots()
+  await Promise.all([loadWeekSlots(), loadAllDoctors()])
+}
+
+async function loadAllDoctors() {
+  try {
+    const rows = await shiftsApi.getAllDoctors()
+    allDoctors.value = rows.map((doctor) => ({
+      id: doctor.doctorId,
+      fullName: doctor.fullName,
+      name: doctor.fullName,
+      username: doctor.username,
+      phoneNumber: '',
+      email: '',
+      gender: 0,
+      licenseNumber: '',
+      qualification: '',
+      experienceYears: 0,
+      status: doctor.isActive ? 'Active' : 'Inactive',
+    }))
+  } catch {
+    allDoctors.value = []
+  } finally {
+  }
 }
 
 async function loadWeekSlots() {
@@ -210,7 +237,7 @@ interface DoctorRowView {
 
 const filteredDoctorRows = computed<DoctorRowView[]>(() => {
   // Search and specialty filtering are performed by the paginated endpoint.
-  return doctors.value.map((doc) => {
+  return scheduleDoctors.value.map((doc) => {
     const docShifts = scheduleRows.value.find((row) => row.doctorId === doc.id)?.schedules || []
 
     const days = weekDays.value.map((day) => {

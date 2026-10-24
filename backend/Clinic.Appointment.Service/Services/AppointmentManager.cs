@@ -1,6 +1,7 @@
 namespace Clinic.Appointment.Service.Services;
 
 using Clinic.Appointment.Service.DTOs;
+using Clinic.Appointment.Service.Common;
 using Clinic.Appointment.Service.Entities;
 using Clinic.Appointment.Service.Enums;
 using Clinic.Appointment.Service.Persistence;
@@ -80,7 +81,7 @@ public interface IAppointmentManager
         int pageSize = 10,
         CancellationToken ct = default);
 
-    Task<bool> SyncWalkInAppointmentAsync(SyncWalkInAppointmentRequest request, CancellationToken ct = default);
+    Task<(bool Success, string? ErrorMessage, ReceptionistWalkInResult? Result, int StatusCode)> CreateWalkInAppointmentAsync(ReceptionistWalkInRequest request, Guid userId, string? idempotencyKey, CancellationToken ct = default);
 
     Task<bool> ProcessExamCompletedAsync(ExamCompleted evt, CancellationToken ct = default);
 
@@ -773,62 +774,39 @@ public class AppointmentManager : IAppointmentManager
             totalPages);
     }
 
-    public async Task<bool> SyncWalkInAppointmentAsync(SyncWalkInAppointmentRequest request, CancellationToken ct = default)
+    public async Task<(bool Success, string? ErrorMessage, ReceptionistWalkInResult? Result, int StatusCode)> CreateWalkInAppointmentAsync(ReceptionistWalkInRequest request, Guid userId, string? idempotencyKey, CancellationToken ct = default)
     {
-        var existing = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct);
-        if (existing != null)
-        {
-            existing.Status = AppointmentStatus.CheckedIn;
-            existing.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(ct);
-            return true;
-        }
+        if (request.PatientId == Guid.Empty || request.SpecialtyId == Guid.Empty || string.IsNullOrWhiteSpace(idempotencyKey))
+            return (false, "PatientId, SpecialtyId, and Idempotency-Key are required.", null, StatusCodes.Status400BadRequest);
+        var duplicate = await _db.Appointments.FirstOrDefaultAsync(a => a.IdempotencyKey == idempotencyKey && !a.IsDeleted, ct);
+        if (duplicate != null)
+            return (true, null, new ReceptionistWalkInResult(duplicate.Id, duplicate.PatientId, duplicate.PatientName, duplicate.DoctorId, duplicate.DoctorName, duplicate.SpecialtyName ?? string.Empty, request.IsUrgent, new DateTimeOffset(DateTime.SpecifyKind(duplicate.CreatedAt, DateTimeKind.Utc)), duplicate.Status.ToString(), duplicate.WorkScheduleId, duplicate.ScheduleDate, duplicate.TimeSlot, duplicate.Reason), StatusCodes.Status200OK);
 
-        var appointment = new Appointment(
-            request.PatientId,
-            request.PatientName,
-            request.PatientPhone,
-            request.PatientGender,
-            request.PatientDateOfBirth,
-            request.WorkScheduleId,
-            request.DoctorId,
-            request.DoctorName,
-            request.SpecialtyName,
-            request.ScheduleDate,
-            request.TimeSlot,
-            request.Reason,
-            request.CreatedByUserId,
-            isWalkIn: true)
-        {
-            Id = request.AppointmentId,
-            Status = AppointmentStatus.CheckedIn,
-            UpdatedAt = DateTime.UtcNow
-        };
-
+        var patient = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.PatientId, ct);
+        if (patient == null) return (false, "Patient profile was not found in Appointment Service. Retry after profile synchronization.", null, StatusCodes.Status404NotFound);
+        var nowUtc = DateTime.UtcNow;
+        var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(nowUtc, DateTimeKind.Utc), ClinicTime.TimeZone);
+        var date = DateOnly.FromDateTime(localNow);
+        var candidates = await _schedulingClient.GetWalkInCandidatesAsync(date, request.SpecialtyId, request.DoctorId, ct);
+        var nowTime = TimeOnly.FromDateTime(localNow);
+        var active = candidates.Where(s => s.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) && s.ShiftEnd > nowTime).ToList();
+        if (active.Count == 0) return (false, "No active schedule matches this specialty today.", null, StatusCodes.Status409Conflict);
+        var candidateIds = active.Select(s => s.Id).ToList();
+        var loads = await _db.Appointments.Where(a => candidateIds.Contains(a.WorkScheduleId) && !a.IsDeleted && a.Status != AppointmentStatus.Cancelled)
+            .GroupBy(a => a.WorkScheduleId).Select(g => new { ScheduleId = g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.ScheduleId, x => x.Count, ct);
+        var selected = active.OrderBy(s => loads.GetValueOrDefault(s.Id)).ThenBy(s => s.ShiftStart).First();
+        var timeSlot = nowTime >= selected.ShiftStart && nowTime < selected.ShiftEnd ? nowTime : selected.ShiftStart;
+        var reason = string.IsNullOrWhiteSpace(request.Reason) ? "Walk-in" : request.Reason.Trim();
+        var appointment = new Appointment(request.PatientId, patient.FullName, patient.PhoneNumber, patient.Gender, patient.DateOfBirth,
+            selected.Id, selected.DoctorId, selected.DoctorName, selected.SpecialtyName, date, timeSlot, reason, userId, true)
+        { Status = AppointmentStatus.CheckedIn, IdempotencyKey = idempotencyKey, UpdatedAt = nowUtc };
+        var checkedInAt = DateTimeOffset.UtcNow;
+        await using var tx = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
         _db.Appointments.Add(appointment);
-
-        var checkInTime = DateTimeOffset.UtcNow;
-        _outbox.Add(new EventEnvelope<AppointmentCheckedIn>
-        {
-            EventId = Guid.NewGuid(),
-            EventType = EventTypes.AppointmentCheckedIn,
-            SchemaVersion = 1,
-            OccurredAt = checkInTime,
-            CorrelationId = Guid.NewGuid(),
-            Producer = "Clinic.Appointment.Service",
-            Payload = new AppointmentCheckedIn(
-                appointment.Id,
-                appointment.PatientId,
-                appointment.DoctorId,
-                checkInTime,
-                request.IsUrgent,
-                appointment.PatientName,
-                appointment.DoctorName)
-        }, "appointment.checked-in");
-
+        _outbox.Add(new EventEnvelope<AppointmentCheckedIn> { EventId = Guid.NewGuid(), EventType = EventTypes.AppointmentCheckedIn, SchemaVersion = 1, OccurredAt = checkedInAt, CorrelationId = Guid.NewGuid(), Producer = "Clinic.Appointment.Service", Payload = new AppointmentCheckedIn(appointment.Id, appointment.PatientId, appointment.DoctorId, checkedInAt, request.IsUrgent, appointment.PatientName, appointment.DoctorName) }, "appointment.checked-in");
         await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Synced walk-in appointment {AppointmentId} and enqueued AppointmentCheckedIn into outbox", request.AppointmentId);
-        return true;
+        if (tx != null) await tx.CommitAsync(ct);
+        return (true, null, new ReceptionistWalkInResult(appointment.Id, appointment.PatientId, appointment.PatientName, appointment.DoctorId, appointment.DoctorName, appointment.SpecialtyName ?? string.Empty, request.IsUrgent, checkedInAt, appointment.Status.ToString(), appointment.WorkScheduleId, appointment.ScheduleDate, appointment.TimeSlot, appointment.Reason), StatusCodes.Status201Created);
     }
 
     public async Task<bool> ProcessExamCompletedAsync(ExamCompleted evt, CancellationToken ct = default)

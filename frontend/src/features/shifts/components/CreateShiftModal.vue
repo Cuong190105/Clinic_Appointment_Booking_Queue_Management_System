@@ -155,7 +155,7 @@ async function handleSubmit() {
       <BaseSelect v-model="form.doctorId" label="Bác sĩ phụ trách" required>
         <option value="" disabled>-- Chọn bác sĩ --</option>
         <option v-for="doc in doctors" :key="doc.id" :value="doc.id">
-          {{ doc.fullName || doc.name }} ({{ doc.specialty || 'Chưa phân khoa' }})
+          {{ doc.fullName || doc.name }} ({{ doc.username || 'Chưa có tên tài khoản' }})
         </option>
       </BaseSelect>
 

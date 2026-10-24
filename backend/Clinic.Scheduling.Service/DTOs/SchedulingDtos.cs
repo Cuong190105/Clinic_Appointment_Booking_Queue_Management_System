@@ -1,3 +1,6 @@
+using Clinic.Scheduling.Service.Enums;
+using System.Text.Json.Serialization;
+
 namespace Clinic.Scheduling.Service.DTOs;
 
 public record AvailableSlotDto(
@@ -49,7 +52,7 @@ public record ShiftSuggestionRejectionRequest(
 
 public record DoctorDto(
     Guid Id,
-    Guid EmployeeId,
+    [property: JsonIgnore] Guid EmployeeId,
     string FullName,
     string? PhoneNumber,
     string? Email,
@@ -58,7 +61,8 @@ public record DoctorDto(
     int ExperienceYears,
     string? Biography,
     string Status,
-    string? SpecialtyName
+    string? CurrentSpecialty,
+    string? Gender = null
 );
 
 public record SpecialtyDto(
@@ -93,6 +97,10 @@ public record ScheduleDetailDto(
     string? CancellationReason
 );
 
+public record WalkInScheduleDto(
+    Guid Id, Guid DoctorId, string DoctorName, string? SpecialtyName,
+    DateOnly Date, TimeOnly ShiftStart, TimeOnly ShiftEnd, string Status);
+
 public record UpdateScheduleRequest(
     DateOnly Date,
     TimeOnly ShiftStart,
@@ -103,3 +111,24 @@ public record UpdateScheduleRequest(
 public record CancelScheduleRequest(
     string Reason
 );
+
+public record CreateEmployeeRequest(Guid PersonId, Guid IdentityUserId, string FullName, string? PhoneNumber,
+    string? Email, string? Gender, DateOnly HireDate, EmployeeStatus Status, Guid? ManagerId = null,
+    DateOnly? DateOfBirth = null, string? Address = null, Guid? Id = null);
+public record UpdateEmployeeRequest(string FullName, string? PhoneNumber, string? Email, string? Gender,
+    DateOnly? DateOfBirth, string? Address, Guid? ManagerId = null);
+public record CreateDoctorRequest(Guid? EmployeeId, Guid PersonId, Guid IdentityUserId, string FullName,
+    string? PhoneNumber, string? Email, string? Gender, DateOnly HireDate, string LicenseNumber,
+    string Qualification, string? Biography, int ExperienceYears, string Status, Guid SpecialtyId,
+    DateOnly? DateOfBirth = null, string? Address = null, Guid? Id = null);
+public record UpdateDoctorRequest(string FullName, string? PhoneNumber, string? Email, string? Gender,
+    DateOnly? DateOfBirth, string? Address, string LicenseNumber, string Qualification,
+    int ExperienceYears, string? Biography);
+public record CreateSpecialtyRequest(string Name, string? Description, DateOnly EstablishedDate);
+public record UpdateSpecialtyRequest(string Name, string? Description, DateOnly EstablishedDate);
+public record CreateShiftRequest(DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, int RecommendedCapacity);
+public record UpdateShiftLegacyRequest(DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, int RecommendedCapacityPerSlot);
+public record CreateShiftSuggestionRequest(DateOnly Date, TimeOnly StartTime, TimeOnly EndTime,
+    int RecommendedCapacity, string? Reason);
+public record UpdateShiftSuggestionRequest(DateOnly Date, TimeOnly StartTime, TimeOnly EndTime,
+    int RecommendedCapacityPerSlot, string? Reason);

@@ -23,16 +23,12 @@ public sealed class EnsureIdentityRegistrationProfileHandler(IPersonService peop
         var person = await personRepository.GetByPhoneNumberAsync(request.PhoneNumber.Trim());
         if (person?.IdentityUserId is not null)
         {
-            if (person.Employee is null)
-                throw new ArgumentException("A user account already exists for this phone number. Use the from-user endpoint.");
-            return new IdentityRegistrationProfileIds(person.Id, person.Patient?.Id ?? Guid.NewGuid(),
-                person.Employee.Id, person.Employee.Doctor?.Id);
+            throw new ArgumentException("A user account already exists for this phone number. Use the from-user endpoint.");
         }
         person ??= await people.CreateOrGetPersonAsync(request.FullName, request.PhoneNumber,
             request.Email, request.DateOfBirth, request.Gender, request.Address);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return new IdentityRegistrationProfileIds(person.Id, person.Patient?.Id ?? Guid.NewGuid(),
-            person.Employee?.Id, person.Employee?.Doctor?.Id);
+        return new IdentityRegistrationProfileIds(person.Id, person.Patient?.Id ?? Guid.NewGuid(), null, null);
     }
 }
 

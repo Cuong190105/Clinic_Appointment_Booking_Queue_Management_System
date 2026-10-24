@@ -160,6 +160,8 @@ const workingDoctors = ref<WorkingDoctor[]>([])
 const selectedDoctorId = ref<string>('') // empty = auto assign
 const reason = ref('')
 const isUrgent = ref(false)
+const walkInIdempotencyKey = ref('')
+const walkInRequestFingerprint = ref('')
 
 // Scheduled booking specific data
 const scheduledDoctorId = ref<string>('')
@@ -178,14 +180,11 @@ const scheduledResult = ref<any | null>(null)
 const walkInTicketPending = ref(false)
 const retryingWalkInTicket = ref(false)
 
-async function refreshWalkInTicket(retrySync = false) {
+async function refreshWalkInTicket() {
   const appointmentId = walkInResult.value?.appointmentId
   if (!appointmentId) return
   retryingWalkInTicket.value = true
   try {
-    if (retrySync) {
-      await receptionistApi.retryWalkInAppointmentSync(appointmentId, walkInResult.value?.isUrgent ?? false)
-    }
     const ticket = await receptionistApi.pollQueueTicketByAppointmentId(appointmentId)
     if (!ticket) {
       walkInTicketPending.value = true
@@ -294,15 +293,23 @@ async function submitBooking() {
         return
       }
 
-      const res = await receptionistApi.createWalkInAppointment({
+      const walkInPayload = {
         patientId: selectedPatient.value.id,
         specialtyId: selectedSpecialtyId.value,
         doctorId: selectedDoctorId.value || undefined,
         reason: reason.value.trim() || undefined,
         isUrgent: isUrgent.value,
-      })
+      }
+      const fingerprint = JSON.stringify(walkInPayload)
+      if (!walkInIdempotencyKey.value || walkInRequestFingerprint.value !== fingerprint) {
+        walkInIdempotencyKey.value = crypto.randomUUID()
+        walkInRequestFingerprint.value = fingerprint
+      }
+      const res = await receptionistApi.createWalkInAppointment(walkInPayload, walkInIdempotencyKey.value)
 
       walkInResult.value = res
+      walkInIdempotencyKey.value = ''
+      walkInRequestFingerprint.value = ''
 
       // Poll Queue Service for the real ticket number
       await refreshWalkInTicket()
@@ -361,6 +368,8 @@ function resetWizard() {
   isUrgent.value = false
   walkInResult.value = null
   walkInTicketPending.value = false
+  walkInIdempotencyKey.value = ''
+  walkInRequestFingerprint.value = ''
   scheduledResult.value = null
   errorMessage.value = ''
   successMessage.value = ''
@@ -1210,9 +1219,9 @@ onMounted(async () => {
             variant="outline"
             :loading="retryingWalkInTicket"
             :disabled="retryingWalkInTicket"
-            @click="refreshWalkInTicket(true)"
+            @click="refreshWalkInTicket()"
           >
-            Thử đồng bộ/lấy phiếu lại
+            Kiểm tra phiếu
           </BaseButton>
           <BaseButton
             v-if="!walkInTicketPending"

@@ -5,5 +5,7 @@ public sealed record UserProfileUpdated(
     string FullName,
     string? PhoneNumber,
     string? Email,
-    string? Gender
+    string? Gender,
+    DateOnly? DateOfBirth = null,
+    string? Address = null
 );

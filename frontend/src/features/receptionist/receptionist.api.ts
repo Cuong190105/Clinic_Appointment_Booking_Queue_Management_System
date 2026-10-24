@@ -70,13 +70,11 @@ export const receptionistApi = {
     return Array.isArray(unwrapped) ? unwrapped : []
   },
 
-  async createWalkInAppointment(payload: WalkInPayload): Promise<WalkInResult> {
-    const res = await http.post('/receptionist/appointments/walk-in', payload)
+  async createWalkInAppointment(payload: WalkInPayload, idempotencyKey: string): Promise<WalkInResult> {
+    const res = await http.post('/receptionist/appointments/walk-in', payload, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })
     return unwrap<WalkInResult>(res.data)
-  },
-
-  async retryWalkInAppointmentSync(appointmentId: string, isUrgent: boolean): Promise<void> {
-    await http.post(`/receptionist/appointments/walk-in/${appointmentId}/sync`, undefined, { params: { isUrgent } })
   },
 
   async createScheduledAppointment(payload: {

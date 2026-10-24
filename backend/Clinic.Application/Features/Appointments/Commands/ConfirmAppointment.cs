@@ -46,7 +46,7 @@ namespace Clinic.Application.Features.Appointments.Commands
             // Remind the patient about the appointment one day before at 8 AM (UTC+7)
             var scheduleDate = appointment.ScheduleDate != default
                 ? appointment.ScheduleDate
-                : (appointment.WorkSchedule?.Date ?? DateOnly.FromDateTime(DateTime.UtcNow.Date));
+                : DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
             var notificationScheduledAt = new DateTimeOffset(
                 scheduleDate.AddDays(-1),

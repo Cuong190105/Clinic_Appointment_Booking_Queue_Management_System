@@ -110,9 +110,13 @@ public sealed record ProvisionAccountRequest(
 public sealed record UpdateAccountRolesRequest(
     IReadOnlyList<string> Roles, Guid? PatientId = null, Guid? EmployeeId = null, Guid? DoctorId = null);
 
+public sealed record UpdateIdentityProfileRequest(
+    string FullName, string? PhoneNumber, string? Email, DateOnly DateOfBirth, string Gender, string? Address);
+
 public sealed record AdminUserSummary(
     Guid UserId, Guid PersonId, string Username, string FullName, string? PhoneNumber,
-    string? Email, string Gender, IReadOnlyList<string> Roles, bool IsActive, DateTime CreatedAt);
+    string? Email, string Gender, IReadOnlyList<string> Roles, bool IsActive, DateTime CreatedAt,
+    Guid? EmployeeId, Guid? DoctorId);
 
 public sealed record AdminUserDetail(
     Guid UserId, Guid PersonId, string Username, string FullName, string? PhoneNumber,

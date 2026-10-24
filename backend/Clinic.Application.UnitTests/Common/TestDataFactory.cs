@@ -43,25 +43,16 @@ namespace Clinic.Application.UnitTests.Common
             return queueTicket;
         }
 
-        public static Specialty CreateSpecialty(string? name = "Cardiology", string? description = "Heart specialist")
-        {
-            var specialty = new Specialty(name, description, DateOnly.FromDateTime(DateTime.UtcNow));
-            return specialty;
-        }
-
-        public static Employee CreateEmployee(Person? person = null, string role = "Admin")
+        public static TestEmployee CreateEmployee(Person? person = null, string role = "Admin")
         {
             person ??= CreatePerson(userRole: role);
-            var newEmployee = new Employee(person, DateOnly.FromDateTime(DateTime.UtcNow));
-            person.Employee = newEmployee;
-            return newEmployee;
+            return new TestEmployee(Guid.NewGuid(), person);
         }
 
-        internal static Doctor CreateDoctor(Employee? employee = null, Specialty? specialty = null, string? licenseNumber = "ABC123", string? qualification = "MD", string? bio = "", int yoe = 0)
+        internal static TestDoctor CreateDoctor()
         {
-            var doctor = new Doctor(employee ?? CreateEmployee(role: "Doctor"), licenseNumber, qualification, specialty ?? CreateSpecialty(), yoe, bio);
-            doctor.Employee?.AssignDoctor(doctor);
-            return doctor;
+            var employee = CreateEmployee(role: "Doctor");
+            return new TestDoctor(Guid.NewGuid(), employee, "Doctor Name", "Cardiology");
         }
 
         internal static Patient CreatePatient(Person? person = null)
@@ -72,18 +63,16 @@ namespace Clinic.Application.UnitTests.Common
             return patient;
         }
 
-        internal static WorkSchedule CreateWorkSchedule(Doctor? doctor = null, DateOnly? date = null, TimeOnly? startTime = null, TimeOnly? endTime = null, int RecommendedCapacity = 15)
+        internal static TestWorkSchedule CreateWorkSchedule(TestDoctor? doctor = null, DateOnly? date = null, TimeOnly? startTime = null, TimeOnly? endTime = null, int RecommendedCapacity = 15)
         {
             var doc = doctor ?? CreateDoctor();
             var sTime = startTime ?? new TimeOnly(8, 0);
             var eTime = endTime ?? new TimeOnly(23, 59, 59);
             var d = date ?? new Clinic.Domain.Common.TimeConverter().Today.AddDays(2);
-            var ws = new WorkSchedule(Guid.NewGuid(), doc.Id, d, sTime, eTime, RecommendedCapacity, WorkScheduleStatus.Active, DateTime.UtcNow, null, false);
-            typeof(WorkSchedule).GetProperty("Doctor")!.SetValue(ws, doc);
-            return ws;
+            return new TestWorkSchedule(Guid.NewGuid(), doc.Id, doc.FullName, doc.SpecialtyName, d, sTime, eTime, RecommendedCapacity);
         }
 
-        internal static Appointment CreateAppointment(Patient? patient = null, WorkSchedule? workSchedule = null, TimeOnly? timeSlot = null, string? reason = null, Guid? createdBy = null, bool confirmed = false, bool checkedIn = false, int queueNumber = 0, bool today = false, bool isWalkIn = false)
+        internal static Appointment CreateAppointment(Patient? patient = null, TestWorkSchedule? workSchedule = null, TimeOnly? timeSlot = null, string? reason = null, Guid? createdBy = null, bool confirmed = false, bool checkedIn = false, int queueNumber = 0, bool today = false, bool isWalkIn = false)
         {
             var scheduleEndTime = timeSlot.HasValue ? (timeSlot.Value.AddHours(2) <= timeSlot.Value ? new TimeOnly(23, 59, 59) : timeSlot.Value.AddHours(2)) : (TimeOnly?)null;
             workSchedule ??= CreateWorkSchedule(date: (checkedIn || today) ? new Clinic.Domain.Common.TimeConverter().Today : null, startTime: timeSlot, endTime: scheduleEndTime);
@@ -91,7 +80,7 @@ namespace Clinic.Application.UnitTests.Common
             var isPast = new Clinic.Domain.Common.TimeConverter().ConvertToUtc(new DateTime(workSchedule.Date, timeSlot.Value)) < DateTime.UtcNow;
             var walkInFlag = isWalkIn || (isPast && (checkedIn || today || workSchedule.Date <= new Clinic.Domain.Common.TimeConverter().Today));
 
-            var app = new Appointment(patient ?? CreatePatient(), workSchedule, timeSlot.Value, reason ?? "Reason", createdBy ?? Guid.NewGuid(), walkInFlag);
+            var app = new Appointment(patient ?? CreatePatient(), workSchedule.Id, workSchedule.DoctorId, workSchedule.DoctorName, workSchedule.SpecialtyName, workSchedule.Date, timeSlot.Value, reason ?? "Reason", createdBy ?? Guid.NewGuid(), walkInFlag);
             if (!isWalkIn && walkInFlag)
             {
                 typeof(Appointment).GetProperty("IsWalkIn")!.SetValue(app, false);
@@ -140,6 +129,32 @@ namespace Clinic.Application.UnitTests.Common
         public Person Person { get; } = person;
         public string Role { get; private set; } = role;
         public void AssignRole(string roleName) => Role = roleName;
+    }
+
+    public sealed class TestEmployee(Guid id, Person person)
+    {
+        public Guid Id { get; } = id;
+        public Person Person { get; } = person;
+    }
+
+    public sealed class TestDoctor(Guid id, TestEmployee employee, string fullName, string specialtyName)
+    {
+        public Guid Id { get; } = id;
+        public TestEmployee Employee { get; } = employee;
+        public string FullName { get; } = fullName;
+        public string SpecialtyName { get; } = specialtyName;
+    }
+
+    public sealed class TestWorkSchedule(Guid id, Guid doctorId, string doctorName, string specialtyName, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int recommendedCapacity)
+    {
+        public Guid Id { get; } = id;
+        public Guid DoctorId { get; } = doctorId;
+        public string DoctorName { get; } = doctorName;
+        public string SpecialtyName { get; } = specialtyName;
+        public DateOnly Date { get; } = date;
+        public TimeOnly ShiftStart { get; } = shiftStart;
+        public TimeOnly ShiftEnd { get; } = shiftEnd;
+        public int RecommendedCapacity { get; } = recommendedCapacity;
     }
 }
 

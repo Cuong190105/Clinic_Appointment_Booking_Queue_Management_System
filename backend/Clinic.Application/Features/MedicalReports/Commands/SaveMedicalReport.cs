@@ -45,7 +45,7 @@ namespace Clinic.Application.Features.MedicalReports.Commands
             var ticket = appointment.QueueTicket;
 
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any") || _currentUser.HasPermission("medical-report.view.any");
-            if (!hasAnyScope && appointment.WorkSchedule.DoctorId != _currentUser.DoctorId)
+            if (!hasAnyScope && appointment.DoctorId != _currentUser.DoctorId)
             {
                 throw new ForbiddenException("You are not allowed to record medical report for another doctor's queue.");
             }
@@ -93,9 +93,9 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 AppointmentId = report.AppointmentId,
                 PatientId = report.PatientId,
                 PatientName = report.Patient?.Person?.FullName ?? appointment.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = appointment.WorkSchedule.DoctorId,
-                DoctorName = appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                ExamDate = appointment.WorkSchedule.Date,
+                DoctorId = appointment.DoctorId,
+                DoctorName = appointment.DoctorName,
+                ExamDate = appointment.ScheduleDate != default ? appointment.ScheduleDate : DateOnly.FromDateTime(report.CreatedAt),
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,

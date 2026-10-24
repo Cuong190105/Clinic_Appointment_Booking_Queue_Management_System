@@ -21,12 +21,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 .HasForeignKey(a => a.AppointmentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Decouple WorkSchedule FK constraint across services
-            builder.HasOne(a => a.OldWorkSchedule)
-                .WithMany()
-                .HasForeignKey(a => a.OldWorkScheduleId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Restrict);
 
         }
     }

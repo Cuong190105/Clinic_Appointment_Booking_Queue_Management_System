@@ -4,6 +4,9 @@ using Clinic.Scheduling.Service.DTOs;
 using Clinic.Scheduling.Service.Enums;
 using Clinic.Scheduling.Service.Persistence;
 using Clinic.Scheduling.Service.Services;
+using System.Security.Cryptography;
+using System.Text;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +14,7 @@ public static class SchedulingEndpoints
 {
     public static IEndpointRouteBuilder MapSchedulingApi(this IEndpointRouteBuilder app)
     {
+        app.MapStaffSchedulingApi();
         // ==========================================
         // 1. AVAILABILITY & SLOTS APIS
         // ==========================================
@@ -123,13 +127,12 @@ public static class SchedulingEndpoints
         // ==========================================
         app.MapPost("/shifts/suggestions/{id:guid}/approve", async (
             Guid id,
-            [FromBody] ShiftSuggestionApprovalRequest? request,
             ISchedulingManager manager,
             CancellationToken ct) =>
         {
             try
             {
-                var schedule = await manager.ApproveShiftRequestAsync(id, request?.Note, ct);
+                var schedule = await manager.ApproveShiftRequestAsync(id, null, ct);
                 return Results.Ok(new { isSuccess = true, message = "Shift request approved.", result = schedule });
             }
             catch (KeyNotFoundException ex)
@@ -140,41 +143,53 @@ public static class SchedulingEndpoints
             {
                 return Results.Conflict(new { error = ex.Message });
             }
-        });
+        }).RequireAuthorization("AdminOnly");
 
         app.MapPost("/shifts/suggestions/{id:guid}/reject", async (
             Guid id,
-            [FromBody] ShiftSuggestionRejectionRequest? request,
             ISchedulingManager manager,
             CancellationToken ct) =>
         {
-            var success = await manager.RejectShiftRequestAsync(id, request?.Reason, ct);
+            var success = await manager.RejectShiftRequestAsync(id, null, ct);
             if (!success)
                 return Results.NotFound(new { error = $"Shift request '{id}' not found." });
 
             return Results.Ok(new { isSuccess = true, message = "Shift request rejected." });
-        });
+        }).RequireAuthorization("AdminOnly");
 
         app.MapPost("/shifts/suggestions/{id:guid}/cancel", async (
             Guid id,
+            ClaimsPrincipal principal,
+            SchedulingDbContext db,
             ISchedulingManager manager,
             CancellationToken ct) =>
         {
+            var doctorId = Guid.TryParse(principal.FindFirstValue("doctorId"), out var parsedDoctorId) ? parsedDoctorId : Guid.Empty;
+            if (doctorId == Guid.Empty || !await db.ShiftRequests.AnyAsync(r => r.Id == id && r.DoctorId == doctorId && !r.IsDeleted, ct))
+                return Results.NotFound(new { error = $"Shift request '{id}' not found." });
             var success = await manager.CancelShiftRequestAsync(id, ct);
             if (!success)
                 return Results.NotFound(new { error = $"Shift request '{id}' not found." });
 
             return Results.Ok(new { isSuccess = true, message = "Shift request cancelled." });
-        });
+        }).RequireAuthorization("DoctorOnly");
 
         // ==========================================
         // 4. METADATA & QUERY APIS (DOCTORS, SPECIALTIES, SCHEDULES)
         // ==========================================
         app.MapGet("/doctors", async (
             [FromQuery] Guid? specialtyId,
+            [FromQuery] string? search,
+            [FromQuery] string? qualification,
+            [FromQuery] string? status,
+            [FromQuery] string? sortBy,
+            [FromQuery] string? orderBy,
+            [FromQuery] int? pageNumber,
+            [FromQuery] int? pageSize,
             SchedulingDbContext db,
             CancellationToken ct) =>
         {
+            var currentPage = Math.Max(1, pageNumber ?? 1); var currentPageSize = Math.Clamp(pageSize ?? 10, 1, 100);
             var query = db.Doctors
                 .AsNoTracking()
                 .Include(d => d.Employee)
@@ -187,8 +202,19 @@ public static class SchedulingEndpoints
                 query = query.Where(d => d.WorkHistories.Any(wh => wh.SpecialtyId == specialtyId.Value && !wh.IsDeleted && wh.EndDate == null));
             }
 
-            var doctors = await query
-                .OrderBy(d => d.Employee.FullName)
+            if (!string.IsNullOrWhiteSpace(search)) query = query.Where(d => d.Employee.FullName.Contains(search) || d.LicenseNumber.Contains(search));
+            if (!string.IsNullOrWhiteSpace(qualification)) query = query.Where(d => d.Qualification.Contains(qualification));
+            if (Enum.TryParse<DoctorStatus>(status, true, out var parsedStatus)) query = query.Where(d => d.Status == parsedStatus);
+            var count = await query.CountAsync(ct);
+            query = string.Equals(sortBy, "experienceYears", StringComparison.OrdinalIgnoreCase)
+                ? (string.Equals(orderBy, "desc", StringComparison.OrdinalIgnoreCase) ? query.OrderByDescending(d => d.ExperienceYears) : query.OrderBy(d => d.ExperienceYears))
+                : string.Equals(sortBy, "qualification", StringComparison.OrdinalIgnoreCase)
+                    ? (string.Equals(orderBy, "desc", StringComparison.OrdinalIgnoreCase) ? query.OrderByDescending(d => d.Qualification) : query.OrderBy(d => d.Qualification))
+                    : string.Equals(sortBy, "status", StringComparison.OrdinalIgnoreCase)
+                        ? (string.Equals(orderBy, "desc", StringComparison.OrdinalIgnoreCase) ? query.OrderByDescending(d => d.Status) : query.OrderBy(d => d.Status))
+                        : string.Equals(orderBy, "desc", StringComparison.OrdinalIgnoreCase) ? query.OrderByDescending(d => d.Employee.FullName) : query.OrderBy(d => d.Employee.FullName);
+
+            var doctors = await query.Skip((currentPage - 1) * currentPageSize).Take(currentPageSize)
                 .Select(d => new DoctorDto(
                     d.Id,
                     d.EmployeeId,
@@ -200,12 +226,16 @@ public static class SchedulingEndpoints
                     d.ExperienceYears,
                     d.Biography,
                     d.Status.ToString(),
-                    d.WorkHistories.Select(wh => wh.Specialty.Name).FirstOrDefault()
+                    d.WorkHistories.Select(wh => wh.Specialty.Name).FirstOrDefault(),
+                    d.Employee.Gender
                 ))
                 .ToListAsync(ct);
 
-            return Results.Ok(new { isSuccess = true, result = doctors, totalCount = doctors.Count });
-        });
+            var result = new { items = doctors, pageNumber = currentPage, pageSize = currentPageSize, totalCount = count,
+                totalPages = (int)Math.Ceiling(count / (double)currentPageSize), hasPrevious = currentPage > 1,
+                hasNext = currentPage < (int)Math.Ceiling(count / (double)currentPageSize) };
+            return Results.Ok(new { isSuccess = true, result });
+        }).AllowAnonymous();
 
         app.MapGet("/doctors/{id:guid}", async (
             Guid id,
@@ -229,29 +259,16 @@ public static class SchedulingEndpoints
                     d.ExperienceYears,
                     d.Biography,
                     d.Status.ToString(),
-                    d.WorkHistories.Select(wh => wh.Specialty.Name).FirstOrDefault()
+                    d.WorkHistories.Select(wh => wh.Specialty.Name).FirstOrDefault(),
+                    d.Employee.Gender
                 ))
                 .FirstOrDefaultAsync(ct);
 
             if (doctor == null)
                 return Results.NotFound(new { error = $"Doctor '{id}' not found." });
 
-            return Results.Ok(new { isSuccess = true, result = doctor });
-        });
-
-        app.MapGet("/specialties", async (
-            SchedulingDbContext db,
-            CancellationToken ct) =>
-        {
-            var specialties = await db.Specialties
-                .AsNoTracking()
-                .Where(s => !s.IsDeleted)
-                .OrderBy(s => s.Name)
-                .Select(s => new SpecialtyDto(s.Id, s.Name, s.Description, s.EstablishedDate))
-                .ToListAsync(ct);
-
-            return Results.Ok(new { isSuccess = true, result = specialties, totalCount = specialties.Count });
-        });
+            return Results.Ok(doctor);
+        }).AllowAnonymous();
 
         app.MapGet("/schedules", async (
             [FromQuery] Guid? doctorId,
@@ -290,6 +307,27 @@ public static class SchedulingEndpoints
                 .ToListAsync(ct);
 
             return Results.Ok(new { isSuccess = true, result = schedules, totalCount = schedules.Count });
+        }).RequireAuthorization("DoctorOnly");
+
+        app.MapGet("/schedules/walk-in-candidates", async (
+            [FromQuery] DateOnly date,
+            [FromQuery] Guid specialtyId,
+            [FromQuery] Guid? doctorId,
+            SchedulingDbContext db,
+            CancellationToken ct) =>
+        {
+            var query = db.WorkSchedules.AsNoTracking()
+                .Include(ws => ws.Doctor).ThenInclude(d => d.Employee)
+                .Include(ws => ws.Doctor).ThenInclude(d => d.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null)).ThenInclude(h => h.Specialty)
+                .Where(ws => ws.Date == date && ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted
+                    && !ws.Doctor.IsDeleted
+                    && ws.Doctor.WorkHistories.Any(h => !h.IsDeleted && h.EndDate == null && h.SpecialtyId == specialtyId));
+            if (doctorId.HasValue) query = query.Where(ws => ws.DoctorId == doctorId.Value);
+            var result = await query.OrderBy(ws => ws.ShiftStart).Select(ws => new WalkInScheduleDto(
+                ws.Id, ws.DoctorId, ws.Doctor.Employee.FullName,
+                ws.Doctor.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null && h.SpecialtyId == specialtyId).Select(h => h.Specialty.Name).FirstOrDefault(),
+                ws.Date, ws.ShiftStart, ws.ShiftEnd, ws.Status.ToString())).ToListAsync(ct);
+            return Results.Ok(new { isSuccess = true, result });
         });
 
         app.MapGet("/schedules/{id:guid}", async (
@@ -365,9 +403,15 @@ public static class SchedulingEndpoints
         // ==========================================
         app.MapPost("/internal/events/user-profile-updated", async (
             [FromBody] Clinic.Contracts.Events.UserProfileUpdated evt,
+            [FromHeader(Name = "X-Clinic-Service-Token")] string? serviceToken,
+            IConfiguration configuration,
             ISchedulingManager manager,
             CancellationToken ct) =>
         {
+            var expectedToken = configuration["Services:InternalToken"];
+            if (string.IsNullOrWhiteSpace(expectedToken) || string.IsNullOrWhiteSpace(serviceToken) ||
+                !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(serviceToken), Encoding.UTF8.GetBytes(expectedToken)))
+                return Results.Unauthorized();
             var updatedCount = await manager.HandleUserProfileUpdatedAsync(evt, ct);
             return Results.Ok(new { isSuccess = true, message = $"Synchronized {updatedCount} employee profile(s)." });
         });

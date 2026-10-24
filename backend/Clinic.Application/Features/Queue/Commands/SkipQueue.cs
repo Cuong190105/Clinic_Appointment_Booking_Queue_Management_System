@@ -40,9 +40,7 @@ namespace Clinic.Application.Features.Queue.Commands
             // chặn ở tầng Domain rồi). Vé Waiting bị skip thì bác sĩ chưa hề bận với vé này -> không
             // cần/không nên tự động gọi số tiếp theo thay cho lễ tân.
             var wasHoldingDoctor = queueTicket.Status == QueueStatus.Called;
-            var doctorId = queueTicket.Appointment.DoctorId != Guid.Empty
-                ? queueTicket.Appointment.DoctorId
-                : (queueTicket.Appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
+            var doctorId = queueTicket.Appointment.DoctorId;
             var checkInDate = queueTicket.CheckInTime.Date;
 
             queueTicket.Skip();

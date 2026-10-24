@@ -53,9 +53,7 @@ namespace Clinic.Application.Features.Queue.Queries
 
             foreach (var myTicket in myTickets)
             {
-                var doctorId = myTicket.Appointment.DoctorId != Guid.Empty
-                    ? myTicket.Appointment.DoctorId
-                    : (myTicket.Appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
+                var doctorId = myTicket.Appointment.DoctorId;
 
                 if (!queueByDoctor.TryGetValue(doctorId, out var dayQueue))
                 {
@@ -79,9 +77,7 @@ namespace Clinic.Application.Features.Queue.Queries
                     }
                 }
 
-                var doctorName = !string.IsNullOrEmpty(myTicket.Appointment.DoctorName)
-                    ? myTicket.Appointment.DoctorName
-                    : (myTicket.Appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty);
+                var doctorName = myTicket.Appointment.DoctorName;
 
                 result.Add(new MyQueueStatusDto
                 {

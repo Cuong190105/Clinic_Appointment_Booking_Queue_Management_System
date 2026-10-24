@@ -2,6 +2,7 @@ import { http } from '@/lib/api/http'
 import type {
   CreateShiftPayload,
   DoctorSchedulePageItem,
+  DoctorScheduleOption,
   DoctorScheduleResponse,
   PagedDoctorSchedulesResponse,
   ShiftSuggestion,
@@ -28,6 +29,21 @@ function ensureTimeWithSeconds(timeStr: string): string {
 }
 
 export const shiftsApi = {
+  // GET /admin/doctors/brief (all Identity-linked doctors for schedule creation)
+  async getAllDoctors(): Promise<DoctorScheduleOption[]> {
+    const res = await http.get<any>('/admin/doctors/brief').then((r) => r.data)
+    const rows = Array.isArray(res.result) ? res.result : []
+    return rows
+      .map((doctor: any) => ({
+        doctorId: String(doctor.doctorId || doctor.DoctorId || ''),
+        employeeId: doctor.employeeId || doctor.EmployeeId,
+        fullName: doctor.fullName || doctor.FullName || '',
+        username: doctor.username || doctor.Username || '',
+        isActive: doctor.isActive ?? doctor.IsActive ?? true,
+      }))
+      .filter((doctor: DoctorScheduleOption) => doctor.doctorId && doctor.fullName)
+  },
+
   // GET /doctors/{doctorId}/shifts?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
   async getDoctorShifts(
     doctorId: string,

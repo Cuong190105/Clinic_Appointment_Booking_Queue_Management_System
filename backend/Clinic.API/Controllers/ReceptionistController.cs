@@ -24,120 +24,39 @@ namespace Clinic.API.Controllers
         private readonly IMapper _mapper;
         private readonly ICurrentUser _currentUser;
         private readonly AppointmentServiceClient _appointmentClient;
-        private readonly IAppointmentRepository _appointmentRepository;
 
         public ReceptionistController(
             ISender sender,
             IMapper mapper,
             ICurrentUser currentUser,
-            AppointmentServiceClient appointmentClient,
-            IAppointmentRepository appointmentRepository)
+            AppointmentServiceClient appointmentClient)
         {
             _sender = sender;
             _mapper = mapper;
             _currentUser = currentUser;
             _appointmentClient = appointmentClient;
-            _appointmentRepository = appointmentRepository;
         }
 
         // Lấy danh sách bác sĩ đang có ca trực hôm nay (theo chuyên khoa)
         [HttpGet("working-doctors")]
         [Authorize(Roles = "Receptionist,Admin")]
-        [ProducesResponseType(typeof(List<WorkingDoctorDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(List<object>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetWorkingDoctors([FromQuery] Guid? specialtyId)
         {
-            var result = await _sender.Send(new GetWorkingDoctorsForTodayQuery(specialtyId));
-            return Ok(result);
+            return await _appointmentClient.ProxyAsync(HttpContext, $"receptionist/working-doctors?specialtyId={specialtyId}", HttpMethod.Get);
         }
 
         // Đăng ký khám ngay (Walk-in) cho bệnh nhân tại quầy: tự động chọn bác sĩ ít tải nhất nếu không chọn, xác nhận, tự động check-in và sinh số thứ tự
         [HttpPost("appointments/walk-in")]
         [Authorize(Policy = "Permission:appointment.create")]
-        [ProducesResponseType(typeof(ReceptionistWalkInResultDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> CreateWalkInAppointment([FromBody] ReceptionistWalkInRequest request)
         {
-            var userId = _currentUser.UserId ?? throw new UnauthorizedAccessException();
-            var command = new CreateWalkInAppointmentCommand(
-                userId,
-                request.PatientId,
-                request.SpecialtyId,
-                request.DoctorId,
-                request.Reason,
-                request.IsUrgent
-            );
-
-            var result = await _sender.Send(command);
-
-            // Sync walk-in appointment to Clinic.Appointment.Service so ClinicAppointmentDB tracks it and publishes AppointmentCheckedIn
-            var synced = await _appointmentClient.PostInternalAsync("internal/appointments/sync-walkin", new
-            {
-                appointmentId = result.AppointmentId,
-                patientId = result.PatientId,
-                patientName = result.PatientName,
-                patientPhone = (string?)null,
-                patientGender = (string?)null,
-                patientDateOfBirth = (DateOnly?)null,
-                workScheduleId = result.WorkScheduleId,
-                doctorId = result.DoctorId,
-                doctorName = result.DoctorName,
-                specialtyName = result.SpecialtyName,
-                scheduleDate = result.ScheduleDate,
-                timeSlot = result.TimeSlot,
-                reason = result.Reason,
-                createdByUserId = userId,
-                isUrgent = result.IsUrgent
-            }, HttpContext.RequestAborted);
-
-            if (!synced)
-            {
-                // The appointment is durable in ClinicDB. Keep its ID so the receptionist can retry
-                // this idempotent projection without creating a second walk-in appointment.
-                return Accepted(result);
-            }
-
-            return StatusCode(StatusCodes.Status201Created, result);
-        }
-
-        [HttpPost("appointments/walk-in/{appointmentId:guid}/sync")]
-        [Authorize(Policy = "Permission:appointment.create")]
-        [ProducesResponseType(StatusCodes.Status202Accepted)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> RetryWalkInAppointmentSync([FromRoute] Guid appointmentId, [FromQuery] bool isUrgent = false)
-        {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
-            if (appointment == null) return NotFound();
-            if (!appointment.IsWalkIn || appointment.Status != Clinic.Domain.Enums.AppointmentStatus.CheckedIn)
-            {
-                return Conflict(new { error = "Only checked-in walk-in appointments can be synchronized." });
-            }
-
-            var person = appointment.Patient?.Person;
-            var doctorName = appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? appointment.DoctorName;
-            var synced = await _appointmentClient.PostInternalAsync("internal/appointments/sync-walkin", new
-            {
-                appointmentId = appointment.Id,
-                patientId = appointment.PatientId,
-                patientName = person?.FullName ?? string.Empty,
-                patientPhone = person?.PhoneNumber,
-                patientGender = person?.Gender.ToString(),
-                patientDateOfBirth = person?.DateOfBirth,
-                workScheduleId = appointment.WorkScheduleId,
-                doctorId = appointment.DoctorId,
-                doctorName,
-                specialtyName = appointment.SpecialtyName,
-                scheduleDate = appointment.ScheduleDate,
-                timeSlot = appointment.TimeSlot,
-                reason = appointment.Reason,
-                createdByUserId = appointment.UpdatedByUserId,
-                isUrgent
-            }, HttpContext.RequestAborted);
-
-            return synced
-                ? Accepted(new { appointmentId, synced = true })
-                : StatusCode(StatusCodes.Status503ServiceUnavailable, new { appointmentId, synced = false, retryable = true });
+            if (!Request.Headers.ContainsKey("Idempotency-Key"))
+                Request.Headers["Idempotency-Key"] = Guid.NewGuid().ToString("N");
+            return await _appointmentClient.ProxyAsync(HttpContext, "receptionist/appointments/walk-in", HttpMethod.Post, request);
         }
 
         // For receptionist only

@@ -42,9 +42,7 @@ namespace Clinic.Application.Features.Queue.Commands
             var queueTicket = await _queueTicketRepository.GetByIdAsync(command.QueueTicketId)
                 ?? throw new NotFoundException($"Queue ticket '{command.QueueTicketId}' not found.");
 
-            var doctorId = queueTicket.Appointment.DoctorId != Guid.Empty
-                ? queueTicket.Appointment.DoctorId
-                : (queueTicket.Appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
+            var doctorId = queueTicket.Appointment.DoctorId;
 
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any");
             if (!hasAnyScope && doctorId != _currentUser.DoctorId)

@@ -178,7 +178,6 @@ public sealed class RabbitMqFailureIntegrationTests : IClassFixture<ApiContractF
     {
         await using var dbContext = _factory.CreateDbContext();
         var appointment = await dbContext.Appointments
-            .Include(item => item.WorkSchedule)
             .Include(item => item.QueueTicket)
             .FirstAsync(item => !item.IsDeleted && item.QueueTicket != null);
 
@@ -193,7 +192,7 @@ public sealed class RabbitMqFailureIntegrationTests : IClassFixture<ApiContractF
             Payload = new AppointmentCheckedIn(
                 appointment.Id,
                 appointment.PatientId,
-                appointment.WorkSchedule.DoctorId,
+                appointment.DoctorId,
                 DateTimeOffset.UtcNow)
         };
     }

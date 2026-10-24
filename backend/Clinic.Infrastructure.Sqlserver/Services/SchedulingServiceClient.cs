@@ -81,4 +81,20 @@ public class SchedulingServiceClient : ISchedulingServiceClient
             resultEl.GetProperty("status").GetString() ?? string.Empty
         );
     }
+    public async Task<DoctorDashboardStatsResult?> GetDoctorDashboardStatsAsync(CancellationToken ct = default)
+    {
+        var response = await _client.GetAsync("doctors/dashboard-stats", ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        var root = doc.RootElement;
+        var resultEl = root.TryGetProperty("result", out var r) ? r : root;
+        return new DoctorDashboardStatsResult(
+            resultEl.GetProperty("totalDoctors").GetInt32(),
+            resultEl.GetProperty("totalDoctorsChange").GetInt32(),
+            resultEl.GetProperty("activeDoctors").GetInt32(),
+            resultEl.GetProperty("activeDoctorsChange").GetInt32()
+        );
+    }
 }

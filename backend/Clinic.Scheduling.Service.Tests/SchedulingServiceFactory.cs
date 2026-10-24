@@ -14,7 +14,8 @@ public sealed class SchedulingServiceFactory : WebApplicationFactory<Program>
             ["ConnectionStrings:SchedulingConnection"] = "Server=localhost,1433;Database=ClinicSchedulingDB;User Id=sa;Password=ClinicDev!2026StrongPw;TrustServerCertificate=True;Encrypt=False",
             ["Identity:Authority"] = "http://localhost:5001",
             ["Jwt:Issuer"] = "http://localhost:5000",
-            ["Jwt:Audience"] = "Clinic.Services"
+            ["Jwt:Audience"] = "Clinic.Services",
+            ["Services:InternalToken"] = "integration-test-service-token"
         }));
     }
 }

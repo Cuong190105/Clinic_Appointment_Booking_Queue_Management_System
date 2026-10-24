@@ -9,10 +9,8 @@ namespace Clinic.Application.Notifications.Templates
         {
             var doctorName = !string.IsNullOrWhiteSpace(appointment.DoctorName)
                 ? appointment.DoctorName
-                : appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? "Bác sĩ";
-            var scheduleDate = appointment.ScheduleDate != default
-                ? appointment.ScheduleDate.ToString()
-                : (appointment.WorkSchedule != null ? appointment.WorkSchedule.Date.ToString() : string.Empty);
+                : "Bác sĩ";
+            var scheduleDate = appointment.ScheduleDate != default ? appointment.ScheduleDate.ToString() : string.Empty;
             var patientName = appointment.Patient?.Person?.FullName ?? "Quý khách";
 
             var body = $"""
@@ -46,10 +44,8 @@ namespace Clinic.Application.Notifications.Templates
         {
             var doctorName = !string.IsNullOrWhiteSpace(appointment.DoctorName)
                 ? appointment.DoctorName
-                : appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? "Bác sĩ";
-            var scheduleDate = appointment.ScheduleDate != default
-                ? appointment.ScheduleDate.ToString()
-                : (appointment.WorkSchedule != null ? appointment.WorkSchedule.Date.ToString() : string.Empty);
+                : "Bác sĩ";
+            var scheduleDate = appointment.ScheduleDate != default ? appointment.ScheduleDate.ToString() : string.Empty;
             var patientName = appointment.Patient?.Person?.FullName ?? "Quý khách";
 
             var message = $"Lịch khám của khách hàng {patientName} với bác sĩ {doctorName} vào ngày {scheduleDate} lúc {appointment.TimeSlot} đã được cập nhật.";

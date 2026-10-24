@@ -60,8 +60,7 @@ namespace Clinic.Application.UnitTests.Common
 
             if (doctorId.HasValue)
             {
-                query = query.Where(r => (r.Appointment != null && r.Appointment.WorkSchedule != null && r.Appointment.WorkSchedule.DoctorId == doctorId.Value) ||
-                                         (r.Appointment != null && r.Appointment.DoctorId == doctorId.Value));
+                query = query.Where(r => r.Appointment != null && r.Appointment.DoctorId == doctorId.Value);
             }
 
             if (status.HasValue)
@@ -71,14 +70,12 @@ namespace Clinic.Application.UnitTests.Common
 
             if (fromDate.HasValue)
             {
-                query = query.Where(r => (r.Appointment != null && r.Appointment.WorkSchedule != null && r.Appointment.WorkSchedule.Date >= fromDate.Value) ||
-                                         (r.Appointment != null && r.Appointment.ScheduleDate >= fromDate.Value));
+                query = query.Where(r => r.Appointment != null && r.Appointment.ScheduleDate >= fromDate.Value);
             }
 
             if (toDate.HasValue)
             {
-                query = query.Where(r => (r.Appointment != null && r.Appointment.WorkSchedule != null && r.Appointment.WorkSchedule.Date <= toDate.Value) ||
-                                         (r.Appointment != null && r.Appointment.ScheduleDate <= toDate.Value));
+                query = query.Where(r => r.Appointment != null && r.Appointment.ScheduleDate <= toDate.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(search))

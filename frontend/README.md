@@ -17,15 +17,15 @@ Sign in with **`demo@example.com` / `password`** → open **Users**.
 
 ## Scripts
 
-| Script | Purpose |
-|---|---|
-| `npm run dev` | Vite dev server with HMR |
-| `npm run build` | `vue-tsc` type-check + production build to `dist/` |
-| `npm run preview` | Serve the production build locally |
-| `npm run test:unit` | Vitest |
-| `npm run lint` | oxlint + ESLint (with `--fix`) |
-| `npm run format` | Prettier |
-| `npm run type-check` | `vue-tsc` only |
+| Script               | Purpose                                            |
+| -------------------- | -------------------------------------------------- |
+| `npm run dev`        | Vite dev server with HMR                           |
+| `npm run build`      | `vue-tsc` type-check + production build to `dist/` |
+| `npm run preview`    | Serve the production build locally                 |
+| `npm run test:unit`  | Vitest                                             |
+| `npm run lint`       | oxlint + ESLint (with `--fix`)                     |
+| `npm run format`     | Prettier                                           |
+| `npm run type-check` | `vue-tsc` only                                     |
 
 ## Architecture
 
@@ -116,12 +116,13 @@ Vitest + Vue Test Utils, jsdom. Example:
 Copy `.env.example` → `.env`. Only `VITE_*` vars reach the client; read them via
 `src/config/env.ts`.
 
-| Var | Meaning |
-|---|---|
-| `VITE_APP_NAME` | Display name |
-| `VITE_API_BASE_URL` | Backend base URL (defaults to a public mock) |
-| `VITE_DEFAULT_LOCALE` | Fallback language |
-| `VITE_ENABLE_MOCK` | Reserved flag for mock toggles |
+| Var                     | Meaning                                                           |
+| ----------------------- | ----------------------------------------------------------------- |
+| `VITE_APP_NAME`         | Display name                                                      |
+| `VITE_API_BASE_URL`     | Frontend API path/base URL; use `/api` for local proxy and Docker |
+| `VITE_API_PROXY_TARGET` | Vite-only backend target, default `http://localhost:5000`         |
+| `VITE_DEFAULT_LOCALE`   | Fallback language                                                 |
+| `VITE_ENABLE_MOCK`      | Reserved flag for mock toggles                                    |
 
 ## Docker
 

@@ -110,6 +110,8 @@ builder.Services.AddHttpClient("Queue", client =>
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddTransient<IdentityAccountClient>();
+builder.Services.AddTransient<SchedulingManagementClient>();
+builder.Services.AddTransient<ProfileProjectionSyncClient>();
 builder.Services.AddTransient<Clinic.API.Services.AppointmentServiceClient>();
 builder.Services.AddTransient<Clinic.API.Services.QueueServiceClient>();
 
@@ -306,8 +308,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseCors("FrontendCors");
 
+app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<SchedulingProxyMiddleware>();
 
 app.MapControllers();
 

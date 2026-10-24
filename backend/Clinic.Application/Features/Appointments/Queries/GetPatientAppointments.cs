@@ -51,11 +51,11 @@ namespace Clinic.Application.Features.Appointments.Queries
             {
                 Id = a.Id,
                 PatientId = a.PatientId,
-                DoctorId = a.DoctorId != Guid.Empty ? a.DoctorId : (a.WorkSchedule?.DoctorId ?? Guid.Empty),
+                DoctorId = a.DoctorId,
                 PatientName = a.Patient?.Person?.FullName ?? string.Empty,
-                DoctorName = !string.IsNullOrEmpty(a.DoctorName) ? a.DoctorName : (a.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty),
+                DoctorName = a.DoctorName,
                 TimeSlot = a.TimeSlot,
-                Date = a.ScheduleDate != default ? a.ScheduleDate : (a.WorkSchedule?.Date ?? default),
+                Date = a.ScheduleDate != default ? a.ScheduleDate : DateOnly.FromDateTime(a.CreatedAt),
                 Reason = a.Reason,
                 Status = a.Status,
                 CreatedAt = a.CreatedAt

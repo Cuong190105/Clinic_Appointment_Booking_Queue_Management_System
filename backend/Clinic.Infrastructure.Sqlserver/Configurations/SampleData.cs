@@ -23,21 +23,10 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
         internal static Guid EmployeeId(int n) => Guid.Parse($"a0000003-0000-0000-0000-{n:D12}");
         internal static Guid DoctorRecordId(int n) => Guid.Parse($"a0000004-0000-0000-0000-{n:D12}");
         internal static Guid PatientRecordId(int n) => Guid.Parse($"a0000005-0000-0000-0000-{n:D12}");
-        internal static Guid SpecialtyId(int n) => Guid.Parse($"a0000006-0000-0000-0000-{n:D12}");
-        internal static Guid WorkHistoryId(int n) => Guid.Parse($"a0000007-0000-0000-0000-{n:D12}");
         internal static Guid WorkScheduleId(int n) => Guid.Parse($"a0000008-0000-0000-0000-{n:D12}");
         internal static Guid AppointmentId(int n) => Guid.Parse($"a0000009-0000-0000-0000-{n:D12}");
         internal static Guid QueueTicketId(int n) => Guid.Parse($"a0000010-0000-0000-0000-{n:D12}");
         internal static Guid MedicalReportId(int n) => Guid.Parse($"a0000011-0000-0000-0000-{n:D12}");
-
-        internal static readonly Specialty[] Specialties =
-        [
-            new Specialty(SpecialtyId(1), "Cardiology", "Heart and cardiovascular care", new DateOnly(2010, 1, 15), CreatedAt, null, false),
-            new Specialty(SpecialtyId(2), "Dermatology", "Skin, hair, and nail care", new DateOnly(2012, 3, 1), CreatedAt, null, false),
-            new Specialty(SpecialtyId(3), "Pediatrics", "Medical care for infants and children", new DateOnly(2008, 6, 20), CreatedAt, null, false),
-            new Specialty(SpecialtyId(4), "Orthopedics", "Bones, joints, and musculoskeletal care", new DateOnly(2011, 9, 10), CreatedAt, null, false),
-            new Specialty(SpecialtyId(5), "General Practice", "Primary care and general medicine", new DateOnly(2005, 4, 1), CreatedAt, null, false)
-        ];
 
         private static readonly (string FullName, Gender Gender, DateOnly Dob)[] People =
         [
@@ -95,36 +84,10 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
             ("Phan Van My", Gender.Male, new DateOnly(1981, 4, 30))
         ];
 
-        private static readonly string[] DoctorQualifications =
-        [
-            "MD, Cardiology Specialist I",
-            "MD, Cardiology Specialist II",
-            "MD, Interventional Cardiology",
-            "MD, Dermatology Specialist I",
-            "MD, Cosmetic Dermatology",
-            "MD, Dermatology Specialist II",
-            "MD, Pediatrics Specialist I",
-            "MD, Neonatology",
-            "MD, Pediatrics Specialist II",
-            "MD, Orthopedic Surgery",
-            "MD, Sports Medicine",
-            "MD, Trauma Orthopedics",
-            "MD, Family Medicine",
-            "MD, Internal Medicine",
-            "MD, General Practice"
-        ];
-
         internal static Person[] Persons => Enumerable.Range(1, PersonCount).Select(CreatePerson).ToArray();
-
-        internal static Employee[] Employees => Enumerable.Range(1, DoctorCount + AdminCount + ReceptionistCount).Select(CreateEmployee).ToArray();
-
-        internal static Doctor[] Doctors => Enumerable.Range(1, DoctorCount).Select(CreateDoctor).ToArray();
-
-        internal static WorkHistory[] WorkHistories => Enumerable.Range(1, DoctorCount).Select(CreateWorkHistory).ToArray();
 
         internal static Patient[] Patients => Enumerable.Range(1, DedicatedPatientCount).Select(CreatePatient).ToArray();
 
-        internal static readonly WorkSchedule[] WorkSchedules;
         internal static readonly Appointment[] Appointments;
         internal static readonly QueueTicket[] QueueTickets;
         internal static readonly MedicalReport[] MedicalReports;
@@ -133,6 +96,15 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
         private static readonly (TimeOnly Start, TimeOnly End) MorningShift = (new TimeOnly(7, 30), new TimeOnly(11, 30));
         private static readonly (TimeOnly Start, TimeOnly End) AfternoonShift = (new TimeOnly(13, 30), new TimeOnly(17, 30));
+
+        private static readonly string[] SpecialtyNames =
+        [
+            "Cardiology",
+            "Dermatology",
+            "Pediatrics",
+            "Orthopedics",
+            "General Practice"
+        ];
 
         private static readonly AppointmentStatus[] PastStatuses =
         [
@@ -236,12 +208,11 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
         static SampleData()
         {
-            (WorkSchedules, Appointments, QueueTickets, MedicalReports) = GenerateWorkSchedulesAppointmentsQueueTicketsAndMedicalReports();
+            (Appointments, QueueTickets, MedicalReports) = GenerateAppointmentsQueueTicketsAndMedicalReports();
         }
 
-        private static (WorkSchedule[], Appointment[], QueueTicket[], MedicalReport[]) GenerateWorkSchedulesAppointmentsQueueTicketsAndMedicalReports()
+        private static (Appointment[], QueueTicket[], MedicalReport[]) GenerateAppointmentsQueueTicketsAndMedicalReports()
         {
-            var schedules = new List<WorkSchedule>(DoctorCount * 10);
             var appointments = new List<Appointment>();
             var queueTickets = new List<QueueTicket>();
             var medicalReports = new List<MedicalReport>();
@@ -266,20 +237,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                     var (shiftStart, shiftEnd) = ((doctorIndex + scheduleIndex) % 2 == 0) ? MorningShift : AfternoonShift;
                     var RecommendedCapacity = 20 + ((doctorIndex * 3 + scheduleIndex * 7) % 21); // 20 to 40
                     var scheduleId = WorkScheduleId(scheduleIdCounter++);
-
-                    var schedule = new WorkSchedule(
-                        scheduleId,
-                        doctorId,
-                        scheduleDate,
-                        shiftStart,
-                        shiftEnd,
-                        RecommendedCapacity,
-                        WorkScheduleStatus.Active,
-                        CreatedAt,
-                        null,
-                        false);
-
-                    schedules.Add(schedule);
 
                     // Random 0 to 10 appointments per schedule
                     var appointmentCount = rng.Next(0, 11);
@@ -330,7 +287,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                         var updatedByUserId = rng.Next(2) == 0 ? patientUserId : receptionistUserId;
 
                         var doctorName = People[doctorIndex - 1].FullName;
-                        var specialtyName = Specialties[(doctorIndex - 1) % Specialties.Length].Name;
+                        var specialtyName = SpecialtyNames[(doctorIndex - 1) % SpecialtyNames.Length];
 
                         var appointment = new Appointment(
                             AppointmentId(appointmentIdCounter++),
@@ -472,7 +429,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 }
             }
 
-            return (schedules.ToArray(), appointments.ToArray(), queueTickets.ToArray(), medicalReports.ToArray());
+            return (appointments.ToArray(), queueTickets.ToArray(), medicalReports.ToArray());
         }
 
         private static Person CreatePerson(int n)
@@ -492,28 +449,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 null);
             person.LinkIdentityUser(UserId(n));
             return person;
-        }
-
-        private static Employee CreateEmployee(int n) =>
-            new(EmployeeId(n), PersonId(n), new DateOnly(2022, 1, 15).AddMonths(n), EmployeeStatus.Active, null, CreatedAt, null, false);
-
-        private static Doctor CreateDoctor(int n) =>
-            new(
-                DoctorRecordId(n),
-                EmployeeId(n),
-                $"LIC-{n:D4}",
-                DoctorQualifications[n - 1],
-                5 + (n % 20),
-                $"Sample profile for {People[n - 1].FullName}.",
-                DoctorStatus.Active,
-                CreatedAt,
-                null,
-                false);
-
-        private static WorkHistory CreateWorkHistory(int n)
-        {
-            var specialtyIndex = ((n - 1) / 3) + 1;
-            return new WorkHistory(WorkHistoryId(n), DoctorRecordId(n), SpecialtyId(specialtyIndex), new DateOnly(2022, 1, 15).AddMonths(n), null, CreatedAt, null, false);
         }
 
         private static Patient CreatePatient(int n)

@@ -19,7 +19,6 @@ namespace Clinic.Domain.Entities
 
         // Navigation properties
         public Appointment Appointment { get; protected set; }
-        public WorkSchedule OldWorkSchedule { get; protected set; }
         private AppointmentSnapshot() { } // For EF Core
 
         public AppointmentSnapshot(Appointment appointment)

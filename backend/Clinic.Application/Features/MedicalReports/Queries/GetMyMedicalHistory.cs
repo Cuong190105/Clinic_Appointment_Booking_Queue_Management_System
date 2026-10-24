@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Enums;
@@ -28,7 +28,7 @@ namespace Clinic.Application.Features.MedicalReports.Queries
 
             var reports = await _medicalReportRepository.GetHistoryByPatientIdAsync(_currentUser.PatientId.Value);
 
-            // Chỉ hiển thị hồ sơ đã chốt (Finalized) - hồ sơ Draft là bác sĩ đang ghi dở, chưa chính thức.
+            // Ch? hi?n th? h? so d� ch?t (Finalized) - h? so Draft l� b�c si dang ghi d?, chua ch�nh th?c.
             return reports
                 .Where(r => r.Status == MedicalReportStatus.Finalized)
                 .Select(r => new MedicalReportDto
@@ -37,9 +37,9 @@ namespace Clinic.Application.Features.MedicalReports.Queries
                     AppointmentId = r.AppointmentId,
                     PatientId = r.PatientId,
                     PatientName = r.Patient?.Person?.FullName ?? string.Empty,
-                    DoctorId = r.Appointment.WorkSchedule.DoctorId,
-                    DoctorName = r.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                    ExamDate = r.Appointment.WorkSchedule.Date,
+                    DoctorId = r.Appointment?.DoctorId ?? Guid.Empty,
+                    DoctorName = r.Appointment?.DoctorName ?? string.Empty,
+                    ExamDate = r.Appointment?.ScheduleDate ?? DateOnly.FromDateTime(r.CreatedAt),
                     Symptoms = r.Symptoms,
                     Diagnosis = r.Diagnosis,
                     Prescription = r.Prescription,

@@ -2,6 +2,7 @@ namespace Clinic.Appointment.Service.Endpoints;
 
 using System.Security.Claims;
 using Clinic.Appointment.Service.DTOs;
+using Clinic.Appointment.Service.Common;
 using Clinic.Appointment.Service.Services;
 using Clinic.Contracts.Events;
 using Microsoft.AspNetCore.Mvc;
@@ -50,6 +51,33 @@ public static class AppointmentEndpoints
         // 2. RECEPTIONIST WALK-IN APPOINTMENT (Direct Confirmed)
         app.MapPost("/receptionist/appointments", CreateReceptionistAppointment).RequireAuthorization("StaffOnly");
         app.MapPost("/receptionist/appointments/walkin", CreateReceptionistAppointment).RequireAuthorization("StaffOnly");
+
+        app.MapPost("/receptionist/appointments/walk-in", async (
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+            [FromBody] ReceptionistWalkInRequest request,
+            ClaimsPrincipal user,
+            IAppointmentManager manager,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(user);
+            if (userId == Guid.Empty) return Results.Unauthorized();
+            var (success, error, result, status) = await manager.CreateWalkInAppointmentAsync(request, userId, idempotencyKey, ct);
+            return success ? Results.Json(result, statusCode: status) : Results.Problem(detail: error, statusCode: status, title: "Walk-in appointment creation failed");
+        }).RequireAuthorization("StaffOnly");
+
+        app.MapGet("/receptionist/working-doctors", async (
+            [FromQuery] Guid? specialtyId,
+            ISchedulingClient schedulingClient,
+            CancellationToken ct) =>
+        {
+            if (!specialtyId.HasValue || specialtyId == Guid.Empty) return Results.Ok(Array.Empty<object>());
+            var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, ClinicTime.TimeZone));
+            var candidates = await schedulingClient.GetWalkInCandidatesAsync(today, specialtyId.Value, null, ct);
+            var localTime = TimeOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, ClinicTime.TimeZone));
+            var result = candidates.Where(s => s.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) && s.ShiftEnd > localTime)
+                .Select(s => new { doctorId = s.DoctorId, fullName = s.DoctorName, specialtyId, specialtyName = s.SpecialtyName, workScheduleId = s.Id, shiftStart = s.ShiftStart, shiftEnd = s.ShiftEnd, activeAppointmentsCount = 0 });
+            return Results.Ok(result);
+        }).RequireAuthorization("StaffOnly");
 
         static async Task<IResult> CreateReceptionistAppointment(
             [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
@@ -378,18 +406,6 @@ public static class AppointmentEndpoints
             if (!HasValidServiceToken(request, configuration)) return Results.Unauthorized();
             var handled = await manager.ProcessUserProfileUpdatedAsync(evt, ct);
             return handled ? Results.Ok(new { handled = true }) : Results.BadRequest(new { handled = false });
-        });
-
-        app.MapPost("/internal/appointments/sync-walkin", async (
-            [FromBody] SyncWalkInAppointmentRequest request,
-            HttpRequest httpRequest,
-            IConfiguration configuration,
-            IAppointmentManager manager,
-            CancellationToken ct) =>
-        {
-            if (!HasValidServiceToken(httpRequest, configuration)) return Results.Unauthorized();
-            var handled = await manager.SyncWalkInAppointmentAsync(request, ct);
-            return handled ? Results.Ok(new { synced = true }) : Results.BadRequest(new { synced = false });
         });
 
         return app;

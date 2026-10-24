@@ -192,7 +192,15 @@ public class SchedulingApiIntegrationTests : IClassFixture<SchedulingServiceFact
             "Female"
         );
 
-        var response = await _client.PostAsJsonAsync("/internal/events/user-profile-updated", updateEvt);
+        using var unauthorizedResponse = await _client.PostAsJsonAsync("/internal/events/user-profile-updated", updateEvt);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorizedResponse.StatusCode);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/internal/events/user-profile-updated")
+        {
+            Content = JsonContent.Create(updateEvt)
+        };
+        request.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using (var scope = _factory.Services.CreateScope())

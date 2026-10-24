@@ -1,106 +1,76 @@
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 
-namespace Clinic.Domain.UnitTests.Common
+namespace Clinic.Domain.UnitTests.Common;
+
+internal static class TestDataFactory
 {
-    public class TestDataFactory
+    internal static Person CreatePerson(string fullName = "John Doe")
     {
-        public static Person CreatePerson(string fullName = "John Doe", string? phoneNumber = "1234567890", string? email = "", string? address = "")
+        return new Person(
+            fullName,
+            "0900000000",
+            "john@example.test",
+            DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-30)),
+            Gender.Male,
+            "Test address");
+    }
+
+    internal static Patient CreatePatient(Guid? patientId = null)
+    {
+        var person = CreatePerson();
+        return new Patient(
+            patientId ?? Guid.NewGuid(),
+            person.Id,
+            "TEST-INSURANCE",
+            "0900000000",
+            DateTime.UtcNow,
+            null,
+            false);
+    }
+
+    internal static Appointment CreateAppointment(
+        bool confirmed = false,
+        bool checkedIn = false,
+        int day = 1,
+        Guid? patientId = null)
+    {
+        var patient = CreatePatient(patientId);
+        var scheduleDate = new Clinic.Domain.Common.TimeConverter().Today.AddDays(day);
+        var appointment = new Appointment(
+            Guid.NewGuid(),
+            patient.Id,
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Doctor Name",
+            "Cardiology",
+            scheduleDate,
+            checkedIn ? new TimeOnly(9, 0) : new TimeOnly(23, 0),
+            "Test reason",
+            AppointmentStatus.Pending,
+            false,
+            Guid.NewGuid(),
+            DateTime.UtcNow,
+            null,
+            false);
+
+        typeof(Appointment).GetProperty(nameof(Appointment.Patient))!.SetValue(appointment, patient);
+        if (confirmed || checkedIn)
         {
-            return new Person(fullName, phoneNumber, email, DateOnly.FromDateTime(DateTime.UtcNow), Gender.Male, address);
+            appointment.Confirm(Guid.NewGuid());
         }
 
-        /// <summary>
-        /// Tạo 1 Appointment hợp lệ (kèm WorkSchedule) để dùng cho test Confirm/CheckIn/Cancel.
-        /// Status mặc định là Pending; truyền confirmed = true / checkedIn = true để có sẵn
-        /// Appointment ở trạng thái tương ứng.
-        /// </summary>
-        public static Appointment CreateAppointment(Guid? patientId = null, Guid? doctorId = null, bool confirmed = false, bool checkedIn = false, double? day = 0, TimeOnly? startTime = null, TimeOnly? endTime = null)
+        if (checkedIn)
         {
-            // WorkSchedule giờ bắt buộc gắn với 1 Doctor object (không chỉ DoctorId), nên
-            // dựng 1 Doctor "giả" qua constructor reconstruct để giữ đúng Id đã truyền vào,
-            // tránh phải dựng cả Employee/Specialty chỉ để phục vụ test Appointment.
-            var doctor = new Doctor(
-                id: doctorId ?? Guid.NewGuid(),
-                employeeId: Guid.NewGuid(),
-                licenseNumber: "TEST-LICENSE",
-                qualification: "MD",
-                experienceYears: 0,
-                biography: null,
-                status: DoctorStatus.Active,
-                createdAt: DateTime.UtcNow,
-                updatedAt: DateTime.UtcNow,
-                isDeleted: false
-            );
-
-            var localNow = new Clinic.Domain.Common.TimeConverter().ConvertFromUtc(DateTime.UtcNow);
-            var scheduleDate = DateOnly.FromDateTime(localNow.AddDays(day.Value));
-            TimeOnly effectiveStart;
-            TimeOnly effectiveEnd;
-            if (startTime.HasValue && endTime.HasValue)
-            {
-                effectiveStart = startTime.Value;
-                effectiveEnd = endTime.Value;
-            }
-            else
-            {
-                effectiveStart = TimeOnly.FromDateTime(localNow.AddMinutes(5));
-                effectiveEnd = effectiveStart.AddHours(1);
-                if (effectiveEnd <= effectiveStart)
-                {
-                    effectiveEnd = new TimeOnly(23, 59, 59);
-                }
-            }
-
-            var workSchedule = new WorkSchedule(
-                doctor,
-                scheduleDate,
-                effectiveStart,
-                effectiveEnd,
-                5
-            );
-
-            var patientPerson = CreatePerson(fullName: "Test Patient");
-
-            var patient = new Patient(
-                patientPerson, "", ""
-            );
-
-            var appointment = new Appointment(patient, workSchedule, workSchedule.ShiftStart, "Reason", Guid.NewGuid());
-
-            if (confirmed || checkedIn)
-            {
-                appointment.Confirm(Guid.NewGuid());
-            }
-
-            if (checkedIn)
-            {
-                appointment.CheckIn(DateTime.UtcNow, 1);
-            }
-
-            return appointment;
+            appointment.SetDoctorDetails(appointment.DoctorId, appointment.DoctorName, appointment.SpecialtyName, new Clinic.Domain.Common.TimeConverter().Today);
+            appointment.CheckIn(DateTime.UtcNow, 1);
         }
 
-        /// <summary>
-        /// Tạo 1 QueueTicket hợp lệ, liên kết 2 chiều với appointment (giống CheckInHandler thật).
-        /// </summary>
-        public static QueueTicket CreateQueueTicket(Appointment appointment, int queueNumber = 1, bool priority = false)
-        {
-            var queueTicket = new QueueTicket
-            {
-                AppointmentId = appointment.Id,
-                Appointment = appointment,
-                QueueNumber = queueNumber,
-                CheckInTime = DateTime.UtcNow
-            };
-            appointment.CheckIn(queueTicket);
+        return appointment;
+    }
 
-            if (priority)
-            {
-                queueTicket.SetPriority(true);
-            }
-
-            return queueTicket;
-        }
+    internal static QueueTicket CreateQueueTicket(Appointment appointment)
+    {
+        return appointment.QueueTicket ?? appointment.CheckIn(DateTime.UtcNow, 1);
     }
 }

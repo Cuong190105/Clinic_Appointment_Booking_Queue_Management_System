@@ -18,7 +18,6 @@ namespace Clinic.API.Controllers
     {
         private readonly AppointmentServiceClient _appointmentClient;
         private readonly IAppointmentRepository _appointmentRepository;
-        private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly ICurrentUser _currentUser;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOutboxWriter? _outboxWriter;
@@ -26,14 +25,12 @@ namespace Clinic.API.Controllers
         public AppointmentsController(
             AppointmentServiceClient appointmentClient,
             IAppointmentRepository appointmentRepository,
-            IWorkScheduleRepository workScheduleRepository,
             ICurrentUser currentUser,
             IUnitOfWork unitOfWork,
             IOutboxWriter? outboxWriter = null)
         {
             _appointmentClient = appointmentClient;
             _appointmentRepository = appointmentRepository;
-            _workScheduleRepository = workScheduleRepository;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
             _outboxWriter = outboxWriter;
@@ -85,12 +82,7 @@ namespace Clinic.API.Controllers
                             var docName = root.TryGetProperty("doctorName", out var dnEl) ? dnEl.GetString() ?? string.Empty : string.Empty;
                             var specName = root.TryGetProperty("specialtyName", out var snEl) ? snEl.GetString() : null;
 
-                            var schedule = await _workScheduleRepository.GetByIdAsync(schedId);
-                            if (schedule != null)
-                            {
-                                if (doctorId == Guid.Empty) doctorId = schedule.DoctorId;
-                                if (string.IsNullOrEmpty(dateStr)) dateStr = schedule.Date.ToString("yyyy-MM-dd");
-                            }
+
 
                             var app = new Appointment(
                                 id: appId,
@@ -110,10 +102,7 @@ namespace Clinic.API.Controllers
                                 isDeleted: false);
 
                             await _appointmentRepository.AddAsync(app);
-                            if (schedule != null)
-                            {
-                                schedule.AddAppointment(app);
-                            }
+
                             await _unitOfWork.SaveChangesAsync(ct);
                         }
                     }

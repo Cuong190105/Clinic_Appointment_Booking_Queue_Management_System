@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Entities;
+using Clinic.Domain.Entities;
 using Clinic.Infrastructure.Sqlserver.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Clinic.Application.Interfaces;
@@ -24,8 +24,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _dbContext.Persons
                 .Include(p => p.Patient)
-                .Include(p => p.Employee)
-                    .ThenInclude(e => e.Doctor)
                 .FirstOrDefaultAsync(p => p.Email == email);
         }
 
@@ -33,8 +31,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _dbContext.Persons
                 .Include(p => p.Patient)
-                .Include(p => p.Employee)
-                    .ThenInclude(e => e.Doctor)
                 .FirstOrDefaultAsync(p => p.PhoneNumber == phoneNumber);
         }
 
@@ -42,8 +38,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _dbContext.Persons
                 .Include(p => p.Patient)
-                .Include(p => p.Employee)
-                    .ThenInclude(e => e.Doctor)
                 .FirstOrDefaultAsync(p => p.Id == id);
         }
 
@@ -51,8 +45,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _dbContext.Persons
                 .Include(p => p.Patient)
-                .Include(p => p.Employee)
-                    .ThenInclude(e => e!.Doctor)
                 .FirstOrDefaultAsync(p => p.IdentityUserId == userId);
         }
 
@@ -78,8 +70,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _dbContext.Persons
                 .Include(p => p.Patient)
-                .Include(p => p.Employee)
-                    .ThenInclude(e => e.Doctor)
                 .FirstOrDefaultAsync(p => p.FullName == fullName && p.DateOfBirth == dateOfBirth && p.Gender == gender);
         }
     }

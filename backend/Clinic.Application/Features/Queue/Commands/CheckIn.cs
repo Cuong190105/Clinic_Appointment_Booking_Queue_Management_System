@@ -68,7 +68,7 @@ namespace Clinic.Application.Features.Queue.Commands
                 var appointment = await _appointmentRepository.GetByIdAsync(command.AppointmentId)
                     ?? throw new NotFoundException($"Appointment '{command.AppointmentId}' not found.");
 
-                var doctorId = appointment.DoctorId != Guid.Empty ? appointment.DoctorId : (appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
+                var doctorId = appointment.DoctorId;
                 var checkInTime = DateTime.UtcNow;
                 var queueNumber = await _queueTicketRepository.GetNextQueueNumberAsync(doctorId, checkInTime.Date, cancellationToken);
                 var queueTicket = appointment.CheckIn(checkInTime, queueNumber, command.IsUrgent);

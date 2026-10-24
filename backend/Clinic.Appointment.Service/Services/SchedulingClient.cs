@@ -96,5 +96,15 @@ public class SchedulingClient : ISchedulingClient
             target.GetProperty("status").GetString() ?? string.Empty
         );
     }
+
+    public async Task<IReadOnlyList<WalkInScheduleCandidate>> GetWalkInCandidatesAsync(DateOnly date, Guid specialtyId, Guid? doctorId, CancellationToken ct = default)
+    {
+        var query = $"schedules/walk-in-candidates?date={date:yyyy-MM-dd}&specialtyId={specialtyId}" + (doctorId.HasValue ? $"&doctorId={doctorId}" : string.Empty);
+        using var response = await _client.GetAsync(query, ct);
+        response.EnsureSuccessStatusCode();
+        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        var root = doc.RootElement.TryGetProperty("result", out var result) ? result : doc.RootElement;
+        return JsonSerializer.Deserialize<List<WalkInScheduleCandidate>>(root.GetRawText(), new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+    }
 }
 

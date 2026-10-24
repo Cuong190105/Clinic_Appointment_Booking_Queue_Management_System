@@ -27,8 +27,6 @@ namespace Clinic.Domain.Entities
         /// <summary>Identity service account id, when this person can sign in.</summary>
         public Guid? IdentityUserId { get; private set; }
 
-        public Employee? Employee { get; set; }
-
         public Patient? Patient { get; set; }
 
         public ICollection<Notification> Notifications { get; set; } = new List<Notification>();

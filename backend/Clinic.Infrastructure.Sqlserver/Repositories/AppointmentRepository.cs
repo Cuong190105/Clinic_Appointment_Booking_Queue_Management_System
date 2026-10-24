@@ -49,7 +49,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<Appointment?> GetByIdAsync(Guid appointmentId)
         {
             return await _context.Appointments
-                .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
                 .Include(a => a.Patient).ThenInclude(p => p.Person)
                 .Include(a => a.QueueTicket)
                 .FirstOrDefaultAsync(a => a.Id == appointmentId && a.IsDeleted == false);
@@ -68,7 +67,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<bool> ExistsForDoctorAndPatientAsync(Guid doctorId, Guid patientId)
         {
             return await _context.Appointments
-                .AnyAsync(a => a.PatientId == patientId && (a.DoctorId == doctorId || (a.WorkSchedule != null && a.WorkSchedule.DoctorId == doctorId)));
+                .AnyAsync(a => a.PatientId == patientId && a.DoctorId == doctorId);
         }
 
         public async Task<TotalAppointmentSummaryDto> GetTotalAppointmentSummaryAsync(DateOnly startDate, DateOnly endDate, Guid doctorId, Guid specialtyId)
@@ -228,8 +227,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             var query = _context.Appointments
                 .Include(a => a.Patient).ThenInclude(p => p.Person)
-                .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
-                .Where(a => !a.IsDeleted && (a.ScheduleDate == date || (a.WorkSchedule != null && a.WorkSchedule.Date == date)));
+                .Where(a => !a.IsDeleted && a.ScheduleDate == date);
 
             var count = await query.CountAsync();
             var items = await query.OrderByDescending(a => a.TimeSlot)

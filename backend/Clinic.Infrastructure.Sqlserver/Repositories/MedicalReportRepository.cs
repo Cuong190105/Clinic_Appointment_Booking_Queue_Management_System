@@ -33,10 +33,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _context.MedicalReports
                 .Include(mr => mr.Appointment)
-                    .ThenInclude(a => a.WorkSchedule)
-                        .ThenInclude(ws => ws.Doctor)
-                            .ThenInclude(d => d.Employee)
-                                .ThenInclude(e => e.Person)
+
                 .Include(mr => mr.Appointment)
                     .ThenInclude(a => a.QueueTicket)
                 .Include(mr => mr.Patient)
@@ -48,10 +45,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _context.MedicalReports
                 .Include(mr => mr.Appointment)
-                    .ThenInclude(a => a.WorkSchedule)
-                        .ThenInclude(ws => ws.Doctor)
-                            .ThenInclude(d => d.Employee)
-                                .ThenInclude(e => e.Person)
+
                 .Include(mr => mr.Appointment)
                     .ThenInclude(a => a.QueueTicket)
                 .Include(mr => mr.Patient)
@@ -66,10 +60,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             return await _context.MedicalReports
                 .Include(mr => mr.Appointment)
-                    .ThenInclude(a => a.WorkSchedule)
-                        .ThenInclude(ws => ws.Doctor)
-                            .ThenInclude(d => d.Employee)
-                                .ThenInclude(e => e.Person)
+
                 .Include(mr => mr.Patient)
                     .ThenInclude(p => p.Person)
                 .Where(mr => mr.PatientId == patientId && !mr.IsDeleted)
@@ -89,10 +80,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         {
             var query = _context.MedicalReports
                 .Include(mr => mr.Appointment)
-                    .ThenInclude(a => a.WorkSchedule)
-                        .ThenInclude(ws => ws.Doctor)
-                            .ThenInclude(d => d.Employee)
-                                .ThenInclude(e => e.Person)
+
                 .Include(mr => mr.Appointment)
                     .ThenInclude(a => a.QueueTicket)
                 .Include(mr => mr.Patient)
@@ -101,9 +89,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
             if (doctorId.HasValue)
             {
-                query = query.Where(mr =>
-                    (mr.Appointment != null && mr.Appointment.WorkSchedule != null && mr.Appointment.WorkSchedule.DoctorId == doctorId.Value) ||
-                    (mr.Appointment != null && mr.Appointment.DoctorId == doctorId.Value));
+                query = query.Where(mr => mr.Appointment != null && mr.Appointment.DoctorId == doctorId.Value);
             }
 
             if (status.HasValue)
@@ -113,16 +99,12 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
             if (fromDate.HasValue)
             {
-                query = query.Where(mr =>
-                    (mr.Appointment != null && mr.Appointment.WorkSchedule != null && mr.Appointment.WorkSchedule.Date >= fromDate.Value) ||
-                    (mr.Appointment != null && mr.Appointment.ScheduleDate >= fromDate.Value));
+                query = query.Where(mr => mr.Appointment != null && mr.Appointment.ScheduleDate >= fromDate.Value);
             }
 
             if (toDate.HasValue)
             {
-                query = query.Where(mr =>
-                    (mr.Appointment != null && mr.Appointment.WorkSchedule != null && mr.Appointment.WorkSchedule.Date <= toDate.Value) ||
-                    (mr.Appointment != null && mr.Appointment.ScheduleDate <= toDate.Value));
+                query = query.Where(mr => mr.Appointment != null && mr.Appointment.ScheduleDate <= toDate.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -135,9 +117,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                     (mr.Symptoms != null && mr.Symptoms.Contains(term)) ||
                     (mr.Notes != null && mr.Notes.Contains(term)) ||
                     (mr.Prescription != null && mr.Prescription.Contains(term)) ||
-                    (mr.Appointment != null && mr.Appointment.DoctorName != null && mr.Appointment.DoctorName.Contains(term)) ||
-                    (mr.Appointment != null && mr.Appointment.WorkSchedule != null && mr.Appointment.WorkSchedule.Doctor != null && mr.Appointment.WorkSchedule.Doctor.Employee.Person.FullName.Contains(term))
-                );
+                    (mr.Appointment != null && mr.Appointment.DoctorName != null && mr.Appointment.DoctorName.Contains(term)));
             }
 
             var totalCount = await query.CountAsync(cancellationToken);

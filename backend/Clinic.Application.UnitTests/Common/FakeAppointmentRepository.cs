@@ -13,7 +13,7 @@ namespace Clinic.Application.UnitTests.Common
 
         public Task<bool> ExistsForDoctorAndPatientAsync(Guid doctorId, Guid patientId)
         {
-            var exists = _appointments.Any(a => !a.IsDeleted && a.PatientId == patientId && a.WorkSchedule.DoctorId == doctorId);
+            var exists = _appointments.Any(a => !a.IsDeleted && a.PatientId == patientId && a.DoctorId == doctorId);
             return Task.FromResult(exists);
         }
 
@@ -34,7 +34,7 @@ namespace Clinic.Application.UnitTests.Common
                 };
             }
 
-            var items = query.OrderByDescending(a => a.WorkSchedule.Date).ThenByDescending(a => a.TimeSlot).ToList();
+            var items = query.OrderByDescending(a => a.ScheduleDate).ThenByDescending(a => a.TimeSlot).ToList();
 
             return new PagedResult<Appointment>
             (
@@ -51,15 +51,15 @@ namespace Clinic.Application.UnitTests.Common
         public async Task<TotalAppointmentSummaryDto> GetTotalAppointmentSummaryAsync(DateOnly startDate, DateOnly endDate, Guid doctorId, Guid specialtyId)
         {
             var query = _appointments
-                .Where(a => a.IsDeleted == false && a.WorkSchedule.Date >= startDate && a.WorkSchedule.Date <= endDate);
+                .Where(a => a.IsDeleted == false && a.ScheduleDate >= startDate && a.ScheduleDate <= endDate);
 
             if (doctorId != Guid.Empty)
             {
-                query = query.Where(a => a.WorkSchedule.DoctorId == doctorId);
+                query = query.Where(a => a.DoctorId == doctorId);
             }
             else if (specialtyId != Guid.Empty)
             {
-                query = query.Where(a => a.WorkSchedule.Doctor.WorkHistories.Any(wh => wh.SpecialtyId == specialtyId));
+                query = query.Where(a => false);
             }
 
             var result = query.GroupBy(a => 1).Select(g => new TotalAppointmentSummaryDto

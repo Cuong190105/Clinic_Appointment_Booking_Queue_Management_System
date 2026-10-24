@@ -19,6 +19,7 @@ public class AppointmentManagerTests
         public ScheduleReservationResult? ReserveResult { get; set; }
         public bool ConfirmResult { get; set; } = true;
         public ScheduleInfoResult? ScheduleInfoResult { get; set; }
+        public IReadOnlyList<WalkInScheduleCandidate> WalkInCandidates { get; set; } = Array.Empty<WalkInScheduleCandidate>();
         public List<(Guid ScheduleId, Guid ReservationId)> ReleasedReservations { get; } = new();
 
         public Task<ScheduleReservationResult?> ReserveSlotAsync(Guid workScheduleId, TimeOnly timeSlot, Guid patientId, string idempotencyKey, CancellationToken ct = default)
@@ -45,6 +46,11 @@ public class AppointmentManagerTests
         public Task<ScheduleInfoResult?> GetScheduleAsync(Guid workScheduleId, CancellationToken ct = default)
         {
             return Task.FromResult(ScheduleInfoResult);
+        }
+
+        public Task<IReadOnlyList<WalkInScheduleCandidate>> GetWalkInCandidatesAsync(DateOnly date, Guid specialtyId, Guid? doctorId, CancellationToken ct = default)
+        {
+            return Task.FromResult(WalkInCandidates);
         }
     }
 
@@ -300,6 +306,55 @@ public class AppointmentManagerTests
         var outboxMessages = await db.OutboxMessages.ToListAsync();
         Assert.Single(outboxMessages);
         Assert.Equal(EventTypes.AppointmentCreated, outboxMessages.First().EventType);
+    }
+
+    [Fact]
+    public async Task CreateWalkInAppointmentAsync_CreatesCheckedInAppointmentAndOutboxEvent()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var patientId = Guid.NewGuid();
+        var scheduleId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+        db.PatientProjections.Add(new PatientProjection { Id = patientId, FullName = "Patient Snapshot", Gender = "Female" });
+        client.WalkInCandidates = new[] { new WalkInScheduleCandidate(scheduleId, doctorId, "Dr. Lin", "General", DateOnly.FromDateTime(DateTime.Now), TimeOnly.MinValue, TimeOnly.MaxValue, "Active") };
+        await db.SaveChangesAsync();
+
+        var (success, error, result, status) = await manager.CreateWalkInAppointmentAsync(
+            new ReceptionistWalkInRequest(patientId, Guid.NewGuid(), null, "Urgent", true), Guid.NewGuid(), "walkin-key-1");
+
+        Assert.True(success, error);
+        Assert.Equal(StatusCodes.Status201Created, status);
+        Assert.NotNull(result);
+        Assert.True(result.QueueTicketPending);
+        Assert.Equal("CheckedIn", result.Status);
+        Assert.Equal("Patient Snapshot", result.PatientName);
+        Assert.Single(db.Appointments);
+        var envelope = Assert.Single(db.OutboxMessages);
+        Assert.Equal(EventTypes.AppointmentCheckedIn, envelope.EventType);
+        Assert.Contains("\"priority\":true", envelope.Payload);
+    }
+
+    [Fact]
+    public async Task CreateWalkInAppointmentAsync_RepeatedKeyReturnsExistingAppointment()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var patientId = Guid.NewGuid();
+        var scheduleId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+        db.PatientProjections.Add(new PatientProjection { Id = patientId, FullName = "Patient Snapshot" });
+        client.WalkInCandidates = new[] { new WalkInScheduleCandidate(scheduleId, doctorId, "Dr. Lin", "General", DateOnly.FromDateTime(DateTime.Now), TimeOnly.MinValue, TimeOnly.MaxValue, "Active") };
+        await db.SaveChangesAsync();
+        var request = new ReceptionistWalkInRequest(patientId, Guid.NewGuid(), null, null, false);
+
+        var first = await manager.CreateWalkInAppointmentAsync(request, Guid.NewGuid(), "walkin-retry-key");
+        var second = await manager.CreateWalkInAppointmentAsync(request, Guid.NewGuid(), "walkin-retry-key");
+
+        Assert.True(first.Success);
+        Assert.True(second.Success);
+        Assert.Equal(StatusCodes.Status200OK, second.StatusCode);
+        Assert.Equal(first.Result!.AppointmentId, second.Result!.AppointmentId);
+        Assert.Single(db.Appointments);
+        Assert.Single(db.OutboxMessages);
     }
 
     [Fact]

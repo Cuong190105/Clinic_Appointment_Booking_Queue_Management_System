@@ -31,15 +31,11 @@ namespace Clinic.Application.Features.Appointments.Queries
                 throw new NotFoundException("Appointment not found.");
             }
 
-            var doctorId = appointment.DoctorId != Guid.Empty
-                ? appointment.DoctorId
-                : (appointment.WorkSchedule?.DoctorId ?? Guid.Empty);
-            var doctorName = !string.IsNullOrEmpty(appointment.DoctorName)
-                ? appointment.DoctorName
-                : (appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty);
+            var doctorId = appointment.DoctorId;
+            var doctorName = appointment.DoctorName;
             var date = appointment.ScheduleDate != default
                 ? appointment.ScheduleDate
-                : (appointment.WorkSchedule?.Date ?? default);
+                : DateOnly.FromDateTime(appointment.CreatedAt);
 
             // Only the receptionist, the patient who owns the appointment, or the doctor assigned to the appointment can access it
             if (_currentUser.UserId != request.UserId)
