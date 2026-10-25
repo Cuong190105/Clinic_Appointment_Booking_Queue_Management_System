@@ -272,6 +272,22 @@ export const authApi = {
     }
   },
 
+  async logout(refreshToken?: string | null): Promise<void> {
+    if (env.enableMock) return
+    const token = refreshToken ?? tokenStorage.getRefresh()
+    try {
+      await http.post('/auth/logout', token ? { refreshToken: token } : {})
+    } catch {
+      // Ignore network errors on logout to allow clean client-side state reset
+    }
+  },
+
+  async getPermissions(): Promise<string[]> {
+    if (env.enableMock) return []
+    const response = await http.get<string[]>('/auth/permissions')
+    return unwrapApiResult<string[]>(response.data) ?? []
+  },
+
 
   forgotPassword(phoneNumberOrEmail: string): Promise<{ message: string }> {
     if (env.enableMock) {

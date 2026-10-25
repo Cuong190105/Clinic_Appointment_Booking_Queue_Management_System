@@ -53,6 +53,18 @@ builder.Services.AddRateLimiter(options =>
         }));
 });
 var app = builder.Build();
+app.Use(async (context, next) =>
+{
+    var correlationId = context.Request.Headers.TryGetValue("X-Correlation-ID", out var cid) && !string.IsNullOrWhiteSpace(cid)
+        ? cid.ToString()
+        : Guid.NewGuid().ToString();
+    context.Response.Headers["X-Correlation-ID"] = correlationId;
+    using var scope = app.Logger.BeginScope(new Dictionary<string, object>
+    {
+        ["CorrelationId"] = correlationId
+    });
+    await next();
+});
 app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
@@ -75,7 +87,7 @@ app.MapGet("/.well-known/openid-configuration", () => Results.Ok(new
 })).AllowAnonymous();
 
 var auth = app.MapGroup("/v1/auth");
-auth.MapPost("/register", async (RegisterRequest request, HttpRequest httpRequest, IdentityDbContext db, CancellationToken ct) =>
+auth.MapPost("/register", async (RegisterRequest request, HttpRequest httpRequest, IdentityDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (!HasServiceToken(httpRequest, serviceToken)) return Results.Unauthorized();
     var username = request.Username?.Trim();
@@ -98,11 +110,14 @@ auth.MapPost("/register", async (RegisterRequest request, HttpRequest httpReques
         // A repeated gateway request can finish local Patient provisioning after a transient failure.
         if (existingUsername.Person.PhoneNumber == phoneNumber && existingUsername.IsActive &&
             BCrypt.Net.BCrypt.Verify(request.Password, existingUsername.PasswordHash))
+        {
+            logger.LogInformation("IDENTITY_AUDIT: User registration replayed for existing active user UserId={UserId}, Username={Username}", existingUsername.Id, existingUsername.Username);
             return Results.Created($"/auth/users/{existingUsername.Id}", new
             {
                 userId = existingUsername.Id, personId = existingUsername.PersonId,
                 patientId = existingUsername.PatientId
             });
+        }
         return Results.Conflict(new { code = "username_exists", message = "Username is already registered." });
     }
 
@@ -139,10 +154,11 @@ auth.MapPost("/register", async (RegisterRequest request, HttpRequest httpReques
     db.UserRoles.Add(new IdentityUserRole { UserId = user.Id, User = user, RoleId = patientRole.Id, Role = patientRole });
     try { await db.SaveChangesAsync(ct); }
     catch (DbUpdateException) { return Results.Conflict(new { code = "identity_conflict", message = "Username or phone number is already registered." }); }
+    logger.LogInformation("IDENTITY_AUDIT: User registered successfully: UserId={UserId}, Username={Username}, PersonId={PersonId}, PatientId={PatientId}", user.Id, user.Username, person.Id, user.PatientId);
     return Results.Created($"/auth/users/{user.Id}", new { userId = user.Id, personId = person.Id, patientId = user.PatientId });
 }).AllowAnonymous().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/forgot-password", async (ForgotPasswordRequest request, HttpRequest httpRequest, IdentityDbContext db, CancellationToken ct) =>
+auth.MapPost("/forgot-password", async (ForgotPasswordRequest request, HttpRequest httpRequest, IdentityDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (!HasServiceToken(httpRequest, serviceToken)) return Results.Unauthorized();
     if (string.IsNullOrWhiteSpace(request.PhoneNumberOrEmail))
@@ -151,7 +167,11 @@ auth.MapPost("/forgot-password", async (ForgotPasswordRequest request, HttpReque
     var identifier = request.PhoneNumberOrEmail.Trim();
     var user = await db.Users.Include(x => x.Person)
         .SingleOrDefaultAsync(x => x.Person.PhoneNumber == identifier || x.Person.Email == identifier, ct);
-    if (user is null || !user.IsActive) return Results.Ok(new PasswordResetDelivery(false));
+    if (user is null || !user.IsActive)
+    {
+        logger.LogInformation("IDENTITY_AUDIT: Password reset requested for non-existing or inactive identifier={Identifier}", identifier);
+        return Results.Ok(new PasswordResetDelivery(false));
+    }
 
     var now = DateTime.UtcNow;
     await db.PasswordResetTokens.Where(x => x.UserId == user.Id && x.UsedAt == null)
@@ -163,10 +183,11 @@ auth.MapPost("/forgot-password", async (ForgotPasswordRequest request, HttpReque
         TokenHash = Hash(resetToken), CreatedAt = now, ExpiresAt = now.AddMinutes(30)
     });
     await db.SaveChangesAsync(ct);
+    logger.LogInformation("IDENTITY_AUDIT: Password reset token created for UserId={UserId}", user.Id);
     return Results.Ok(new PasswordResetDelivery(true, user.PersonId, resetToken));
 }).AllowAnonymous().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/reset-password", async (ResetPasswordRequest request, IdentityDbContext db, CancellationToken ct) =>
+auth.MapPost("/reset-password", async (ResetPasswordRequest request, IdentityDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["New password must contain at least 8 characters."] });
@@ -179,6 +200,7 @@ auth.MapPost("/reset-password", async (ResetPasswordRequest request, IdentityDbC
     if (token is null || !token.User.IsActive)
     {
         await transaction.RollbackAsync(ct);
+        logger.LogWarning("IDENTITY_AUDIT: Password reset failed - invalid or expired token");
         return Results.Problem("The password reset code is invalid or expired.", statusCode: StatusCodes.Status400BadRequest);
     }
 
@@ -190,21 +212,26 @@ auth.MapPost("/reset-password", async (ResetPasswordRequest request, IdentityDbC
         .ExecuteUpdateAsync(changes => changes.SetProperty(x => x.UsedAt, now), ct);
     await db.SaveChangesAsync(ct);
     await transaction.CommitAsync(ct);
+    logger.LogInformation("IDENTITY_AUDIT: Password reset completed for UserId={UserId}", token.UserId);
     return Results.NoContent();
 }).AllowAnonymous().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/login", async (LoginRequest request, IdentityDbContext db, SigningKeyRing ring, CancellationToken ct) =>
+auth.MapPost("/login", async (LoginRequest request, IdentityDbContext db, SigningKeyRing ring, ILogger<Program> logger, CancellationToken ct) =>
 {
     var user = await db.Users.Include(x => x.Person).Include(x => x.UserRoles).ThenInclude(x => x.Role)
         .ThenInclude(x => x.RolePermissions).ThenInclude(x => x.Permission)
         .SingleOrDefaultAsync(x => x.Username == request.Username, ct);
     if (user is null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+    {
+        logger.LogWarning("IDENTITY_AUDIT: Login failed for Username={Username}", request.Username);
         return Results.Unauthorized();
+    }
     var tokens = await IssueTokens(user, db, ring, issuer, audience, accessMinutes, refreshDays, ct);
+    logger.LogInformation("IDENTITY_AUDIT: Login succeeded for UserId={UserId}, Username={Username}", user.Id, user.Username);
     return Results.Ok(tokens);
 }).AllowAnonymous().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/refresh", async (RefreshRequest request, IdentityDbContext db, SigningKeyRing ring, CancellationToken ct) =>
+auth.MapPost("/refresh", async (RefreshRequest request, IdentityDbContext db, SigningKeyRing ring, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.RefreshToken)) return Results.Unauthorized();
     var hash = Hash(request.RefreshToken);
@@ -213,7 +240,11 @@ auth.MapPost("/refresh", async (RefreshRequest request, IdentityDbContext db, Si
     var updated = await db.RefreshTokens
         .Where(x => x.TokenHash == hash && x.RevokedAt == null && x.ExpiresAt > now && x.User.IsActive)
         .ExecuteUpdateAsync(changes => changes.SetProperty(x => x.RevokedAt, now), ct);
-    if (updated != 1) return Results.Unauthorized();
+    if (updated != 1)
+    {
+        logger.LogWarning("IDENTITY_AUDIT: Token refresh failed - invalid or expired refresh token");
+        return Results.Unauthorized();
+    }
 
     var token = await db.RefreshTokens.AsNoTracking().Where(x => x.TokenHash == hash)
         .Select(x => x.UserId).SingleAsync(ct);
@@ -222,10 +253,11 @@ auth.MapPost("/refresh", async (RefreshRequest request, IdentityDbContext db, Si
         .SingleAsync(x => x.Id == token, ct);
     var response = await IssueTokens(user, db, ring, issuer, audience, accessMinutes, refreshDays, ct);
     await transaction.CommitAsync(ct);
+    logger.LogInformation("IDENTITY_AUDIT: Token refresh succeeded for UserId={UserId}", user.Id);
     return Results.Ok(response);
 }).AllowAnonymous().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPrincipal principal, IdentityDbContext db, CancellationToken ct) =>
+auth.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPrincipal principal, IdentityDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["New password must contain at least 8 characters."] });
@@ -233,7 +265,10 @@ auth.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPri
     if (!Guid.TryParse(subject, out var userId)) return Results.Unauthorized();
     var user = await db.Users.SingleOrDefaultAsync(x => x.Id == userId, ct);
     if (user is null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+    {
+        logger.LogWarning("IDENTITY_AUDIT: Change password failed for UserId={UserId} - invalid current credentials", userId);
         return Results.Unauthorized();
+    }
     if (BCrypt.Net.BCrypt.Verify(request.NewPassword, user.PasswordHash))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["New password must differ from the current password."] });
 
@@ -246,10 +281,11 @@ auth.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPri
         .ExecuteUpdateAsync(changes => changes.SetProperty(x => x.UsedAt, now), ct);
     await db.SaveChangesAsync(ct);
     await transaction.CommitAsync(ct);
+    logger.LogInformation("IDENTITY_AUDIT: Password changed successfully for UserId={UserId}", user.Id);
     return Results.NoContent();
 }).RequireAuthorization().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/revoke", async (RefreshRequest request, IdentityDbContext db, CancellationToken ct) =>
+auth.MapPost("/revoke", async (RefreshRequest request, IdentityDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (!string.IsNullOrWhiteSpace(request.RefreshToken))
     {
@@ -259,6 +295,7 @@ auth.MapPost("/revoke", async (RefreshRequest request, IdentityDbContext db, Can
         {
             token.RevokedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            logger.LogInformation("IDENTITY_AUDIT: Refresh token revoked for UserId={UserId}", token.UserId);
         }
     }
     return Results.NoContent();
