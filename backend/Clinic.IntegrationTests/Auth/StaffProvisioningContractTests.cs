@@ -9,7 +9,7 @@ namespace Clinic.IntegrationTests.Auth;
 public sealed class StaffProvisioningContractTests(ApiContractFactory factory) : IClassFixture<ApiContractFactory>
 {
     [Fact]
-    public async Task New_employee_creation_uses_identity_user_id_and_creates_only_a_clinic_projection()
+    public async Task New_employee_creation_links_identity_and_scheduling_profiles()
     {
         await factory.InitializeDatabaseAsync();
         using var client = factory.CreateAuthenticatedClient();
@@ -32,7 +32,10 @@ public sealed class StaffProvisioningContractTests(ApiContractFactory factory) :
         Assert.True(response.StatusCode == HttpStatusCode.Created,
             $"Expected 201 Created but received {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
         using var envelope = await ApiResponseAssertions.ReadEnvelopeAsync(response);
-        var employeeId = ApiResponseAssertions.Result(envelope).GetProperty("id").GetGuid();
+        var result = envelope.RootElement.TryGetProperty("result", out var wrapped)
+            ? wrapped
+            : envelope.RootElement;
+        var employeeId = result.GetProperty("id").GetGuid();
         Assert.NotEqual(Guid.Empty, employeeId);
 
         await using var db = factory.CreateDbContext();

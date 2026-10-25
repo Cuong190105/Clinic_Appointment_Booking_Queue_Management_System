@@ -28,7 +28,6 @@ namespace Clinic.Application
             services.AddScoped<IPersonService, PersonService>();
             services.AddScoped<INotificationService, NotificationService>();
             services.AddSingleton<INotificationQueue, NotificationQueue>();
-            services.AddScoped<IAppointmentNotificationHandler, AppointmentNotificationHandler>();
             services.AddScoped<IAccountNotificationHandler, AccountNotificationHandler>();
             services.AddScoped<ICustomNotificationHandler, CustomNotificationHandler>();
             services.AddScoped<IDueNotificationHandler, DueNotificationHandler>();

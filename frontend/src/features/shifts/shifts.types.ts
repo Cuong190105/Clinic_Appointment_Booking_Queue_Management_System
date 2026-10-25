@@ -39,6 +39,15 @@ export interface PagedDoctorSchedulesResponse {
   hasNext: boolean
 }
 
+export interface DoctorScheduleOption {
+  doctorId: string
+  employeeId?: string
+  fullName: string
+  email: string
+  username?: string
+  isActive: boolean
+}
+
 export interface CreateShiftPayload {
   doctorId: string
   date: string

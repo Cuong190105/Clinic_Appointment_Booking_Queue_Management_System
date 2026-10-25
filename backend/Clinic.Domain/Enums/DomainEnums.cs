@@ -23,14 +23,6 @@ namespace Clinic.Domain.Enums
         Cancelled
     }
 
-    /// <summary>Trạng thái giữ chỗ trong quy trình đặt lịch (reservation saga).</summary>
-    public enum BookingSlotStatus
-    {
-        Available,
-        Reserved,
-        Booked
-    }
-
     /// <summary>
     /// Pending -> Confirmed -> CheckedIn -> Completed, hoặc Cancelled / NoShow.
     /// </summary>
@@ -42,17 +34,6 @@ namespace Clinic.Domain.Enums
         Completed,
         Cancelled,
         NoShow
-    }
-
-    public enum QueueStatus
-    {
-        Waiting,
-        Called,
-        InProgress,
-        Completed,
-        Skipped,
-        /// <summary>Vé bị hủy vì Appointment gốc bị hủy sau khi đã check-in (còn Waiting/Called).</summary>
-        Cancelled
     }
 
     public enum NotificationType

@@ -126,10 +126,10 @@ function edit(item: RequestedShift) {
   // Ví dụ:
   // 08:00:00 -> 08:00
   // 08:00:00.000Z -> 08:00
-  form.startTime = item.startTime.slice(0, 5)
-  form.endTime = item.endTime.slice(0, 5)
+  form.startTime = (item.startTime || (item as any).shiftStart || '').slice(0, 5)
+  form.endTime = (item.endTime || (item as any).shiftEnd || '').slice(0, 5)
 
-  form.RecommendedCapacity = item.RecommendedCapacity
+  form.RecommendedCapacity = item.RecommendedCapacity ?? (item as any).recommendedCapacity ?? 20
   form.reason = item.reason ?? ''
 
   window.scrollTo({
@@ -456,7 +456,7 @@ onMounted(() => {
                 <span
                   class="inline-flex min-w-10 justify-center rounded-lg bg-blue-50 px-3 py-1 font-semibold text-blue-700"
                 >
-                  {{ item.RecommendedCapacity }}
+                  {{ item.RecommendedCapacity ?? (item as any).recommendedCapacity ?? 20 }}
                 </span>
               </td>
 

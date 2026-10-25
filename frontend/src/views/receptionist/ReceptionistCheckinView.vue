@@ -21,7 +21,31 @@ const errorMessage = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 
 // Check-in Result state
-const checkInResult = ref<CheckInResponse | null>(null)
+const checkInResult = ref<(CheckInResponse & { pending: boolean; queueTicketId?: string; patientName?: string; doctorName?: string }) | null>(null)
+
+async function retryQueueTicketLookup() {
+  const appointmentId = checkInResult.value?.appointmentId
+  if (!appointmentId) return
+  actionLoadingId.value = appointmentId
+  try {
+    const ticket = await receptionistApi.pollQueueTicketByAppointmentId(appointmentId)
+    if (!ticket) return
+    checkInResult.value = {
+      ...checkInResult.value!,
+      pending: false,
+      queueTicketId: ticket.id,
+      queueNumber: `#${ticket.queueNumber}`,
+      patientName: ticket.patientName ?? selectedPatient.value?.fullName,
+      doctorName: ticket.doctorName ?? checkInResult.value?.doctorName,
+      checkInTime: ticket.checkInTime ?? new Date().toISOString(),
+      priority: ticket.priority,
+    }
+  } catch (err: any) {
+    errorMessage.value = err.response?.data?.message || err.message || 'Không thể tải phiếu khám. Vui lòng thử lại.'
+  } finally {
+    actionLoadingId.value = null
+  }
+}
 
 async function onSelectPatient(patient: PatientSearchItem) {
   selectedPatient.value = patient
@@ -75,12 +99,38 @@ async function handleCheckInAppointment(appt: AppointmentItem) {
   checkInResult.value = null
 
   try {
-    const result = await receptionistApi.checkInAppointment(appt.id)
-    checkInResult.value = result
-    successMessage.value = 'Check-in thành công! Đã cấp số thứ tự khám.'
+    await receptionistApi.checkInAppointment(appt.id)
+    successMessage.value = 'Check-in thành công! Đang đồng bộ số thứ tự...'
+
+    // Poll Queue Service for the actual assigned ticket
+    const ticket = await receptionistApi.pollQueueTicketByAppointmentId(appt.id)
     // Reload upcoming appointments
     if (selectedPatient.value) {
       appointments.value = await receptionistApi.getUpcomingAppointments(selectedPatient.value.id)
+    }
+
+    if (ticket?.queueNumber) {
+      successMessage.value = `Check-in thành công! Đã cấp số thứ tự khám #${ticket.queueNumber}.`
+      checkInResult.value = {
+        queueNumber: `#${ticket.queueNumber}`,
+        appointmentId: appt.id,
+        checkInTime: ticket.checkInTime ?? new Date().toISOString(),
+        patientName: ticket.patientName ?? selectedPatient.value?.fullName,
+        doctorName: ticket.doctorName ?? appt.doctorName ?? '',
+        priority: ticket.priority,
+        pending: false,
+        queueTicketId: ticket.id,
+      }
+    } else {
+      successMessage.value = 'Check-in thành công! Phiếu khám đang được xử lý trong hàng đợi.'
+      checkInResult.value = {
+        queueNumber: 'Đang xếp lượt',
+        appointmentId: appt.id,
+        checkInTime: new Date().toISOString(),
+        patientName: selectedPatient.value?.fullName,
+        doctorName: appt.doctorName ?? '',
+        pending: true,
+      }
     }
   } catch (err: any) {
     const errorMsg =
@@ -132,9 +182,14 @@ function resetCheckIn() {
     <div v-if="checkInResult && selectedPatient" class="space-y-4">
       <CheckInResult
         :queue-number="String(checkInResult.queueNumber)"
-        :patient-name="selectedPatient.fullName"
+        :patient-name="checkInResult.patientName || selectedPatient.fullName"
+        :doctor-name="checkInResult.doctorName || ''"
+        :check-in-time="checkInResult.checkInTime || ''"
+        :pending="checkInResult.pending"
+        :loading="actionLoadingId === checkInResult.appointmentId"
+        @retry="retryQueueTicketLookup"
       />
-      <div class="text-center">
+      <div v-if="!checkInResult.pending" class="text-center">
         <button
           type="button"
           class="text-xs font-semibold text-violet-700 hover:underline cursor-pointer"

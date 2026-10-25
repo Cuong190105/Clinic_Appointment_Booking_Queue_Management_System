@@ -32,20 +32,11 @@ namespace Clinic.Infrastructure.Sqlserver
             //services.AddScoped<IFarmRepository, FarmRepository>();
             services.AddScoped<IPersonRepository, PersonRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
-            services.AddScoped<ISpecialtyRepository, SpecialtyRepository>();
-            services.AddScoped<IDoctorRepository, DoctorRepository>();
-            services.AddScoped<IEmployeeRepository, EmployeeRepository>();
-            services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
             services.AddScoped<IPatientRepository, PatientRepository>();
-            services.AddScoped<IAppointmentRepository, AppointmentRepository>();
 
             services.AddScoped<DatabaseInitializer>();
-            services.AddScoped<IAppointmentRepository, AppointmentRepository>();
             services.AddScoped<IMedicalReportRepository, MedicalReportRepository>();
-            services.AddScoped<IQueueTicketRepository, QueueTicketRepository>();
             services.AddScoped<IPatientRepository, PatientRepository>();
-            services.AddScoped<IDoctorRepository, DoctorRepository>();
-            services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IEmailSender, EmailSender>();
             services.AddScoped<ISmsSender, SmsSender>();
@@ -53,6 +44,7 @@ namespace Clinic.Infrastructure.Sqlserver
             services.AddScoped<IEventContext, EventContext>();
             services.AddScoped<IInboxStore, InboxStore>();
             services.AddScoped<ICorrelationContext, CorrelationContext>();
+            services.AddScoped<ISchedulingServiceClient, Services.SchedulingServiceClient>();
             return services;
         }
     }

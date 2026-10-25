@@ -4,47 +4,47 @@ using Clinic.Application.Interfaces;
 using Clinic.Domain.Enums;
 using MediatR;
 
-namespace Clinic.Application.Features.MedicalReports.Queries
+namespace Clinic.Application.Features.MedicalReports.Queries;
+
+public record GetMyMedicalHistoryQuery : IRequest<List<MedicalReportDto>>;
+
+public sealed class GetMyMedicalHistoryHandler : IRequestHandler<GetMyMedicalHistoryQuery, List<MedicalReportDto>>
 {
-    public record GetMyMedicalHistoryQuery : IRequest<List<MedicalReportDto>>;
+    private readonly IMedicalReportRepository _medicalReportRepository;
+    private readonly ICurrentUser _currentUser;
 
-    public class GetMyMedicalHistoryHandler : IRequestHandler<GetMyMedicalHistoryQuery, List<MedicalReportDto>>
+    public GetMyMedicalHistoryHandler(IMedicalReportRepository medicalReportRepository, ICurrentUser currentUser)
     {
-        private readonly IMedicalReportRepository _medicalReportRepository;
-        private readonly ICurrentUser _currentUser;
+        _medicalReportRepository = medicalReportRepository;
+        _currentUser = currentUser;
+    }
 
-        public GetMyMedicalHistoryHandler(IMedicalReportRepository medicalReportRepository, ICurrentUser currentUser)
-        {
-            _medicalReportRepository = medicalReportRepository;
-            _currentUser = currentUser;
-        }
+    public async Task<List<MedicalReportDto>> Handle(GetMyMedicalHistoryQuery request, CancellationToken cancellationToken)
+    {
+        if (_currentUser.PatientId is null)
+            throw new ForbiddenException("Only a patient account has medical history to view.");
 
-        public async Task<List<MedicalReportDto>> Handle(GetMyMedicalHistoryQuery request, CancellationToken cancellationToken)
-        {
-            if (_currentUser.PatientId is null)
+        var reports = await _medicalReportRepository.GetHistoryByPatientIdAsync(_currentUser.PatientId.Value);
+        return reports
+            .Where(report => report.Status == MedicalReportStatus.Finalized)
+            .Select(report => new MedicalReportDto
             {
-                throw new ForbiddenException("Only a patient account has medical history to view.");
-            }
-
-            var reports = await _medicalReportRepository.GetHistoryByPatientIdAsync(_currentUser.PatientId.Value);
-
-            // Chỉ hiển thị hồ sơ đã chốt (Finalized) - hồ sơ Draft là bác sĩ đang ghi dở, chưa chính thức.
-            return reports
-                .Where(r => r.Status == MedicalReportStatus.Finalized)
-                .Select(r => new MedicalReportDto
-                {
-                    Id = r.Id,
-                    AppointmentId = r.AppointmentId,
-                    PatientId = r.PatientId,
-                    PatientName = r.Patient?.Person?.FullName ?? string.Empty,
-                    DoctorId = r.Appointment.WorkSchedule.DoctorId,
-                    DoctorName = r.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                    ExamDate = r.Appointment.WorkSchedule.Date,
-                    Symptoms = r.Symptoms,
-                    Diagnosis = r.Diagnosis,
-                    Prescription = r.Prescription,
-                    Notes = r.Notes
-                }).ToList();
-        }
+                Id = report.Id,
+                AppointmentId = report.AppointmentId,
+                PatientId = report.PatientId,
+                PatientName = report.Patient?.Person?.FullName ?? string.Empty,
+                DoctorId = report.DoctorId ?? Guid.Empty,
+                DoctorName = report.DoctorName ?? string.Empty,
+                SpecialtyName = report.SpecialtyName ?? string.Empty,
+                ExamDate = report.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
+                Symptoms = report.Symptoms,
+                Diagnosis = report.Diagnosis,
+                Prescription = report.Prescription,
+                Notes = report.Notes,
+                ExamStartTime = report.ExamStartTime,
+                ExamEndTime = report.ExamEndTime,
+                Status = report.Status,
+                CreatedAt = report.CreatedAt
+            }).ToList();
     }
 }

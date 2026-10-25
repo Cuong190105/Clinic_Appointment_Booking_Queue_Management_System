@@ -160,13 +160,13 @@ onMounted(load)
 
               <td class="px-5 py-4 font-medium text-slate-700">
                 <span class="rounded-md bg-slate-100 px-2.5 py-1 text-slate-700">
-                  {{ shift.startTime.slice(0, 5) }}
+                  {{ (shift.startTime || (shift as any).shiftStart || '').slice(0, 5) }}
                 </span>
 
                 <span class="mx-2 text-slate-400">→</span>
 
                 <span class="rounded-md bg-slate-100 px-2.5 py-1 text-slate-700">
-                  {{ shift.endTime.slice(0, 5) }}
+                  {{ (shift.endTime || (shift as any).shiftEnd || '').slice(0, 5) }}
                 </span>
               </td>
 
@@ -174,7 +174,7 @@ onMounted(load)
                 <span
                   class="inline-flex min-w-10 justify-center rounded-lg bg-blue-50 px-3 py-1 font-semibold text-blue-700"
                 >
-                  {{ shift.RecommendedCapacity }}
+                  {{ shift.RecommendedCapacity ?? (shift as any).recommendedCapacity ?? 20 }}
                 </span>
               </td>
 

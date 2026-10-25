@@ -122,6 +122,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 2: Tách Staff & Scheduling Service
 
+**Trạng thái: Đã hoàn thành outbox integration, contract/concurrency testing, background workers, và sửa các lỗi hiển thị múi giờ/phiên người dùng trên Frontend.**
+
 ### Nhiệm vụ
 
 1. Tích hợp schedule events vào outbox publisher.
@@ -145,32 +147,48 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 - Phân biệt lỗi `slot unavailable` với lỗi broker hoặc database.
 - Phải test consumer crash sau khi ghi projection hoặc inbox.
 
+### Phạm vi đã chuyển & Nghiệm thu
+
+- Outbox publisher tích hợp với bảng `OutboxMessages` của Scheduling Service, hỗ trợ các event `WorkScheduleCreated`, `WorkScheduleUpdated`, `WorkScheduleCancelled`.
+- Consumer cập nhật projection nhân viên `UserProfileUpdated` từ Identity Service sang Scheduling Service (`Employees`).
+- Background worker `ReservationExpirationWorker` tự động quét và thu hồi các slot `Reserved` đã hết hạn mỗi 30 giây.
+- Tinh chỉnh giao diện người dùng (Frontend):
+  - Chuyển đổi và format mốc thời gian khám của Bác sĩ (`DoctorExaminationView.vue`) theo múi giờ địa phương (GMT+7) thay vì hiển thị UTC thô.
+  - Sửa lỗi không cập nhật tên người dùng trên Header khi logout/login tài khoản khác (đồng bộ profile qua `fetchMe`).
+  - Sửa lỗi Sidebar Menu không phản ứng theo vai trò đang được chọn khi người dùng có nhiều role.
+- Kiểm thử: Concurrency test và Idempotency test xác nhận không bao giờ xảy ra overbooking khi nhiều request giữ chỗ cùng lúc; `BaselineBusinessWorkflowTests` đạt 3/3 passed; cơ chế tự động dọn dẹp test database hoạt động ổn định.
+
 ---
 
 ## Giai đoạn 3: Tách Appointment Service
 
+> Các nội dung trong phần này ghi lại trạng thái chuyển tiếp của Giai đoạn 3. Khi đó Queue vẫn ở Monolith; Giai đoạn 4 chuyển consumer và quyền tạo ticket sang Queue Service/Queue DB.
+
 ### Nhiệm vụ
 
-1. Tích hợp Appointment events vào broker.
-2. Tạo consumer và projection cho lịch bệnh nhân.
-3. Viết contract test cho booking, confirm, cancel và check-in.
-4. Kiểm thử idempotency của `CreateAppointment`.
+1. Tích hợp Appointment events (`AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentCheckedIn`) từ `ClinicAppointmentDB.OutboxMessages` vào broker.
+2. Tạo và tích hợp các consumer theo quyết định kiến trúc GĐ 3:
+   - Consumer tại Scheduling Service lắng nghe `AppointmentCancelled` để giải phóng `SlotReservation` và phục hồi capacity.
+   - Consumer tại Monolith lắng nghe `AppointmentCheckedIn` để cấp số thứ tự và tạo `QueueTicket` trong `ClinicDB`.
+   - Consumer tại Appointment Service lắng nghe `ExamCompleted` (chuyển lịch hẹn sang `Completed`) và `UserProfileUpdated` (cập nhật `PatientProjections`).
+3. Viết contract test cho booking, confirm, cancel, reschedule và check-in.
+4. Kiểm thử idempotency của `CreateAppointment` và `CheckIn`.
 5. Kiểm thử saga sau timeout, restart và lỗi `ReleaseReservation`.
-6. Cập nhật frontend dùng Appointment API qua Gateway.
-7. Xây reconciliation report cho reservation và appointment state.
+6. Cập nhật frontend và Gateway định tuyến `/appointments/**`, `/me/appointments/**` sang Appointment Service.
+7. Xây reconciliation report cho reservation (Scheduling DB) và appointment state (Appointment DB).
 
 ### Yêu cầu cần đạt
 
 - Duplicate `CreateAppointment` không tạo appointment trùng.
 - Saga có thể tiếp tục sau khi service hoặc broker restart.
 - `AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCancelled` và `AppointmentCheckedIn` được phát đúng contract.
-- Read model lịch bệnh nhân cập nhật được sau khi nhận event.
+- Read model lịch bệnh nhân và trạng thái slot/queue cập nhật đúng sau khi nhận event.
 - Frontend không gọi trực tiếp backend cũ hoặc database.
 
 ### Lưu ý
 
 - Không coi event publish là đã thành công nếu chưa có outbox confirmation.
-- Projection phải chịu được event đến trễ hoặc đến trùng.
+- Projection và consumer phải chịu được event đến trễ hoặc đến trùng (idempotent qua Inbox).
 - Cần có log correlation giữa reservation và appointment.
 
 ---
@@ -179,9 +197,9 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ### Nhiệm vụ
 
-1. Tạo consumer cho `AppointmentCheckedIn`.
+1. Tạo consumer cho `AppointmentCheckedIn` từ Appointment Service trong Queue Service; đây là event đầu vào duy nhất để tạo QueueTicket. `PatientCheckedIn` không được dùng như một lệnh/event đầu vào trùng nghĩa.
 2. Đảm bảo duplicate event không tạo QueueTicket trùng.
-3. Tích hợp các event `PatientCheckedIn`, `PatientCalled`, `ExamStarted`, `ExamCompleted`.
+3. Tích hợp các event trạng thái Queue như `PatientCalled`, `ExamStarted`, `ExamCompleted` theo ownership đã chốt; nếu cần thông báo ticket mới, dùng event kết quả `QueueTicketCreated`. Mỗi check-in là một Appointment/event riêng, có thể xử lý đồng thời; không tạo batch check-in.
 4. Viết concurrency test cho cấp queue number.
 5. Kiểm thử consumer crash sau khi ticket được commit.
 6. Xây reconciliation job giữa Queue state và Appointment state.
@@ -191,7 +209,7 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 - Check-in retry được.
 - Duplicate `AppointmentCheckedIn` không tạo ticket thứ hai.
-- Queue number không trùng trong cùng bác sĩ/ngày hoặc phạm vi đã quy định.
+- Queue number không trùng trong phạm vi `(DoctorId, QueueDate)`; `QueueDate` là ngày địa phương theo timezone cấu hình của phòng khám.
 - `ExamCompleted` được xử lý bởi các consumer liên quan.
 - Reconciliation job phát hiện và báo cáo trạng thái lệch.
 

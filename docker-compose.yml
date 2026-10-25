@@ -48,8 +48,14 @@ services:
             - "5000:8080"
         environment:
             - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+            - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
+            - Scheduling__Authority=http://scheduling-service:8080
+            - Services__Scheduling__BaseUrl=http://scheduling-service:8080
+            - Appointment__Authority=http://appointment-service:8080
+            - Queue__Authority=http://queue-service:8080
+            - Services__Queue__BaseUrl=http://queue-service:8080
             - Identity__RequireHttpsMetadata=false
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__PublicBaseUrl=${IDENTITY_PUBLIC_BASE_URL:-http://localhost:5000}
@@ -68,6 +74,8 @@ services:
         depends_on:
             identity-service:
                 condition: service_healthy
+            scheduling-service:
+                condition: service_healthy
             rabbitmq:
                 condition: service_healthy
             db:
@@ -75,7 +83,13 @@ services:
             jaeger:
                 condition: service_started
         healthcheck:
-            test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]"]
+            test:
+                [
+                    "CMD",
+                    "/usr/bin/bash",
+                    "-c",
+                    "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]",
+                ]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -104,7 +118,56 @@ services:
             db:
                 condition: service_healthy
         healthcheck:
-            test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]"]
+            test:
+                [
+                    "CMD",
+                    "/usr/bin/bash",
+                    "-c",
+                    "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        restart: always
+
+    scheduling-service:
+        build:
+            context: ./backend
+            dockerfile: Clinic.Scheduling.Service/Dockerfile
+        container_name: clinic_scheduling_service
+        ports:
+            - "5002:8080"
+        environment:
+            - ConnectionStrings__SchedulingConnection=Server=db,1433;Database=ClinicSchedulingDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - Identity__Authority=http://identity-service:8080
+            - Identity__RequireHttpsMetadata=false
+            - Services__InternalToken=${IDENTITY_SERVICE_TOKEN}
+            - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
+            - Jwt__Audience=Clinic.Services
+            - RabbitMq__Host=rabbitmq
+            - RabbitMq__Port=5672
+            - RabbitMq__Username=clinic
+            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__VirtualHost=/
+            - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+            - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+            - ASPNETCORE_HTTP_PORTS=8080
+        depends_on:
+            db:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+            identity-service:
+                condition: service_healthy
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "/usr/bin/bash",
+                    "-c",
+                    "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]",
+                ]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -112,12 +175,14 @@ services:
         restart: always
 
     identity-data-importer:
+        profiles: ["legacy-import"]
         image: mcr.microsoft.com/mssql/server:2022-latest
         entrypoint: ["/bin/bash", "-c"]
         command:
             - >-
-              until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
-              /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql
+                until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql &&
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /verify.sql
         environment:
             DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
         volumes:
@@ -125,7 +190,163 @@ services:
         depends_on:
             backend:
                 condition: service_healthy
+            queue-service:
+                condition: service_healthy
             identity-service:
+                condition: service_healthy
+        restart: "no"
+
+    scheduling-data-importer:
+        profiles: ["legacy-import"]
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        entrypoint: ["/bin/bash", "-c"]
+        command:
+            - >-
+                until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql
+        environment:
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+        volumes:
+            - ./backend/Clinic.Scheduling.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+            - ./backend/Clinic.Scheduling.Service/Persistence/verify-scheduling-import.sql:/verify.sql:ro
+        depends_on:
+            backend:
+                condition: service_healthy
+            scheduling-service:
+                condition: service_healthy
+        restart: "no"
+
+    appointment-service:
+        build:
+            context: ./backend
+            dockerfile: Clinic.Appointment.Service/Dockerfile
+        container_name: clinic_appointment_service
+        ports:
+            - "5003:8080"
+        environment:
+            - ConnectionStrings__AppointmentConnection=Server=db,1433;Database=ClinicAppointmentDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
+            - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
+            - Identity__Authority=http://identity-service:8080
+            - Identity__RequireHttpsMetadata=false
+            - Scheduling__Authority=http://scheduling-service:8080
+            - Services__Scheduling__BaseUrl=http://scheduling-service:8080
+            - Appointment__Authority=http://appointment-service:8080
+            - Queue__Authority=http://queue-service:8080
+            - Services__Queue__BaseUrl=http://queue-service:8080
+            - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
+            - Jwt__Audience=Clinic.Services
+            - RabbitMq__Host=rabbitmq
+            - RabbitMq__Port=5672
+            - RabbitMq__Username=clinic
+            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__VirtualHost=/
+            - ASPNETCORE_HTTP_PORTS=8080
+        depends_on:
+            db:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+            identity-service:
+                condition: service_healthy
+            scheduling-service:
+                condition: service_healthy
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "/usr/bin/bash",
+                    "-c",
+                    "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        restart: always
+
+    appointment-data-importer:
+        profiles: ["legacy-import"]
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        entrypoint: ["/bin/bash", "-c"]
+        command:
+            - >-
+                until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql
+        environment:
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+        volumes:
+            - ./backend/Clinic.Appointment.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+        depends_on:
+            backend:
+                condition: service_healthy
+            appointment-service:
+                condition: service_healthy
+        restart: "no"
+
+    queue-service:
+        build:
+            context: ./backend
+            dockerfile: Clinic.Queue.Service/Dockerfile
+        container_name: clinic_queue_service
+        ports:
+            - "5004:8080"
+        environment:
+            - ConnectionStrings__QueueConnection=Server=db,1433;Database=ClinicQueueDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
+            - Identity__Authority=http://identity-service:8080
+            - Identity__RequireHttpsMetadata=false
+            - Appointment__Authority=http://appointment-service:8080
+            - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
+            - Jwt__Audience=Clinic.Services
+            - RabbitMq__Host=rabbitmq
+            - RabbitMq__Port=5672
+            - RabbitMq__Username=clinic
+            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__VirtualHost=/
+            - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+            - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+            - ASPNETCORE_HTTP_PORTS=8080
+        depends_on:
+            db:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+            identity-service:
+                condition: service_healthy
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "/usr/bin/bash",
+                    "-c",
+                    "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        restart: always
+
+    queue-data-importer:
+        profiles: ["legacy-import"]
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        entrypoint: ["/bin/bash", "-c"]
+        command:
+            - >-
+                until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -v ClinicWindowsTimeZone="$$CLINIC_SQL_TIME_ZONE" -i /migration.sql &&
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /verify.sql
+        environment:
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            CLINIC_SQL_TIME_ZONE: ${CLINIC_SQL_TIME_ZONE:-SE Asia Standard Time}
+        volumes:
+            - ./backend/Clinic.Queue.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+            - ./backend/Clinic.Queue.Service/Persistence/verify-queue-import.sql:/verify.sql:ro
+        depends_on:
+            backend:
+                condition: service_healthy
+            queue-service:
                 condition: service_healthy
         restart: "no"
 
@@ -139,8 +360,6 @@ services:
         depends_on:
             backend:
                 condition: service_healthy
-            identity-data-importer:
-                condition: service_completed_successfully
         healthcheck:
             test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
             interval: 10s
@@ -159,6 +378,8 @@ services:
             - prometheus_data:/prometheus
         depends_on:
             backend:
+                condition: service_healthy
+            queue-service:
                 condition: service_healthy
         healthcheck:
             test:

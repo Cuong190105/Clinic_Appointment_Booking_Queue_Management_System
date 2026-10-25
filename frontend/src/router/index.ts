@@ -122,6 +122,12 @@ const routes: RouteRecordRaw[] = [
               import('@/views/receptionist/ReceptionistCheckinView.vue'),
           },
           {
+            path: 'booking',
+            name: 'reception-booking',
+            component: () =>
+              import('@/views/receptionist/ReceptionistBookingView.vue'),
+          },
+          {
             path: 'appointments/pending',
             name: 'reception-pending-appointments',
             component: () =>
@@ -136,6 +142,24 @@ const routes: RouteRecordRaw[] = [
         name: 'doctor-examination',
         component: () =>
           import('@/views/doctor/DoctorExaminationView.vue'),
+        meta: {
+          roles: ['Doctor'],
+        },
+      },
+      {
+        path: 'doctor/medical-records',
+        name: 'doctor-medical-records',
+        component: () =>
+          import('@/views/doctor/DoctorMedicalRecordsView.vue'),
+        meta: {
+          roles: ['Doctor'],
+        },
+      },
+      {
+        path: 'doctor/medical-records/:id',
+        name: 'doctor-medical-record-detail',
+        component: () =>
+          import('@/views/doctor/DoctorMedicalRecordDetailView.vue'),
         meta: {
           roles: ['Doctor'],
         },
@@ -302,6 +326,14 @@ router.beforeEach(async (to) => {
     if (!auth.hasRole(requiredRoles)) {
       return getHomeRouteByRole(auth)
     }
+
+    const currentRole = auth.currentUserRole || auth.user?.activeRole || auth.user?.role
+    if (currentRole && !requiredRoles.includes(currentRole)) {
+      const matchingRole = requiredRoles.find((r: UserRole) => auth.hasRole([r]))
+      if (matchingRole) {
+        auth.setActiveRole(matchingRole)
+      }
+    }
   }
 
   return true
@@ -309,6 +341,12 @@ router.beforeEach(async (to) => {
 
 // Hàm phụ trợ trả về Route phù hợp theo Role
 function getHomeRouteByRole(auth: any) {
+  const activeRole = auth.currentUserRole || auth.user?.activeRole || auth.user?.role
+  if (activeRole === 'Admin') return { name: 'admin-dashboard' }
+  if (activeRole === 'Receptionist') return { name: 'reception-dashboard' }
+  if (activeRole === 'Doctor') return { name: 'doctor-examination' }
+  if (activeRole === 'Patient') return { name: 'patient-home' }
+
   if (auth.hasRole(['Admin'])) return { name: 'admin-dashboard' }
   if (auth.hasRole(['Receptionist'])) return { name: 'reception-dashboard' }
   if (auth.hasRole(['Doctor'])) return { name: 'doctor-examination' }

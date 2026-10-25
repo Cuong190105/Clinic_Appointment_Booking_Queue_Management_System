@@ -12,12 +12,9 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasKey(m => m.Id);
 
-            builder.HasOne(m => m.Appointment)
-                .WithOne(a => a.MedicalReport)
-                .HasForeignKey<MedicalReport>(m => m.AppointmentId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             builder.HasIndex(m => m.AppointmentId).IsUnique();
+            builder.Property(m => m.DoctorName).HasMaxLength(200);
+            builder.Property(m => m.SpecialtyName).HasMaxLength(100);
 
             builder.HasOne(m => m.Patient)
                 .WithMany()

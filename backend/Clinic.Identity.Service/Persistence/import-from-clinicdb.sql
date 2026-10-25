@@ -46,6 +46,26 @@ BEGIN TRY
           AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Permissions AS target WHERE target.Id = p.Id);
     END;
 
+    IF OBJECT_ID(N'ClinicDB.dbo.Patients', N'U') IS NOT NULL
+    BEGIN
+        INSERT INTO ClinicDB.dbo.Patients (Id, PersonId, InsuranceNumber, EmergencyContact, CreatedAt, IsDeleted)
+        SELECT 
+            NEWID() AS Id,
+            p.Id AS PersonId,
+            CONCAT('BHXH-STAFF-', SUBSTRING(CONVERT(NVARCHAR(36), p.Id), 1, 8)) AS InsuranceNumber,
+            p.PhoneNumber AS EmergencyContact,
+            GETUTCDATE() AS CreatedAt,
+            0 AS IsDeleted
+        FROM ClinicDB.dbo.Persons p
+        WHERE NOT EXISTS (
+            SELECT 1 FROM ClinicDB.dbo.Patients pt WHERE pt.PersonId = p.Id AND pt.IsDeleted = 0
+        )
+        AND (
+            EXISTS (SELECT 1 FROM ClinicDB.dbo.Employees e WHERE e.PersonId = p.Id AND e.IsDeleted = 0)
+            OR EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Users u WHERE u.PersonId = p.Id AND u.IsActive = 1)
+        );
+    END;
+
     IF OBJECT_ID(N'ClinicDB.dbo.Users', N'U') IS NOT NULL
     BEGIN
         INSERT INTO ClinicIdentityDB.dbo.Users (Id, PersonId, PatientId, EmployeeId, DoctorId, Username, PasswordHash, IsActive, CreatedAt)
@@ -77,6 +97,18 @@ BEGIN TRY
           AND EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Permissions AS p WHERE p.Id = rp.PermissionId)
           AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.RolePermissions AS target WHERE target.RoleId = rp.RoleId AND target.PermissionId = rp.PermissionId);
     END;
+
+    -- Ensure Doctor role has necessary queue permissions
+    INSERT INTO ClinicIdentityDB.dbo.RolePermissions (RoleId, PermissionId)
+    SELECT r.Id, p.Id
+    FROM ClinicIdentityDB.dbo.Roles r
+    CROSS JOIN ClinicIdentityDB.dbo.Permissions p
+    WHERE r.Name = 'Doctor'
+      AND p.Name IN ('queue.call-next', 'queue.skip', 'queue.priority')
+      AND NOT EXISTS (
+          SELECT 1 FROM ClinicIdentityDB.dbo.RolePermissions target
+          WHERE target.RoleId = r.Id AND target.PermissionId = p.Id
+      );
 
     IF OBJECT_ID(N'ClinicDB.dbo.RefreshTokens', N'U') IS NOT NULL
     BEGIN

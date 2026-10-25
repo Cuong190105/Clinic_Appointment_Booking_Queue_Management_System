@@ -27,6 +27,7 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
     private readonly string _databaseName = $"ClinicBaselineTests_{Environment.ProcessId}_{Guid.NewGuid():N}";
     private string? _testConnectionString;
     private bool _databaseInitialized;
+    private static int _cleanedUpOrphans;
 
     public ApiContractFactory()
     {
@@ -43,6 +44,8 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         connectionBuilder.Remove("Initial Catalog");
         connectionBuilder["Database"] = _databaseName;
         _testConnectionString = connectionBuilder.ConnectionString;
+
+        CleanupOrphanTestDatabases(sourceConnectionString);
     }
 
     public string TestConnectionString => _testConnectionString
@@ -69,7 +72,7 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
             services.RemoveAll<ApplicationDbContext>();
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(_testConnectionString!));
+                options.UseSqlServer(_testConnectionString!).ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
             services.AddAuthentication(options =>
             {
@@ -117,6 +120,7 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlServer(TestConnectionString)
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .Options;
         return new ApplicationDbContext(options);
     }
@@ -126,14 +130,113 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         if (!_databaseInitialized)
             return;
 
-        await using var dbContext = CreateDbContext();
-        await dbContext.Database.EnsureDeletedAsync();
+        try
+        {
+            Microsoft.Data.SqlClient.SqlConnection.ClearAllPools();
+
+            var masterBuilder = new DbConnectionStringBuilder { ConnectionString = _testConnectionString };
+            masterBuilder.Remove("Initial Catalog");
+            masterBuilder["Database"] = "master";
+
+            await using var connection = new Microsoft.Data.SqlClient.SqlConnection(masterBuilder.ConnectionString);
+            await connection.OpenAsync();
+
+            var dropSql = $@"
+IF EXISTS (SELECT 1 FROM sys.databases WHERE name = '{_databaseName}')
+BEGIN
+    ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [{_databaseName}];
+END";
+            await using var command = new Microsoft.Data.SqlClient.SqlCommand(dropSql, connection);
+            await command.ExecuteNonQueryAsync();
+        }
+        catch
+        {
+            try
+            {
+                await using var dbContext = CreateDbContext();
+                await dbContext.Database.EnsureDeletedAsync();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+        finally
+        {
+            _databaseInitialized = false;
+        }
     }
 
     public override async ValueTask DisposeAsync()
     {
-        await DeleteTestDatabaseAsync();
         await base.DisposeAsync();
+        await DeleteTestDatabaseAsync();
+    }
+
+    private static void CleanupOrphanTestDatabases(string connectionString)
+    {
+        if (Interlocked.Exchange(ref _cleanedUpOrphans, 1) != 0)
+            return;
+
+        try
+        {
+            var masterBuilder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            masterBuilder.Remove("Initial Catalog");
+            masterBuilder["Database"] = "master";
+
+            using var connection = new Microsoft.Data.SqlClient.SqlConnection(masterBuilder.ConnectionString);
+            connection.Open();
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT name FROM sys.databases WHERE name LIKE 'ClinicBaselineTests_%'";
+            using var reader = cmd.ExecuteReader();
+            var staleDatabases = new List<string>();
+            while (reader.Read())
+            {
+                var dbName = reader.GetString(0);
+                var parts = dbName.Split('_');
+                if (parts.Length >= 2 && int.TryParse(parts[1], out var pid))
+                {
+                    bool isRunning = false;
+                    try
+                    {
+                        var proc = System.Diagnostics.Process.GetProcessById(pid);
+                        isRunning = !proc.HasExited;
+                    }
+                    catch
+                    {
+                        isRunning = false;
+                    }
+
+                    if (!isRunning)
+                    {
+                        staleDatabases.Add(dbName);
+                    }
+                }
+            }
+            reader.Close();
+
+            foreach (var staleDb in staleDatabases)
+            {
+                try
+                {
+                    using var dropCmd = connection.CreateCommand();
+                    dropCmd.CommandText = $@"
+ALTER DATABASE [{staleDb}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+DROP DATABASE [{staleDb}];";
+                    dropCmd.ExecuteNonQuery();
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
+        }
+        catch
+        {
+            // ignore
+        }
     }
 }
 
@@ -146,9 +249,184 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
 
     private sealed class TestIdentityHandler : HttpMessageHandler
     {
+        private static readonly HashSet<string> _reservedSlots = new();
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.Equals("/employees", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var root = body.RootElement;
+                var employeeId = root.TryGetProperty("id", out var requestedId) && requestedId.ValueKind == JsonValueKind.String
+                    && Guid.TryParse(requestedId.GetString(), out var parsedId) && parsedId != Guid.Empty
+                    ? parsedId
+                    : Guid.NewGuid();
+                return Json(HttpStatusCode.Created, JsonSerializer.Serialize(new { id = employeeId, fullName = root.GetProperty("fullName").GetString() }));
+            }
+            if (path.Contains("/doctors/dashboard-stats", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(HttpStatusCode.OK, JsonSerializer.Serialize(new { totalDoctors = 5, totalDoctorsChange = 0.0, activeDoctors = 5, activeDoctorsChange = 0.0 }));
+            }
+            if (path.Equals("/shifts/suggestions", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return Json(HttpStatusCode.Created, JsonSerializer.Serialize(new { result = new { id = Guid.NewGuid() } }));
+            }
+            if (path.StartsWith("/shifts/suggestions/", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/approve", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+            if (path.Contains("/appointments/") && path.EndsWith("/check-in", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Equals("/appointments", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                var bodyText = request.Content != null ? await request.Content.ReadAsStringAsync(cancellationToken) : string.Empty;
+                var timeSlot = "09:00:00";
+                var schedId = Guid.Empty;
+                if (!string.IsNullOrEmpty(bodyText))
+                {
+                    using var body = JsonDocument.Parse(bodyText);
+                    var root = body.RootElement;
+                    if (root.TryGetProperty("timeSlot", out var ts) || root.TryGetProperty("TimeSlot", out ts)) timeSlot = ts.GetString() ?? "09:00:00";
+                    if (root.TryGetProperty("workScheduleId", out var ws) || root.TryGetProperty("WorkScheduleId", out ws)) schedId = ws.GetGuid();
+                }
+                var slotKey = $"app_{schedId}_{timeSlot}";
+                if (_reservedSlots.Contains(slotKey))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent("{\"error\":\"Slot already booked\"}", System.Text.Encoding.UTF8, "application/json")
+                    };
+                }
+                _reservedSlots.Add(slotKey);
+                var appId = Guid.NewGuid();
+                var result = JsonSerializer.Serialize(new
+                {
+                    result = new
+                    {
+                        id = appId,
+                        patientId = ApiContractFactory.PatientId,
+                        patientName = "Patient Name",
+                        doctorId = ApiContractFactory.DoctorId,
+                        doctorName = "Doctor Name",
+                        workScheduleId = schedId,
+                        specialtyName = "Cardiology",
+                        date = new Clinic.Domain.Common.TimeConverter().Today.AddDays(2).ToString("yyyy-MM-dd"),
+                        timeSlot = timeSlot,
+                        status = "Pending",
+                        reason = "baseline booking"
+                    }
+                });
+                return Json(HttpStatusCode.Created, result);
+            }
+            if (path.Contains("/reservations", StringComparison.OrdinalIgnoreCase))
+            {
+                if (path.EndsWith("/confirm", StringComparison.OrdinalIgnoreCase) || path.EndsWith("/release", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+                
+                var bodyText = request.Content != null ? await request.Content.ReadAsStringAsync(cancellationToken) : string.Empty;
+                var timeSlot = "09:00:00";
+                if (!string.IsNullOrEmpty(bodyText))
+                {
+                    using var body = JsonDocument.Parse(bodyText);
+                    if (body.RootElement.TryGetProperty("timeSlot", out var ts))
+                    {
+                        timeSlot = ts.GetString() ?? "09:00:00";
+                    }
+                }
+                var slotKey = $"{request.RequestUri?.AbsolutePath}_{timeSlot}";
+                if (_reservedSlots.Contains(slotKey))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent("{\"error\":\"Slot already reserved\"}", System.Text.Encoding.UTF8, "application/json")
+                    };
+                }
+                _reservedSlots.Add(slotKey);
+
+                var reservationId = Guid.NewGuid();
+                var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var schedIdx = Array.FindIndex(segments, s => s.Equals("schedules", StringComparison.OrdinalIgnoreCase));
+                var scheduleId = Guid.NewGuid();
+                if (schedIdx != -1 && schedIdx + 1 < segments.Length && Guid.TryParse(segments[schedIdx + 1], out var parsedSchedId))
+                {
+                    scheduleId = parsedSchedId;
+                }
+
+                var res = JsonSerializer.Serialize(new
+                {
+                    id = reservationId,
+                    scheduleId = scheduleId,
+                    timeSlot = timeSlot,
+                    patientId = ApiContractFactory.PatientId,
+                    status = "Reserved",
+                    expiresAt = DateTimeOffset.UtcNow.AddMinutes(5),
+                    idempotencyKey = Guid.NewGuid().ToString("N"),
+                    doctorId = ApiContractFactory.DoctorId,
+                    doctorName = "Doctor Name",
+                    specialtyName = "Cardiology",
+                    scheduleDate = new Clinic.Domain.Common.TimeConverter().Today.AddDays(2).ToString("yyyy-MM-dd")
+                });
+                return Json(HttpStatusCode.OK, res);
+            }
+
+            if (path.Contains("/queue/call-next/", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                var ticketJson = JsonSerializer.Serialize(new
+                {
+                    result = new
+                    {
+                        id = Guid.NewGuid(),
+                        appointmentId = Guid.NewGuid(),
+                        queueNumber = 1,
+                        status = "Called",
+                        checkInTime = DateTime.UtcNow,
+                        callTime = DateTime.UtcNow
+                    }
+                });
+                return Json(HttpStatusCode.OK, ticketJson);
+            }
+
+            if (path.Contains("/queue/") && path.EndsWith("/start-exam", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Contains("/queue/") && path.EndsWith("/complete-exam", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Contains("/queue/") && path.EndsWith("/skip", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return Json(HttpStatusCode.OK, "{\"result\":{\"hasAutoCalledNext\":false}}");
+            }
+
+            if (path.Contains("/queue/") && path.EndsWith("/priority", StringComparison.OrdinalIgnoreCase) && (request.Method == HttpMethod.Patch || request.Method.Method == "PATCH"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Contains("/doctors/") && path.EndsWith("/queue/next", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
+            if (path.Contains("/doctors/") && path.EndsWith("/queue", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+            {
+                return Json(HttpStatusCode.OK, "{\"result\":[]}");
+            }
+
+            if (path.EndsWith("/me/queue-status", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+
             if (path.EndsWith("/v1/internal/users/provision", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));

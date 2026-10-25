@@ -1,8 +1,8 @@
 using Clinic.API.Models;
 using Clinic.API.Services;
+using Clinic.Contracts.Analytics;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.Admin.Queries;
-using Clinic.Application.Features.Appointments.Queries;
 using Clinic.Application.Features.Users.Queries;
 using MapsterMapper;
 using MediatR;
@@ -23,14 +23,20 @@ namespace Clinic.API.Controllers
         private readonly HttpClient _identityClient;
         private readonly string? _identityServiceToken;
         private readonly IdentityAccountClient _identityAccounts;
+        private readonly AppointmentServiceClient _appointmentClient;
+        private readonly SchedulingManagementClient _scheduling;
+        private readonly QueueServiceClient _queueClient;
 
-        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts)
+        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient)
         {
             _sender = sender;
             _mapper = mapper;
             _identityClient = httpClientFactory.CreateClient("Identity");
             _identityServiceToken = configuration["Identity:ServiceToken"];
             _identityAccounts = identityAccounts;
+            _appointmentClient = appointmentClient;
+            _scheduling = scheduling;
+            _queueClient = queueClient;
         }
 
         [HttpGet("ping")]
@@ -92,6 +98,14 @@ namespace Clinic.API.Controllers
             return Ok(users);
         }
 
+        [HttpGet("doctors/brief")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetDoctorBriefs()
+        {
+            var response = await _scheduling.SendAsync(HttpContext, HttpMethod.Get, "doctors/brief", null, HttpContext.RequestAborted);
+            return response.ToActionResult();
+        }
+
         [HttpGet("users/{userId}")]
         [Authorize(Policy = "Permission:user.manage")]
         [ProducesResponseType(typeof(UserDetailDto), StatusCodes.Status200OK)]
@@ -119,9 +133,8 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetAppointmentSummary([FromQuery] GetAppointmentSummaryQueryRequest request)
         {
-            var command = _mapper.Map<GetAppointmentSummaryQueryRequest, GetTotalAppointmentSummaryQuery>(request);
-            var result = await _sender.Send(command);
-            return Ok(result);
+            var queryString = HttpContext.Request.QueryString.HasValue ? HttpContext.Request.QueryString.Value : string.Empty;
+            return await _appointmentClient.ProxyAsync(HttpContext, $"admin/appointments/summary{queryString}", HttpMethod.Get);
         }
 
         [HttpGet("appointments/{appointmentId}/history")]
@@ -129,9 +142,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(AppointmentChangelogDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAppointmentChangelog(Guid appointmentId)
         {
-            var command = new GetAppointmentChangelogQuery(appointmentId);
-            var result = await _sender.Send(command);
-            return Ok(result);
+            return await _appointmentClient.ProxyAsync(HttpContext, $"appointments/{appointmentId}/history", HttpMethod.Get);
         }
 
         [HttpGet("dashboard")]
@@ -139,19 +150,37 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(DashboardDataDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetDashboardData()
         {
-            // placeholder: implement dashboard data retrieval
-            var result = await _sender.Send(new GetDashboardDataQuery());
+            var ct = HttpContext.RequestAborted;
+            var appointmentMetrics = await _appointmentClient.GetAsync<AppointmentDashboardMetrics>(
+                HttpContext,
+                "admin/dashboard-metrics",
+                ct);
+            var queueMetrics = await _queueClient.GetDashboardMetricsAsync(HttpContext, ct);
+            if (appointmentMetrics is null || queueMetrics is null)
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
+                {
+                    Title = "Dashboard metrics unavailable",
+                    Detail = "Appointment or Queue service did not return dashboard metrics."
+                });
+
+            var result = await _sender.Send(new GetDashboardDataQuery(appointmentMetrics, queueMetrics), ct);
             return Ok(result);
         }
 
         [HttpGet("statistics")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(StatisticsDataDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetStatistics([FromQuery] Period period)
+        public async Task<IActionResult> GetStatistics([FromQuery] string period = "week")
         {
-            // placeholder: implement dashboard data retrieval
-            var result = await _sender.Send(new GetStatisticsDataQuery(period));
-            return Ok(result);
+            var normalizedPeriod = string.Equals(period, "month", StringComparison.OrdinalIgnoreCase)
+                ? "month"
+                : "week";
+            var queryString = $"?period={normalizedPeriod}";
+            return await _appointmentClient.ProxyAsync(
+                HttpContext,
+                $"admin/statistics{queryString}",
+                HttpMethod.Get,
+                ct: HttpContext.RequestAborted);
         }
 
         private async Task<HttpResponseMessage> SendIdentityRequest(HttpMethod method, string path)
@@ -177,10 +206,8 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(PaginationResponse<AppointmentExtended>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAppointmentsByDate([FromQuery] GetAppointmentsByDateRequest request)
         {
-            // placeholder: implement dashboard data retrieval
-            var command = _mapper.Map<GetAppointmentByDateQuery>(request);
-            var result = await _sender.Send(command);
-            return Ok(result);
+            var queryString = HttpContext.Request.QueryString.HasValue ? HttpContext.Request.QueryString.Value : string.Empty;
+            return await _appointmentClient.ProxyAsync(HttpContext, $"admin/appointments{queryString}", HttpMethod.Get);
         }
     }
 }

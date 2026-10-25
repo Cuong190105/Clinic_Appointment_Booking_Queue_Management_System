@@ -62,6 +62,8 @@ export const doctorsApi = {
       biography: d.biography || d.Biography || '',
       status: d.status ?? d.Status ?? 0,
       dateOfBirth: d.dateOfBirth || d.DateOfBirth || '',
+      address: d.address || d.Address || '',
+      hireDate: d.hireDate || d.HireDate || '',
       gender:
         typeof d.gender === 'string'
           ? d.gender.toLowerCase() === 'female'
@@ -185,7 +187,11 @@ export const doctorsApi = {
       qualification: payload.qualification || 'Bác sĩ chuyên khoa',
       experienceYears: Number(payload.experienceYears) || 1,
       biography: payload.biography || null,
+      specialtyId: payload.specialtyId,
     })
+    if (payload.specialtyId) {
+      await http.patch(`/doctors/${id}/specialty`, payload.specialtyId).catch(() => null)
+    }
   },
 
   // DELETE /doctors/{doctorId} -> Inactive

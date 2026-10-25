@@ -173,7 +173,7 @@ function formatDate(dateStr: string): string {
               >
               <span
                 >👥 Giới hạn:
-                <b class="text-slate-700">{{ shift.RecommendedCapacity }} bệnh nhân</b></span
+                <b class="text-slate-700">{{ shift.RecommendedCapacity ?? (shift as any).recommendedCapacity ?? 20 }} bệnh nhân</b></span
               >
             </div>
           </div>

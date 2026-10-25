@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -13,6 +13,23 @@ const auth = useAuthStore()
 const patient = usePatientStore()
 
 const isChangePasswordOpen = ref(false)
+
+const currentRole = computed<string>(() => {
+  return auth.user?.activeRole ?? auth.currentUserRole ?? auth.user?.role ?? auth.user?.roles?.[0] ?? ''
+})
+
+const displayName = computed(() => {
+  if (currentRole.value === 'Patient' && patient.profile?.fullName) {
+    return patient.profile.fullName
+  }
+  return auth.user?.name || 'User'
+})
+
+onMounted(() => {
+  if (auth.isAuthenticated) {
+    auth.fetchMe().catch(() => undefined)
+  }
+})
 
 function onLocaleChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value
@@ -55,19 +72,19 @@ function logout() {
           </div>
 
           <div class="mt-0.5 text-xs text-slate-400">
-            <template v-if="auth.hasRole(['Receptionist'])">
+            <template v-if="currentRole === 'Receptionist'">
               Lễ tân
             </template>
 
-            <template v-else-if="auth.hasRole(['Admin'])">
+            <template v-else-if="currentRole === 'Admin'">
               Quản trị hệ thống
             </template>
 
-            <template v-else-if="auth.hasRole(['Doctor'])">
+            <template v-else-if="currentRole === 'Doctor'">
               Bác sĩ
             </template>
 
-            <template v-else-if="auth.hasRole(['Patient'])">
+            <template v-else-if="currentRole === 'Patient'">
               Bệnh nhân
             </template>
 
@@ -85,7 +102,7 @@ function logout() {
       <nav class="flex-1 overflow-y-auto p-4">
 
         <!-- ================= RECEPTIONIST ================= -->
-        <template v-if="auth.hasRole(['Receptionist'])">
+        <template v-if="currentRole === 'Receptionist'">
 
           <div
             class="mb-2 px-3 text-xs font-semibold
@@ -166,6 +183,29 @@ function logout() {
             </RouterLink>
 
 
+            <!-- Đặt khám & Tiếp nhận -->
+            <RouterLink
+              to="/reception/booking"
+              class="flex items-center gap-3
+                     rounded-lg px-3 py-2.5
+                     text-sm font-medium
+                     text-slate-600
+                     transition-colors
+                     hover:bg-slate-50"
+              active-class="bg-violet-50 text-violet-700"
+            >
+              <!-- Calendar plus icon -->
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 2v4" />
+                <path d="M16 2v4" />
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M3 10h18" />
+                <path d="M12 14v4" />
+                <path d="M10 16h4" />
+              </svg>
+              <span>Đặt khám</span>
+            </RouterLink>
+
             <!-- Check-in -->
             <RouterLink
               to="/reception/checkin"
@@ -230,7 +270,7 @@ function logout() {
 
 
         <!-- ================= ADMIN ================= -->
-        <template v-else-if="auth.hasRole(['Admin'])">
+        <template v-else-if="currentRole === 'Admin'">
 
           <div
             class="mb-2 px-3 text-xs font-semibold
@@ -329,7 +369,7 @@ function logout() {
 
 
         <!-- ================= DOCTOR ================= -->
-        <template v-else-if="auth.hasRole(['Doctor'])">
+        <template v-else-if="currentRole === 'Doctor'">
 
           <div
             class="mb-2 px-3 text-xs font-semibold
@@ -345,6 +385,13 @@ function logout() {
               exact-active-class="bg-violet-50 text-violet-700"
             >
               Khám bệnh & hàng đợi
+            </RouterLink>
+            <RouterLink
+              to="/doctor/medical-records"
+              class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              active-class="bg-violet-50 text-violet-700"
+            >
+              Hồ sơ bệnh án
             </RouterLink>
             <RouterLink
               to="/doctor/schedule"
@@ -373,7 +420,7 @@ function logout() {
 
 
         <!-- ================= PATIENT ================= -->
-        <template v-else-if="auth.hasRole(['Patient'])">
+        <template v-else-if="currentRole === 'Patient'">
 
           <div
             class="mb-2 px-3 text-xs font-semibold
@@ -505,7 +552,7 @@ function logout() {
                     text-sm font-semibold
                     text-violet-700"
             >
-              {{ (patient.profile?.fullName ?? auth.user.name)?.charAt(0)?.toUpperCase() || 'U' }}
+              {{ displayName.charAt(0)?.toUpperCase() || 'U' }}
             </div>
 
             <!-- Name + role -->
@@ -516,23 +563,23 @@ function logout() {
                       text-sm font-medium
                       text-slate-800"
               >
-                {{ patient.profile?.fullName ?? auth.user.name ?? 'Demo User' }}
+                {{ displayName }}
               </div>
 
               <div class="text-xs text-slate-400">
-                <template v-if="auth.hasRole(['Receptionist'])">
+                <template v-if="currentRole === 'Receptionist'">
                   Lễ tân
                 </template>
 
-                <template v-else-if="auth.hasRole(['Admin'])">
+                <template v-else-if="currentRole === 'Admin'">
                   Quản trị viên
                 </template>
 
-                <template v-else-if="auth.hasRole(['Doctor'])">
+                <template v-else-if="currentRole === 'Doctor'">
                   Bác sĩ
                 </template>
 
-                <template v-else-if="auth.hasRole(['Patient'])">
+                <template v-else-if="currentRole === 'Patient'">
                   Bệnh nhân
                 </template>
               </div>
@@ -542,6 +589,21 @@ function logout() {
           </div>
 
         <div class="flex items-center gap-3">
+          <!-- Đổi vai trò (khi có nhiều hơn 1 role) -->
+          <RouterLink
+            v-if="(auth.user?.roles?.length ?? 0) > 1"
+            to="/select-role"
+            class="text-sm font-medium text-slate-500 hover:text-violet-600 transition-colors cursor-pointer flex items-center gap-1.5 focus:outline-none"
+            title="Đổi vai trò"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <polyline points="16 11 18 13 22 9" />
+            </svg>
+            <span class="hidden sm:inline">Đổi vai trò</span>
+          </RouterLink>
+
           <!-- Đổi mật khẩu -->
           <button
             type="button"

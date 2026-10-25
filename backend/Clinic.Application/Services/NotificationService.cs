@@ -8,13 +8,11 @@ namespace Clinic.Application.Services
     public class NotificationService : INotificationService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IAppointmentNotificationHandler _appointmentHandler;
         private readonly IDueNotificationHandler _dueHandler ;
         private readonly IAccountNotificationHandler _accountNotificationHandler;
         private readonly ICustomNotificationHandler _customNotificationHandler;
 
         public NotificationService(
-            IAppointmentNotificationHandler appointmentHandler,
             IDueNotificationHandler dueHandler,
             IAccountNotificationHandler accountNotificationHandler,
             ICustomNotificationHandler customNotificationHandler,
@@ -22,7 +20,6 @@ namespace Clinic.Application.Services
         {
             _unitOfWork = unitOfWork;
             _dueHandler = dueHandler;
-            _appointmentHandler = appointmentHandler;
             _accountNotificationHandler = accountNotificationHandler;
             _customNotificationHandler = customNotificationHandler;
         }
@@ -33,9 +30,6 @@ namespace Clinic.Application.Services
         {
             switch (job)
             {
-                case NotificationJob<Appointment> appointmentJob:
-                    await _appointmentHandler.HandleAsync(appointmentJob, cancellationToken);
-                    break;
                 case NotificationJob<Account> accountJob:
                     await _accountNotificationHandler.HandleAsync(accountJob, cancellationToken);
                     break;
@@ -58,11 +52,8 @@ namespace Clinic.Application.Services
         {
             switch (job)
             {
-                case NotificationJob<Appointment> appointmentJob:
-                    await _appointmentHandler.HandleAsync(appointmentJob, cancellationToken, scheduledTime);
-                    break;
                 default:
-                    throw new NotSupportedException($"Notification job type '{job.GetType().Name}' is not supported.");
+                    throw new NotSupportedException($"Scheduled notification job type '{job.GetType().Name}' is not supported.");
             }
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }

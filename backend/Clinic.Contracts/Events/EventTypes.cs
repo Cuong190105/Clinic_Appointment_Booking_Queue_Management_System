@@ -26,4 +26,6 @@ public static class EventTypes
     public const string WorkScheduleUpdated = "WorkScheduleUpdated";
 
     public const string WorkScheduleCancelled = "WorkScheduleCancelled";
+
+    public const string UserProfileUpdated = "UserProfileUpdated";
 }

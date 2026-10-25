@@ -12,10 +12,13 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.RenameColumn(
-                name: "PatientLimit",
-                table: "WorkSchedules",
-                newName: "RecommendedCapacity");
+            migrationBuilder.Sql("""
+                IF COL_LENGTH(N'dbo.WorkSchedules', N'PatientLimit') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.WorkSchedules', N'RecommendedCapacity') IS NULL
+                BEGIN
+                    EXEC sp_rename N'dbo.WorkSchedules.PatientLimit', N'RecommendedCapacity', N'COLUMN';
+                END;
+                """);
 
             migrationBuilder.Sql("""
                 IF COL_LENGTH(N'dbo.ShiftRequests', N'PatientLimit') IS NOT NULL
@@ -92,10 +95,13 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.RenameColumn(
-                name: "RecommendedCapacity",
-                table: "WorkSchedules",
-                newName: "PatientLimit");
+            migrationBuilder.Sql("""
+                IF COL_LENGTH(N'dbo.WorkSchedules', N'RecommendedCapacity') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.WorkSchedules', N'PatientLimit') IS NULL
+                BEGIN
+                    EXEC sp_rename N'dbo.WorkSchedules.RecommendedCapacity', N'PatientLimit', N'COLUMN';
+                END;
+                """);
 
             migrationBuilder.Sql("""
                 IF COL_LENGTH(N'dbo.ShiftRequests', N'RecommendedCapacity') IS NOT NULL

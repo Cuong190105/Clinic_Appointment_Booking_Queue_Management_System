@@ -46,7 +46,8 @@ internal sealed record IdentityUserProfileResponse(
 
 internal sealed record IdentityAdminUserSummary(
     Guid UserId, Guid PersonId, string Username, string FullName, string? PhoneNumber,
-    string? Email, string Gender, IReadOnlyList<string> Roles, bool IsActive, DateTime CreatedAt);
+    string? Email, string Gender, IReadOnlyList<string> Roles, bool IsActive, DateTime CreatedAt,
+    Guid? EmployeeId, Guid? DoctorId);
 
 internal sealed record IdentityAdminUserDetail(
     Guid UserId, Guid PersonId, string Username, string FullName, string? PhoneNumber,

@@ -9,6 +9,7 @@ using Clinic.Infrastructure.Sqlserver.Notifications;
 using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Clinic.Infrastructure.Sqlserver.Outbox;
+using Clinic.Domain.Common;
 using Microsoft.OpenApi;
 using System.Reflection;
 using System.Security.Claims;
@@ -17,6 +18,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+_ = new TimeConverter(); // Fail fast when the clinic timezone is invalid.
 const string ClinicJwtScheme = "ClinicJwt";
 const string IdentityJwtScheme = "IdentityJwt";
 const string LegacyJwtScheme = "LegacyJwt";
@@ -77,10 +79,10 @@ builder.Services.AddSignalR();
 if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
 {
     builder.Services.AddHostedService<NotificationWorker>();
-            builder.Services.AddHostedService<ScheduledNotificationWorker>();
-            builder.Services.AddHostedService<OutboxPublisher>();
-            builder.Services.AddHostedService<AppointmentCheckedInConsumer>();
-        }
+    builder.Services.AddHostedService<ScheduledNotificationWorker>();
+    builder.Services.AddHostedService<OutboxPublisher>();
+    // AppointmentCheckedInConsumer removed: Queue Service is the sole consumer of AppointmentCheckedIn
+}
 
 // Add Authentication and Authorization services
 builder.Services.AddTransient<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
@@ -90,7 +92,29 @@ builder.Services.AddHttpClient("Identity", client =>
     client.BaseAddress = new Uri(identityAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
 }).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+builder.Services.AddHttpClient("Scheduling", client =>
+{
+    var schedulingAuthority = builder.Configuration["Scheduling:Authority"] ?? "http://localhost:5002";
+    client.BaseAddress = new Uri(schedulingAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddHttpClient("Appointment", client =>
+{
+    var appointmentAuthority = builder.Configuration["Appointment:Authority"] ?? "http://localhost:5003";
+    client.BaseAddress = new Uri(appointmentAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddHttpClient("Queue", client =>
+{
+    var queueAuthority = builder.Configuration["Queue:Authority"] ?? "http://localhost:5004";
+    client.BaseAddress = new Uri(queueAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddTransient<IdentityAccountClient>();
+builder.Services.AddTransient<SchedulingManagementClient>();
+builder.Services.AddTransient<ProfileProjectionSyncClient>();
+builder.Services.AddTransient<Clinic.API.Services.AppointmentServiceClient>();
+builder.Services.AddTransient<Clinic.API.Services.QueueServiceClient>();
 
 builder.Services
     .AddAuthentication(options =>
@@ -162,12 +186,6 @@ builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHand
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Clinic.Application.Interfaces.ICurrentUser, Clinic.API.Authentication.CurrentUser>();
 
-// Cấu hình business rule của Appointment (vd: số giờ tối thiểu Patient phải đổi lịch trước hạn), đọc từ section "Appointment".
-builder.Services.Configure<Clinic.API.Configuration.AppointmentPolicySettings>(
-    builder.Configuration.GetSection(Clinic.API.Configuration.AppointmentPolicySettings.SectionName));
-builder.Services.AddScoped<Clinic.Application.Interfaces.IAppointmentPolicySettings>(sp =>
-    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Clinic.API.Configuration.AppointmentPolicySettings>>().Value);
-
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -221,6 +239,23 @@ app.MapGet("/.well-known/openid-configuration", () => Results.Json(new
     token_endpoint = $"{identityPublicBaseUrl}/auth/login"
 })).AllowAnonymous();
 
+app.MapGet("/schedules", async (IHttpClientFactory clients, HttpContext context) =>
+{
+    var client = clients.CreateClient("Scheduling");
+    var queryString = context.Request.QueryString.Value ?? string.Empty;
+    var response = await client.GetAsync($"schedules{queryString}");
+    var content = await response.Content.ReadAsStringAsync();
+    return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
+}).AllowAnonymous();
+
+app.MapGet("/schedules/{id:guid}", async (Guid id, IHttpClientFactory clients) =>
+{
+    var client = clients.CreateClient("Scheduling");
+    var response = await client.GetAsync($"schedules/{id}");
+    var content = await response.Content.ReadAsStringAsync();
+    return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
+}).AllowAnonymous();
+
 app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 app.MapGet("/readyz", async (IServiceScopeFactory scopeFactory, IHttpClientFactory clients, CancellationToken ct) =>
@@ -271,8 +306,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseCors("FrontendCors");
 
+app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<SchedulingProxyMiddleware>();
 
 app.MapControllers();
 

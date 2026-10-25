@@ -4,5 +4,8 @@ public sealed record AppointmentCancelled(
     Guid AppointmentId,
     Guid PatientId,
     Guid? CancelledByUserId,
-    DateTimeOffset CancelledAt
+    DateTimeOffset CancelledAt,
+    Guid WorkScheduleId = default,
+    TimeOnly TimeSlot = default,
+    bool IsRescheduleRelease = false
 );

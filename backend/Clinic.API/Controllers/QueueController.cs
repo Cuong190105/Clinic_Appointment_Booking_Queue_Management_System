@@ -1,6 +1,5 @@
-﻿using Clinic.Application.Contracts;
-using Clinic.Application.Features.Queue.Commands;
-using MediatR;
+using Clinic.API.Services;
+using Clinic.Application.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,11 +9,11 @@ namespace Clinic.API.Controllers
     [Route("/queue")]
     public class QueueController : ControllerBase
     {
-        private readonly ISender _sender;
+        private readonly QueueServiceClient _queueClient;
 
-        public QueueController(ISender sender)
+        public QueueController(QueueServiceClient queueClient)
         {
-            _sender = sender;
+            _queueClient = queueClient;
         }
 
         [HttpPost("call-next/{doctorId}")]
@@ -23,8 +22,15 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> CallNext([FromRoute] Guid doctorId)
         {
-            var result = await _sender.Send(new CallNextQueueCommand(doctorId));
-            return Ok(result);
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/call-next/{doctorId}", HttpMethod.Post);
+        }
+
+        [HttpPost("{queueTicketId}/call")]
+        [Authorize(Policy = "Permission:queue.call-next")]
+        [ProducesResponseType(typeof(QueueTicketDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Call([FromRoute] Guid queueTicketId)
+        {
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/call", HttpMethod.Post);
         }
 
         [HttpPost("{queueTicketId}/start-exam")]
@@ -32,8 +38,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> StartExam([FromRoute] Guid queueTicketId)
         {
-            await _sender.Send(new StartExamCommand(queueTicketId));
-            return NoContent();
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/start-exam", HttpMethod.Post);
         }
 
         [HttpPost("{queueTicketId}/complete-exam")]
@@ -41,19 +46,23 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> CompleteExam([FromRoute] Guid queueTicketId)
         {
-            await _sender.Send(new CompleteExamCommand(queueTicketId));
-            return NoContent();
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/complete-exam", HttpMethod.Post);
         }
 
         [HttpPost("{queueTicketId}/skip")]
-        [Authorize(Policy = "Permission:queue.skip")]
-        [ProducesResponseType(typeof(SkipQueueResult), StatusCodes.Status200OK)]
+        [Authorize(Policy = "Permission:queue.skip,queue.skip-waiting")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Skip([FromRoute] Guid queueTicketId)
         {
-            // Trả về 200 kèm SkipQueueResult (thay vì 204) vì FE cần biết bệnh nhân tiếp theo
-            // có được tự động gọi thay cho lễ tân hay không, để cập nhật màn hình "đang gọi số".
-            var result = await _sender.Send(new SkipQueueCommand(queueTicketId));
-            return Ok(result);
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/skip", HttpMethod.Post);
+        }
+
+        [HttpPost("{queueTicketId}/retry")]
+        [Authorize(Policy = "Permission:queue.retry")]
+        [ProducesResponseType(typeof(QueueTicketDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Retry([FromRoute] Guid queueTicketId)
+        {
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/retry", HttpMethod.Post);
         }
 
         [HttpPatch("{queueTicketId}/priority")]
@@ -61,8 +70,25 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> SetPriority([FromRoute] Guid queueTicketId, [FromBody] SetQueuePriorityRequest request)
         {
-            await _sender.Send(new SetQueuePriorityCommand(queueTicketId, request.Priority));
-            return NoContent();
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/priority", new HttpMethod("PATCH"), request);
+        }
+
+        [HttpGet("{queueTicketId}")]
+        [Authorize]
+        [ProducesResponseType(typeof(QueueTicketDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetById([FromRoute] Guid queueTicketId)
+        {
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}", HttpMethod.Get);
+        }
+
+        [HttpGet("appointment/{appointmentId}")]
+        [Authorize]
+        [ProducesResponseType(typeof(QueueTicketDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetByAppointmentId([FromRoute] Guid appointmentId)
+        {
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/appointment/{appointmentId}", HttpMethod.Get);
         }
     }
 

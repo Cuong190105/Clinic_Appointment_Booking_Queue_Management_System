@@ -34,7 +34,6 @@ public sealed class OutboxWriterTests
                     Guid.NewGuid(),
                     Guid.NewGuid(),
                     Guid.NewGuid(),
-                    Guid.NewGuid(),
                     DateTimeOffset.UtcNow)
             },
             "appointment.checked-in");
@@ -75,7 +74,6 @@ public sealed class OutboxWriterTests
             CorrelationId = Guid.NewGuid(),
             Producer = "appointment-service",
             Payload = new AppointmentCheckedIn(
-                Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),

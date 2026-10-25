@@ -321,7 +321,31 @@ export const usePatientStore = defineStore('patient', () => {
     }
   }
 
+  function reset() {
+    doctors.value = []
+    slots.value = []
+    appointments.value = []
+    queue.value = null
+    history.value = []
+    profile.value = null
+
+    doctorsLoading.value = false
+    slotsLoading.value = false
+    appointmentsLoading.value = false
+    queueLoading.value = false
+    historyLoading.value = false
+    profileLoading.value = false
+
+    doctorsError.value = null
+    slotsError.value = null
+    appointmentsError.value = null
+    queueError.value = null
+    historyError.value = null
+    profileError.value = null
+  }
+
   return {
+    reset,
     // Data
     doctors,
     slots,

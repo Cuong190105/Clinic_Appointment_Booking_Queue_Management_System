@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { usePatientStore } from '@/stores/patient'
+import ChangePasswordModal from '@/components/ui/ChangePasswordModal.vue'
 import type { UserRole } from '@/features/auth/auth.types'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const patient = usePatientStore()
+
+const isChangePasswordOpen = ref(false)
 
 interface RoleOption {
   role: UserRole
@@ -53,6 +58,40 @@ const ROLE_META: Record<UserRole, Omit<RoleOption, 'role'>> = {
   },
 }
 
+const currentRole = computed<string>(() => {
+  return auth.user?.activeRole ?? auth.currentUserRole ?? auth.user?.role ?? auth.user?.roles?.[0] ?? ''
+})
+
+const displayName = computed(() => {
+  if (currentRole.value === 'Patient' && patient.profile?.fullName) {
+    return patient.profile.fullName
+  }
+  return auth.user?.name || 'User'
+})
+
+const roleLabel = computed(() => {
+  if (currentRole.value === 'Receptionist') return 'Lễ tân'
+  if (currentRole.value === 'Admin') return 'Quản trị viên'
+  if (currentRole.value === 'Doctor') return 'Bác sĩ'
+  if (currentRole.value === 'Patient') return 'Bệnh nhân'
+  if (auth.user?.roles?.length) {
+    const roleMap: Record<UserRole, string> = {
+      Patient: 'Bệnh nhân',
+      Receptionist: 'Lễ tân',
+      Doctor: 'Bác sĩ',
+      Admin: 'Quản trị viên',
+    }
+    return auth.user.roles.map((r) => roleMap[r] || r).join(', ')
+  }
+  return 'Người dùng'
+})
+
+onMounted(() => {
+  if (auth.isAuthenticated) {
+    auth.fetchMe().catch(() => undefined)
+  }
+})
+
 const availableRoles = computed<UserRole[]>(() =>
   auth.user?.roles?.length ? auth.user.roles : [auth.currentUserRole ?? 'Patient'],
 )
@@ -79,6 +118,11 @@ function selectRole(role: UserRole) {
   if (router.push) {
     router.push(redirect || routeMap[role])
   }
+}
+
+function logout() {
+  auth.logout()
+  router.push('/login')
 }
 
 function getTagClass(color: RoleOption['tagColor']) {
@@ -111,7 +155,65 @@ function getTagClass(color: RoleOption['tagColor']) {
           </p>
         </div>
       </div>
-      <div class="flex items-center gap-2.5">
+
+      <!-- User info when authenticated / Guest buttons when not -->
+      <div v-if="auth.isAuthenticated && auth.user" class="flex items-center gap-4">
+        <!-- USER INFO -->
+        <div class="flex items-center gap-3">
+          <!-- Avatar -->
+          <div
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-sm font-semibold text-violet-700"
+          >
+            {{ displayName.charAt(0)?.toUpperCase() || 'U' }}
+          </div>
+
+          <!-- Name + role -->
+          <div class="min-w-0 text-left">
+            <div class="max-w-36 truncate text-sm font-medium text-slate-800">
+              {{ displayName }}
+            </div>
+            <div class="text-xs text-slate-400">
+              {{ roleLabel }}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Đổi mật khẩu -->
+          <button
+            type="button"
+            class="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-[#0E4D92] focus:outline-none"
+            @click="isChangePasswordOpen = true"
+            title="Đổi mật khẩu"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span class="hidden sm:inline">Đổi mật khẩu</span>
+          </button>
+
+          <!-- Logout -->
+          <button
+            type="button"
+            class="cursor-pointer text-sm font-medium text-slate-500 transition-colors hover:text-red-600 focus:outline-none"
+            @click="logout"
+          >
+            Đăng xuất
+          </button>
+        </div>
+      </div>
+
+      <div v-else class="flex items-center gap-2.5">
         <button
           type="button"
           @click="router.push('/register')"
@@ -164,18 +266,25 @@ function getTagClass(color: RoleOption['tagColor']) {
               {{ item.tag }}
             </span>
           </div>
+
           <div>
-            <h3 class="mb-1 text-lg font-bold text-slate-800">
+            <h2 class="text-base font-bold text-slate-800 group-hover:text-[#0E4D92]">
               {{ item.title }}
-            </h3>
-            <p class="mb-3 text-sm leading-relaxed text-slate-500">
+            </h2>
+            <p class="mt-0.5 text-xs text-slate-500">
               {{ item.desc }}
+            </p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-2.5">
+            <p class="mb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              Tính năng chính
             </p>
             <ul class="space-y-1">
               <li
                 v-for="f in item.features"
                 :key="f"
-                class="flex items-center gap-2 text-xs text-slate-500"
+                class="flex items-center gap-1.5 text-xs text-slate-600"
               >
                 <span class="text-[#00A878]">✓</span>
                 {{ f }}
@@ -201,5 +310,10 @@ function getTagClass(color: RoleOption['tagColor']) {
     <footer class="border-t border-slate-200 py-3 text-center text-xs text-slate-400">
       © 2026 ClinicQueue · Hệ thống quản lý phòng khám · v1.0
     </footer>
+
+    <ChangePasswordModal
+      :open="isChangePasswordOpen"
+      @close="isChangePasswordOpen = false"
+    />
   </div>
 </template>

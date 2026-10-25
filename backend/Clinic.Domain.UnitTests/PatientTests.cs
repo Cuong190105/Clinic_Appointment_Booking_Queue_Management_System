@@ -20,24 +20,6 @@ namespace Clinic.Domain.UnitTests
             Assert.Equal("INS-987654321", patient.InsuranceNumber);
             Assert.Equal("0987654321", patient.EmergencyContact);
             Assert.False(patient.IsDeleted);
-            Assert.Empty(patient.Appointments);
-        }
-
-        [Fact]
-        public void AddAppointment_ShouldAddToAppointmentsCollection()
-        {
-            // Arrange
-            var person = TestDataFactory.CreatePerson();
-            var patient = new Patient(person, "INS-987654321", "0987654321");
-
-            var appointment = TestDataFactory.CreateAppointment(patientId: patient.Id);
-
-            // Act
-            patient.Appointments.Add(appointment);
-
-            // Assert
-            Assert.Single(patient.Appointments);
-            Assert.Contains(appointment, patient.Appointments);
         }
     }
 }

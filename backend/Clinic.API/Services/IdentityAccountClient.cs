@@ -54,6 +54,23 @@ public sealed class IdentityAccountClient(IHttpClientFactory factory, IConfigura
         return (roles, patientId, employeeId, doctorId);
     }
 
+    public async Task<IdentityUserProfile?> GetUserProfileAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"v1/internal/users/{userId}");
+        using var response = await _client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<IdentityUserProfile>(cancellationToken);
+    }
+
+    public async Task<bool> UpdateProfileAsync(Guid userId, string fullName, string? phoneNumber, string? email,
+        DateOnly dateOfBirth, Gender gender, string? address, CancellationToken cancellationToken)
+    {
+        using var request = CreateRequest(HttpMethod.Put, $"v1/internal/users/{userId}/profile");
+        request.Content = JsonContent.Create(new { fullName, phoneNumber, email, dateOfBirth, gender = gender.ToString(), address });
+        using var response = await _client.SendAsync(request, cancellationToken);
+        return response.StatusCode == HttpStatusCode.NoContent;
+    }
+
     public async Task<IReadOnlyList<Clinic.API.Models.IdentityRoleDetails>?> GetRoleCatalogAsync(
         IReadOnlyList<string>? names, CancellationToken cancellationToken)
     {
@@ -84,3 +101,6 @@ public sealed class IdentityAccountClient(IHttpClientFactory factory, IConfigura
 }
 
 public sealed record IdentityProvisionResult(Guid UserId, Guid PersonId, bool IsActive, bool Created);
+public sealed record IdentityUserProfile(Guid UserId, Guid PersonId, string Username, string FullName,
+    string? PhoneNumber, string? Email, string Gender, string? Address, DateOnly DateOfBirth,
+    IReadOnlyList<string> Roles, bool IsActive, DateTime CreatedAt, Guid? PatientId, Guid? EmployeeId, Guid? DoctorId);

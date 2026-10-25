@@ -436,6 +436,25 @@ internalUsers.MapPut("/{userId:guid}/roles", async (Guid userId, UpdateAccountRo
     return Results.NoContent();
 }).AllowAnonymous();
 
+internalUsers.MapPut("/{userId:guid}/profile", async (Guid userId, UpdateIdentityProfileRequest request, HttpRequest httpRequest, IdentityDbContext db, CancellationToken ct) =>
+{
+    if (!HasServiceToken(httpRequest, serviceToken)) return Results.Unauthorized();
+    if (string.IsNullOrWhiteSpace(request.FullName) || request.FullName.Trim().Length > 200 ||
+        (request.PhoneNumber?.Length ?? 0) > 20 || (request.Email?.Length ?? 0) > 200 ||
+        (request.Address?.Length ?? 0) > 500 || string.IsNullOrWhiteSpace(request.Gender))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["profile"] = ["Profile fields are invalid."] });
+    var user = await db.Users.Include(x => x.Person).SingleOrDefaultAsync(x => x.Id == userId, ct);
+    if (user is null) return Results.NotFound();
+    var phone = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim();
+    if (phone is not null && await db.Persons.AnyAsync(x => x.Id != user.PersonId && x.PhoneNumber == phone, ct))
+        return Results.Conflict(new { code = "phone_exists", message = "Phone number is already in use." });
+    user.Person.FullName = request.FullName.Trim(); user.Person.PhoneNumber = phone;
+    user.Person.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+    user.Person.DateOfBirth = request.DateOfBirth; user.Person.Gender = request.Gender.Trim(); user.Person.Address = request.Address;
+    await db.SaveChangesAsync(ct);
+    return Results.NoContent();
+}).AllowAnonymous();
+
 internalUsers.MapGet("", async (HttpRequest request, IdentityDbContext db, CancellationToken ct) =>
 {
     if (!HasServiceToken(request, serviceToken)) return Results.Unauthorized();
@@ -456,7 +475,8 @@ internalUsers.MapGet("", async (HttpRequest request, IdentityDbContext db, Cance
     var rows = await query.Skip((page - 1) * size).Take(size).ToListAsync(ct);
     return Results.Ok(new PagedAdminUsers(rows.Select(x => new AdminUserSummary(
         x.Id, x.PersonId, x.Username, x.Person.FullName, x.Person.PhoneNumber, x.Person.Email,
-        x.Person.Gender, x.UserRoles.Select(ur => ur.Role.Name).Order().ToArray(), x.IsActive, x.CreatedAt)).ToArray(), total, page, size));
+        x.Person.Gender, x.UserRoles.Select(ur => ur.Role.Name).Order().ToArray(), x.IsActive, x.CreatedAt,
+        x.EmployeeId, x.DoctorId)).ToArray(), total, page, size));
 }).AllowAnonymous();
 
 internalUsers.MapGet("/{userId:guid}", async (Guid userId, HttpRequest request, IdentityDbContext db, CancellationToken ct) =>
@@ -521,8 +541,12 @@ static async Task<TokenResponse> IssueTokens(IdentityUser user, IdentityDbContex
     {
         new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
         new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        new(JwtRegisteredClaimNames.UniqueName, user.Username),
+        new("name", user.Person?.FullName ?? user.Username),
+        new("username", user.Username),
         new("personId", user.PersonId.ToString())
     };
+    if (!string.IsNullOrWhiteSpace(user.Person?.Email)) claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Person.Email));
     claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
     claims.AddRange(permissions.Select(permission => new Claim("permission", permission)));
     if (user.PatientId is Guid patientId) claims.Add(new Claim("patientId", patientId.ToString()));
@@ -554,6 +578,47 @@ static async Task SeedRolesAsync(IdentityDbContext db)
     foreach (var (roleName, roleId) in roles)
         if (!await db.Roles.AnyAsync(x => x.Name == roleName))
             db.Roles.Add(new IdentityRole { Id = roleId, Name = roleName, Description = roleName });
+    await db.SaveChangesAsync();
+
+    var queuePermissionNames = new[]
+    {
+        "queue.view", "doctor.queue.view", "queue.call-next", "queue.skip", "queue.skip-waiting",
+        "queue.retry", "queue.priority", "queue.start-exam.own", "queue.start-exam.any",
+        "queue.complete-exam.own", "queue.complete-exam.any"
+    };
+    var permissions = await db.Permissions.Where(p => queuePermissionNames.Contains(p.Name)).ToListAsync();
+    foreach (var name in queuePermissionNames.Except(permissions.Select(p => p.Name), StringComparer.OrdinalIgnoreCase))
+    {
+        var permission = new IdentityPermission { Id = Guid.NewGuid(), Name = name, Description = name };
+        db.Permissions.Add(permission);
+        permissions.Add(permission);
+    }
+    await db.SaveChangesAsync();
+
+    var rolePermissionMap = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Admin"] = queuePermissionNames,
+        ["Receptionist"] = ["queue.view", "queue.call-next", "queue.skip-waiting", "queue.retry", "queue.priority"],
+        ["Doctor"] = ["doctor.queue.view", "queue.call-next", "queue.skip", "queue.start-exam.own", "queue.complete-exam.own"]
+    };
+    var knownQueuePermissions = queuePermissionNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var queueRoles = await db.Roles.Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission).ToListAsync();
+    foreach (var (roleName, permissionNames) in rolePermissionMap)
+    {
+        var role = queueRoles.FirstOrDefault(r => string.Equals(r.Name, roleName, StringComparison.OrdinalIgnoreCase));
+        if (role is null) continue;
+        var allowedPermissions = permissionNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var staleLinks = role.RolePermissions
+            .Where(rp => knownQueuePermissions.Contains(rp.Permission.Name) && !allowedPermissions.Contains(rp.Permission.Name))
+            .ToList();
+        db.RolePermissions.RemoveRange(staleLinks);
+        foreach (var permissionName in permissionNames)
+        {
+            var permission = permissions.First(p => string.Equals(p.Name, permissionName, StringComparison.OrdinalIgnoreCase));
+            if (!role.RolePermissions.Any(rp => rp.PermissionId == permission.Id))
+                db.RolePermissions.Add(new IdentityRolePermission { RoleId = role.Id, PermissionId = permission.Id });
+        }
+    }
     await db.SaveChangesAsync();
 }
 

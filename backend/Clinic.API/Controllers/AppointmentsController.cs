@@ -1,14 +1,8 @@
 using Clinic.API.Models;
+using Clinic.API.Services;
 using Clinic.Application.Contracts;
-using Clinic.Application.Features.Appointments.Commands;
-using Clinic.Application.Features.Appointments.Queries;
-using Clinic.Application.Interfaces;
-using MapsterMapper;
-using Clinic.Application.Features.Queue.Commands;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Reflection.Metadata.Ecma335;
 
 namespace Clinic.API.Controllers
 {
@@ -16,15 +10,11 @@ namespace Clinic.API.Controllers
     [Route("/appointments")]
     public class AppointmentsController : ControllerBase
     {
-        private readonly ISender _sender;
-        private readonly IMapper _mapper;
-        private readonly ICurrentUser _currentUser;
+        private readonly AppointmentServiceClient _appointmentClient;
 
-        public AppointmentsController(ISender sender, IMapper mapper, ICurrentUser currentUser)
+        public AppointmentsController(AppointmentServiceClient appointmentClient)
         {
-            _sender = sender;
-            _mapper = mapper;
-            _currentUser = currentUser;
+            _appointmentClient = appointmentClient;
         }
 
         [HttpGet("{appointmentId}")]
@@ -33,17 +23,9 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetAppointment([FromRoute] Guid appointmentId)
         {
-            var userId = _currentUser.UserId;
-            if (userId == null)
-                return Unauthorized();
-
-            var command = new GetAppointmentByIdQuery(appointmentId, (Guid)userId);
-            var appointment = await _sender.Send(command);
-            return Ok(appointment);
+            return await _appointmentClient.ProxyAsync(HttpContext, $"appointments/{appointmentId}", HttpMethod.Get);
         }
 
-
-        // For patient only
         [HttpPost]
         [Authorize(Policy = "Permission:appointment.create")]
         [ProducesResponseType(typeof(AppointmentDetailDto), StatusCodes.Status201Created)]
@@ -51,16 +33,12 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Create(
-            [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
             [FromBody] CreateAppointmentRequest request)
         {
-            var userId = _currentUser.UserId;
-            var command = new CreateAppointmentCommand(userId, request.WorkScheduleId, request.TimeSlot, request.Reason, false);
-            var result = await _sender.Send(command);
-            return CreatedAtAction(nameof(GetAppointment), new { appointmentId = result.Id }, result);
+            return await _appointmentClient.ProxyAsync(HttpContext, "appointments", HttpMethod.Post, request, HttpContext.RequestAborted);
         }
 
-        // For patient only
         [HttpPatch("{appointmentId}")]
         [Authorize(Policy = "Permission:appointment.edit.own,appointment.edit.any")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -70,12 +48,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Patch([FromRoute] Guid appointmentId, [FromBody] UpdateAppointmentRequest request)
         {
-            var userId = _currentUser.UserId;
-            if (userId == null)
-                return Unauthorized();
-            var command = new UpdateAppointmentCommand((Guid)userId, appointmentId, request.NewWorkScheduleId, request.TimeSlot, request.Reason);
-            await _sender.Send(command);
-            return NoContent();
+            return await _appointmentClient.ProxyAsync(HttpContext, $"appointments/{appointmentId}", new HttpMethod("PATCH"), request);
         }
 
         [HttpPost("{appointmentId}/confirm")]
@@ -87,12 +60,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Confirm([FromRoute] Guid appointmentId)
         {
-            var userId = _currentUser.UserId;
-            if (userId == null)
-                return Unauthorized();
-            var command = new ConfirmAppointmentCommand(appointmentId, (Guid)userId);
-            await _sender.Send(command);
-            return NoContent();
+            return await _appointmentClient.ProxyAsync(HttpContext, $"appointments/{appointmentId}/confirm", HttpMethod.Post);
         }
 
         [HttpPost("{appointmentId}/check-in")]
@@ -104,19 +72,23 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CheckIn(
             [FromRoute] Guid appointmentId,
-            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey)
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+            [FromQuery] bool isUrgent = false)
         {
-            if (!Guid.TryParse(idempotencyKey, out var parsedIdempotencyKey) || parsedIdempotencyKey == Guid.Empty)
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
                 return BadRequest(new ProblemDetails
                 {
-                    Title = "A valid Idempotency-Key header is required.",
+                    Title = "Missing Idempotency-Key",
+                    Detail = "Idempotency-Key header is required.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
 
-            await _sender.Send(new CheckInCommand(appointmentId, parsedIdempotencyKey));
-            return NoContent();
+            return await _appointmentClient.ProxyAsync(
+                HttpContext,
+                $"appointments/{appointmentId}/check-in?isUrgent={isUrgent.ToString().ToLowerInvariant()}",
+                HttpMethod.Post);
         }
 
         [HttpPost("{appointmentId}/cancel")]
@@ -128,8 +100,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Cancel([FromRoute] Guid appointmentId)
         {
-            await _sender.Send(new CancelAppointmentCommand(appointmentId));
-            return NoContent();
+            return await _appointmentClient.ProxyAsync(HttpContext, $"appointments/{appointmentId}/cancel", HttpMethod.Post);
         }
     }
 
@@ -137,15 +108,11 @@ namespace Clinic.API.Controllers
     [Route("/me/appointments")]
     public class MeAppointmentsController : ControllerBase
     {
-        private readonly ISender _sender;
-        private readonly IMapper _mapper;
-        private readonly ICurrentUser _currentUser;
+        private readonly AppointmentServiceClient _appointmentClient;
 
-        public MeAppointmentsController(ISender sender, IMapper mapper, ICurrentUser currentUser)
+        public MeAppointmentsController(AppointmentServiceClient appointmentClient)
         {
-            _sender = sender;
-            _mapper = mapper;
-            _currentUser = currentUser;
+            _appointmentClient = appointmentClient;
         }
 
         [HttpGet]
@@ -153,13 +120,8 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(IEnumerable<AppointmentDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMine([FromQuery] string? category)
         {
-            var userId = _currentUser.UserId;
-            if (userId == null)
-                return Unauthorized();
-
-            var command = new GetPatientAppointmentsQuery((Guid)userId, category);
-            var appointments = await _sender.Send(command);
-            return Ok(appointments);
+            var query = string.IsNullOrWhiteSpace(category) ? string.Empty : $"?category={Uri.EscapeDataString(category)}";
+            return await _appointmentClient.ProxyAsync(HttpContext, $"me/appointments{query}", HttpMethod.Get);
         }
     }
 }

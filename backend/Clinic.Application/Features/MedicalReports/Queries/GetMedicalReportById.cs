@@ -28,9 +28,8 @@ namespace Clinic.Application.Features.MedicalReports.Queries
             var report = await _medicalReportRepository.GetByIdWithOwnershipAsync(request.Id)
                 ?? throw new NotFoundException($"Medical report '{request.Id}' not found.");
 
-            var appointment = report.Appointment;
-            var isAssignedDoctor = appointment.WorkSchedule.DoctorId == _currentUser.DoctorId;
-            var isOwnerPatient = appointment.PatientId == _currentUser.PatientId;
+            var isAssignedDoctor = report.DoctorId == _currentUser.DoctorId;
+            var isOwnerPatient = report.PatientId == _currentUser.PatientId;
             var hasAnyScope = _currentUser.HasPermission("medical-report.view.any");
 
             if (!isAssignedDoctor && !isOwnerPatient && !hasAnyScope)
@@ -41,12 +40,13 @@ namespace Clinic.Application.Features.MedicalReports.Queries
             return new MedicalReportDto
             {
                 Id = report.Id,
-                AppointmentId = appointment.Id,
-                PatientId = appointment.PatientId,
-                PatientName = appointment.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = appointment.WorkSchedule.DoctorId,
-                DoctorName = appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                ExamDate = appointment.WorkSchedule.Date,
+                AppointmentId = report.AppointmentId,
+                PatientId = report.PatientId,
+                PatientName = report.Patient?.Person?.FullName ?? string.Empty,
+                DoctorId = report.DoctorId ?? Guid.Empty,
+                DoctorName = report.DoctorName ?? string.Empty,
+                SpecialtyName = report.SpecialtyName ?? string.Empty,
+                ExamDate = report.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,
