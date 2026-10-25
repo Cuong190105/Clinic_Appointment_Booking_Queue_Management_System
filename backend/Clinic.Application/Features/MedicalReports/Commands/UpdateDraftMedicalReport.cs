@@ -1,7 +1,6 @@
 using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
-using Clinic.Contracts.Events;
 using Clinic.Domain.Enums;
 using MediatR;
 using System;
@@ -24,21 +23,15 @@ namespace Clinic.Application.Features.MedicalReports.Commands
         private readonly IMedicalReportRepository _medicalReportRepository;
         private readonly ICurrentUser _currentUser;
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IOutboxWriter? _outboxWriter;
-        private readonly IEventContext? _eventContext;
 
         public UpdateDraftMedicalReportHandler(
             IMedicalReportRepository medicalReportRepository,
             ICurrentUser currentUser,
-            IUnitOfWork unitOfWork,
-            IOutboxWriter? outboxWriter = null,
-            IEventContext? eventContext = null)
+            IUnitOfWork unitOfWork)
         {
             _medicalReportRepository = medicalReportRepository;
             _currentUser = currentUser;
             _unitOfWork = unitOfWork;
-            _outboxWriter = outboxWriter;
-            _eventContext = eventContext;
         }
 
         public async Task<MedicalReportDto> Handle(UpdateDraftMedicalReportCommand request, CancellationToken cancellationToken)
@@ -51,9 +44,8 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 throw new InvalidOperationException("Hồ sơ đã hoàn tất và chốt, không thể chỉnh sửa.");
             }
 
-            var appointment = report.Appointment;
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any") || _currentUser.HasPermission("medical-report.view.any");
-            if (!hasAnyScope && appointment?.DoctorId != _currentUser.DoctorId)
+            if (!hasAnyScope && report.DoctorId != _currentUser.DoctorId)
             {
                 throw new ForbiddenException("You are not allowed to update another doctor's medical report.");
             }
@@ -63,40 +55,6 @@ namespace Clinic.Application.Features.MedicalReports.Commands
             if (request.IsFinalize)
             {
                 report.FinalizeReport();
-
-                var ticket = appointment?.QueueTicket;
-                if (ticket != null && ticket.Status == QueueStatus.InProgress)
-                {
-                    ticket.Complete();
-                }
-
-                if (appointment != null && appointment.Status == AppointmentStatus.CheckedIn)
-                {
-                    appointment.Complete(_currentUser.UserId ?? Guid.Empty);
-                }
-
-                if (appointment != null && _outboxWriter != null)
-                {
-                    var completedAt = DateTimeOffset.UtcNow;
-                    var docId = appointment.DoctorId;
-                    _outboxWriter.Add(
-                        new EventEnvelope<ExamCompleted>
-                        {
-                            EventId = Guid.NewGuid(),
-                            EventType = EventTypes.ExamCompleted,
-                            SchemaVersion = 1,
-                            OccurredAt = completedAt,
-                            CorrelationId = _eventContext?.CorrelationId ?? Guid.NewGuid(),
-                            CausationId = _eventContext?.CausationId,
-                            Producer = "queue-service",
-                            Payload = new ExamCompleted(
-                                ticket?.Id ?? Guid.Empty,
-                                appointment.Id,
-                                docId,
-                                completedAt)
-                        },
-                        "queue.exam-completed");
-                }
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -106,10 +64,11 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 Id = report.Id,
                 AppointmentId = report.AppointmentId,
                 PatientId = report.PatientId,
-                PatientName = report.Patient?.Person?.FullName ?? appointment?.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = appointment?.DoctorId ?? Guid.Empty,
-                DoctorName = appointment?.DoctorName ?? string.Empty,
-                ExamDate = appointment?.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
+                PatientName = report.Patient?.Person?.FullName ?? string.Empty,
+                DoctorId = report.DoctorId ?? Guid.Empty,
+                DoctorName = report.DoctorName ?? string.Empty,
+                SpecialtyName = report.SpecialtyName ?? string.Empty,
+                ExamDate = report.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,

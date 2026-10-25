@@ -26,16 +26,12 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         }
 
         /// <summary>
-        /// Lấy 1 hồ sơ khám bệnh, kèm Appointment -> QueueTicket/WorkSchedule (Doctor) và Patient
-        /// để phục vụ resource-based authorization (own/related/any).
+        /// Loads the report with its Clinic-owned patient profile for resource-based authorization.
+        /// Appointment and queue ownership data is stored as report snapshots.
         /// </summary>
         public async Task<MedicalReport?> GetByIdWithOwnershipAsync(Guid id)
         {
             return await _context.MedicalReports
-                .Include(mr => mr.Appointment)
-
-                .Include(mr => mr.Appointment)
-                    .ThenInclude(a => a.QueueTicket)
                 .Include(mr => mr.Patient)
                     .ThenInclude(p => p.Person)
                 .FirstOrDefaultAsync(mr => mr.Id == id && !mr.IsDeleted);
@@ -44,10 +40,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<MedicalReport?> GetByAppointmentIdAsync(Guid appointmentId)
         {
             return await _context.MedicalReports
-                .Include(mr => mr.Appointment)
-
-                .Include(mr => mr.Appointment)
-                    .ThenInclude(a => a.QueueTicket)
                 .Include(mr => mr.Patient)
                     .ThenInclude(p => p.Person)
                 .FirstOrDefaultAsync(mr => mr.AppointmentId == appointmentId && !mr.IsDeleted);
@@ -59,8 +51,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<List<MedicalReport>> GetHistoryByPatientIdAsync(Guid patientId)
         {
             return await _context.MedicalReports
-                .Include(mr => mr.Appointment)
-
                 .Include(mr => mr.Patient)
                     .ThenInclude(p => p.Person)
                 .Where(mr => mr.PatientId == patientId && !mr.IsDeleted)
@@ -79,17 +69,13 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             CancellationToken cancellationToken = default)
         {
             var query = _context.MedicalReports
-                .Include(mr => mr.Appointment)
-
-                .Include(mr => mr.Appointment)
-                    .ThenInclude(a => a.QueueTicket)
                 .Include(mr => mr.Patient)
                     .ThenInclude(p => p.Person)
                 .Where(mr => !mr.IsDeleted);
 
             if (doctorId.HasValue)
             {
-                query = query.Where(mr => mr.Appointment != null && mr.Appointment.DoctorId == doctorId.Value);
+                query = query.Where(mr => mr.DoctorId == doctorId.Value);
             }
 
             if (status.HasValue)
@@ -99,12 +85,12 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
             if (fromDate.HasValue)
             {
-                query = query.Where(mr => mr.Appointment != null && mr.Appointment.ScheduleDate >= fromDate.Value);
+                query = query.Where(mr => mr.ScheduleDate >= fromDate.Value);
             }
 
             if (toDate.HasValue)
             {
-                query = query.Where(mr => mr.Appointment != null && mr.Appointment.ScheduleDate <= toDate.Value);
+                query = query.Where(mr => mr.ScheduleDate <= toDate.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -117,7 +103,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                     (mr.Symptoms != null && mr.Symptoms.Contains(term)) ||
                     (mr.Notes != null && mr.Notes.Contains(term)) ||
                     (mr.Prescription != null && mr.Prescription.Contains(term)) ||
-                    (mr.Appointment != null && mr.Appointment.DoctorName != null && mr.Appointment.DoctorName.Contains(term)));
+                    (mr.DoctorName != null && mr.DoctorName.Contains(term)));
             }
 
             var totalCount = await query.CountAsync(cancellationToken);
@@ -129,6 +115,13 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .ToListAsync(cancellationToken);
 
             return (items, totalCount);
+        }
+
+        public Task<bool> ExistsForDoctorAndPatientAsync(Guid doctorId, Guid patientId, CancellationToken cancellationToken = default)
+        {
+            return _context.MedicalReports.AnyAsync(
+                report => !report.IsDeleted && report.DoctorId == doctorId && report.PatientId == patientId,
+                cancellationToken);
         }
     }
 }

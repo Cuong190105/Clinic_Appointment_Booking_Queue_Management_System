@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
@@ -120,5 +121,37 @@ public sealed class AppointmentServiceClient
             return null;
         }
     }
+
+    public async Task<T?> GetAsync<T>(HttpContext httpContext, string targetPath, CancellationToken ct = default)
+    {
+        using var document = await GetJsonAsync(httpContext, targetPath, ct);
+        if (document is null) return default;
+        return JsonSerializer.Deserialize<T>(document.RootElement.GetRawText(), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
+
+    public async Task<ServiceReadResult<T>> GetResultAsync<T>(HttpContext httpContext, string targetPath, CancellationToken ct = default)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, targetPath);
+            if (httpContext.Request.Headers.TryGetValue("Authorization", out var authHeader))
+                request.Headers.TryAddWithoutValidation("Authorization", authHeader.ToArray());
+            using var response = await _client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+                return new ServiceReadResult<T>(response.StatusCode, default);
+            var value = await response.Content.ReadFromJsonAsync<T>(cancellationToken: ct);
+            return new ServiceReadResult<T>(response.StatusCode, value);
+        }
+        catch (HttpRequestException) when (!ct.IsCancellationRequested)
+        {
+            return new ServiceReadResult<T>(HttpStatusCode.ServiceUnavailable, default);
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return new ServiceReadResult<T>(HttpStatusCode.ServiceUnavailable, default);
+        }
+    }
 }
+
+public sealed record ServiceReadResult<T>(HttpStatusCode StatusCode, T? Value);
 

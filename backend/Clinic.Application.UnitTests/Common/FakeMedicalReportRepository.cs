@@ -60,7 +60,7 @@ namespace Clinic.Application.UnitTests.Common
 
             if (doctorId.HasValue)
             {
-                query = query.Where(r => r.Appointment != null && r.Appointment.DoctorId == doctorId.Value);
+                query = query.Where(r => r.DoctorId == doctorId.Value);
             }
 
             if (status.HasValue)
@@ -70,12 +70,12 @@ namespace Clinic.Application.UnitTests.Common
 
             if (fromDate.HasValue)
             {
-                query = query.Where(r => r.Appointment != null && r.Appointment.ScheduleDate >= fromDate.Value);
+                query = query.Where(r => r.ScheduleDate >= fromDate.Value);
             }
 
             if (toDate.HasValue)
             {
-                query = query.Where(r => r.Appointment != null && r.Appointment.ScheduleDate <= toDate.Value);
+                query = query.Where(r => r.ScheduleDate <= toDate.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -96,6 +96,11 @@ namespace Clinic.Application.UnitTests.Common
                 .ToList();
 
             return Task.FromResult((items, totalCount));
+        }
+
+        public Task<bool> ExistsForDoctorAndPatientAsync(Guid doctorId, Guid patientId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_reports.Any(report => !report.IsDeleted && report.DoctorId == doctorId && report.PatientId == patientId));
         }
     }
 }

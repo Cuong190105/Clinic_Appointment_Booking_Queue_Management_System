@@ -31,9 +31,8 @@ public sealed class GetMedicalReportByAppointmentHandler
             return null;
         }
 
-        var appointment = report.Appointment;
-        var isAssignedDoctor = appointment.DoctorId == _currentUser.DoctorId;
-        var isOwnerPatient = appointment.PatientId == _currentUser.PatientId;
+        var isAssignedDoctor = report.DoctorId == _currentUser.DoctorId;
+        var isOwnerPatient = report.PatientId == _currentUser.PatientId;
         var hasAnyScope = _currentUser.HasPermission("medical-report.view.any");
 
         if (!isAssignedDoctor && !isOwnerPatient && !hasAnyScope)
@@ -44,12 +43,13 @@ public sealed class GetMedicalReportByAppointmentHandler
         return new MedicalReportDto
         {
             Id = report.Id,
-            AppointmentId = appointment.Id,
+            AppointmentId = report.AppointmentId,
             PatientId = report.PatientId,
             PatientName = report.Patient?.Person?.FullName ?? string.Empty,
-            DoctorId = appointment.DoctorId,
-            DoctorName = appointment.DoctorName,
-            ExamDate = appointment.ScheduleDate != default ? appointment.ScheduleDate : DateOnly.FromDateTime(report.CreatedAt),
+            DoctorId = report.DoctorId ?? Guid.Empty,
+            DoctorName = report.DoctorName ?? string.Empty,
+            SpecialtyName = report.SpecialtyName ?? string.Empty,
+            ExamDate = report.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
             Symptoms = report.Symptoms,
             Diagnosis = report.Diagnosis,
             Prescription = report.Prescription,

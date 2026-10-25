@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using Clinic.Contracts.Events;
+using Clinic.Contracts.Analytics;
 using Clinic.Queue.Service.Common;
 using Clinic.Queue.Service.Common.Exceptions;
 using Clinic.Queue.Service.DTOs;
+using Clinic.Queue.Service.Enums;
 using Clinic.Queue.Service.Persistence;
 using Clinic.Queue.Service.Services;
 using OpenTelemetry.Metrics;
@@ -106,6 +108,27 @@ app.MapGet("/readyz", async (QueueDbContext db, ILogger<Program> logger, Cancell
     }
 });
 app.MapGet("/", () => Results.Ok(new { service = "Clinic.Queue.Service", version = "1.0.0" }));
+
+app.MapGet("/admin/dashboard-metrics", async (QueueDbContext db, CancellationToken ct) =>
+{
+    var today = ClinicTime.GetTodayQueueDate();
+    var currentStart = today.AddDays(-30);
+    var previousStart = today.AddDays(-60);
+
+    var currentAverage = await db.QueueTickets
+        .Where(ticket => !ticket.IsDeleted && ticket.Status == QueueStatus.Completed && ticket.QueueDate >= currentStart && ticket.QueueDate < today && ticket.CalledAt != null)
+        .Select(ticket => (double?)EF.Functions.DateDiffMinute(ticket.CheckInTime, ticket.CalledAt!.Value))
+        .AverageAsync(ct) ?? 0;
+    var previousAverage = await db.QueueTickets
+        .Where(ticket => !ticket.IsDeleted && ticket.Status == QueueStatus.Completed && ticket.QueueDate >= previousStart && ticket.QueueDate < currentStart && ticket.CalledAt != null)
+        .Select(ticket => (double?)EF.Functions.DateDiffMinute(ticket.CheckInTime, ticket.CalledAt!.Value))
+        .AverageAsync(ct) ?? 0;
+
+    var change = previousAverage == 0
+        ? (currentAverage == 0 ? 0 : 100)
+        : (currentAverage - previousAverage) / previousAverage * 100;
+    return Results.Ok(new QueueDashboardMetrics(Math.Round(currentAverage), change));
+}).RequireAuthorization("AdminOnly");
 
 // Authenticated introspection endpoint (verifies JWT & Claims against Identity JWKS)
 app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new

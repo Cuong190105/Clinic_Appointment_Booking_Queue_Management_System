@@ -1,4 +1,5 @@
 using Clinic.API.Models;
+using Clinic.API.Services;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.MedicalReports.Commands;
 using Clinic.Application.Features.MedicalReports.Queries;
@@ -17,10 +18,14 @@ namespace Clinic.API.Controllers
     public class MedicalReportsController : ControllerBase
     {
         private readonly ISender _sender;
+        private readonly AppointmentServiceClient _appointmentClient;
+        private readonly QueueServiceClient _queueClient;
 
-        public MedicalReportsController(ISender sender)
+        public MedicalReportsController(ISender sender, AppointmentServiceClient appointmentClient, QueueServiceClient queueClient)
         {
             _sender = sender;
+            _appointmentClient = appointmentClient;
+            _queueClient = queueClient;
         }
 
         /// <summary>
@@ -58,16 +63,36 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Save([FromBody] SaveMedicalReportRequest request)
         {
+            var ct = HttpContext.RequestAborted;
+            var appointmentLookup = await _appointmentClient.GetResultAsync<AppointmentReportSnapshot>(
+                HttpContext,
+                $"appointments/{request.AppointmentId}",
+                ct);
+            if (appointmentLookup.StatusCode != System.Net.HttpStatusCode.OK || appointmentLookup.Value is null)
+                return StatusCode((int)appointmentLookup.StatusCode);
+
+            var queueLookup = await _queueClient.GetTicketByAppointmentAsync(HttpContext, request.AppointmentId, ct);
+            if (queueLookup.StatusCode is not (System.Net.HttpStatusCode.OK or System.Net.HttpStatusCode.NotFound))
+                return StatusCode((int)queueLookup.StatusCode);
+
             var command = new SaveMedicalReportCommand(
                 request.AppointmentId,
                 request.Symptoms,
                 request.Diagnosis,
                 request.Prescription,
                 request.Notes,
-                request.IsFinalize
+                request.IsFinalize,
+                appointmentLookup.Value,
+                queueLookup.Value?.Status,
+                queueLookup.Value?.ExamStartedAt
             );
 
             var result = await _sender.Send(command);
+            if (request.IsFinalize)
+            {
+                var completionResult = await CompleteQueueExamIfInProgress(request.AppointmentId, ct);
+                if (completionResult is not null) return completionResult;
+            }
             return Ok(result);
         }
 
@@ -83,6 +108,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateDraft([FromRoute] Guid id, [FromBody] UpdateMedicalReportRequest request)
         {
+            var existingReport = await _sender.Send(new GetMedicalReportByIdQuery(id), HttpContext.RequestAborted);
             var command = new UpdateDraftMedicalReportCommand(
                 id,
                 request.Symptoms,
@@ -93,6 +119,11 @@ namespace Clinic.API.Controllers
             );
 
             var result = await _sender.Send(command);
+            if (request.IsFinalize)
+            {
+                var completionResult = await CompleteQueueExamIfInProgress(existingReport.AppointmentId, HttpContext.RequestAborted);
+                if (completionResult is not null) return completionResult;
+            }
             return Ok(result);
         }
 
@@ -142,8 +173,45 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> FinalizeReport([FromRoute] Guid id)
         {
+            var existingReport = await _sender.Send(new GetMedicalReportByIdQuery(id), HttpContext.RequestAborted);
             var result = await _sender.Send(new FinalizeMedicalReportCommand(id));
+            var completionResult = await CompleteQueueExamIfInProgress(existingReport.AppointmentId, HttpContext.RequestAborted);
+            if (completionResult is not null) return completionResult;
             return Ok(result);
+        }
+
+        private async Task<IActionResult?> CompleteQueueExamIfInProgress(Guid appointmentId, CancellationToken ct)
+        {
+            ServiceReadResult<QueueTicketLookup> lookup;
+            try
+            {
+                lookup = await _queueClient.GetTicketByAppointmentAsync(HttpContext, appointmentId, ct);
+            }
+            catch (HttpRequestException)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+
+            if (lookup.StatusCode == System.Net.HttpStatusCode.NotFound || lookup.Value is null)
+                return null;
+            if (lookup.StatusCode != System.Net.HttpStatusCode.OK)
+                return StatusCode((int)lookup.StatusCode);
+            if (!string.Equals(lookup.Value.Status, "InProgress", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            try
+            {
+                var result = await _queueClient.ProxyAsync(HttpContext, $"queue/{lookup.Value.Id}/complete-exam", HttpMethod.Post, ct: ct);
+                if (result is ObjectResult objectResult && objectResult.StatusCode is >= 400)
+                    return result;
+                if (result is ContentResult contentResult && contentResult.StatusCode is >= 400)
+                    return result;
+                return null;
+            }
+            catch (HttpRequestException)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
         }
 
         /// <summary>

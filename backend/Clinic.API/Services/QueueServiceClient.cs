@@ -1,7 +1,9 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Clinic.Contracts.Analytics;
 
 namespace Clinic.API.Services;
 
@@ -80,5 +82,51 @@ public sealed class QueueServiceClient
             return false;
         }
     }
+
+    public async Task<QueueDashboardMetrics?> GetDashboardMetricsAsync(HttpContext context, CancellationToken ct = default)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "admin/dashboard-metrics");
+            if (context.Request.Headers.TryGetValue("Authorization", out var auth))
+                request.Headers.TryAddWithoutValidation("Authorization", auth.ToArray());
+            using var response = await _client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode) return null;
+            return await response.Content.ReadFromJsonAsync<QueueDashboardMetrics>(cancellationToken: ct);
+        }
+        catch (HttpRequestException) when (!ct.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return null;
+        }
+    }
+
+    public async Task<ServiceReadResult<QueueTicketLookup>> GetTicketByAppointmentAsync(HttpContext context, Guid appointmentId, CancellationToken ct = default)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"queue/appointment/{appointmentId}");
+            if (context.Request.Headers.TryGetValue("Authorization", out var auth))
+                request.Headers.TryAddWithoutValidation("Authorization", auth.ToArray());
+            using var response = await _client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+                return new ServiceReadResult<QueueTicketLookup>(response.StatusCode, null);
+            var ticket = await response.Content.ReadFromJsonAsync<QueueTicketLookup>(cancellationToken: ct);
+            return new ServiceReadResult<QueueTicketLookup>(response.StatusCode, ticket);
+        }
+        catch (HttpRequestException) when (!ct.IsCancellationRequested)
+        {
+            return new ServiceReadResult<QueueTicketLookup>(HttpStatusCode.ServiceUnavailable, null);
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return new ServiceReadResult<QueueTicketLookup>(HttpStatusCode.ServiceUnavailable, null);
+        }
+    }
 }
+
+public sealed record QueueTicketLookup(Guid Id, string Status, DateTime? ExamStartedAt);
 

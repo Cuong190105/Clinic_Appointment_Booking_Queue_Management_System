@@ -63,21 +63,6 @@ public sealed class InboxStoreTests
     }
 
     [Fact]
-    public async Task Event_arriving_before_its_appointment_is_not_committed_as_processed()
-    {
-        await using var db = CreateDbContext();
-        var processor = new AppointmentCheckedInProcessor(
-            db,
-            new InboxStore(db),
-            "queue-service.appointment-checked-in");
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(CreateEnvelope(), CancellationToken.None));
-
-        Assert.Empty(await db.InboxMessages.AsNoTracking().ToListAsync());
-    }
-
-    [Fact]
     public async Task Same_event_can_be_processed_by_different_consumers()
     {
         await using var db = CreateDbContext();

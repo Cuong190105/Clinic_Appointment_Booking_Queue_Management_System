@@ -1,10 +1,10 @@
 using Clinic.API.Models;
 using Clinic.Application.Common.Models;
 using Clinic.Application.Contracts;
-using Clinic.Application.Features.Appointments.Queries;
 using Clinic.Application.Features.Patients.Commands;
 using Clinic.Application.Features.Patients.Queries;
 using Clinic.Application.Interfaces;
+using Clinic.API.Services;
 using MapsterMapper;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -19,12 +19,14 @@ namespace Clinic.API.Controllers
         private readonly ISender _sender;
         private readonly IMapper _mapper;
         private readonly ICurrentUser _currentUser;
+        private readonly AppointmentServiceClient _appointmentClient;
 
-        public PatientsController(ISender sender, IMapper mapper, ICurrentUser currentUser)
+        public PatientsController(ISender sender, IMapper mapper, ICurrentUser currentUser, AppointmentServiceClient appointmentClient)
         {
             _sender = sender;
             _mapper = mapper;
             _currentUser = currentUser;
+            _appointmentClient = appointmentClient;
         }
 
         [HttpGet]
@@ -58,12 +60,14 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(List<AppointmentDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> GetPatientAppointments([FromRoute] Guid patientId)
+        public async Task<IActionResult> GetPatientAppointments([FromRoute] Guid patientId, [FromQuery] string? category)
         {
-            var userId = _currentUser.UserId ?? throw new UnauthorizedAccessException();
-            var command = new GetPatientAppointmentsQuery(userId, "upcoming", patientId);
-            var result = await _sender.Send(command);
-            return Ok(result);
+            var query = string.IsNullOrWhiteSpace(category) ? "upcoming" : Uri.EscapeDataString(category);
+            return await _appointmentClient.ProxyAsync(
+                HttpContext,
+                $"patients/{patientId}/appointments?category={query}",
+                HttpMethod.Get,
+                ct: HttpContext.RequestAborted);
         }
 
         [HttpGet("me")]

@@ -6,6 +6,7 @@ using Clinic.Appointment.Service.Entities;
 using Clinic.Appointment.Service.Enums;
 using Clinic.Appointment.Service.Persistence;
 using Clinic.Contracts.Events;
+using Clinic.Contracts.Analytics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -28,6 +29,11 @@ public interface IAppointmentManager
         CancellationToken ct = default);
 
     Task<List<AppointmentDto>> GetMyAppointmentsAsync(
+        Guid patientId,
+        string? category,
+        CancellationToken ct = default);
+
+    Task<List<AppointmentDto>> GetAppointmentsForPatientAsync(
         Guid patientId,
         string? category,
         CancellationToken ct = default);
@@ -74,6 +80,10 @@ public interface IAppointmentManager
         Guid? doctorId = null,
         Guid? specialtyId = null,
         CancellationToken ct = default);
+
+    Task<AppointmentStatisticsDto> GetStatisticsAsync(string period, CancellationToken ct = default);
+
+    Task<AppointmentDashboardMetrics> GetDashboardMetricsAsync(CancellationToken ct = default);
 
     Task<PagedAppointmentsDto> GetPagedAppointmentsByDateAsync(
         DateOnly date,
@@ -379,10 +389,16 @@ public class AppointmentManager : IAppointmentManager
         Guid patientId,
         string? category,
         CancellationToken ct = default)
+        => await GetAppointmentsForPatientAsync(patientId, category, ct);
+
+    public async Task<List<AppointmentDto>> GetAppointmentsForPatientAsync(
+        Guid patientId,
+        string? category,
+        CancellationToken ct = default)
     {
         var query = _db.Appointments.Where(a => a.PatientId == patientId && !a.IsDeleted);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = ClinicTime.ToLocalDate(DateTime.UtcNow);
         if (string.Equals(category, "upcoming", StringComparison.OrdinalIgnoreCase))
         {
             query = query.Where(a => a.ScheduleDate >= today && a.Status != AppointmentStatus.Cancelled && a.Status != AppointmentStatus.Completed);
@@ -744,6 +760,78 @@ public class AppointmentManager : IAppointmentManager
             CancellationRate: cancellationRate,
             AverageWaitingMinutes: 0
         );
+    }
+
+    public async Task<AppointmentStatisticsDto> GetStatisticsAsync(string period, CancellationToken ct = default)
+    {
+        var normalizedPeriod = string.Equals(period, "week", StringComparison.OrdinalIgnoreCase) ? "week" : "month";
+        var days = normalizedPeriod == "week" ? 7 : 30;
+        var endDate = ClinicTime.ToLocalDate(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-(days - 1));
+        var appointments = _db.Appointments
+            .Where(a => !a.IsDeleted && a.ScheduleDate >= startDate && a.ScheduleDate <= endDate);
+
+        var dailyCounts = await appointments
+            .GroupBy(a => a.ScheduleDate)
+            .Select(group => new { Date = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(x => x.Date, x => x.Count, ct);
+        var appointmentsByDay = Enumerable.Range(0, days)
+            .Select(offset =>
+            {
+                var date = startDate.AddDays(offset);
+                return new AppointmentByDayDto(date, dailyCounts.GetValueOrDefault(date));
+            })
+            .ToList();
+        var appointmentsByStatus = await appointments
+            .GroupBy(a => a.Status)
+            .Select(group => new AppointmentByStatusDto(group.Key, group.Count()))
+            .ToListAsync(ct);
+
+        return new AppointmentStatisticsDto(normalizedPeriod, appointmentsByDay, appointmentsByStatus);
+    }
+
+    public async Task<AppointmentDashboardMetrics> GetDashboardMetricsAsync(CancellationToken ct = default)
+    {
+        var today = ClinicTime.ToLocalDate(DateTime.UtcNow);
+        var currentStart = today.AddDays(-30);
+        var previousStart = today.AddDays(-60);
+        var currentEnd = today;
+
+        var current = await _db.Appointments
+            .Where(a => !a.IsDeleted && a.ScheduleDate >= currentStart && a.ScheduleDate < currentEnd)
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Total = group.Count(),
+                Completed = group.Count(a => a.Status == AppointmentStatus.Completed)
+            })
+            .FirstOrDefaultAsync(ct);
+        var previous = await _db.Appointments
+            .Where(a => !a.IsDeleted && a.ScheduleDate >= previousStart && a.ScheduleDate < currentStart)
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Total = group.Count(),
+                Completed = group.Count(a => a.Status == AppointmentStatus.Completed)
+            })
+            .FirstOrDefaultAsync(ct);
+
+        var currentTotal = current?.Total ?? 0;
+        var previousTotal = previous?.Total ?? 0;
+        var currentRate = currentTotal == 0 ? 0 : (double)(current?.Completed ?? 0) / currentTotal * 100;
+        var previousRate = previousTotal == 0 ? 0 : (double)(previous?.Completed ?? 0) / previousTotal * 100;
+
+        return new AppointmentDashboardMetrics(
+            currentTotal,
+            CalculatePercentChange(currentTotal, previousTotal),
+            Math.Round(currentRate),
+            CalculatePercentChange(currentRate, previousRate));
+    }
+
+    private static double CalculatePercentChange(double current, double previous)
+    {
+        if (previous == 0) return current == 0 ? 0 : 100;
+        return (current - previous) / previous * 100;
     }
 
     public async Task<PagedAppointmentsDto> GetPagedAppointmentsByDateAsync(

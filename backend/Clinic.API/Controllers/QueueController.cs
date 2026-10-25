@@ -1,8 +1,5 @@
 using Clinic.API.Services;
 using Clinic.Application.Contracts;
-using Clinic.Application.Features.Queue.Commands;
-using Clinic.Application.Interfaces;
-using Clinic.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -46,7 +43,7 @@ namespace Clinic.API.Controllers
 
         [HttpPost("{queueTicketId}/skip")]
         [Authorize(Policy = "Permission:queue.skip")]
-        [ProducesResponseType(typeof(SkipQueueResult), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Skip([FromRoute] Guid queueTicketId)
         {
             return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/skip", HttpMethod.Post);

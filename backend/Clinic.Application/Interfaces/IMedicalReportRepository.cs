@@ -15,13 +15,13 @@ namespace Clinic.Application.Interfaces
         Task AddAsync(MedicalReport report);
 
         /// <summary>
-        /// Lấy 1 hồ sơ khám bệnh, kèm Appointment -> QueueTicket/WorkSchedule (Doctor) và Patient
-        /// để phục vụ resource-based authorization (own/related/any). Trả về null nếu không tìm thấy.
+        /// Lấy hồ sơ khám cùng patient profile trong Clinic để phục vụ resource-based authorization.
+        /// Appointment snapshot được lưu trên report; trả về null nếu không tìm thấy.
         /// </summary>
         Task<MedicalReport?> GetByIdWithOwnershipAsync(Guid id);
 
         /// <summary>
-        /// Lấy 1 hồ sơ khám bệnh theo AppointmentId, kèm đầy đủ quan hệ Doctor và Patient.
+        /// Lấy hồ sơ khám theo loose AppointmentId reference.
         /// </summary>
         Task<MedicalReport?> GetByAppointmentIdAsync(Guid appointmentId);
 
@@ -29,6 +29,8 @@ namespace Clinic.Application.Interfaces
         /// Lấy toàn bộ lịch sử khám bệnh (các MedicalReport) của 1 bệnh nhân, sắp xếp mới nhất trước.
         /// </summary>
         Task<List<MedicalReport>> GetHistoryByPatientIdAsync(Guid patientId);
+
+        Task<bool> ExistsForDoctorAndPatientAsync(Guid doctorId, Guid patientId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Tìm kiếm và phân trang hồ sơ khám bệnh.

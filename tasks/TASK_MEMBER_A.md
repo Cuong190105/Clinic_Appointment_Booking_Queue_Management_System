@@ -226,7 +226,9 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 > Các nội dung trong phần này ghi lại trạng thái chuyển tiếp của Giai đoạn 3. Trong giai đoạn đó, Queue vẫn ở Monolith; Giai đoạn 4 thay thế luồng này bằng Queue Service sở hữu ticket và Queue DB riêng.
 
-**Trạng thái: Đã kiểm thử phát hành sau cutover; `Clinic.Appointment.Service` (`ClinicAppointmentDB`) đã tiếp nhận 100% lưu lượng lịch hẹn từ Frontend qua Gateway, hoàn thiện toàn bộ Booking Saga, Reschedule Saga, Event-Driven Check-in/ExamCompleted qua RabbitMQ, cùng giao diện Bác sĩ (Medical Records) & Lễ tân (Đặt khám / Walk-in 4 bước). 100% Unit, Integration, Frontend và Live E2E Tests pass.**
+**Trạng thái ban đầu sau cutover (2026-10-23):** `Clinic.Appointment.Service` (`ClinicAppointmentDB`) đã nhận lưu lượng lịch hẹn qua Gateway và hoàn thiện Booking/Reschedule Saga cùng tích hợp event. Queue vẫn ở Monolith tại thời điểm ghi nhận; Giai đoạn 4 đã thay thế phần đó bằng Queue Service.
+
+**Trạng thái hoàn tất cập nhật 2026-10-25:** Đã chuyển các API patient-specific và Admin statistics/dashboard sang đúng service; gỡ dual-write Appointment, entity/repository/handler và bảng Appointment/Queue legacy khỏi ClinicDB; MedicalReports lưu snapshot độc lập và gọi Appointment/Queue Service qua API. Build solution, 9 test project và Docker build/runtime smoke đều pass. Kết quả chi tiết ở [`PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md), mục 9.3–9.4.
 
 > **Tài liệu kế hoạch & báo cáo nghiệm thu chi tiết**: `tasks/PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md` (Xem Mục 7)
 

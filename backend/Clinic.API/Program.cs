@@ -182,12 +182,6 @@ builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHand
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Clinic.Application.Interfaces.ICurrentUser, Clinic.API.Authentication.CurrentUser>();
 
-// Cấu hình business rule của Appointment (vd: số giờ tối thiểu Patient phải đổi lịch trước hạn), đọc từ section "Appointment".
-builder.Services.Configure<Clinic.API.Configuration.AppointmentPolicySettings>(
-    builder.Configuration.GetSection(Clinic.API.Configuration.AppointmentPolicySettings.SectionName));
-builder.Services.AddScoped<Clinic.Application.Interfaces.IAppointmentPolicySettings>(sp =>
-    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Clinic.API.Configuration.AppointmentPolicySettings>>().Value);
-
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
 {

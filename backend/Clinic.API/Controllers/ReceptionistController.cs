@@ -1,8 +1,6 @@
 using Clinic.API.Models;
 using Clinic.API.Services;
 using Clinic.Application.Contracts;
-using Clinic.Application.Features.Appointments.Commands;
-using Clinic.Application.Features.Appointments.Queries;
 using Clinic.Application.Features.Patients.Commands;
 using Clinic.Application.Interfaces;
 using MapsterMapper;

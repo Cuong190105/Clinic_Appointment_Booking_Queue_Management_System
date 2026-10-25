@@ -1,7 +1,6 @@
 using Clinic.API.Services;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.MedicalReports.Queries;
-using Clinic.Application.Features.Queue.Queries;
 using Clinic.Application.Features.Users.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;

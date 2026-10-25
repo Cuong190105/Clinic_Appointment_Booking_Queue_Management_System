@@ -1,4 +1,5 @@
 using Clinic.Appointment.Service.DTOs;
+using Clinic.Appointment.Service.Common;
 using Clinic.Appointment.Service.Entities;
 using Clinic.Appointment.Service.Enums;
 using AppointmentEntity = Clinic.Appointment.Service.Entities.Appointment;
@@ -66,6 +67,39 @@ public class AppointmentManagerTests
         var manager = new AppointmentManager(db, client, outbox, NullLogger<AppointmentManager>.Instance);
 
         return (db, client, manager);
+    }
+
+    [Fact]
+    public async Task GetAppointmentsForPatientAsync_FiltersPatientAndCategoriesByClinicLocalDate()
+    {
+        var (db, _, manager) = CreateTestSetup();
+        var patientId = Guid.NewGuid();
+        var today = ClinicTime.ToLocalDate(DateTime.UtcNow);
+
+        AppointmentEntity Create(Guid patient, DateOnly date, AppointmentStatus status = AppointmentStatus.Confirmed) => new()
+        {
+            PatientId = patient,
+            PatientName = "Test Patient",
+            DoctorName = "Test Doctor",
+            ScheduleDate = date,
+            Status = status
+        };
+
+        var todayAppointment = Create(patientId, today);
+        var futureAppointment = Create(patientId, today.AddDays(1));
+        var pastAppointment = Create(patientId, today.AddDays(-1), AppointmentStatus.Completed);
+        var cancelledAppointment = Create(patientId, today.AddDays(1), AppointmentStatus.Cancelled);
+        var otherPatientAppointment = Create(Guid.NewGuid(), today.AddDays(1));
+        db.Appointments.AddRange(todayAppointment, futureAppointment, pastAppointment, cancelledAppointment, otherPatientAppointment);
+        await db.SaveChangesAsync();
+
+        var upcoming = await manager.GetAppointmentsForPatientAsync(patientId, "upcoming");
+        var past = await manager.GetAppointmentsForPatientAsync(patientId, "past");
+        var all = await manager.GetAppointmentsForPatientAsync(patientId, "all");
+
+        Assert.Equal(new[] { todayAppointment.Id, futureAppointment.Id }.Order(), upcoming.Select(x => x.Id).Order());
+        Assert.Equal(new[] { pastAppointment.Id, cancelledAppointment.Id }.Order(), past.Select(x => x.Id).Order());
+        Assert.Equal(4, all.Count);
     }
 
     [Fact]

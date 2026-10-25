@@ -39,10 +39,11 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                     Id = report.Id,
                     AppointmentId = report.AppointmentId,
                     PatientId = report.PatientId,
-                    PatientName = report.Patient?.Person?.FullName ?? report.Appointment?.Patient?.Person?.FullName ?? string.Empty,
-                    DoctorId = report.Appointment?.DoctorId ?? Guid.Empty,
-                    DoctorName = report.Appointment?.DoctorName ?? string.Empty,
-                    ExamDate = report.Appointment?.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
+                    PatientName = report.Patient?.Person?.FullName ?? string.Empty,
+                    DoctorId = report.DoctorId ?? Guid.Empty,
+                    DoctorName = report.DoctorName ?? string.Empty,
+                    SpecialtyName = report.SpecialtyName ?? string.Empty,
+                    ExamDate = report.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
                     Symptoms = report.Symptoms,
                     Diagnosis = report.Diagnosis,
                     Prescription = report.Prescription,
@@ -55,25 +56,12 @@ namespace Clinic.Application.Features.MedicalReports.Commands
             }
 
             var hasAnyScope = _currentUser.HasPermission("queue.complete-exam.any") || _currentUser.HasPermission("medical-report.view.any");
-            var appointment = report.Appointment;
-            var ticket = appointment?.QueueTicket;
-            if (!hasAnyScope && appointment?.DoctorId != _currentUser.DoctorId)
+            if (!hasAnyScope && report.DoctorId != _currentUser.DoctorId)
             {
                 throw new ForbiddenException("You are not allowed to finalize medical report for another doctor's queue.");
             }
 
-            if (ticket != null && ticket.Status != QueueStatus.InProgress)
-            {
-                throw new InvalidOperationException($"Cannot finalize medical report for queue ticket with status '{ticket.Status}'. Examination must be in progress.");
-            }
-
             report.FinalizeReport();
-            ticket?.Complete();
-
-            if (appointment != null && appointment.Status == AppointmentStatus.CheckedIn)
-            {
-                appointment.Complete(_currentUser.UserId ?? Guid.Empty);
-            }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -82,10 +70,11 @@ namespace Clinic.Application.Features.MedicalReports.Commands
                 Id = report.Id,
                 AppointmentId = report.AppointmentId,
                 PatientId = report.PatientId,
-                PatientName = report.Patient?.Person?.FullName ?? appointment?.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = appointment?.DoctorId ?? Guid.Empty,
-                DoctorName = appointment?.DoctorName ?? string.Empty,
-                ExamDate = appointment?.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
+                PatientName = report.Patient?.Person?.FullName ?? string.Empty,
+                DoctorId = report.DoctorId ?? Guid.Empty,
+                DoctorName = report.DoctorName ?? string.Empty,
+                SpecialtyName = report.SpecialtyName ?? string.Empty,
+                ExamDate = report.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,

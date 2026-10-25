@@ -74,6 +74,9 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("DoctorOnly", policy => policy.RequireRole("Doctor"));
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
     options.AddPolicy("StaffOnly", policy => policy.RequireRole("Admin", "Receptionist", "Doctor"));
+    options.AddPolicy("PatientAppointmentsViewAny", policy => policy.RequireAssertion(context =>
+        context.User.IsInRole("Admin") ||
+        context.User.HasClaim("permission", "patient.view.any")));
 });
 
 var app = builder.Build();

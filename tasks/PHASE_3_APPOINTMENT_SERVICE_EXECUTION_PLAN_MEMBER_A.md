@@ -490,3 +490,103 @@ Trong quá trình triển khai, kiểm thử thực tế từ cổng Frontend v�
 6. **Hoàn Thiện Toàn Diện Giao Diện & API Bác Sĩ (Medical Records) Và Lễ Tân (Đặt Khám / Walk-in 4 Bước)**:
    - *Giao diện Bác sĩ*: Bổ sung menu **Hồ sơ bệnh án** (`/doctor/medical-records`), tích hợp tìm kiếm từ khóa, lọc trạng thái (`Draft`/`Finalized`) và khoảng ngày khám (`GET /api/medical-reports`), cùng màn hình chi tiết (`/doctor/medical-records/:id`) hỗ trợ lưu nháp/chốt hồ sơ đối với bản `Draft` và khóa chỉnh sửa + hỗ trợ in ấn (`window.print()`) đối với bản `Finalized`.
    - *Giao diện Lễ tân*: Bổ sung menu **Đặt lịch / Tiếp nhận** (`/reception/booking`) gồm 4 bước: chọn hoặc tạo mới bệnh nhân $\to$ đối chiếu xác nhận nhân thân $\to$ chọn Đặt lịch hẹn trước (`isWalkIn = false`) hoặc Đăng ký khám ngay (`isWalkIn = true`, tự động phân bổ bác sĩ đang trực có ít lượt khám nhất khi không chọn bác sĩ, tự động check-in cấp số thứ tự và gán cờ ưu tiên khẩn cấp `Priority = true` khi chọn khẩn cấp) $\to$ màn hình kết quả & in phiếu số thứ tự.
+
+---
+
+## 8. Rà Soát Hoàn Tất Phase 3 Sau Khi Queue Service Được Tách
+
+> Phần này ghi nhận trạng thái theo mã nguồn hiện tại sau Phase 4. Các số liệu database cũ trong báo cáo nghiệm thu bên trên chỉ là ảnh chụp tại thời điểm chạy; ClinicDB hiện chứa mock/test data nên không dùng số dòng giữa các database để kết luận tính đầy đủ hoặc yêu cầu đồng bộ dữ liệu.
+
+### 8.1. Phần đã chuyển và đang được Appointment Service sở hữu
+
+- Appointment Service sở hữu vòng đời lịch hẹn, booking/reschedule/cancel/check-in, danh sách của người dùng hiện tại, luồng receptionist/walk-in, danh sách và summary cho Admin, changelog, persistence và outbox.
+- `AppointmentsController`, `MeAppointmentsController`, `ReceptionistController` và các route Admin cho danh sách/summary/history đã proxy các nghiệp vụ tương ứng sang Appointment Service.
+- Queue đã có Queue Service riêng. Consumer cấp ticket nằm ở Queue Service; các mô tả trong phần thiết kế ban đầu nói Monolith nhận `AppointmentCheckedIn` để tự cấp QueueTicket là nội dung lịch sử, không còn là đích triển khai hiện tại.
+
+### 8.2. Còn thiếu theo thiết kế / còn phụ thuộc Monolith
+
+| Mức | Tồn đọng hiện tại | Có thể xử lý? | Hướng xử lý |
+|---|---|---|---|
+| P1 | `GET /patients/{patientId}/appointments` trong `PatientsController` vẫn gọi `GetPatientAppointmentsQuery` và repository ClinicDB. Appointment Service hiện có `/me/appointments` cho chính người đăng nhập nhưng chưa có endpoint xem lịch theo `patientId` dành cho nhân viên có quyền `patient.view.any`. | Có, làm ngay. | Bổ sung endpoint patient-specific trong Appointment Service, áp dụng đúng permission `patient.view.any`, truyền bộ lọc/phân trang cần thiết; thêm client proxy ở Clinic API và chuyển route hiện tại sang proxy. Giữ `/me/appointments` cho patient tự xem. Bổ sung test authorization, ownership/ID và response contract. Ước tính 0.5–1 ngày. |
+| P1 | `GET /admin/statistics` vẫn chạy `GetStatisticsDataHandler` và lấy số liệu qua `IAppointmentRepository` từ ClinicDB. | Có, làm ngay. | Thêm endpoint statistics trong Appointment Service với cùng quy tắc period/date range và response contract; đổi AdminController sang proxy, sau đó bỏ handler/repository call nếu không còn caller. Ước tính 0.5–1 ngày. |
+| P2 | `GET /admin/dashboard` là màn tổng hợp liên dịch vụ nhưng `GetDashboardDataHandler` vẫn lấy tổng lịch hẹn, completion rate và average waiting time từ `IAppointmentRepository` của ClinicDB. | Có, nhưng cần giữ đây là BFF/composition ở Clinic API. | Chuyển các chỉ số lịch hẹn sang Appointment Service. Lấy average waiting time từ Queue Service vì Queue sở hữu ticket/thời gian chờ; giữ doctor stats từ Scheduling và patient count từ nguồn Patient hiện tại. Không chuyển toàn bộ dashboard vào Appointment Service. Nếu Queue chưa có aggregate phù hợp, bổ sung metric endpoint ở Queue Service trước hoặc cùng nhịp. Ước tính 1–2 ngày, gồm cập nhật client và contract tests. |
+| P1 | `POST /appointments` sau khi proxy thành công vẫn gọi `EnsureAppointmentInClinicDbAsync`, ghi thêm Appointment vào ClinicDB. Đây là dual-write best-effort, có thể thất bại im lặng và tạo hai nguồn dữ liệu khác nhau. | Có, sau khi tháo phụ thuộc MedicalReports. | Gỡ dual-write khi bước 8.3 đã chuyển bệnh án sang snapshot/remote validation và các route còn lại không cần Clinic Appointment. Appointment Service phải là nguồn duy nhất của lịch hẹn. Không dùng các bản ghi mock trong ClinicDB làm dữ liệu migration chuẩn. Ước tính 0.5 ngày sau prerequisite. |
+| P1 | ClinicDB vẫn còn Appointment/AppointmentSnapshot entity, DbSet, repository và các handler cũ. Ngoài hai route ở trên, handler/repository còn được gọi bởi MedicalReports và có thể còn service/test callers. | Có, nhưng xóa sau khi dọn tất cả caller. | Dùng reference search để xác nhận caller còn lại; chuyển các caller hợp lệ sang Appointment Service hoặc dữ liệu snapshot; xóa legacy handlers/repository/DI/configuration/DbSet/entity rồi tạo migration bỏ bảng. Trước khi drop, xác nhận MedicalReports không còn navigation/join và không còn API nghiệp vụ phụ thuộc bảng. Ước tính 0.5–1 ngày sau prerequisite, cộng thời gian chạy/review migration. |
+| P1 / phụ thuộc Phase 5 | `MedicalReportConfiguration` vẫn mô tả quan hệ EF `MedicalReport.Appointment`; repository dùng `Include`/lọc qua Appointment; lệnh lưu bệnh án còn kiểm tra lịch qua `IAppointmentRepository`. FK database đã được gỡ nhưng code vẫn phụ thuộc Appointment trong cùng ClinicDbContext. | Có thể tháo phụ thuộc trước khi chuyển toàn bộ Medical Records Service. | Thực hiện prerequisite dữ liệu cho Phase 5 ngay trong completion work: thêm snapshot tối thiểu vào MedicalReport (ít nhất DoctorId, DoctorName, SpecialtyName và ScheduleDate nếu các màn/query cần), backfill từ dữ liệu đang có khi phù hợp, đổi SaveMedicalReport sang gọi Appointment Service để xác thực và lấy snapshot, đổi query/repository sang cột snapshot, bỏ `Include` và navigation. Không chuyển MedicalReports Service trong phạm vi Phase 3; chỉ gỡ coupling để có thể xóa Appointment legacy. Ước tính 2–4 ngày, cần kiểm thử các luồng tạo/lưu/chốt/tra cứu bệnh án. |
+
+### 8.3. Thứ tự completion đề xuất
+
+1. **Đóng các route còn thiếu:** patient-specific appointments và Admin statistics; bổ sung authorization/contract tests, cutover gateway.
+2. **Chuyển nguồn dashboard:** Appointment metrics từ Appointment Service, waiting metric từ Queue Service; giữ Clinic API làm composition endpoint.
+3. **Tháo coupling MedicalReports:** lưu snapshot cần cho hồ sơ, validate Appointment qua service client, chuyển query khỏi navigation/repository Appointment. Đây là prerequisite kỹ thuật thuộc Phase 5, nhưng có thể triển khai độc lập trước khi tách toàn bộ Medical Records Service.
+4. **Gỡ dual-write và legacy Appointment module:** xóa `EnsureAppointmentInClinicDbAsync`, các handlers/repositories/entities/DbSets/configuration không còn caller; tạo migration drop bảng ClinicDB sau khi rà soát snapshot/backfill và kiểm tra migration trên database mock/test.
+5. **Nghiệm thu:** chạy unit/integration tests cho Appointment, API và MedicalReports; kiểm tra container/gateway cho các route patient-specific, admin statistics/dashboard, tạo appointment và tạo/tra cứu medical report. Cập nhật tài liệu và tiêu chí cutover.
+
+Ước tính tổng phần việc còn lại khoảng **5–9 ngày công** nếu thực hiện liên tục, trong đó 2–4 ngày thuộc tháo coupling MedicalReports. Không có blocker kiến trúc bắt buộc phải chờ hoàn thành Phase 5: có thể làm prerequisite snapshot trước, rồi xóa Appointment legacy trong cùng completion effort. Nếu chưa đưa phần MedicalReports prerequisite vào sprint hiện tại, chỉ nên hoãn bước xóa bảng/dual-write đến ngay sau khi prerequisite đó hoàn thành; dự kiến quay lại ở iteration kế tiếp, khoảng **2–4 ngày công kể từ lúc bắt đầu phần prerequisite**. Thời điểm lịch cụ thể phụ thuộc ưu tiên/sprint của nhóm, repo không có lịch phát hành để ấn định ngày.
+
+### 8.4. Tiêu chí đóng Phase 3
+
+- Tất cả API Appointment cần thiết, gồm xem lịch của patient khác theo quyền, statistics, danh sách/summary/history, đều đọc Appointment Service.
+- Dashboard chỉ tổng hợp từ các service sở hữu metric tương ứng; không query Clinic Appointment repository.
+- Không còn dual-write Appointment vào ClinicDB; không còn active handler, repository, entity hoặc schema Appointment trong Monolith.
+- MedicalReports không còn EF navigation/query phụ thuộc Clinic Appointment; dữ liệu snapshot cần cho bệnh án được lưu và truy vấn tại chính hồ sơ.
+- Migration và luồng API được kiểm tra trên dữ liệu mock/test; ClinicAppointmentDB là nguồn chuẩn cho dữ liệu Appointment.
+- Tài liệu Phase 3 và audit report phản ánh đúng trạng thái sau cutover, không dựa vào số dòng cũ của ClinicDB.
+
+## 9. Kế Hoạch Chi Tiết Hoàn Thiện Phase 3 (Đã Thực Hiện Sau Phase 4)
+
+### 9.1. Phạm vi và nguyên tắc
+
+- Hoàn tất quyền sở hữu Appointment tại `Clinic.Appointment.Service`, không chuyển MedicalReports Service trong đợt này.
+- Giữ `Clinic.API` làm gateway/BFF. Các metric được lấy từ service sở hữu dữ liệu: Appointment, Queue, Scheduling và Patient hiện tại.
+- MedicalReports vẫn chạy trong Clinic nhưng phải lưu snapshot tối thiểu, không EF join hoặc query trực tiếp Clinic Appointment.
+- ClinicDB đang dùng mock/test data. Chỉ migration cấu trúc; không coi các bản sao Appointment ở ClinicDB là dữ liệu chuẩn hay chạy đồng bộ ngược.
+- Không xóa module/table khi còn controller/handler runtime dùng tới. Với legacy Queue, chỉ gỡ các caller Appointment thuộc Clinic Queue cũ nếu đã được Queue Service thay thế; phần dọn Queue legacy còn lại thuộc completion Phase 4.
+
+### 9.2. Các bước triển khai
+
+1. **Đóng API tra cứu lịch theo patient ID**
+   - Thêm query theo `patientId` vào Appointment Service và giữ bộ lọc mặc định `upcoming` tương thích route Clinic hiện tại.
+   - Yêu cầu role/permission tương đương `patient.view.any`; không dựa vào quyền gateway. Patient tự xem tiếp tục dùng `/me/appointments` và `patientId` từ token.
+   - Proxy cả hai route Clinic hiện có, truyền query string; xóa handler cũ sau khi không còn caller.
+2. **Chuyển Admin statistics và dashboard metrics**
+   - Thêm endpoint statistics (week/month) và metrics dashboard cho Appointment DB; dùng clinic-local date và cùng contract hiện có.
+   - Thêm Queue dashboard metric cho average waiting time, tính từ ticket timestamps/QueueDate trong Queue DB.
+   - Chuyển Admin statistics sang Appointment Service. Dashboard vẫn ở Clinic API để tổng hợp Appointment metrics, Queue metrics, Scheduling doctor stats và Patient counts.
+   - Bỏ các dashboard/statistics handler hoặc repository method chỉ khi đã không còn caller.
+3. **Gỡ MedicalReports phụ thuộc Appointment entity**
+   - Bổ sung migration/các cột snapshot `DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate` cho MedicalReport; xác định giá trị từ nguồn có thẩm quyền hoặc giữ fallback null cho mock report không có appointment.
+   - Thêm typed client từ Clinic API đến Appointment Service để `SaveMedicalReport` xác thực appointment và nhận patient/doctor/schedule snapshot. Không dùng ClinicDB appointment projection để validate.
+   - Refactor handlers/repository/DTO mapping sang snapshot; bỏ `Include(report => report.Appointment)` và query `Appointment`.
+   - Rà soát `QueueTicket`/`Appointment` coupling trong lưu và tra cứu bệnh án. Chỉ chuyển sang Queue Service nếu nghiệp vụ thực tế còn yêu cầu trạng thái ticket; nếu API queue mới đã đảm nhiệm trạng thái thì loại bỏ đường gọi legacy, không tạo thêm bản sao queue trong Clinic.
+4. **Xóa dual-write và model Appointment cũ**
+   - Bỏ `EnsureAppointmentInClinicDbAsync`, các dependency repository/unit-of-work trong `AppointmentsController` và registration dư.
+   - Kiểm tra toàn bộ production code references. Chuyển controller còn cần appointment data sang service client; xóa handler cũ, `IAppointmentRepository`, `AppointmentRepository`, `Appointment`/`AppointmentSnapshot` Clinic entities/configurations và DbSet.
+   - Nếu legacy Queue Clinic còn FK/model tới Appointment, dọn reference đó trong phạm vi cần thiết; không xóa chức năng Queue Service.
+   - Tạo migration drop Clinic Appointment tables sau migration snapshot, kiểm tra migration SQL và chạy với database mock/test.
+5. **Xác minh và cập nhật tài liệu**
+   - Build solution và chạy unit/integration tests liên quan Appointment, API, MedicalReports, Queue contract.
+   - Khi môi trường runtime khả dụng, gọi qua gateway các route patient-specific, statistics/dashboard, create appointment, save/read medical report; xác minh Appointment mới không còn được ghi ClinicDB.
+   - Cập nhật mục 8 theo trạng thái đạt/chưa đạt, ghi mọi blocker cùng nguyên nhân và ước tính; chỉ đánh dấu đóng khi checklist 8.4 đạt.
+
+### 9.3. Nhật ký thực hiện
+
+| Bước | Trạng thái | Ghi chú |
+|---|---|---|
+| Lập kế hoạch chi tiết | Hoàn tất | Kế hoạch 9.1–9.2 được ghi trước khi sửa code. |
+| Patient-specific appointments | Hoàn tất | Appointment Service có route theo `patientId`, bảo vệ bằng quyền Admin/`patient.view.any`; Clinic API proxy cả hai route patient-specific cũ sang service. |
+| Admin statistics/dashboard | Hoàn tất | Statistics và appointment metrics do Appointment Service sở hữu; waiting-time metric do Queue Service sở hữu; Clinic API chỉ tổng hợp BFF với Scheduling và Patient. |
+| Tách MedicalReports khỏi Clinic Appointment | Hoàn tất | Lưu doctor/date snapshot; handler/repository không còn navigation/join Appointment; xác thực lịch qua Appointment Service và trạng thái ticket qua Queue Service. Hoàn tất bệnh án vẫn đi qua Queue Service. |
+| Gỡ dual-write và legacy Appointment model | Hoàn tất | Gỡ Clinic API dual-write, entity/config/repository/handler Appointment và Queue cũ; migration cuối gỡ các bảng Clinic Appointment/Queue sau khi backfill snapshot bệnh án. |
+| Build/test/runtime/documentation | Hoàn tất | Build solution pass; 9 test project pass; Docker build backend/appointment-service pass; hai service healthy, gateway/service `/healthz` và frontend HTTP 200; request patient appointments không token trả 401. |
+
+### 9.4. Kết quả đối chiếu và lưu ý vận hành
+
+- `dotnet build backend/Clinic.slnx --no-restore -v:q`: pass (0 errors). Có các cảnh báo NuGet advisory cho `System.Security.Cryptography.Pkcs` 9.0.4 và cảnh báo nullable/XML có sẵn trong solution.
+- `dotnet test backend/Clinic.slnx --no-restore -v:q`: pass toàn bộ 9 test project, 191 tests: Contracts 3, Domain 20, Application 24, Appointment 33, Queue 44, Scheduling 37, Identity 4, Infrastructure 17, Integration 9.
+- Integration test tạo database tạm ban đầu phát hiện migration backfill tham chiếu `WorkSchedules` đã bị Phase 2 xóa khỏi Clinic DB. Migration đã được sửa để dùng `Appointments.ScheduleDate`; test contract chạy lại pass.
+- Docker Compose build `backend` và `appointment-service` pass; `docker compose up -d backend appointment-service` áp dụng migration `20261025081432_CompleteAppointmentServiceCutover`. Log backend xác nhận migration hoàn tất; sau rebuild cuối, backend, Appointment Service và các dependency đều healthy.
+- Smoke: `GET http://localhost:5000/healthz`, `GET http://localhost:5003/healthz`, `GET http://localhost:3000/` đều trả `200`; truy cập patient-specific route không JWT trả `401` như yêu cầu.
+- Giới hạn nghiệm thu: lượt này chưa đăng nhập để chạy luồng tạo/sửa/hủy appointment hoặc thao tác MedicalReports từ giao diện. Các luồng logic và API được xác minh bằng service/integration tests; nên thực hiện thêm acceptance có xác thực khi cần nghiệm thu nghiệp vụ UI.
+- Lưu ý dữ liệu mẫu: report seed dùng Appointment ID duy nhất để bảo toàn unique index `IX_MedicalReports_AppointmentId`; các Clinic DB trong môi trường này là mock/test data theo quyết định trước đó.
+- Kết luận: không còn feature Appointment thuộc Phase 3 đang nằm trong monolith hoặc ClinicDB. MedicalReports vẫn là module Clinic, nhưng lưu snapshot độc lập và gọi service qua API; chuyển MedicalReports thành service riêng vẫn thuộc giai đoạn sau.

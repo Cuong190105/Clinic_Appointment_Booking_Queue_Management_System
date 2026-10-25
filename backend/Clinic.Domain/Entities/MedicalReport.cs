@@ -11,7 +11,10 @@ namespace Clinic.Domain.Entities
     {
         /// <summary>Appointment sở hữu lượt khám mà hồ sơ này ghi nhận.</summary>
         public Guid AppointmentId { get; set; }
-        public Appointment Appointment { get; set; } = null!;
+        public Guid? DoctorId { get; set; }
+        public string? DoctorName { get; set; }
+        public string? SpecialtyName { get; set; }
+        public DateOnly? ScheduleDate { get; set; }
         public Patient Patient { get; set; } = null!;
 
         public Guid PatientId { get; set; }

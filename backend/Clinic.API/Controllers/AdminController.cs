@@ -1,8 +1,8 @@
 using Clinic.API.Models;
 using Clinic.API.Services;
+using Clinic.Contracts.Analytics;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.Admin.Queries;
-using Clinic.Application.Features.Appointments.Queries;
 using Clinic.Application.Features.Users.Queries;
 using MapsterMapper;
 using MediatR;
@@ -25,8 +25,9 @@ namespace Clinic.API.Controllers
         private readonly IdentityAccountClient _identityAccounts;
         private readonly AppointmentServiceClient _appointmentClient;
         private readonly SchedulingManagementClient _scheduling;
+        private readonly QueueServiceClient _queueClient;
 
-        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling)
+        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient)
         {
             _sender = sender;
             _mapper = mapper;
@@ -35,6 +36,7 @@ namespace Clinic.API.Controllers
             _identityAccounts = identityAccounts;
             _appointmentClient = appointmentClient;
             _scheduling = scheduling;
+            _queueClient = queueClient;
         }
 
         [HttpGet("ping")]
@@ -148,19 +150,37 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(DashboardDataDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetDashboardData()
         {
-            // placeholder: implement dashboard data retrieval
-            var result = await _sender.Send(new GetDashboardDataQuery());
+            var ct = HttpContext.RequestAborted;
+            var appointmentMetrics = await _appointmentClient.GetAsync<AppointmentDashboardMetrics>(
+                HttpContext,
+                "admin/dashboard-metrics",
+                ct);
+            var queueMetrics = await _queueClient.GetDashboardMetricsAsync(HttpContext, ct);
+            if (appointmentMetrics is null || queueMetrics is null)
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
+                {
+                    Title = "Dashboard metrics unavailable",
+                    Detail = "Appointment or Queue service did not return dashboard metrics."
+                });
+
+            var result = await _sender.Send(new GetDashboardDataQuery(appointmentMetrics, queueMetrics), ct);
             return Ok(result);
         }
 
         [HttpGet("statistics")]
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(StatisticsDataDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetStatistics([FromQuery] Period period)
+        public async Task<IActionResult> GetStatistics([FromQuery] string period = "week")
         {
-            // placeholder: implement dashboard data retrieval
-            var result = await _sender.Send(new GetStatisticsDataQuery(period));
-            return Ok(result);
+            var normalizedPeriod = string.Equals(period, "month", StringComparison.OrdinalIgnoreCase)
+                ? "month"
+                : "week";
+            var queryString = $"?period={normalizedPeriod}";
+            return await _appointmentClient.ProxyAsync(
+                HttpContext,
+                $"admin/statistics{queryString}",
+                HttpMethod.Get,
+                ct: HttpContext.RequestAborted);
         }
 
         private async Task<HttpResponseMessage> SendIdentityRequest(HttpMethod method, string path)

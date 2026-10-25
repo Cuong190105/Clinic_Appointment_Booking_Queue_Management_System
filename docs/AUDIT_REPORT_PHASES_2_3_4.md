@@ -140,8 +140,21 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md) và [`PHASE_3_A
 
 ### 4. Kết luận Giai đoạn 3
 > [!NOTE]
-> **ĐÁNH GIÁ GIAI ĐOẠN 3: ĐẠT 100% THEO THIẾT KẾ VÀ KIẾN TRÚC.**
+> **ĐÁNH GIÁ BAN ĐẦU GIAI ĐOẠN 3 (2026-10-24): ĐẠT THEO PHẠM VI CUTOVER LỊCH HẸN.**
 > Toàn bộ luồng đặt lịch, đổi lịch, hủy lịch, check-in, bồi hoàn saga và đồng bộ sự kiện hoàn tất khám hoạt động chuẩn xác theo thiết kế. Mã nguồn sẵn sàng chuyển sang rà soát Giai đoạn 4.
+
+---
+
+### Cập nhật hoàn tất Phase 3 (2026-10-25)
+
+Sau khi Queue Service được tách, rà soát lại phát hiện các API tra cứu lịch theo patient ID, Admin statistics/dashboard, dual-write ClinicDB và coupling của MedicalReports chưa được xử lý trong báo cáo ban đầu. Các điểm này đã được hoàn tất:
+
+- Patient-specific appointments, Admin statistics và dashboard metrics hiện đọc từ Appointment/Queue/Scheduling owner services; Clinic API chỉ proxy/tổng hợp.
+- MedicalReports vẫn là module Clinic, nhưng lưu doctor/date snapshot độc lập; xác thực appointment và kiểm tra/completion queue đi qua service API. Không còn EF navigation hoặc repository query sang Appointment/Queue legacy.
+- Đã gỡ dual-write, Appointment/Queue legacy handlers, repositories, entities, configurations và DbSets khỏi Monolith; migration `20261025081432_CompleteAppointmentServiceCutover` backfill snapshot rồi xóa Clinic Appointment/Queue tables.
+- Build solution pass; 9 test project pass; Docker build và service health/smoke pass. Chi tiết cùng giới hạn acceptance UI có xác thực nằm trong [Phase 3 completion plan](../tasks/PHASE_3_APPOINTMENT_SERVICE_EXECUTION_PLAN_MEMBER_A.md), mục 9.3–9.4.
+
+**Trạng thái Phase 3 hiện tại: hoàn tất.** MedicalReports Service độc lập vẫn nằm ngoài phạm vi này và có thể được chuyển ở giai đoạn sau.
 
 ---
 

@@ -107,3 +107,12 @@ public record PagedAppointmentsDto(
     int PageSize,
     int TotalPages
 );
+
+public record AppointmentStatisticsDto(
+    string Period,
+    List<AppointmentByDayDto> AppointmentsByDay,
+    List<AppointmentByStatusDto> AppointmentsByStatus);
+
+public record AppointmentByDayDto(DateOnly Date, int Count);
+
+public record AppointmentByStatusDto(AppointmentStatus Status, int Count);

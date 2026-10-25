@@ -49,17 +49,16 @@ namespace Clinic.Application.Features.MedicalReports.Queries
 
             var dtos = items.Select(report =>
             {
-                var appointment = report.Appointment;
                 return new MedicalReportDto
                 {
                     Id = report.Id,
                     AppointmentId = report.AppointmentId,
                     PatientId = report.PatientId,
-                    PatientName = report.Patient?.Person?.FullName ?? appointment?.Patient?.Person?.FullName ?? string.Empty,
-                    DoctorId = appointment?.DoctorId ?? Guid.Empty,
-                    DoctorName = appointment?.DoctorName ?? string.Empty,
-                    SpecialtyName = appointment?.SpecialtyName ?? string.Empty,
-                    ExamDate = appointment?.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
+                    PatientName = report.Patient?.Person?.FullName ?? string.Empty,
+                    DoctorId = report.DoctorId ?? Guid.Empty,
+                    DoctorName = report.DoctorName ?? string.Empty,
+                    SpecialtyName = report.SpecialtyName ?? string.Empty,
+                    ExamDate = report.ScheduleDate ?? DateOnly.FromDateTime(report.CreatedAt),
                     Symptoms = report.Symptoms,
                     Diagnosis = report.Diagnosis,
                     Prescription = report.Prescription,

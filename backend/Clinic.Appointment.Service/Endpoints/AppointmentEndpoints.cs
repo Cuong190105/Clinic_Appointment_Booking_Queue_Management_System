@@ -169,6 +169,19 @@ public static class AppointmentEndpoints
             return Results.Ok(list);
         }).RequireAuthorization();
 
+        app.MapGet("/patients/{patientId:guid}/appointments", async (
+            Guid patientId,
+            [FromQuery] string? category,
+            IAppointmentManager manager,
+            CancellationToken ct) =>
+        {
+            var appointments = await manager.GetAppointmentsForPatientAsync(
+                patientId,
+                string.IsNullOrWhiteSpace(category) ? "upcoming" : category,
+                ct);
+            return Results.Ok(appointments);
+        }).RequireAuthorization("PatientAppointmentsViewAny");
+
         app.MapGet("/me/appointments/{appointmentId:guid}", async (
             Guid appointmentId,
             ClaimsPrincipal user,
@@ -362,6 +375,27 @@ public static class AppointmentEndpoints
 
         app.MapGet("/appointments/summary", summaryHandler).RequireAuthorization("StaffOnly");
         app.MapGet("/admin/appointments/summary", summaryHandler).RequireAuthorization("StaffOnly");
+
+        app.MapGet("/admin/statistics", async (
+            [FromQuery] string? period,
+            IAppointmentManager manager,
+            CancellationToken ct) =>
+        {
+            if (!string.IsNullOrWhiteSpace(period) && period is not ("week" or "month") &&
+                !string.Equals(period, "week", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(period, "month", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = "Period must be 'week' or 'month'." });
+            }
+
+            var result = await manager.GetStatisticsAsync(period ?? "week", ct);
+            return Results.Ok(result);
+        }).RequireAuthorization("AdminOnly");
+
+        app.MapGet("/admin/dashboard-metrics", async (
+            IAppointmentManager manager,
+            CancellationToken ct) => Results.Ok(await manager.GetDashboardMetricsAsync(ct)))
+            .RequireAuthorization("AdminOnly");
 
         // 12. AUDIT HISTORY / CHANGELOG TRACEBACK
         var changelogHandler = async (

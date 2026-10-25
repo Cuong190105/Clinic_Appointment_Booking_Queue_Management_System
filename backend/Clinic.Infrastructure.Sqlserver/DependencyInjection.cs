@@ -33,12 +33,9 @@ namespace Clinic.Infrastructure.Sqlserver
             services.AddScoped<IPersonRepository, PersonRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<IPatientRepository, PatientRepository>();
-            services.AddScoped<IAppointmentRepository, AppointmentRepository>();
 
             services.AddScoped<DatabaseInitializer>();
-            services.AddScoped<IAppointmentRepository, AppointmentRepository>();
             services.AddScoped<IMedicalReportRepository, MedicalReportRepository>();
-            services.AddScoped<IQueueTicketRepository, QueueTicketRepository>();
             services.AddScoped<IPatientRepository, PatientRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IEmailSender, EmailSender>();

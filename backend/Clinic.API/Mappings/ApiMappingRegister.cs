@@ -1,6 +1,5 @@
 using Clinic.API.Models;
 using Clinic.Application.Contracts;
-using Clinic.Application.Features.Appointments.Queries;
 using Mapster;
 using System;
 
@@ -22,7 +21,6 @@ namespace Clinic.API.Mappings
             // DTO -> Response
             //config.NewConfig<FarmDto, FarmResponse>();
             //config.NewConfig<CropDto, CropResponse>();
-            config.NewConfig<PendingAppointmentRequest, GetPendingAppointmentsQuery>().Map(dest => dest.Descending, src => src.OrderBy == "desc");
         }
     }
 }
