@@ -646,7 +646,8 @@ public class AppointmentManager : IAppointmentManager
                     currentUserId,
                     DateTimeOffset.UtcNow,
                     oldScheduleId,
-                    oldTimeSlot)
+                    oldTimeSlot,
+                    IsRescheduleRelease: true)
             }, "appointment.cancelled");
 
             await _db.SaveChangesAsync(ct);

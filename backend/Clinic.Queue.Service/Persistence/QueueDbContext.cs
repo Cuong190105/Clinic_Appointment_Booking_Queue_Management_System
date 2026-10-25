@@ -13,6 +13,7 @@ public class QueueDbContext : DbContext
     public DbSet<QueueCounter> QueueCounters => Set<QueueCounter>();
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<CancelledAppointment> CancelledAppointments => Set<CancelledAppointment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

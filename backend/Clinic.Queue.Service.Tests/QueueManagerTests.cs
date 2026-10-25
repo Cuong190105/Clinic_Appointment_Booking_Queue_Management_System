@@ -89,6 +89,8 @@ public class QueueManagerTests
         var ticket1 = await manager.ProcessAppointmentCheckedInAsync(envelope);
         var ticket2 = await manager.ProcessAppointmentCheckedInAsync(envelope);
 
+        Assert.NotNull(ticket1);
+        Assert.NotNull(ticket2);
         Assert.Equal(ticket1.Id, ticket2.Id);
         Assert.Equal(1, ticket1.QueueNumber);
         Assert.Equal(1, ticket2.QueueNumber);
@@ -136,6 +138,8 @@ public class QueueManagerTests
         var ticket1 = await manager.ProcessAppointmentCheckedInAsync(envelope1);
         var ticket2 = await manager.ProcessAppointmentCheckedInAsync(envelope2);
 
+        Assert.NotNull(ticket1);
+        Assert.NotNull(ticket2);
         Assert.Equal(ticket1.Id, ticket2.Id);
         Assert.Equal(ticket1.QueueNumber, ticket2.QueueNumber);
 
@@ -448,5 +452,152 @@ public class QueueManagerTests
         Assert.Equal("Dr. Strange", status.DoctorName);
         Assert.Equal(3, status.PositionInQueue); // 2 ahead + 1 = 3
         Assert.Equal(20, status.EstimatedWaitMinutes); // 2 ahead * 10 = 20 mins
+    }
+
+    [Theory]
+    [InlineData(QueueStatus.Waiting)]
+    [InlineData(QueueStatus.Called)]
+    public async Task ProcessAppointmentCancelled_CancelsActiveTicketAndIsIdempotent(QueueStatus status)
+    {
+        using var db = CreateInMemoryDbContext();
+        var manager = new QueueManager(db, NullLogger<QueueManager>.Instance);
+        var appointmentId = Guid.NewGuid();
+        var ticket = new QueueTicket
+        {
+            AppointmentId = appointmentId,
+            PatientId = Guid.NewGuid(),
+            DoctorId = Guid.NewGuid(),
+            QueueDate = Common.ClinicTime.GetTodayQueueDate(),
+            QueueNumber = 1,
+            Status = status
+        };
+        db.QueueTickets.Add(ticket);
+        await db.SaveChangesAsync();
+
+        var envelope = new EventEnvelope<AppointmentCancelled>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.AppointmentCancelled,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Appointment.Service",
+            Payload = new AppointmentCancelled(appointmentId, ticket.PatientId, Guid.NewGuid(), DateTimeOffset.UtcNow)
+        };
+
+        await manager.ProcessAppointmentCancelledAsync(envelope);
+        await manager.ProcessAppointmentCancelledAsync(envelope);
+
+        Assert.Equal(QueueStatus.Cancelled, (await db.QueueTickets.SingleAsync()).Status);
+        Assert.Single(await db.CancelledAppointments.ToListAsync());
+        Assert.Single(await db.InboxMessages.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ProcessAppointmentCancelled_BeforeCheckIn_PreventsLateTicketCreation()
+    {
+        using var db = CreateInMemoryDbContext();
+        var manager = new QueueManager(db, NullLogger<QueueManager>.Instance);
+        var appointmentId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+
+        await manager.ProcessAppointmentCancelledAsync(new EventEnvelope<AppointmentCancelled>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.AppointmentCancelled,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Appointment.Service",
+            Payload = new AppointmentCancelled(appointmentId, patientId, Guid.NewGuid(), DateTimeOffset.UtcNow)
+        });
+
+        var result = await manager.ProcessAppointmentCheckedInAsync(new EventEnvelope<AppointmentCheckedIn>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.AppointmentCheckedIn,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Appointment.Service",
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow)
+        });
+
+        Assert.Null(result);
+        Assert.Empty(await db.QueueTickets.ToListAsync());
+        Assert.Empty(await db.QueueCounters.ToListAsync());
+        Assert.Equal(2, await db.InboxMessages.CountAsync(m => m.Status == InboxMessageStatus.Processed));
+    }
+
+    [Fact]
+    public async Task ProcessAppointmentCancelled_RescheduleSlotRelease_DoesNotSuppressFutureCheckIn()
+    {
+        using var db = CreateInMemoryDbContext();
+        var manager = new QueueManager(db, NullLogger<QueueManager>.Instance);
+        var appointmentId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+
+        await manager.ProcessAppointmentCancelledAsync(new EventEnvelope<AppointmentCancelled>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.AppointmentCancelled,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Appointment.Service",
+            Payload = new AppointmentCancelled(appointmentId, patientId, Guid.NewGuid(), DateTimeOffset.UtcNow,
+                Guid.NewGuid(), new TimeOnly(9, 0), IsRescheduleRelease: true)
+        });
+
+        var ticket = await manager.ProcessAppointmentCheckedInAsync(new EventEnvelope<AppointmentCheckedIn>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.AppointmentCheckedIn,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Appointment.Service",
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow)
+        });
+
+        Assert.NotNull(ticket);
+        Assert.Equal(appointmentId, ticket.AppointmentId);
+        Assert.Empty(await db.CancelledAppointments.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(QueueStatus.InProgress)]
+    [InlineData(QueueStatus.Completed)]
+    public async Task ProcessAppointmentCancelled_PreservesExamAlreadyStartedOrCompleted(QueueStatus status)
+    {
+        using var db = CreateInMemoryDbContext();
+        var manager = new QueueManager(db, NullLogger<QueueManager>.Instance);
+        var ticket = new QueueTicket
+        {
+            AppointmentId = Guid.NewGuid(),
+            PatientId = Guid.NewGuid(),
+            DoctorId = Guid.NewGuid(),
+            QueueDate = Common.ClinicTime.GetTodayQueueDate(),
+            QueueNumber = 1,
+            Status = status
+        };
+        db.QueueTickets.Add(ticket);
+        await db.SaveChangesAsync();
+
+        await manager.ProcessAppointmentCancelledAsync(new EventEnvelope<AppointmentCancelled>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.AppointmentCancelled,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Appointment.Service",
+            Payload = new AppointmentCancelled(ticket.AppointmentId, ticket.PatientId, Guid.NewGuid(), DateTimeOffset.UtcNow)
+        });
+
+        Assert.Equal(status, (await db.QueueTickets.SingleAsync()).Status);
+        Assert.Single(await db.InboxMessages.ToListAsync());
     }
 }

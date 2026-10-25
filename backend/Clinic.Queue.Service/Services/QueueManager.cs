@@ -85,7 +85,7 @@ public class QueueManager : IQueueManager
         return counter.LastNumber;
     }
 
-    public async Task<QueueTicketDto> ProcessAppointmentCheckedInAsync(EventEnvelope<AppointmentCheckedIn> envelope, CancellationToken ct = default)
+    public async Task<QueueTicketDto?> ProcessAppointmentCheckedInAsync(EventEnvelope<AppointmentCheckedIn> envelope, CancellationToken ct = default)
     {
         if (envelope == null || envelope.Payload == null)
         {
@@ -96,6 +96,27 @@ public class QueueManager : IQueueManager
         if (payload.AppointmentId == Guid.Empty || payload.DoctorId == Guid.Empty || payload.PatientId == Guid.Empty)
         {
             throw new QueueValidationException("AppointmentId, DoctorId, and PatientId must be valid non-empty GUIDs.");
+        }
+
+        // Cancellation may be published before a delayed/retried check-in event. Keep a tombstone
+        // so that redelivery cannot resurrect a cancelled appointment in the queue.
+        if (await _dbContext.CancelledAppointments.AnyAsync(x => x.AppointmentId == payload.AppointmentId, ct))
+        {
+            var inbox = await _dbContext.InboxMessages.FirstOrDefaultAsync(
+                m => m.EventId == envelope.EventId && m.ConsumerName == ConsumerName, ct);
+            if (inbox is null)
+            {
+                _dbContext.InboxMessages.Add(CreateProcessedInboxMessage(envelope.EventId, envelope.EventType, envelope.SchemaVersion, envelope.CorrelationId));
+            }
+            else
+            {
+                inbox.Status = InboxMessageStatus.Processed;
+                inbox.ProcessedAt = DateTimeOffset.UtcNow;
+                inbox.LastError = null;
+            }
+            await _dbContext.SaveChangesAsync(ct);
+            _logger.LogInformation("Ignoring delayed check-in for cancelled AppointmentId={AppointmentId}", payload.AppointmentId);
+            return null;
         }
 
         // 1. Check InboxMessage by (ConsumerName, EventId) for exact duplicate delivery
@@ -237,6 +258,96 @@ public class QueueManager : IQueueManager
         QueueTelemetry.TicketsCreated.Add(1);
         return createdTicket;
     }
+
+    public async Task ProcessAppointmentCancelledAsync(EventEnvelope<AppointmentCancelled> envelope, CancellationToken ct = default)
+    {
+        if (envelope?.Payload is null || envelope.Payload.AppointmentId == Guid.Empty)
+            throw new QueueValidationException("AppointmentCancelled must contain a valid AppointmentId.");
+
+        var payload = envelope.Payload;
+        if (payload.IsRescheduleRelease)
+        {
+            var releaseInbox = await _dbContext.InboxMessages.FirstOrDefaultAsync(
+                m => m.EventId == envelope.EventId && m.ConsumerName == ConsumerName, ct);
+            if (releaseInbox is null)
+                _dbContext.InboxMessages.Add(CreateProcessedInboxMessage(envelope.EventId, envelope.EventType, envelope.SchemaVersion, envelope.CorrelationId));
+            else
+            {
+                releaseInbox.Status = InboxMessageStatus.Processed;
+                releaseInbox.ProcessedAt = DateTimeOffset.UtcNow;
+                releaseInbox.LastError = null;
+            }
+            await _dbContext.SaveChangesAsync(ct);
+            return;
+        }
+
+        if (await _dbContext.InboxMessages.AnyAsync(m => m.EventId == envelope.EventId && m.ConsumerName == ConsumerName && m.Status == InboxMessageStatus.Processed, ct))
+            return;
+
+        async Task ProcessAsync()
+        {
+            var ticket = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.AppointmentId == payload.AppointmentId, ct);
+            if (ticket is not null && (ticket.Status == QueueStatus.Waiting || ticket.Status == QueueStatus.Called))
+            {
+                ticket.Cancel();
+            }
+            else if (ticket is not null)
+            {
+                _logger.LogWarning("Appointment {AppointmentId} was cancelled while its queue ticket is {Status}; preserving the in-progress/completed queue state.", payload.AppointmentId, ticket.Status);
+            }
+
+            if (!await _dbContext.CancelledAppointments.AnyAsync(x => x.AppointmentId == payload.AppointmentId, ct))
+            {
+                _dbContext.CancelledAppointments.Add(new CancelledAppointment
+                {
+                    AppointmentId = payload.AppointmentId,
+                    CancelledAt = payload.CancelledAt
+                });
+            }
+
+            var inbox = await _dbContext.InboxMessages.FirstOrDefaultAsync(
+                m => m.EventId == envelope.EventId && m.ConsumerName == ConsumerName, ct);
+            if (inbox is null)
+            {
+                _dbContext.InboxMessages.Add(CreateProcessedInboxMessage(envelope.EventId, envelope.EventType, envelope.SchemaVersion, envelope.CorrelationId));
+            }
+            else
+            {
+                inbox.Status = InboxMessageStatus.Processed;
+                inbox.ProcessedAt = DateTimeOffset.UtcNow;
+                inbox.LastError = null;
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+        }
+
+        if (_dbContext.Database.IsSqlServer())
+        {
+            var strategy = _dbContext.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+                await ProcessAsync();
+                await transaction.CommitAsync(ct);
+            });
+        }
+        else
+        {
+            await ProcessAsync();
+        }
+    }
+
+    private static InboxMessage CreateProcessedInboxMessage(Guid eventId, string eventType, int schemaVersion, Guid correlationId) => new()
+    {
+        EventId = eventId,
+        ConsumerName = ConsumerName,
+        EventType = eventType,
+        SchemaVersion = schemaVersion,
+        CorrelationId = correlationId,
+        Status = InboxMessageStatus.Processed,
+        ReceivedAt = DateTimeOffset.UtcNow,
+        ProcessedAt = DateTimeOffset.UtcNow
+    };
 
     public async Task<QueueTicketDto> CallNextAsync(Guid doctorId, DateOnly? date = null, CancellationToken ct = default)
     {

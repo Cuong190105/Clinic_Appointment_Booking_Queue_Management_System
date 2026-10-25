@@ -161,6 +161,8 @@ Sau khi Queue Service được tách, rà soát lại phát hiện các API tra 
 
 ## PHẦN 3: BÁO CÁO RÀ SOÁT GIAI ĐOẠN 4 — QUEUE SERVICE
 
+> **Cập nhật 2026-10-25:** Mục này thay thế các kết luận cũ về Queue trong Phần 4 và các số liệu đếm database có ngày 2026-10-24. ClinicDB/ClinicQueueDB là mock data; các chênh lệch trước đây không được dùng làm căn cứ tự sửa/xóa.
+
 ### 1. Phạm vi & Tiêu chí Thiết kế theo Yêu cầu
 Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_B.md`](../tasks/TASK_MEMBER_B.md) và [`PHASE_4_QUEUE_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](../tasks/PHASE_4_QUEUE_SERVICE_EXECUTION_PLAN_MEMBER_A.md):
 1. **Single Source of Truth (SSOT) & Database Boundary:**
@@ -173,12 +175,11 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
    - **Bộ đếm số**: `QueueCounter` có khóa `(DoctorId, QueueDate)`, tăng nguyên tử (atomic increment) trong local transaction của SQL Server.
    - **Xác định ngày (`QueueDate`)**: Tính toán chính xác theo IANA timezone cấu hình cho phòng khám (`Asia/Ho_Chi_Minh`), không dùng `.Date` trên UTC để tránh lệch ngày quanh ranh giới nửa đêm.
 3. **Cơ chế Tiêu thụ & Phát Sự kiện (Event-Driven & Idempotency):**
-   - **Tiêu thụ `AppointmentCheckedIn`**: 
-     - Lắng nghe sự kiện từ RabbitMQ exchange `clinic.events` (routing key `appointment.checked-in`).
+   - **Tiêu thụ event Appointment**: Queue nghe `appointment.checked-in` để cấp vé và `appointment.cancelled` để hủy vé còn `Waiting`/`Called`.
      - Chống trùng lặp 2 lớp: Dedupe theo `(ConsumerName, EventId)` qua `InboxMessages` và Idempotency theo `AppointmentId`. Nếu cùng appointment đến lần hai (kể cả khác EventId), trả về ticket hiện có, tuyệt đối không tăng counter hay cấp số lần hai.
-     - Cấp số, tạo ticket, ghi Inbox được commit nguyên tử trong cùng một local transaction.
+      - Cấp số, tạo ticket, ghi Inbox được commit nguyên tử trong cùng một local transaction. Event hủy dùng Inbox và tombstone theo AppointmentId; check-in đến trễ không tạo vé.
    - **Hạ tầng RabbitMQ Topology & Dead Letter Queue**:
-     - Thiết lập topic exchange `clinic.events`, queue chính `q.queue-service.events`, dead-letter exchange `clinic.dead-letter`, hàng đợi DLQ `q.queue-service.dlq`, và hàng đợi retry `q.queue-service.retry` (TTL 5000ms).
+      - Queue chính bind hai routing key Appointment. Hàng đợi retry tách theo routing key để redelivery không biến `appointment.cancelled` thành check-in; poison messages vào DLQ.
    - **Phát sự kiện trạng thái**:
      - Phát các sự kiện `PatientCalled`, `ExamStarted`, `ExamCompleted`, `PatientSkipped` qua Outbox pattern vào RabbitMQ để các service khác (như Appointment Service cập nhật `Completed`) tiếp nhận xử lý.
 
@@ -194,7 +195,8 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
     - Unique `AppointmentId` trên `QueueTickets` (đảm bảo 1 appointment chỉ có tối đa 1 ticket).
     - Unique `(ConsumerName, EventId)` trên `InboxMessages`.
     - Khóa chính `(DoctorId, QueueDate)` trên `QueueCounters`.
-  - Dữ liệu hiện có trên `ClinicQueueDB`: 357 tickets, toàn bộ 51 tin nhắn Outbox đã được publish thành công (`Status = Published`), 0 tin nhắn lỗi hay pending.
+   - ClinicDB không còn sở hữu Queue model/runtime DbSet; migration `CompleteAppointmentServiceCutover` drop `QueueTickets`/`QueueCounters`. Migration cũ còn định nghĩa bảng là lịch sử, không phải schema hiện hành.
+   - Queue Service sở hữu `QueueTickets`, `QueueCounters`, `InboxMessages`, `OutboxMessages` và `CancelledAppointments` làm tombstone cho event hủy đến trước check-in.
 
 #### 2.2. Phía API Endpoints & Gateway Routing
 - **Gateway Cutover**:
@@ -203,9 +205,11 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
   - Bác sĩ chỉ được xem và gọi số thuộc hàng đợi của chính mình (kiểm tra claim `doctorId` từ token).
   - Bệnh nhân chỉ xem được vé khám thuộc tài khoản của mình (`patientId` claim).
   - Lễ tân và Quản trị viên (`StaffOnly`) có quyền điều phối toàn bộ hàng đợi.
+  - Appointment Service phát event hủy; Queue chỉ hủy vé `Waiting`/`Called`. Vé `InProgress`/`Completed` giữ nguyên và cần reconciliation nếu Appointment bị hủy đồng thời.
 
 #### 2.3. Quy trình Trạng thái Hàng đợi
 - Vòng đời trạng thái: `Waiting` $\to$ `Called` $\to$ `InProgress` $\to$ `Completed` (hoặc `Skipped`).
+- Event hủy chuyển vé `Waiting`/`Called` sang `Cancelled`; event cũ giải phóng slot do reschedule không hủy vé/tombstone.
 - Chuyển trạng thái phát sự kiện Outbox tức thời (`ExamStarted`, `ExamCompleted`, `PatientSkipped`).
 - Tích hợp telemetry OpenTelemetry: ghi nhận metrics `queue.consumer.processed`, `queue.consumer.lag`, `queue.ticket.processing_time`, `queue.outbox.published`.
 
@@ -213,28 +217,26 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
 
 ### 3. Đánh giá Tiêu chuẩn Kiểm thử & Build của Giai đoạn 4
 - **Unit & Integration Tests**:
-  - `Clinic.Queue.Service.Tests`: **44/44 passed** (bao gồm test Local Transaction, Idempotency theo EventId & AppointmentId, Concurrency Counter, Timezone QueueDate, Authorization matrix, Error retry & DLQ).
-  - Toàn bộ solution: **273/273 tests passed (0 failed)**.
+  - `Clinic.Queue.Service.Tests`: **50/50 passed**, gồm test hủy ticket, event trùng, check-in đến sau cancellation, reschedule slot-release và giữ nguyên vé đã bắt đầu/hoàn tất.
 - **Frontend Type Check & Build**:
   - `npm run type-check` (`vue-tsc --build`): **0 errors**.
   - `npm run build`: **Build production thành công**.
 - **Docker Stack Runtime**:
-  - Container `clinic_queue_service` chạy ổn định, health check `/readyz` và `/healthz` trả về HTTP `200`.
+  - Đã build và recreate backend, Appointment, Scheduling và Queue. Các container đều healthy; health/readiness của Queue và Appointment trả `200`, Gateway `/healthz` trả `200`, protected Queue API trả `401` nếu thiếu token.
+  - Đã xác nhận migration `20261025091831_AddCancelledAppointmentTombstones` được áp dụng và bảng `CancelledAppointments` tồn tại trong ClinicQueueDB. Reconciliation script chạy với exit code `0` trên SQL Server hiện tại và chỉ đọc dữ liệu.
 
 ---
 
 ### 4. Kết luận Giai đoạn 4
-> [!NOTE]
-> **ĐÁNH GIÁ GIAI ĐOẠN 4: ĐẠT 100% THEO THIẾT KẾ VÀ KIẾN TRÚC.**
-> Cơ chế cấp số nguyên tử trong local transaction, chống trùng lặp qua Inbox & AppointmentId, topology RabbitMQ kèm DLQ, phân quyền kiểm soát claim và các sự kiện tích hợp đều tuân thủ chính xác thiết kế của Thành viên A và Thành viên B.
+
+Queue core đã tách khỏi Clinic và có API, DB riêng, cấp số/idempotency/outbox. Hủy sau check-in đã được xử lý trong source, migration đã áp dụng và RabbitMQ consumer khởi động mà không có lỗi topology trong logs. Kiểm thử manager bao phủ cancellation và event đến lệch thứ tự; chưa phát event hủy end-to-end bằng token/Appointment thật. Reconciliation read-only chạy thành công; kết quả mismatch cần diễn giải thủ công vì dữ liệu hiện là mock. Không tự replay hoặc chỉnh dữ liệu lệch.
 
 ---
 
 ## PHẦN 4: ĐỐI SOÁT TỒN ĐỌNG ENTITY & FEATURE TRONG MONOLITH, NGUYÊN NHÂN VÀ KHẢ NĂNG CHUYỂN ĐỔI NGAY
 
-> [!WARNING]
-> **VẤN ĐỀ CẦN LÀM RÕ:** Việc toàn bộ 273/273 unit/integration tests vượt qua là do các bài test cũ trong monolith vẫn đang chạy với In-Memory Mock/Fakes (`FakeAppointmentRepository`, `FakeQueueTicketRepository`). 
-> Qua kiểm tra chuyên sâu vào mã nguồn thực tế và schema cơ sở dữ liệu `ClinicDB`, **vẫn còn các Entity, DbSet, Handler và Bảng dữ liệu của Phase 3 và Phase 4 đang tồn đọng trong Monolith**. 
+> [!NOTE]
+> Phần 4 bên dưới là kết quả rà soát lịch sử 2026-10-24. Trạng thái Queue đã được cập nhật theo source và migration hiện hành ở ngày 2026-10-25; các nhận định cũ về Queue entity, handler và bảng ClinicDB đã bị thay thế. Trạng thái Appointment cần xem theo cập nhật Phase 3 riêng.
 
 ---
 
@@ -244,7 +246,7 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Phase 2** (Scheduling) | **0 entity** (Đã xóa toàn bộ) | **0 DbSet** (Đã xóa toàn bộ) | **0 bảng** (Đã DROP qua migration `RemoveLegacyStaffAndSchedulingSchema`) | **0 feature** (Đã xóa `Employees`, `Doctors`, `Specialties`, `WorkSchedules`, `Slots`) | **0 repo** | 100% Proxy qua `SchedulingProxyMiddleware` và controller điều phối | **0% tồn đọng** (Đã dọn dẹp triệt để) |
 | **Phase 3** (Appointment) | `Appointment.cs`, `AppointmentSnapshot.cs` | `DbSet<Appointment>`, `DbSet<AppointmentSnapshot>` | `Appointments` (776 dòng), `AppointmentSnapshots` (50 dòng) | `Features/Appointments` (8 Handlers: Cancel, Confirm, GetById, Changelog, MyAppointments, PatientAppointments, Pending, Summary) | `IAppointmentRepository`, `AppointmentRepository` | Đa số proxy sang `Clinic.Appointment.Service`, **nhưng vẫn còn:**<br>1. `EnsureAppointmentInClinicDbAsync` ghi đè (dual-write)<br>2. `PatientsController.GetPatientAppointments` gọi handler cũ<br>3. `AdminController.GetDashboardData` & `GetStatistics` chọc trực tiếp vào repo | **Còn tồn đọng đáng kể** (Bị giữ lại do phụ thuộc nghiệp vụ) |
-| **Phase 4** (Queue) | `QueueTicket.cs`, `QueueCounter.cs` | `DbSet<QueueTicket>`, `DbSet<QueueCounter>` | `QueueTickets` (349 dòng), `QueueCounters` (2 dòng) | `Features/Queue` (8 Handlers: CallNext, CheckIn, CompleteExam, SetPriority, Skip, StartExam, GetMyStatus, GetByDoctor) | `IQueueTicketRepository`, `QueueTicketRepository` | 100% Proxy sang `Clinic.Queue.Service` (`QueueController`, `DoctorsController`, `MeController`). **Không có API nào gọi vào handler cũ.** | **Mã nguồn chết (Zombie code) & Bảng đóng băng** |
+| **Phase 4** (Queue) | Không còn Queue entity; `QueueStatus` enum cũ đã được gỡ | Không còn Queue DbSet | Migration `CompleteAppointmentServiceCutover` drop Queue tables khỏi ClinicDB; Queue runtime data thuộc ClinicQueueDB | Không còn Queue handlers trong Clinic | Không còn Queue repository/configuration | Các API Queue proxy qua Queue Service | **Đã tách; chỉ còn DTO Gateway và migration lịch sử** |
 
 ---
 
@@ -260,35 +262,10 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
 ---
 
 #### 2.2. Phase 4 (Queue Service)
-- **Những gì còn tồn đọng trong Monolith**:
-  1. `Clinic.Domain/Entities/QueueTicket.cs` và `QueueCounter.cs`.
-  2. `DbSet<QueueTicket>` và `DbSet<QueueCounter>` trong `ApplicationDbContext.cs`.
-  3. Bảng `QueueTickets` (349 dòng) và `QueueCounters` (2 dòng) trong `ClinicDB` (trong khi `ClinicQueueDB` thực tế đã có 364 tickets và 110 counters).
-  4. Thư mục `Clinic.Application/Features/Queue` chứa 8 command/query handler.
-  5. `IQueueTicketRepository.cs` và `QueueTicketRepository.cs` trong `Clinic.Infrastructure.Sqlserver`.
-- **Nguyên nhân tại sao còn tồn đọng**:
-  1. **Chủ đích giữ rollback window của Thành viên A/B**: Trong kế hoạch di chuyển Phase 4 (bước 9) và báo cáo đối soát `phase4-queue-reconciliation-20261024.md`, nhóm triển khai chủ đích giữ lại bảng và handler cũ trong monolith để đối soát dữ liệu và phòng ngừa tình huống khẩn cấp cần rollback nếu Queue Service độc lập gặp sự cố.
-  2. **Liên kết mềm trong `MedicalReports`**: 
-     - Trong `Appointment.cs` vẫn còn thuộc tính `public QueueTicket? QueueTicket { get; protected set; }`.
-     - Trong `MedicalReports/Commands/SaveMedicalReport.cs` (dòng 45-56), `FinalizeMedicalReport.cs`, và `UpdateDraftMedicalReport.cs` vẫn còn đoạn kiểm tra:
-       ```csharp
-       var ticket = appointment.QueueTicket;
-       if (ticket != null && ticket.Status != QueueStatus.InProgress)
-       {
-           throw new InvalidOperationException($"Cannot record medical report for queue ticket with status '{ticket.Status}'...");
-       }
-       ```
-     - Trong `MedicalReportRepository.cs` vẫn còn `.ThenInclude(a => a.QueueTicket)`.
-     - *Thực tế vận hành:* Vì toàn bộ ticket mới đều được sinh trên `ClinicQueueDB`, nên đối với các lịch hẹn mới trong `ClinicDB`, `appointment.QueueTicket` luôn bằng `null`. Do đó điều kiện `ticket != null` bị bỏ qua, không gây lỗi runtime nhưng vẫn là một tàn dư kiến trúc.
-- **Có thể chuyển / dọn dẹp ngay được không?**:
-  - **CÓ THỂ DỌN DẸP NGAY (Khả thi cao)** vì toàn bộ các API `/queue/**`, `/doctors/{id}/queue/**`, `/me/queue-status` đã được proxy 100% sang `Clinic.Queue.Service`. Các handler trong `Features/Queue` thực chất là **Mã nguồn chết (Dead code)**.
-  - **Các bước dọn dẹp cụ thể cần thực hiện**:
-    1. Gỡ bỏ `.ThenInclude(a => a.QueueTicket)` trong `MedicalReportRepository.cs`.
-    2. Bỏ kiểm tra `appointment.QueueTicket` trong `SaveMedicalReport.cs`, `FinalizeMedicalReport.cs`, `UpdateDraftMedicalReport.cs`.
-    3. Gỡ bỏ navigation `QueueTicket` trong `Appointment.cs`.
-    4. Xóa thư mục `Clinic.Application/Features/Queue`.
-    5. Xóa `IQueueTicketRepository`, `QueueTicketRepository`, `QueueTicketConfiguration.cs`, `QueueCounterConfiguration.cs`.
-    6. Tạo EF Core Migration để drop 2 bảng `QueueTickets` và `QueueCounters` khỏi `ClinicDB`.
+- Entity, DbSet, repository, handler và runtime ClinicDB table đã được gỡ; migration lịch sử vẫn có thể chứa schema/seed cũ và không cần xóa.
+- API Queue của Gateway tiếp tục dùng một số DTO từ Clinic.Application làm metadata/response contract; đó không phải Queue persistence hay business logic.
+- `QueueStatus` cũ trong `Clinic.Domain` đã được gỡ sau khi xác nhận không có caller.
+- **Tồn đọng chức năng:** Appointment cancellation được xử lý bằng event sang Queue. Reconciliation trạng thái liên dịch vụ hiện là script chỉ đọc; mismatch của mock data không tự sửa. Hủy khi ticket đã `InProgress` không đảo ngược Queue state và cần được xử lý bằng nghiệp vụ/đối soát.
 
 ---
 
@@ -342,8 +319,7 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Phase 2** | `Clinic.Scheduling.Service` | `ClinicSchedulingDB` | ✅ **Sạch 100%** (Đã drop 6 bảng) | ✅ Đạt (Dual-Constraint capacity, 10m lease) | ✅ Đạt (`SchedulingOutboxPublisher`, 122/122 sent) | 37/37 tests pass | **HOÀN TẤT & ĐẠT 100%** |
 | **Phase 3** | `Clinic.Appointment.Service` | `ClinicAppointmentDB` | ⚠️ **Còn tồn đọng** (Chưa drop do Phase 5 phụ thuộc) | ✅ Đạt (Booking Saga, Reschedule Saga, Compensate) | ✅ Đạt (`AppointmentOutboxPublisher`, 49/49 sent) | 32/32 tests pass | **DỊCH VỤ MỚI ĐẠT 100%**<br>*(Monolith giữ dual-write bridge)* |
-| **Phase 4** | `Clinic.Queue.Service` | `ClinicQueueDB` | ⚠️ **Còn mã chết & bảng** (Giữ rollback window) | ✅ Đạt (Atomic local tx, Unique scope, Dedupe) | ✅ Đạt (`QueueOutboxPublisher`, 51/51 published) | 44/44 tests pass | **DỊCH VỤ MỚI ĐẠT 100%**<br>*(Sẵn sàng dọn dẹp dead code)* |
+| **Phase 4** | `Clinic.Queue.Service` | `ClinicQueueDB` | ✅ Đã drop khỏi ClinicDB; migration lịch sử được giữ | ✅ Cấp số atomic, Inbox/idempotency và cancellation event | ✅ Queue Outbox/Appointment consumer | 50/50 Queue tests pass | **Queue core và migration đã xác minh runtime; còn P1 alert/replay vận hành** |
 
-**Tổng số bài kiểm thử toàn hệ thống:** **273/273 tests passed (100%)**, Frontend build **0 lỗi**.
-Toàn bộ mã nguồn mới của 3 microservice đều vận hành đúng thiết kế, tuy nhiên việc hoàn tất tách rời 100% khỏi Monolith cần hoàn thành dọn dẹp Phase 4 và thực hiện lộ trình tiền đề của Phase 3 gắn liền với Phase 5 (`MedicalReports`).
+**Số kiểm thử Queue Service hiện tại:** **50/50 passed**; Appointment Service **33/33 passed**. Reconciliation script chỉ đọc, không tự sửa dữ liệu mock. Chưa chạy thao tác cancel/check-in bằng account đã xác thực trên live API.
 

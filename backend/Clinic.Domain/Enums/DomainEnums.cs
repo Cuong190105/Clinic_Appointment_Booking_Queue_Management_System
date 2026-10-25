@@ -36,17 +36,6 @@ namespace Clinic.Domain.Enums
         NoShow
     }
 
-    public enum QueueStatus
-    {
-        Waiting,
-        Called,
-        InProgress,
-        Completed,
-        Skipped,
-        /// <summary>Vé bị hủy vì Appointment gốc bị hủy sau khi đã check-in (còn Waiting/Called).</summary>
-        Cancelled
-    }
-
     public enum NotificationType
     {
         AppointmentReminder,

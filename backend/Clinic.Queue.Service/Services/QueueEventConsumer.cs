@@ -104,6 +104,9 @@ public sealed class QueueEventConsumer : BackgroundService
         const string deadLetterQueue = "q.queue-service.dlq";
         const string deadLetterRoutingKey = "q.queue-service.dlq";
         const string retryQueue = "q.queue-service.retry";
+        const string cancelledRetryQueue = "q.queue-service.cancelled-retry";
+        const string checkInRoutingKey = "appointment.checked-in";
+        const string cancelledRoutingKey = "appointment.cancelled";
 
         // Declare main exchange
         await _channel.ExchangeDeclareAsync(
@@ -147,6 +150,19 @@ public sealed class QueueEventConsumer : BackgroundService
             },
             cancellationToken: ct);
 
+        await _channel.QueueDeclareAsync(
+            queue: cancelledRetryQueue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-message-ttl"] = 5000,
+                ["x-dead-letter-exchange"] = exchangeName,
+                ["x-dead-letter-routing-key"] = cancelledRoutingKey
+            },
+            cancellationToken: ct);
+
         // Declare main queue with DLX arguments matching Queue design.md
         var queueArgs = new Dictionary<string, object?>
         {
@@ -165,7 +181,13 @@ public sealed class QueueEventConsumer : BackgroundService
         await _channel.QueueBindAsync(
             queue: queueName,
             exchange: exchangeName,
-            routingKey: "appointment.checked-in",
+            routingKey: checkInRoutingKey,
+            cancellationToken: ct);
+
+        await _channel.QueueBindAsync(
+            queue: queueName,
+            exchange: exchangeName,
+            routingKey: cancelledRoutingKey,
             cancellationToken: ct);
 
         // Set prefetch count
@@ -184,61 +206,43 @@ public sealed class QueueEventConsumer : BackgroundService
                 await using var scope = _serviceProvider.CreateAsyncScope();
                 var queueManager = scope.ServiceProvider.GetRequiredService<IQueueManager>();
 
-                EventEnvelope<AppointmentCheckedIn>? envelope = null;
                 Guid eventId = Guid.Empty;
                 if (!string.IsNullOrWhiteSpace(args.BasicProperties.MessageId) && Guid.TryParse(args.BasicProperties.MessageId, out var parsedMessageId))
                 {
                     eventId = parsedMessageId;
                 }
 
-                try
+                if (args.RoutingKey == checkInRoutingKey)
                 {
-                    envelope = JsonSerializer.Deserialize<EventEnvelope<AppointmentCheckedIn>>(
-                        json,
-                        EventJsonSerializerOptions.Default);
-                }
-                catch
-                {
-                    // Fallback to direct payload
-                }
-
-                if (envelope == null || envelope.Payload == null)
-                {
-                    var directPayload = JsonSerializer.Deserialize<AppointmentCheckedIn>(
-                        json,
-                        EventJsonSerializerOptions.Default);
-                    if (directPayload != null)
-                    {
-                        envelope = new EventEnvelope<AppointmentCheckedIn>
-                        {
-                            EventId = eventId != Guid.Empty ? eventId : Guid.NewGuid(),
-                            EventType = EventTypes.AppointmentCheckedIn,
-                            SchemaVersion = 1,
-                            OccurredAt = DateTimeOffset.UtcNow,
-                            CorrelationId = Guid.NewGuid(),
-                            Producer = "appointment-service",
-                            Payload = directPayload
-                        };
-                    }
-                }
-
-                if (envelope == null || envelope.Payload == null)
-                    throw new JsonException("Message is not a valid AppointmentCheckedIn envelope or payload.");
-                if (!string.Equals(envelope.EventType, EventTypes.AppointmentCheckedIn, StringComparison.Ordinal))
-                    throw new JsonException($"Unexpected event type '{envelope.EventType}'.");
-
-                if (envelope.Payload != null)
-                {
+                    var envelope = DeserializeEnvelope<AppointmentCheckedIn>(json, eventId, EventTypes.AppointmentCheckedIn, "AppointmentCheckedIn");
                     using var activity = QueueTelemetry.ActivitySource.StartActivity("messaging.consume", ActivityKind.Consumer);
                     activity?.SetTag("messaging.message.id", envelope.EventId);
                     activity?.SetTag("messaging.destination.name", queueName);
                     activity?.SetTag("event.type", envelope.EventType);
                     var startedAt = Stopwatch.GetTimestamp();
-                    await queueManager.ProcessAppointmentCheckedInAsync(envelope, ct);
+                    var ticket = await queueManager.ProcessAppointmentCheckedInAsync(envelope, ct);
                     QueueTelemetry.ConsumerProcessed.Add(1);
                     QueueTelemetry.ConsumerLag.Record(Math.Max(0, (DateTimeOffset.UtcNow - envelope.OccurredAt).TotalSeconds));
                     QueueTelemetry.TicketProcessingTime.Record(Stopwatch.GetElapsedTime(startedAt).TotalSeconds);
-                    _logger.LogInformation("Successfully handled AppointmentCheckedIn for AppointmentId={AppointmentId}", envelope.Payload.AppointmentId);
+                    _logger.LogInformation("Handled AppointmentCheckedIn for AppointmentId={AppointmentId}; ticket created={TicketCreated}", envelope.Payload.AppointmentId, ticket is not null);
+                }
+                else if (args.RoutingKey == cancelledRoutingKey)
+                {
+                    var envelope = DeserializeEnvelope<AppointmentCancelled>(json, eventId, EventTypes.AppointmentCancelled, "AppointmentCancelled");
+                    using var activity = QueueTelemetry.ActivitySource.StartActivity("messaging.consume", ActivityKind.Consumer);
+                    activity?.SetTag("messaging.message.id", envelope.EventId);
+                    activity?.SetTag("messaging.destination.name", queueName);
+                    activity?.SetTag("event.type", envelope.EventType);
+                    var startedAt = Stopwatch.GetTimestamp();
+                    await queueManager.ProcessAppointmentCancelledAsync(envelope, ct);
+                    QueueTelemetry.ConsumerProcessed.Add(1);
+                    QueueTelemetry.ConsumerLag.Record(Math.Max(0, (DateTimeOffset.UtcNow - envelope.OccurredAt).TotalSeconds));
+                    QueueTelemetry.TicketProcessingTime.Record(Stopwatch.GetElapsedTime(startedAt).TotalSeconds);
+                    _logger.LogInformation("Handled AppointmentCancelled for AppointmentId={AppointmentId}", envelope.Payload.AppointmentId);
+                }
+                else
+                {
+                    throw new JsonException($"Unexpected routing key '{args.RoutingKey}'.");
                 }
                 if (_channel is { IsOpen: true })
                 {
@@ -273,9 +277,14 @@ public sealed class QueueEventConsumer : BackgroundService
                                 Headers = new Dictionary<string, object?>(args.BasicProperties.Headers ?? new Dictionary<string, object?>())
                             };
                             retryProperties.Headers["x-queue-retry-count"] = retryCount + 1;
+                            var targetRetryQueue = args.RoutingKey == checkInRoutingKey
+                                ? retryQueue
+                                : args.RoutingKey == cancelledRoutingKey ? cancelledRetryQueue : string.Empty;
+                            if (string.IsNullOrEmpty(targetRetryQueue))
+                                throw new InvalidOperationException($"Cannot retry unsupported routing key '{args.RoutingKey}'.");
                             await _channel.BasicPublishAsync(
                                 exchange: string.Empty,
-                                routingKey: retryQueue,
+                                routingKey: targetRetryQueue,
                                 mandatory: true,
                                 basicProperties: retryProperties,
                                 body: args.Body,
@@ -316,6 +325,45 @@ public sealed class QueueEventConsumer : BackgroundService
         {
             return 0;
         }
+    }
+
+    private static EventEnvelope<TPayload> DeserializeEnvelope<TPayload>(string json, Guid messageId, string expectedEventType, string payloadName)
+        where TPayload : class
+    {
+        EventEnvelope<TPayload>? envelope = null;
+        try
+        {
+            envelope = JsonSerializer.Deserialize<EventEnvelope<TPayload>>(json, EventJsonSerializerOptions.Default);
+        }
+        catch (JsonException)
+        {
+            // Legacy publishers may send the event payload without the shared envelope.
+        }
+
+        if (envelope?.Payload is null)
+        {
+            var payload = JsonSerializer.Deserialize<TPayload>(json, EventJsonSerializerOptions.Default);
+            if (payload is not null)
+            {
+                envelope = new EventEnvelope<TPayload>
+                {
+                    EventId = messageId != Guid.Empty ? messageId : Guid.NewGuid(),
+                    EventType = expectedEventType,
+                    SchemaVersion = 1,
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    CorrelationId = Guid.NewGuid(),
+                    Producer = "appointment-service",
+                    Payload = payload
+                };
+            }
+        }
+
+        if (envelope?.Payload is null)
+            throw new JsonException($"Message is not a valid {payloadName} envelope or payload.");
+        if (!string.Equals(envelope.EventType, expectedEventType, StringComparison.Ordinal))
+            throw new JsonException($"Unexpected event type '{envelope.EventType}'.");
+
+        return envelope;
     }
 
     private async Task DisconnectAsync()

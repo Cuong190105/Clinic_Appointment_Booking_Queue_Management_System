@@ -22,6 +22,20 @@ namespace Clinic.Queue.Service.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Clinic.Queue.Service.Entities.CancelledAppointment", b =>
+                {
+                    b.Property<Guid>("AppointmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CancelledAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("AppointmentId");
+
+                    b.ToTable("CancelledAppointments", (string)null);
+                });
+
             modelBuilder.Entity("Clinic.Queue.Service.Entities.InboxMessage", b =>
                 {
                     b.Property<long>("Id")

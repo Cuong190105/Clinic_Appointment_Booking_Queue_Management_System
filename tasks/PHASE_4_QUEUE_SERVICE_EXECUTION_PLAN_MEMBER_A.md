@@ -403,4 +403,27 @@ Kiểm tra trong lượt chuyển đổi: `dotnet build` thành công cho Clinic
 
 Ghi chú: đây là kết quả build của source hiện tại. Cần build/recreate các container Clinic API, Appointment Service và Scheduling Service trước khi thử walk-in trên Docker; nếu patient mới vừa tạo nhưng projection chưa đồng bộ thành công, Appointment Service chủ động từ chối tạo lượt để tránh ticket thiếu tên bệnh nhân.
 
+## 10. Kế hoạch hoàn tất các tồn đọng Queue sau rà soát 2026-10-25
+
+### 10.1. Mục tiêu
+
+Đóng các khoảng trống còn lại ở ranh giới Appointment–Queue: khi Appointment đã check-in bị hủy thì ticket không tiếp tục được gọi; event đến lặp hoặc lệch thứ tự không tạo ticket sai; báo cáo trạng thái liên dịch vụ có thể phát hiện appointment/ticket lệch. Đồng thời sửa tài liệu audit đã lỗi thời và loại mã Queue thừa khỏi Clinic nếu không còn caller.
+
+### 10.2. Các bước
+
+1. **Chốt semantics hủy.** Appointment Service vẫn là owner của Appointment và phát `AppointmentCancelled`; event chỉ giải phóng slot do reschedule được đánh dấu `IsRescheduleRelease` để Queue không hiểu nhầm thành hủy lịch. Queue Service là owner của ticket. Queue chỉ chuyển ticket `Waiting`/`Called` sang `Cancelled`; ticket `InProgress`/`Completed` không bị xóa ngược. Nếu hủy thật đến trước `AppointmentCheckedIn`, Queue ghi nhận tombstone theo `AppointmentId` để event check-in đến muộn không tạo ticket.
+2. **Mở rộng consumer bền vững.** Bind `appointment.cancelled`, parse từng event theo routing key/type, ghi Inbox và cập nhật ticket/tombstone trong một Queue DB transaction. Retry cho từng routing key phải giữ nguyên routing key sau TTL; test duplicate, cancellation trước check-in, hủy ticket đang chờ/đã gọi, và hủy sau khi bắt đầu khám.
+3. **Tạo đối soát chỉ đọc.** Thêm report/job có thể nhận trạng thái Appointment đã check-in/completed từ nguồn sở hữu (hoặc export đầu vào) và so với Queue theo `AppointmentId`; không tự sửa mock data. Quy định output mismatch, cadence và bước xử lý thủ công. Dữ liệu hiện tại là mock nên chỉ chạy đối soát báo cáo, không tự replay/xóa/cấp lại số.
+4. **Dọn mã Clinic.** Xác minh `Clinic.Domain.Enums.QueueStatus` không còn caller; xóa enum nếu chỉ là tàn dư. Giữ các DTO hợp đồng mà Gateway vẫn dùng. Không xóa migration lịch sử.
+5. **Đồng bộ tài liệu.** Sửa `AUDIT_REPORT_PHASES_2_3_4.md` để phân biệt trạng thái hiện tại với migration lịch sử; ghi các tồn đọng còn thật, kết quả test và xác nhận runtime.
+6. **Xác minh.** Chạy Queue Service tests, kiểm tra migration, build Queue/Appointment/Gateway, khởi động lại các service liên quan; smoke health và protected endpoints. Không dùng dữ liệu thật hoặc tạo/hủy appointment trên DB dùng chung để nghiệm thu.
+
+### 10.3. Trạng thái thực hiện
+
+- [x] Xử lý `AppointmentCancelled`, retry theo routing key, tombstone chống event đến lệch thứ tự; phân biệt event giải phóng slot do reschedule.
+- [x] Bổ sung test cancellation/idempotency/out-of-order/reschedule-release.
+- [x] Bổ sung reconciliation report SQL read-only cho shared SQL Server development setup; không tự sửa mock data.
+- [x] Dọn `QueueStatus` tàn dư trong Clinic sau khi xác nhận không còn tham chiếu.
+- [x] Sửa audit tổng hợp; Queue/Appointment/Scheduling/Gateway build Docker thành công; migration tombstone được áp dụng, readiness 200 và protected Queue route trả 401 khi thiếu token. Reconciliation SQL chạy thành công ở chế độ chỉ đọc.
+
 **Cập nhật xác minh sau Compose:** `Clinic.Appointment.Service.Tests` hiện đạt 32/32 (có thêm test walk-in checked-in/outbox và retry cùng idempotency key); `npm run build` và Vue type-check thành công. `docker compose config -q` cùng `docker compose up -d --build appointment-service scheduling-service backend frontend` thành công; các service chính và database/broker đều healthy, các importer kết thúc mã 0. Kiểm tra `GET /schedules/walk-in-candidates` cho ngày địa phương hiện tại trả danh sách rỗng vì không có ca trực hôm nay trong data mock. Clinic API và Appointment Service trả 401 khi gọi route lễ tân không token như mong đợi; do đó chưa thể nghiệm thu thao tác tạo walk-in có xác thực trong lượt này. Frontend trả 200; health trạng thái container đạt.
