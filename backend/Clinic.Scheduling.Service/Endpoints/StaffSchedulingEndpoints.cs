@@ -421,7 +421,7 @@ public static class StaffSchedulingEndpoints
             {
                 id = r.Id, doctorId = r.DoctorId, date = r.Date,
                 startTime = r.ShiftStart, endTime = r.ShiftEnd, shiftStart = r.ShiftStart, shiftEnd = r.ShiftEnd,
-                recommendedCapacity = r.RecommendedCapacity, RecommendedCapacity = r.RecommendedCapacity,
+                recommendedCapacity = r.RecommendedCapacity,
                 reason = r.Reason, status = r.Status.ToString()
             }).ToListAsync(ct);
             return Results.Ok(new { doctorId, schedules = rows, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue });
@@ -452,7 +452,7 @@ public static class StaffSchedulingEndpoints
             {
                 id = w.Id, doctorId = w.DoctorId, doctorName = doctor.Employee.FullName, date = w.Date,
                 startTime = w.ShiftStart, endTime = w.ShiftEnd, shiftStart = w.ShiftStart, shiftEnd = w.ShiftEnd,
-                recommendedCapacity = w.RecommendedCapacity, RecommendedCapacity = w.RecommendedCapacity,
+                recommendedCapacity = w.RecommendedCapacity,
                 status = w.Status.ToString(), cancellationReason = w.CancellationReason
             }).ToListAsync(ct);
             return Results.Ok(new { doctorId, doctorName = doctor.Employee.FullName, schedules = rows, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue });
@@ -469,7 +469,7 @@ public static class StaffSchedulingEndpoints
             {
                 id = w.Id, doctorId = w.DoctorId, doctorName = doctor.Employee.FullName, date = w.Date,
                 startTime = w.ShiftStart, endTime = w.ShiftEnd, shiftStart = w.ShiftStart, shiftEnd = w.ShiftEnd,
-                recommendedCapacity = w.RecommendedCapacity, RecommendedCapacity = w.RecommendedCapacity,
+                recommendedCapacity = w.RecommendedCapacity,
                 status = w.Status.ToString(), cancellationReason = w.CancellationReason
             }).ToListAsync(ct);
             return Results.Ok(new { doctorId, doctorName = doctor.Employee.FullName, schedules = rows, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue });
@@ -496,7 +496,7 @@ public static class StaffSchedulingEndpoints
             {
                 id = r.Id, doctorId = r.DoctorId, date = r.Date,
                 startTime = r.ShiftStart, endTime = r.ShiftEnd, shiftStart = r.ShiftStart, shiftEnd = r.ShiftEnd,
-                recommendedCapacity = r.RecommendedCapacity, RecommendedCapacity = r.RecommendedCapacity,
+                recommendedCapacity = r.RecommendedCapacity,
                 reason = r.Reason, status = r.Status.ToString()
             }).ToListAsync(ct);
             return Results.Ok(new { doctorId, doctorName = doctor.Employee.FullName, schedules = rows, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue });
@@ -580,7 +580,7 @@ public static class StaffSchedulingEndpoints
     {
         id = row.Id, doctorId = row.DoctorId, date = row.Date,
         startTime = row.ShiftStart, endTime = row.ShiftEnd, shiftStart = row.ShiftStart, shiftEnd = row.ShiftEnd,
-        recommendedCapacity = row.RecommendedCapacity, RecommendedCapacity = row.RecommendedCapacity,
+        recommendedCapacity = row.RecommendedCapacity,
         reason = row.Reason, status = row.Status.ToString()
     };
 }

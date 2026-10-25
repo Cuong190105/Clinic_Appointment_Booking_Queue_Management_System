@@ -44,7 +44,11 @@ public sealed class SchedulingProxyMiddleware(RequestDelegate next, IHttpClientF
             request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey.ToArray());
 
         if (context.Request.ContentLength is > 0 || context.Request.Headers.ContainsKey("Transfer-Encoding"))
+        {
             request.Content = new StreamContent(context.Request.Body);
+            if (!string.IsNullOrWhiteSpace(context.Request.ContentType))
+                request.Content.Headers.TryAddWithoutValidation("Content-Type", context.Request.ContentType);
+        }
         try
         {
             using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, context.RequestAborted);

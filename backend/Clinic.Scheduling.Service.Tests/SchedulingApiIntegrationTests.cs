@@ -44,6 +44,54 @@ public class SchedulingApiIntegrationTests : IClassFixture<SchedulingServiceFact
     }
 
     [Fact]
+    public async Task GetDoctorShifts_ReturnsScheduleJsonWithoutPropertyCollision()
+    {
+        var doctorId = Guid.NewGuid();
+        var workDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7));
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SchedulingDbContext>();
+            var employee = new Employee
+            {
+                Id = Guid.NewGuid(),
+                PersonId = Guid.NewGuid(),
+                FullName = "Shift Endpoint Integration Doctor",
+                HireDate = new DateOnly(2020, 1, 1),
+                Status = EmployeeStatus.Active
+            };
+            db.Employees.Add(employee);
+            db.Doctors.Add(new Doctor
+            {
+                Id = doctorId,
+                EmployeeId = employee.Id,
+                Employee = employee,
+                LicenseNumber = $"LIC-{doctorId:N}",
+                Qualification = "MD",
+                ExperienceYears = 5,
+                Status = DoctorStatus.Active
+            });
+            db.WorkSchedules.Add(new WorkSchedule
+            {
+                Id = Guid.NewGuid(),
+                DoctorId = doctorId,
+                Date = workDate,
+                ShiftStart = new TimeOnly(9, 0),
+                ShiftEnd = new TimeOnly(12, 0),
+                RecommendedCapacity = 20,
+                Status = WorkScheduleStatus.Active
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await _client.GetAsync($"/doctors/{doctorId}/shifts?startDate={workDate:yyyy-MM-dd}&endDate={workDate:yyyy-MM-dd}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var schedule = Assert.Single(json.RootElement.GetProperty("schedules").EnumerateArray());
+        Assert.Equal(20, schedule.GetProperty("recommendedCapacity").GetInt32());
+    }
+
+    [Fact]
     public async Task ReservationLifecycle_ViaHttpApi_Succeeds()
     {
         // 1. Seed a test schedule in DB
