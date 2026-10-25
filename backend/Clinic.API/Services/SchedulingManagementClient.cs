@@ -12,7 +12,12 @@ public sealed class SchedulingManagementClient(IHttpClientFactory clients)
         var client = clients.CreateClient("Scheduling");
         using var request = new HttpRequestMessage(method, path);
         if (context.Request.Headers.TryGetValue("Authorization", out var auth)) request.Headers.TryAddWithoutValidation("Authorization", auth.ToArray());
-        if (body is not null) request.Content = JsonContent.Create(body);
+        if (body is not null)
+        {
+            var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            request.Content = JsonContent.Create(body, options: options);
+        }
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
         return new SchedulingManagementResponse((int)response.StatusCode, response.Content.Headers.ContentType?.ToString() ?? "application/json", content);

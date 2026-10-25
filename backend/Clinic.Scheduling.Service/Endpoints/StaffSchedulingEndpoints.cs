@@ -28,9 +28,9 @@ public static class StaffSchedulingEndpoints
     {
         app.MapGet("/employees", async ([FromQuery] string? search, [FromQuery] string? status,
             [FromQuery] string? sortBy, [FromQuery] string? orderBy,
-            [FromQuery] int pageNumber, [FromQuery] int pageSize, SchedulingDbContext db, CancellationToken ct) =>
+            [FromQuery] int? pageNumber, [FromQuery] int? pageSize, SchedulingDbContext db, CancellationToken ct) =>
         {
-            pageNumber = Math.Max(1, pageNumber); pageSize = Math.Clamp(pageSize == 0 ? 10 : pageSize, 1, 100);
+            var currentPage = Math.Max(1, pageNumber ?? 1); var currentPageSize = Math.Clamp(pageSize ?? 10, 1, 100);
             var query = db.Employees.AsNoTracking().Where(e => !e.IsDeleted);
             if (!string.IsNullOrWhiteSpace(search)) query = query.Where(e => e.FullName.Contains(search) || (e.Email != null && e.Email.Contains(search)) || (e.PhoneNumber != null && e.PhoneNumber.Contains(search)));
             if (Enum.TryParse<EmployeeStatus>(status, true, out var employeeStatus)) query = query.Where(e => e.Status == employeeStatus);
@@ -40,14 +40,14 @@ public static class StaffSchedulingEndpoints
                 : string.Equals(sortBy, "status", StringComparison.OrdinalIgnoreCase)
                     ? (string.Equals(orderBy, "desc", StringComparison.OrdinalIgnoreCase) ? query.OrderByDescending(e => e.Status) : query.OrderBy(e => e.Status))
                     : (string.Equals(orderBy, "desc", StringComparison.OrdinalIgnoreCase) ? query.OrderByDescending(e => e.FullName) : query.OrderBy(e => e.FullName));
-            var rows = await orderedEmployees.Skip((pageNumber - 1) * pageSize).Take(pageSize)
+            var rows = await orderedEmployees.Skip((currentPage - 1) * currentPageSize).Take(currentPageSize)
                 .Select(e => new { id = e.Id, userId = e.IdentityUserId, fullName = e.FullName,
                     phoneNumber = e.PhoneNumber, email = e.Email, gender = e.Gender,
                     dateOfBirth = e.DateOfBirth, status = e.Status.ToString(),
                     roles = Array.Empty<string>() }).ToListAsync(ct);
-            return Results.Ok(new { items = rows, pageNumber, pageSize, totalCount = count,
-                totalPages = (int)Math.Ceiling(count / (double)pageSize), hasPrevious = pageNumber > 1,
-                hasNext = pageNumber < (int)Math.Ceiling(count / (double)pageSize) });
+            return Results.Ok(new { items = rows, pageNumber = currentPage, pageSize = currentPageSize, totalCount = count,
+                totalPages = (int)Math.Ceiling(count / (double)currentPageSize), hasPrevious = currentPage > 1,
+                hasNext = currentPage < (int)Math.Ceiling(count / (double)currentPageSize) });
         }).RequireAuthorization("StaffOnly");
 
         app.MapGet("/employees/me", async (ClaimsPrincipal principal, SchedulingDbContext db, CancellationToken ct) =>
@@ -114,21 +114,21 @@ public static class StaffSchedulingEndpoints
         }).RequireAuthorization("AdminOnly");
 
         app.MapGet("/specialties", async ([FromQuery] string? search, [FromQuery] string? sortBy,
-            [FromQuery] bool? descending, [FromQuery] int? page, [FromQuery] int? pageSize,
+            [FromQuery] bool? descending, [FromQuery] int? page, [FromQuery] int? pageNumber, [FromQuery] int? pageSize,
             SchedulingDbContext db, CancellationToken ct) =>
         {
-            var pageNumber = Math.Max(page ?? 1, 1); var size = Math.Clamp(pageSize ?? 20, 1, 100);
+            var currentPage = Math.Max(pageNumber ?? page ?? 1, 1); var size = Math.Clamp(pageSize ?? 20, 1, 100);
             var q = db.Specialties.AsNoTracking().Where(s => !s.IsDeleted);
             if (!string.IsNullOrWhiteSpace(search)) q = q.Where(s => s.Name.Contains(search));
             var total = await q.CountAsync(ct);
             q = string.Equals(sortBy, "establishedDate", StringComparison.OrdinalIgnoreCase)
                 ? (descending == true ? q.OrderByDescending(s => s.EstablishedDate) : q.OrderBy(s => s.EstablishedDate))
                 : (descending == true ? q.OrderByDescending(s => s.Name) : q.OrderBy(s => s.Name));
-            var rows = await q.Skip((pageNumber - 1) * size).Take(size)
+            var rows = await q.Skip((currentPage - 1) * size).Take(size)
                 .Select(s => new SpecialtyDto(s.Id, s.Name, s.Description, s.EstablishedDate)).ToListAsync(ct);
-            var result = new { items = rows, pageNumber, pageSize = size, totalCount = total,
-                totalPages = (int)Math.Ceiling(total / (double)size), hasPrevious = pageNumber > 1,
-                hasNext = pageNumber < (int)Math.Ceiling(total / (double)size) };
+            var result = new { items = rows, pageNumber = currentPage, pageSize = size, totalCount = total,
+                totalPages = (int)Math.Ceiling(total / (double)size), hasPrevious = currentPage > 1,
+                hasNext = currentPage < (int)Math.Ceiling(total / (double)size) };
             return Results.Ok(new { isSuccess = true, result });
         }).AllowAnonymous();
 
@@ -227,6 +227,20 @@ public static class StaffSchedulingEndpoints
             doctor.LicenseNumber = request.LicenseNumber; doctor.Qualification = request.Qualification; doctor.ExperienceYears = request.ExperienceYears; doctor.Biography = request.Biography; doctor.UpdatedAt = DateTime.UtcNow;
             // Personal data is projected from Identity. This endpoint accepts the legacy shape but only updates the local projection for compatibility.
             doctor.Employee.FullName = request.FullName; doctor.Employee.PhoneNumber = request.PhoneNumber; doctor.Employee.Email = request.Email; doctor.Employee.Gender = request.Gender; doctor.Employee.DateOfBirth = request.DateOfBirth; doctor.Employee.Address = request.Address; doctor.Employee.UpdatedAt = DateTime.UtcNow;
+            if (request.SpecialtyId.HasValue && request.SpecialtyId.Value != Guid.Empty)
+            {
+                var specialty = await db.Specialties.FirstOrDefaultAsync(s => s.Id == request.SpecialtyId.Value && !s.IsDeleted, ct);
+                if (specialty is not null)
+                {
+                    var today = ClinicToday;
+                    var active = await db.WorkHistories.FirstOrDefaultAsync(h => h.DoctorId == id && h.EndDate == null && !h.IsDeleted, ct);
+                    if (active?.SpecialtyId != request.SpecialtyId.Value)
+                    {
+                        if (active is not null) { active.EndDate = today; active.UpdatedAt = DateTime.UtcNow; }
+                        db.WorkHistories.Add(new WorkHistory { Id = Guid.NewGuid(), DoctorId = id, SpecialtyId = request.SpecialtyId.Value, StartDate = today, CreatedAt = DateTime.UtcNow });
+                    }
+                }
+            }
             await db.SaveChangesAsync(ct); return Results.NoContent();
         }).RequireAuthorization();
 
@@ -238,24 +252,63 @@ public static class StaffSchedulingEndpoints
             await db.SaveChangesAsync(ct); return Results.NoContent();
         }).RequireAuthorization("DoctorOnly");
 
-        app.MapPatch("/doctors/{id:guid}/status", async (Guid id, [FromBody] string status, SchedulingDbContext db, CancellationToken ct) =>
+        var updateDoctorStatusHandler = async (Guid id, [FromBody] System.Text.Json.JsonElement statusElement, SchedulingDbContext db, CancellationToken ct) =>
         {
             var doctor = await db.Doctors.FirstOrDefaultAsync(d => d.Id == id && !d.IsDeleted, ct); if (doctor is null) return Results.NotFound();
-            if (!Enum.TryParse<DoctorStatus>(status.Trim('"'), true, out var parsed)) return Results.BadRequest();
-            doctor.Status = parsed; doctor.UpdatedAt = DateTime.UtcNow; await db.SaveChangesAsync(ct); return Results.NoContent();
-        }).RequireAuthorization("AdminOnly");
+            DoctorStatus parsed;
+            if (statusElement.ValueKind == System.Text.Json.JsonValueKind.Number && statusElement.TryGetInt32(out var intVal))
+            {
+                parsed = intVal == 0 ? DoctorStatus.Active : DoctorStatus.Inactive;
+            }
+            else if (statusElement.ValueKind == System.Text.Json.JsonValueKind.True)
+            {
+                parsed = DoctorStatus.Active;
+            }
+            else if (statusElement.ValueKind == System.Text.Json.JsonValueKind.False)
+            {
+                parsed = DoctorStatus.Inactive;
+            }
+            else if (statusElement.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                var str = statusElement.GetString()?.Trim().Trim('"') ?? "";
+                if (int.TryParse(str, out var num)) parsed = num == 0 ? DoctorStatus.Active : DoctorStatus.Inactive;
+                else if (Enum.TryParse<DoctorStatus>(str, true, out var enumVal)) parsed = enumVal;
+                else return Results.BadRequest();
+            }
+            else return Results.BadRequest();
 
-        app.MapPatch("/doctors/{id:guid}/specialty", async (Guid id, [FromBody] Guid specialtyId, SchedulingDbContext db, CancellationToken ct) =>
+            doctor.Status = parsed; doctor.UpdatedAt = DateTime.UtcNow; await db.SaveChangesAsync(ct); return Results.NoContent();
+        };
+
+        app.MapPatch("/doctors/{id:guid}/status", updateDoctorStatusHandler).RequireAuthorization("AdminOnly");
+        app.MapPost("/doctors/{id:guid}/status", updateDoctorStatusHandler).RequireAuthorization("AdminOnly");
+
+        var updateDoctorSpecialtyHandler = async (Guid id, [FromBody] System.Text.Json.JsonElement specialtyElement, SchedulingDbContext db, CancellationToken ct) =>
         {
-            var doctor = await db.Doctors.FirstOrDefaultAsync(d => d.Id == id && !d.IsDeleted, ct); var specialty = await db.Specialties.FirstOrDefaultAsync(s => s.Id == specialtyId && !s.IsDeleted, ct);
+            Guid targetSpecialtyId;
+            if (specialtyElement.ValueKind == System.Text.Json.JsonValueKind.String && Guid.TryParse(specialtyElement.GetString(), out var parsedGuid))
+            {
+                targetSpecialtyId = parsedGuid;
+            }
+            else if (specialtyElement.ValueKind == System.Text.Json.JsonValueKind.Object && specialtyElement.TryGetProperty("specialtyId", out var specProp) && Guid.TryParse(specProp.GetString(), out var objGuid))
+            {
+                targetSpecialtyId = objGuid;
+            }
+            else return Results.BadRequest();
+
+            var doctor = await db.Doctors.FirstOrDefaultAsync(d => d.Id == id && !d.IsDeleted, ct);
+            var specialty = await db.Specialties.FirstOrDefaultAsync(s => s.Id == targetSpecialtyId && !s.IsDeleted, ct);
             if (doctor is null || specialty is null) return Results.NotFound();
             var today = ClinicToday;
             var active = await db.WorkHistories.FirstOrDefaultAsync(h => h.DoctorId == id && h.EndDate == null && !h.IsDeleted, ct);
-            if (active?.SpecialtyId == specialtyId) return Results.NoContent();
+            if (active?.SpecialtyId == targetSpecialtyId) return Results.NoContent();
             if (active is not null) { active.EndDate = today; active.UpdatedAt = DateTime.UtcNow; }
-            db.WorkHistories.Add(new WorkHistory { Id = Guid.NewGuid(), DoctorId = id, SpecialtyId = specialtyId, StartDate = today });
+            db.WorkHistories.Add(new WorkHistory { Id = Guid.NewGuid(), DoctorId = id, SpecialtyId = targetSpecialtyId, StartDate = today, CreatedAt = DateTime.UtcNow });
             await db.SaveChangesAsync(ct); return Results.NoContent();
-        }).RequireAuthorization("AdminOnly");
+        };
+
+        app.MapPatch("/doctors/{id:guid}/specialty", updateDoctorSpecialtyHandler).RequireAuthorization("AdminOnly");
+        app.MapPost("/doctors/{id:guid}/specialty", updateDoctorSpecialtyHandler).RequireAuthorization("AdminOnly");
 
         app.MapGet("/doctors/{id:guid}/available", async (Guid id, [FromQuery] DateOnly? date, ISchedulingManager manager, SchedulingDbContext db, CancellationToken ct) =>
         {
@@ -283,11 +336,13 @@ public static class StaffSchedulingEndpoints
             var doctor = await db.Doctors.AsNoTracking().Include(d => d.Employee).Include(d => d.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null)).ThenInclude(h => h.Specialty)
                 .FirstOrDefaultAsync(d => d.Id == doctorId && !d.IsDeleted, ct);
             if (doctor is null) return Results.NotFound();
-            var specialty = doctor.WorkHistories.FirstOrDefault()?.Specialty?.Name;
+            var activeHistory = doctor.WorkHistories.FirstOrDefault();
+            var specialty = activeHistory?.Specialty?.Name;
             return Results.Ok(new { id = doctor.Id, fullName = doctor.Employee.FullName,
                 phoneNumber = doctor.Employee.PhoneNumber, email = doctor.Employee.Email, gender = doctor.Employee.Gender,
                 dateOfBirth = doctor.Employee.DateOfBirth, address = doctor.Employee.Address, hireDate = doctor.Employee.HireDate,
                 licenseNumber = doctor.LicenseNumber, qualification = doctor.Qualification, currentSpecialty = specialty,
+                specialtyId = activeHistory?.SpecialtyId,
                 experienceYears = doctor.ExperienceYears, status = doctor.Status.ToString(), biography = doctor.Biography });
         }).RequireAuthorization("DoctorOnly");
 
@@ -298,30 +353,63 @@ public static class StaffSchedulingEndpoints
             return row is null ? Results.NotFound() : Results.Ok(row);
         }).RequireAuthorization("AdminOnly");
 
-        app.MapGet("/doctors/shifts", async ([FromQuery] Guid? specialtyId, [FromQuery] string? searchTerm,
-            [FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] int pageNumber,
-            [FromQuery] int pageSize, SchedulingDbContext db, CancellationToken ct) =>
+        app.MapGet("/doctors/brief", async (SchedulingDbContext db, CancellationToken ct) =>
         {
-            pageNumber = Math.Max(1, pageNumber); pageSize = Math.Clamp(pageSize == 0 ? 10 : pageSize, 1, 100);
+            var doctors = await db.Doctors.AsNoTracking()
+                .Include(d => d.Employee)
+                .Where(d => !d.IsDeleted)
+                .OrderBy(d => d.Employee.FullName)
+                .Select(d => new
+                {
+                    doctorId = d.Id,
+                    employeeId = d.EmployeeId,
+                    fullName = d.Employee.FullName,
+                    email = d.Employee.Email ?? string.Empty,
+                    isActive = d.Status == DoctorStatus.Active
+                })
+                .ToListAsync(ct);
+            return Results.Ok(doctors);
+        }).RequireAuthorization("AdminOnly");
+
+        app.MapGet("/doctors/shifts", async ([FromQuery] Guid? specialtyId, [FromQuery] string? searchTerm,
+            [FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] int? pageNumber,
+            [FromQuery] int? pageSize, SchedulingDbContext db, CancellationToken ct) =>
+        {
+            var currentPage = Math.Max(1, pageNumber ?? 1); var currentPageSize = Math.Clamp(pageSize ?? 10, 1, 100);
             var specialtyFilter = specialtyId.GetValueOrDefault();
-            var q = db.WorkSchedules.AsNoTracking().Include(w => w.Doctor).ThenInclude(d => d.Employee)
-                .Include(w => w.Doctor).ThenInclude(d => d.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null)).ThenInclude(h => h.Specialty)
-                .Where(w => !w.IsDeleted && (specialtyFilter == Guid.Empty || w.Doctor.WorkHistories.Any(h => h.SpecialtyId == specialtyFilter)));
-            if (startDate.HasValue) q = q.Where(w => w.Date >= startDate.Value); if (endDate.HasValue) q = q.Where(w => w.Date <= endDate.Value);
-            if (!string.IsNullOrWhiteSpace(searchTerm)) q = q.Where(w => w.Doctor.Employee.FullName.Contains(searchTerm));
-            var flat = await q.Select(w => new
+            var docQuery = db.Doctors.AsNoTracking().Include(d => d.Employee)
+                .Include(d => d.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null)).ThenInclude(h => h.Specialty)
+                .Where(d => !d.IsDeleted && (specialtyFilter == Guid.Empty || d.WorkHistories.Any(h => h.SpecialtyId == specialtyFilter)));
+            if (!string.IsNullOrWhiteSpace(searchTerm)) docQuery = docQuery.Where(d => d.Employee.FullName.Contains(searchTerm));
+            var totalCount = await docQuery.CountAsync(ct);
+            var doctorRows = await docQuery.OrderBy(d => d.Employee.FullName).Skip((currentPage - 1) * currentPageSize).Take(currentPageSize).ToListAsync(ct);
+            var doctorIds = doctorRows.Select(d => d.Id).ToList();
+
+            var schedQuery = db.WorkSchedules.AsNoTracking().Where(w => doctorIds.Contains(w.DoctorId) && !w.IsDeleted);
+            if (startDate.HasValue) schedQuery = schedQuery.Where(w => w.Date >= startDate.Value);
+            if (endDate.HasValue) schedQuery = schedQuery.Where(w => w.Date <= endDate.Value);
+            var schedules = await schedQuery.ToListAsync(ct);
+
+            var items = doctorRows.Select(d =>
             {
-                w.DoctorId,
-                DoctorName = w.Doctor.Employee.FullName,
-                SpecialtyId = w.Doctor.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null).Select(h => (Guid?)h.SpecialtyId).FirstOrDefault() ?? Guid.Empty,
-                SpecialtyName = w.Doctor.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null).Select(h => h.Specialty.Name).FirstOrDefault() ?? string.Empty,
-                Schedule = new WorkScheduleDto(w.Id, w.DoctorId, w.Doctor.Employee.FullName, w.Date, w.ShiftStart, w.ShiftEnd, w.RecommendedCapacity, w.Status.ToString(), w.CancellationReason)
-            }).ToListAsync(ct);
-            var groups = flat.GroupBy(w => new { w.DoctorId, w.DoctorName, w.SpecialtyId, w.SpecialtyName })
-                .Select(g => new { g.Key.DoctorId, g.Key.DoctorName, g.Key.SpecialtyId, g.Key.SpecialtyName, Schedules = g.Select(x => x.Schedule).OrderBy(x => x.Date).ThenBy(x => x.ShiftStart).ToList() })
-                .OrderBy(g => g.DoctorName).ToList();
-            var page = groups.Skip((pageNumber - 1) * pageSize).Take(pageSize).Select(g => new { doctorId = g.DoctorId, doctorName = g.DoctorName, specialtyId = g.SpecialtyId, specialtyName = g.SpecialtyName, schedules = g.Schedules, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue }).ToList();
-            return Results.Ok(new { items = page, pageNumber, pageSize, totalCount = groups.Count, totalPages = (int)Math.Ceiling(groups.Count / (double)pageSize), hasPrevious = pageNumber > 1, hasNext = pageNumber < (int)Math.Ceiling(groups.Count / (double)pageSize) });
+                var activeHistory = d.WorkHistories.FirstOrDefault();
+                var docSchedules = schedules.Where(w => w.DoctorId == d.Id)
+                    .OrderBy(w => w.Date).ThenBy(w => w.ShiftStart)
+                    .Select(w => new WorkScheduleDto(w.Id, w.DoctorId, d.Employee.FullName, w.Date, w.ShiftStart, w.ShiftEnd, w.RecommendedCapacity, w.Status.ToString(), w.CancellationReason)).ToList();
+
+                return new
+                {
+                    doctorId = d.Id,
+                    doctorName = d.Employee.FullName,
+                    specialtyId = activeHistory?.SpecialtyId ?? Guid.Empty,
+                    specialtyName = activeHistory?.Specialty?.Name ?? string.Empty,
+                    schedules = docSchedules,
+                    startDate = startDate ?? DateOnly.MinValue,
+                    endDate = endDate ?? DateOnly.MaxValue
+                };
+            }).ToList();
+
+            return Results.Ok(new { items, pageNumber = currentPage, pageSize = currentPageSize, totalCount, totalPages = (int)Math.Ceiling(totalCount / (double)currentPageSize), hasPrevious = currentPage > 1, hasNext = currentPage < (int)Math.Ceiling(totalCount / (double)currentPageSize) });
         }).RequireAuthorization("AdminOnly");
 
         app.MapGet("/doctors/{doctorId:guid}/suggestions", async (Guid doctorId, [FromQuery] DateOnly? startDate,
@@ -329,7 +417,13 @@ public static class StaffSchedulingEndpoints
         {
             var q = db.ShiftRequests.AsNoTracking().Where(r => r.DoctorId == doctorId && !r.IsDeleted);
             if (startDate.HasValue) q = q.Where(r => r.Date >= startDate.Value); if (endDate.HasValue) q = q.Where(r => r.Date <= endDate.Value);
-            var rows = await q.OrderByDescending(r => r.Date).Select(r => new { id = r.Id, doctorId = r.DoctorId, date = r.Date, startTime = r.ShiftStart, endTime = r.ShiftEnd, recommendedCapacity = r.RecommendedCapacity, reason = r.Reason, status = r.Status.ToString() }).ToListAsync(ct);
+            var rows = await q.OrderByDescending(r => r.Date).Select(r => new
+            {
+                id = r.Id, doctorId = r.DoctorId, date = r.Date,
+                startTime = r.ShiftStart, endTime = r.ShiftEnd, shiftStart = r.ShiftStart, shiftEnd = r.ShiftEnd,
+                recommendedCapacity = r.RecommendedCapacity, RecommendedCapacity = r.RecommendedCapacity,
+                reason = r.Reason, status = r.Status.ToString()
+            }).ToListAsync(ct);
             return Results.Ok(new { doctorId, schedules = rows, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue });
         }).RequireAuthorization("AdminOnly");
 
@@ -354,7 +448,13 @@ public static class StaffSchedulingEndpoints
             if (doctor is null) return Results.NotFound();
             var q = db.WorkSchedules.AsNoTracking().Where(w => w.DoctorId == doctorId && !w.IsDeleted);
             if (startDate.HasValue) q = q.Where(w => w.Date >= startDate.Value); if (endDate.HasValue) q = q.Where(w => w.Date <= endDate.Value);
-            var rows = await q.OrderBy(w => w.Date).ThenBy(w => w.ShiftStart).Select(w => new WorkScheduleDto(w.Id, w.DoctorId, doctor.Employee.FullName, w.Date, w.ShiftStart, w.ShiftEnd, w.RecommendedCapacity, w.Status.ToString(), w.CancellationReason)).ToListAsync(ct);
+            var rows = await q.OrderBy(w => w.Date).ThenBy(w => w.ShiftStart).Select(w => new
+            {
+                id = w.Id, doctorId = w.DoctorId, doctorName = doctor.Employee.FullName, date = w.Date,
+                startTime = w.ShiftStart, endTime = w.ShiftEnd, shiftStart = w.ShiftStart, shiftEnd = w.ShiftEnd,
+                recommendedCapacity = w.RecommendedCapacity, RecommendedCapacity = w.RecommendedCapacity,
+                status = w.Status.ToString(), cancellationReason = w.CancellationReason
+            }).ToListAsync(ct);
             return Results.Ok(new { doctorId, doctorName = doctor.Employee.FullName, schedules = rows, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue });
         }).AllowAnonymous();
 
@@ -365,7 +465,13 @@ public static class StaffSchedulingEndpoints
             if (doctor is null) return Results.NotFound();
             var q = db.WorkSchedules.AsNoTracking().Where(w => w.DoctorId == doctorId && !w.IsDeleted);
             if (startDate.HasValue) q = q.Where(w => w.Date >= startDate.Value); if (endDate.HasValue) q = q.Where(w => w.Date <= endDate.Value);
-            var rows = await q.OrderBy(w => w.Date).ThenBy(w => w.ShiftStart).Select(w => new WorkScheduleDto(w.Id, w.DoctorId, doctor.Employee.FullName, w.Date, w.ShiftStart, w.ShiftEnd, w.RecommendedCapacity, w.Status.ToString(), w.CancellationReason)).ToListAsync(ct);
+            var rows = await q.OrderBy(w => w.Date).ThenBy(w => w.ShiftStart).Select(w => new
+            {
+                id = w.Id, doctorId = w.DoctorId, doctorName = doctor.Employee.FullName, date = w.Date,
+                startTime = w.ShiftStart, endTime = w.ShiftEnd, shiftStart = w.ShiftStart, shiftEnd = w.ShiftEnd,
+                recommendedCapacity = w.RecommendedCapacity, RecommendedCapacity = w.RecommendedCapacity,
+                status = w.Status.ToString(), cancellationReason = w.CancellationReason
+            }).ToListAsync(ct);
             return Results.Ok(new { doctorId, doctorName = doctor.Employee.FullName, schedules = rows, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue });
         }).RequireAuthorization("DoctorOnly");
 
@@ -386,7 +492,13 @@ public static class StaffSchedulingEndpoints
             if (doctor is null) return Results.NotFound();
             var q = db.ShiftRequests.AsNoTracking().Where(r => r.DoctorId == doctorId && !r.IsDeleted);
             if (startDate.HasValue) q = q.Where(r => r.Date >= startDate.Value); if (endDate.HasValue) q = q.Where(r => r.Date <= endDate.Value);
-            var rows = await q.OrderByDescending(r => r.Date).Select(r => new { id = r.Id, doctorId = r.DoctorId, date = r.Date, startTime = r.ShiftStart, endTime = r.ShiftEnd, recommendedCapacity = r.RecommendedCapacity, reason = r.Reason, status = r.Status.ToString() }).ToListAsync(ct);
+            var rows = await q.OrderByDescending(r => r.Date).Select(r => new
+            {
+                id = r.Id, doctorId = r.DoctorId, date = r.Date,
+                startTime = r.ShiftStart, endTime = r.ShiftEnd, shiftStart = r.ShiftStart, shiftEnd = r.ShiftEnd,
+                recommendedCapacity = r.RecommendedCapacity, RecommendedCapacity = r.RecommendedCapacity,
+                reason = r.Reason, status = r.Status.ToString()
+            }).ToListAsync(ct);
             return Results.Ok(new { doctorId, doctorName = doctor.Employee.FullName, schedules = rows, startDate = startDate ?? DateOnly.MinValue, endDate = endDate ?? DateOnly.MaxValue });
         }).RequireAuthorization("DoctorOnly");
 
@@ -466,7 +578,9 @@ public static class StaffSchedulingEndpoints
 
     private static object ShiftSuggestionDto(ShiftRequest row) => new
     {
-        id = row.Id, doctorId = row.DoctorId, date = row.Date, startTime = row.ShiftStart, endTime = row.ShiftEnd,
-        recommendedCapacity = row.RecommendedCapacity, reason = row.Reason, status = row.Status.ToString()
+        id = row.Id, doctorId = row.DoctorId, date = row.Date,
+        startTime = row.ShiftStart, endTime = row.ShiftEnd, shiftStart = row.ShiftStart, shiftEnd = row.ShiftEnd,
+        recommendedCapacity = row.RecommendedCapacity, RecommendedCapacity = row.RecommendedCapacity,
+        reason = row.Reason, status = row.Status.ToString()
     };
 }

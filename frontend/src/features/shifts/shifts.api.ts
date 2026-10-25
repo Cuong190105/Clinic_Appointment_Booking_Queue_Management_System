@@ -29,16 +29,17 @@ function ensureTimeWithSeconds(timeStr: string): string {
 }
 
 export const shiftsApi = {
-  // GET /admin/doctors/brief (all Identity-linked doctors for schedule creation)
+  // GET /admin/doctors/brief (all Scheduling-linked doctors for schedule creation)
   async getAllDoctors(): Promise<DoctorScheduleOption[]> {
     const res = await http.get<any>('/admin/doctors/brief').then((r) => r.data)
-    const rows = Array.isArray(res.result) ? res.result : []
+    const rows = Array.isArray(res?.result) ? res.result : Array.isArray(res) ? res : []
     return rows
       .map((doctor: any) => ({
         doctorId: String(doctor.doctorId || doctor.DoctorId || ''),
         employeeId: doctor.employeeId || doctor.EmployeeId,
         fullName: doctor.fullName || doctor.FullName || '',
-        username: doctor.username || doctor.Username || '',
+        email: doctor.email || doctor.Email || doctor.username || doctor.Username || '',
+        username: doctor.email || doctor.Email || doctor.username || doctor.Username || '',
         isActive: doctor.isActive ?? doctor.IsActive ?? true,
       }))
       .filter((doctor: DoctorScheduleOption) => doctor.doctorId && doctor.fullName)
@@ -69,7 +70,7 @@ export const shiftsApi = {
       date: s.date || s.Date || '',
       startTime: formatTime(s.startTime || s.StartTime || s.shiftStart),
       endTime: formatTime(s.endTime || s.EndTime || s.shiftEnd),
-      RecommendedCapacity: s.RecommendedCapacity ?? s.RecommendedCapacity ?? 20,
+      RecommendedCapacity: s.recommendedCapacity ?? s.RecommendedCapacity ?? 20,
       status: s.status ?? s.Status ?? 'Active',
     }))
 
@@ -101,7 +102,7 @@ export const shiftsApi = {
       startTime: formatTime(s?.startTime || s?.StartTime || payload.startTime),
       endTime: formatTime(s?.endTime || s?.EndTime || payload.endTime),
       RecommendedCapacity:
-        s?.RecommendedCapacity ?? s?.RecommendedCapacity ?? payload.RecommendedCapacity,
+        s?.recommendedCapacity ?? s?.RecommendedCapacity ?? payload.RecommendedCapacity,
       status: s?.status ?? s?.Status ?? 'Active',
     }
   },
@@ -171,7 +172,7 @@ export const shiftsApi = {
           endTime: formatTime(
             schedule.endTime || schedule.EndTime || schedule.shiftEnd || schedule.ShiftEnd,
           ),
-          RecommendedCapacity: schedule.RecommendedCapacity ?? schedule.RecommendedCapacity ?? 20,
+          RecommendedCapacity: schedule.recommendedCapacity ?? schedule.RecommendedCapacity ?? 20,
           status: schedule.status ?? schedule.Status ?? 'Active',
         })),
         startDate: doctor.startDate || doctor.StartDate || fromDate,
@@ -226,7 +227,7 @@ export const shiftsApi = {
       date: s.date || s.Date || '',
       startTime: formatTime(s.startTime || s.StartTime || s.shiftStart),
       endTime: formatTime(s.endTime || s.EndTime || s.shiftEnd),
-      RecommendedCapacity: s.RecommendedCapacity ?? s.RecommendedCapacity ?? 20,
+      RecommendedCapacity: s.recommendedCapacity ?? s.RecommendedCapacity ?? 20,
       reason: s.reason || s.Reason || '',
       status: s.status || s.Status || 'Pending',
     }))

@@ -733,3 +733,21 @@ Trước khi chuyển từng route, lập bảng đối chiếu chính xác HTTP
 API ownership, import/đối soát, schema cutover, test suite và Docker smoke đã hoàn tất. Các luồng xác thực API được kiểm chứng bởi Integration/Service tests; frontend container và public contract smoke đều trả 200.
 
 Giai đoạn 2 đạt các tiêu chí đóng tại mục 8.6 và được đánh dấu **hoàn tất**.
+
+### 8.8. Kiểm chứng bổ sung cho thay đổi lịch Staff/Scheduling ngày 2026-10-25
+
+Các thay đổi tiếp nối sau khi dọn schema Phase 2 đã hoàn tất phần API quản lý lịch còn thiếu và khả năng tương thích UI:
+
+- `GET /admin/doctors/brief` đọc bác sĩ từ Scheduling, không phụ thuộc Identity để dựng danh sách phân ca; `GET /doctors/shifts` hiển thị cả bác sĩ chưa có lịch trong khoảng ngày.
+- Doctor list nhận bộ lọc giới tính dạng enum số hoặc chuỗi; employee/specialty/doctor pagination hoạt động khi thiếu tham số query và Specialty hỗ trợ cả `page` lẫn `pageNumber`.
+- DTO và frontend đồng bộ tên trường profile, specialty, thời gian ca và `RecommendedCapacity`.
+- `SchedulingOutboxPublisher` được đăng ký trong môi trường chạy ngoài test. Endpoint nhận `UserProfileUpdated` nội bộ yêu cầu `X-Clinic-Service-Token`.
+
+Kiểm chứng mới nhất:
+
+- `dotnet test backend/Clinic.slnx --no-restore`: **273/273 pass**; trong đó Scheduling 37/37, Integration 11/11 và các project khác đều pass.
+- Frontend `npm run type-check` và `npm run build`: pass.
+- `docker compose build scheduling-service backend frontend`: pass; `docker compose up -d --wait scheduling-service backend frontend`: các container mục tiêu healthy.
+- Runtime smoke: `/readyz`, `/doctors`, `/specialties?pageNumber=2&pageSize=2` và frontend đều trả 200; `/internal/events/user-profile-updated` không có token trả 401.
+
+Build có cảnh báo NuGet hiện hữu `System.Security.Cryptography.Pkcs 9.0.4` (moderate/high advisory); không làm fail build hoặc tests. Theo dõi và cập nhật package trong đợt dependency maintenance.

@@ -43,7 +43,8 @@ export interface DoctorScheduleOption {
   doctorId: string
   employeeId?: string
   fullName: string
-  username: string
+  email: string
+  username?: string
   isActive: boolean
 }
 

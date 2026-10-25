@@ -24,8 +24,9 @@ namespace Clinic.API.Controllers
         private readonly string? _identityServiceToken;
         private readonly IdentityAccountClient _identityAccounts;
         private readonly AppointmentServiceClient _appointmentClient;
+        private readonly SchedulingManagementClient _scheduling;
 
-        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient)
+        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling)
         {
             _sender = sender;
             _mapper = mapper;
@@ -33,6 +34,7 @@ namespace Clinic.API.Controllers
             _identityServiceToken = configuration["Identity:ServiceToken"];
             _identityAccounts = identityAccounts;
             _appointmentClient = appointmentClient;
+            _scheduling = scheduling;
         }
 
         [HttpGet("ping")]
@@ -98,34 +100,8 @@ namespace Clinic.API.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetDoctorBriefs()
         {
-            var doctors = new List<object>();
-            var pageNumber = 1;
-            while (true)
-            {
-                using var response = await SendIdentityRequest(HttpMethod.Get,
-                    $"v1/internal/users?role=Doctor&pageNumber={pageNumber}&pageSize=100&sortBy=username");
-                if (!response.IsSuccessStatusCode)
-                    return StatusCode(response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable ? 503 : (int)response.StatusCode);
-
-                var page = await response.Content.ReadFromJsonAsync<IdentityPagedAdminUsers>(HttpContext.RequestAborted);
-                if (page is null) return StatusCode(502);
-
-                doctors.AddRange(page.Items
-                    .Where(user => user.DoctorId.HasValue)
-                    .Select(user => new
-                    {
-                        doctorId = user.DoctorId,
-                        employeeId = user.EmployeeId,
-                        fullName = user.FullName,
-                        username = user.Username,
-                        isActive = user.IsActive
-                    }));
-
-                if (doctors.Count >= page.TotalCount || page.Items.Count == 0) break;
-                pageNumber++;
-            }
-
-            return Ok(doctors);
+            var response = await _scheduling.SendAsync(HttpContext, HttpMethod.Get, "doctors/brief", null, HttpContext.RequestAborted);
+            return response.ToActionResult();
         }
 
         [HttpGet("users/{userId}")]

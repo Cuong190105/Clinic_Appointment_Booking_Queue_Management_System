@@ -90,7 +90,6 @@ public sealed class SchedulingProxyMiddleware(RequestDelegate next, IHttpClientF
                 {
                     var identity = await identityAccounts.GetRolesAsync(userId, ct);
                     if (identity is not null) employee["roles"] = JsonSerializer.SerializeToNode(identity.Value.Roles);
-                    employee.Remove("userId");
                 }
             }
             return root?.ToJsonString() ?? payload;

@@ -141,7 +141,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 ## Giai đoạn 2: Tách Staff & Scheduling Service
 
-**Trạng thái cập nhật 2026-10-24: Giai đoạn 2 đã hoàn tất. Toàn bộ ownership Staff/Scheduling đã chuyển sang Scheduling, dữ liệu đã import/đối soát, schema legacy đã được gỡ khỏi ClinicDB, full solution pass 271/271 và Docker stack build/health/smoke pass. Chi tiết nghiệm thu ở [`PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md`](PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md), mục 8.7.**
+**Trạng thái cập nhật 2026-10-25: Giai đoạn 2 đã hoàn tất. Toàn bộ ownership Staff/Scheduling đã chuyển sang Scheduling, dữ liệu đã import/đối soát, schema legacy đã được gỡ khỏi ClinicDB. Sau cập nhật các API lịch và outbox, full solution pass 273/273; frontend type-check/build và Docker build/health/smoke pass. Chi tiết nghiệm thu ở [`PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md`](PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md), mục 8.7–8.8.**
 
 ### Nhiệm vụ
 

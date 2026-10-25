@@ -180,6 +180,7 @@ public static class SchedulingEndpoints
         app.MapGet("/doctors", async (
             [FromQuery] Guid? specialtyId,
             [FromQuery] string? search,
+            [FromQuery] string? gender,
             [FromQuery] string? qualification,
             [FromQuery] string? status,
             [FromQuery] string? sortBy,
@@ -202,6 +203,9 @@ public static class SchedulingEndpoints
                 query = query.Where(d => d.WorkHistories.Any(wh => wh.SpecialtyId == specialtyId.Value && !wh.IsDeleted && wh.EndDate == null));
             }
 
+            if (int.TryParse(gender, out var genderValue))
+                gender = genderValue switch { 0 => "Male", 1 => "Female", 2 => "Other", _ => "Unspecified" };
+            if (!string.IsNullOrWhiteSpace(gender)) query = query.Where(d => d.Employee.Gender == gender);
             if (!string.IsNullOrWhiteSpace(search)) query = query.Where(d => d.Employee.FullName.Contains(search) || d.LicenseNumber.Contains(search));
             if (!string.IsNullOrWhiteSpace(qualification)) query = query.Where(d => d.Qualification.Contains(qualification));
             if (Enum.TryParse<DoctorStatus>(status, true, out var parsedStatus)) query = query.Where(d => d.Status == parsedStatus);
@@ -226,8 +230,12 @@ public static class SchedulingEndpoints
                     d.ExperienceYears,
                     d.Biography,
                     d.Status.ToString(),
-                    d.WorkHistories.Select(wh => wh.Specialty.Name).FirstOrDefault(),
-                    d.Employee.Gender
+                    d.WorkHistories.Where(wh => !wh.IsDeleted && wh.EndDate == null).Select(wh => wh.Specialty.Name).FirstOrDefault(),
+                    d.Employee.Gender,
+                    d.WorkHistories.Where(wh => !wh.IsDeleted && wh.EndDate == null).Select(wh => (Guid?)wh.SpecialtyId).FirstOrDefault(),
+                    d.Employee.DateOfBirth,
+                    d.Employee.Address,
+                    d.Employee.HireDate
                 ))
                 .ToListAsync(ct);
 
@@ -259,8 +267,12 @@ public static class SchedulingEndpoints
                     d.ExperienceYears,
                     d.Biography,
                     d.Status.ToString(),
-                    d.WorkHistories.Select(wh => wh.Specialty.Name).FirstOrDefault(),
-                    d.Employee.Gender
+                    d.WorkHistories.Where(wh => !wh.IsDeleted && wh.EndDate == null).Select(wh => wh.Specialty.Name).FirstOrDefault(),
+                    d.Employee.Gender,
+                    d.WorkHistories.Where(wh => !wh.IsDeleted && wh.EndDate == null).Select(wh => (Guid?)wh.SpecialtyId).FirstOrDefault(),
+                    d.Employee.DateOfBirth,
+                    d.Employee.Address,
+                    d.Employee.HireDate
                 ))
                 .FirstOrDefaultAsync(ct);
 

@@ -1,7 +1,52 @@
 using Clinic.Scheduling.Service.Enums;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Clinic.Scheduling.Service.DTOs;
+
+public class FlexibleGenderConverter : JsonConverter<string?>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Number)
+        {
+            var val = reader.GetInt32();
+            return val switch
+            {
+                0 => "Male",
+                1 => "Female",
+                2 => "Other",
+                _ => "Unspecified"
+            };
+        }
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var str = reader.GetString();
+            if (int.TryParse(str, out var num))
+            {
+                return num switch
+                {
+                    0 => "Male",
+                    1 => "Female",
+                    2 => "Other",
+                    _ => "Unspecified"
+                };
+            }
+            return str;
+        }
+        if (reader.TokenType == JsonTokenType.Null)
+        {
+            return null;
+        }
+        return reader.GetString();
+    }
+
+    public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+    {
+        if (value is null) writer.WriteNullValue();
+        else writer.WriteStringValue(value);
+    }
+}
 
 public record AvailableSlotDto(
     Guid ScheduleId,
@@ -62,7 +107,11 @@ public record DoctorDto(
     string? Biography,
     string Status,
     string? CurrentSpecialty,
-    string? Gender = null
+    [property: JsonConverter(typeof(FlexibleGenderConverter))] string? Gender = null,
+    Guid? SpecialtyId = null,
+    DateOnly? DateOfBirth = null,
+    string? Address = null,
+    DateOnly? HireDate = null
 );
 
 public record SpecialtyDto(
@@ -113,17 +162,21 @@ public record CancelScheduleRequest(
 );
 
 public record CreateEmployeeRequest(Guid PersonId, Guid IdentityUserId, string FullName, string? PhoneNumber,
-    string? Email, string? Gender, DateOnly HireDate, EmployeeStatus Status, Guid? ManagerId = null,
+    string? Email, [property: JsonConverter(typeof(FlexibleGenderConverter))] string? Gender, DateOnly HireDate, EmployeeStatus Status, Guid? ManagerId = null,
     DateOnly? DateOfBirth = null, string? Address = null, Guid? Id = null);
-public record UpdateEmployeeRequest(string FullName, string? PhoneNumber, string? Email, string? Gender,
+
+public record UpdateEmployeeRequest(string FullName, string? PhoneNumber, string? Email, [property: JsonConverter(typeof(FlexibleGenderConverter))] string? Gender,
     DateOnly? DateOfBirth, string? Address, Guid? ManagerId = null);
+
 public record CreateDoctorRequest(Guid? EmployeeId, Guid PersonId, Guid IdentityUserId, string FullName,
-    string? PhoneNumber, string? Email, string? Gender, DateOnly HireDate, string LicenseNumber,
+    string? PhoneNumber, string? Email, [property: JsonConverter(typeof(FlexibleGenderConverter))] string? Gender, DateOnly HireDate, string LicenseNumber,
     string Qualification, string? Biography, int ExperienceYears, string Status, Guid SpecialtyId,
     DateOnly? DateOfBirth = null, string? Address = null, Guid? Id = null);
-public record UpdateDoctorRequest(string FullName, string? PhoneNumber, string? Email, string? Gender,
+
+public record UpdateDoctorRequest(string FullName, string? PhoneNumber, string? Email, [property: JsonConverter(typeof(FlexibleGenderConverter))] string? Gender,
     DateOnly? DateOfBirth, string? Address, string LicenseNumber, string Qualification,
-    int ExperienceYears, string? Biography);
+    int ExperienceYears, string? Biography, Guid? SpecialtyId = null);
+
 public record CreateSpecialtyRequest(string Name, string? Description, DateOnly EstablishedDate);
 public record UpdateSpecialtyRequest(string Name, string? Description, DateOnly EstablishedDate);
 public record CreateShiftRequest(DateOnly Date, TimeOnly StartTime, TimeOnly EndTime, int RecommendedCapacity);

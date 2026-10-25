@@ -448,7 +448,7 @@ defineExpose({
                 <span
                   class="inline-flex items-center justify-center rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#0E4D92]"
                 >
-                  {{ item.RecommendedCapacity }} BN
+                  {{ item.RecommendedCapacity ?? (item as any).recommendedCapacity ?? 20 }} BN
                 </span>
               </td>
 

@@ -34,6 +34,7 @@ builder.Services.AddHostedService<ReservationExpirationWorker>();
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddHostedService<SchedulingEventConsumer>();
+    builder.Services.AddHostedService<SchedulingOutboxPublisher>();
 }
 
 // Authentication via Identity Service JWKS
