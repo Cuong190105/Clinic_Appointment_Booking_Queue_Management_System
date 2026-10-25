@@ -53,6 +53,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 1: Tách Identity Service
 
+**Trạng thái: Hoàn thành toàn diện. Gateway (`Clinic.API`) đã tích hợp đầy đủ với `Clinic.Identity.Service`, cấu hình JWT validation độc lập qua JWKS, key rotation, correlation ID propagation, structured audit log (bảo mật không log credential/token), frontend auth integration và feature flag `Features:UseIdentityService`. Toàn bộ 12/12 integration tests Gateway auth và 93/93 frontend tests đã pass.**
+
 ### Nhiệm vụ
 
 1. Tích hợp Gateway với Identity Service.
@@ -75,6 +77,46 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 - Không coi Gateway là nơi duy nhất xác thực JWT.
 - Không log access token hoặc refresh token.
 - Cần kiểm thử key rotation và tình huống JWKS tạm thời không khả dụng.
+
+### Phạm vi đã hoàn thành
+
+1. **Gateway Integration & Routing**:
+   - `Clinic.API` cấu hình `HttpClient` tên `"Identity"` với `CorrelationIdDelegatingHandler` để forward request tới Identity Service (`http://identity-service:8080` trong Docker hoặc `http://localhost:5001` local).
+   - Route toàn bộ các endpoint auth nghiệp vụ qua Gateway: `/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/revoke`, `/auth/logout`, `/auth/me`, `/auth/permissions`, `/forgot-password`, `/reset-password`, `/change-password`.
+2. **JWT RS256 Validation & JWKS Discovery**:
+   - Gateway và backend services validate token độc lập bằng scheme `IdentityJwt` cấu hình RS256, kiểm tra chữ ký public keys, `ValidIssuers` (`Clinic.Identity`, public gateway issuer), `ValidAudiences` (`Clinic.Services`, `Clinic.Client`).
+   - Cung cấp proxy endpoint `/.well-known/jwks.json` và `/.well-known/openid-configuration` trên Gateway trỏ tới Identity JWKS.
+3. **Correlation ID Propagation**:
+   - Triển khai [CorrelationIdDelegatingHandler.cs](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/backend/Clinic.API/Middlewares/CorrelationIdDelegatingHandler.cs) tự động đọc correlation ID từ `ICorrelationContext` và gắn header `X-Correlation-ID` lên mọi request gửi tới Identity Service.
+   - Bổ sung correlation ID middleware ở Identity Service bảo đảm header `X-Correlation-ID` xuất hiện trên cả response header lẫn logging scope.
+4. **Structured Audit Logging**:
+   - Bổ sung audit logging có cấu trúc (`AUTH_AUDIT`, `IDENTITY_AUDIT`) cho toàn bộ các thao tác auth quan trọng (đăng nhập, làm mới token, thu hồi session, đổi mật khẩu, yêu cầu reset mật khẩu).
+   - Bảo mật tuyệt đối: chỉ log ID người dùng, username, IP client, correlation ID và mã kết quả; không log mật khẩu, access token hay refresh token.
+5. **Frontend Client & Store Integration**:
+   - [http.ts](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/frontend/src/lib/api/http.ts): Tự động gắn header `X-Correlation-ID` (UUID) trên mọi HTTP request và refresh token call.
+   - [auth.api.ts](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/frontend/src/features/auth/auth.api.ts): Bổ sung `logout` và `getPermissions`.
+   - [auth.ts](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/frontend/src/stores/auth.ts): Cập nhật `logout` gọi backend `/auth/logout` để thu hồi refresh token cookie/session đồng thời reset local state an toàn.
+6. **Feature Flagging**:
+   - Bổ sung section `"Features": { "UseIdentityService": true }` trong `appsettings.json` và `appsettings.Development.json`.
+   - `AuthController` kiểm tra feature flag: khi bị tắt, trả về HTTP `503 Service Unavailable` kèm audit log cảnh báo, cho phép rollback route auth tức thì mà không cần rebuild container.
+
+### Bằng chứng kiểm thử nghiệm thu (2026-10-25)
+
+- **Gateway Auth & Policy Integration Tests** ([GatewayAuthIntegrationTests.cs](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/backend/Clinic.IntegrationTests/Auth/GatewayAuthIntegrationTests.cs)): `12 passed, 0 failed`:
+  - `Discovery_Endpoint_Returns_Valid_Configuration`: Discovery trả về issuer, `jwks_uri`, RS256 alg.
+  - `Jwks_Endpoint_Proxies_Keys_From_Identity`: JWKS trả về mảng public keys hợp lệ.
+  - `Valid_RS256_Token_Authenticates_Successfully`: Token RS256 hợp lệ truy cập thành công endpoint được bảo vệ và trả permissions chính xác.
+  - `Expired_Token_Is_Rejected_With_401`: Token quá hạn bị từ chối 401 Unauthorized.
+  - `Invalid_Signature_Token_Is_Rejected_With_401`: Token sai chữ ký bị từ chối 401 Unauthorized.
+  - `Permission_Policy_Denies_Request_When_Permission_Missing`: Thiếu permission `specialty.manage` bị từ chối 403 Forbidden.
+  - `Permission_Policy_Allows_Request_When_Permission_Present`: Có permission `specialty.manage` được cấp quyền thành công.
+  - `Key_Rotation_Validates_Both_Old_And_New_Keys`: Token ký bằng key cũ và key mới xoay vòng đều validate thành công.
+  - `Jwks_Temporarily_Unavailable_Resiliency`: Gateway tiếp tục xác thực token thành công khi upstream Identity JWKS tạm thời trả 503.
+  - `Correlation_Id_Header_Is_Propagated_And_Returned`: Correlation ID tùy biến được giữ nguyên qua Gateway, chuyển tiếp tới Identity và trả về client.
+  - `Correlation_Id_Is_Generated_When_Not_Provided`: Tự động sinh correlation ID mới khi client không truyền.
+  - `Feature_Flag_Disables_Identity_Route`: Khi tắt flag, trả về 503 Service Unavailable với thông báo cấu hình.
+- **Contract Tests Auth Gateway**: [AuthContractTests.cs](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/backend/Clinic.IntegrationTests/Auth/AuthContractTests.cs): `6 passed, 0 failed`.
+- **Frontend Unit Tests**: `22 test files, 93 passed, 0 failed` trên `npm run test:unit`.
 
 ---
 

@@ -83,12 +83,13 @@ if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
         }
 
 // Add Authentication and Authorization services
+builder.Services.AddTransient<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 builder.Services.AddHttpClient("Identity", client =>
 {
     var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5001";
     client.BaseAddress = new Uri(identityAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 builder.Services.AddTransient<IdentityAccountClient>();
 
 builder.Services
@@ -122,15 +123,18 @@ builder.Services
         options.RequireHttpsMetadata = builder.Configuration.GetValue<bool?>("Identity:RequireHttpsMetadata")
             ?? (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"));
         options.Audience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services";
+        var configuredIssuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:5000";
+        var configuredAudience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services";
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "Clinic.Identity",
+            ValidIssuers = new[] { configuredIssuer, "Clinic.Identity" },
             ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services",
+            ValidAudiences = new[] { configuredAudience, "Clinic.Client" },
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            RoleClaimType = ClaimTypes.Role
+            RoleClaimType = ClaimTypes.Role,
+            ClockSkew = TimeSpan.FromSeconds(30)
         };
     })
     .AddJwtBearer(LegacyJwtScheme, options =>

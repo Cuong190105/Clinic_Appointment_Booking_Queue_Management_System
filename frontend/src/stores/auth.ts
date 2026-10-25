@@ -1,4 +1,4 @@
-﻿import { defineStore } from 'pinia'
+import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { tokenStorage } from '@/lib/api/token-storage'
 import { authApi } from '@/features/auth/auth.api'
@@ -437,11 +437,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
+  async function logout() {
+    const refreshToken = tokenStorage.getRefresh()
     tokenStorage.clear()
     setUser(null)
     status.value = 'idle'
     error.value = null
+    try {
+      await authApi.logout(refreshToken)
+    } catch {
+      // Ignore network errors on logout to ensure reliable client-side cleanup
+    }
   }
 
   return {

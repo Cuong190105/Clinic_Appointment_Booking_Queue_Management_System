@@ -64,3 +64,49 @@ Smoke-check `http://localhost:5000/readyz`, `http://localhost:5001/readyz`, gate
 ## Key rotation
 
 Configure `Jwt:RotationSecret` only in a protected secret store. Call `POST /internal/keys/rotate` with `X-Key-Rotation-Secret`. The new key becomes active immediately; previous public keys remain published until tokens and verifier caches have expired. Remove old PEM files only after the maximum access-token lifetime and verifier cache interval have elapsed.
+
+## Gateway Routing, JWKS Validation, and Observability (Member B Scope)
+
+### 1. Gateway Routing Architecture
+
+`Clinic.API` acts as the API Gateway/BFF routing authentication and session operations to `Clinic.Identity.Service`:
+- `POST /auth/login` -> forwards to Identity `/v1/auth/login`. Sets HttpOnly refresh token cookie on response.
+- `POST /auth/register` -> coordinates account creation in Identity `/v1/auth/register` and Patient business profile provisioning in Clinic.
+- `POST /auth/refresh` -> forwards refresh token from HttpOnly cookie to Identity `/v1/auth/refresh`. Rotates refresh cookie.
+- `POST /auth/revoke` -> forwards revocation request to Identity `/v1/auth/revoke`.
+- `POST /auth/logout` -> clears HttpOnly refresh cookie and revokes refresh token in Identity.
+- `GET /auth/me` -> forwards authorized request with Bearer token to Identity `/v1/auth/me`.
+- `GET /auth/permissions` -> extracts and returns dynamic permission claims from validated JWT.
+- `POST /forgot-password` -> forwards lookup to Identity `/v1/auth/forgot-password` with internal service token.
+- `POST /reset-password` -> forwards single-use reset token to Identity `/v1/auth/reset-password`.
+- `POST /change-password` -> forwards authenticated password update to Identity `/v1/auth/change-password`.
+
+### 2. Independent JWT Validation via JWKS
+
+The Gateway and backend services validate access tokens independently via JWKS:
+- **Algorithms**: RS256 with 2048/3072-bit RSA key pairs.
+- **Issuers**: Configured gateway issuer (`http://localhost:5000` or production URL) and `Clinic.Identity`.
+- **Audiences**: `Clinic.Services` and `Clinic.Client`.
+- **Public Discovery**: `/.well-known/openid-configuration` and `/.well-known/jwks.json` exposed publicly on Gateway, backed by Identity service.
+- **Resiliency**: Signing keys are cached locally in memory upon discovery; temporary upstream JWKS outages (HTTP 503) do not interrupt token verification.
+
+### 3. Correlation ID Propagation
+
+End-to-end distributed tracing and correlation are enforced across all tiers:
+- **Frontend Interceptor**: [http.ts](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/frontend/src/lib/api/http.ts) attaches a UUID `X-Correlation-ID` header to all outgoing HTTP requests and token refresh calls.
+- **Gateway Middleware & Delegating Handler**: [CorrelationIdDelegatingHandler.cs](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/backend/Clinic.API/Middlewares/CorrelationIdDelegatingHandler.cs) extracts `X-Correlation-ID` from ambient context and attaches it to all outbound HTTP calls to `Clinic.Identity.Service`.
+- **Identity Middleware**: Identity Service captures the correlation ID, incorporates it into the ASP.NET Core logging scope, and returns it in the response headers.
+
+### 4. Structured Audit Logging
+
+Structured audit logs are emitted for all authentication and credential operations:
+- Prefix: `AUTH_AUDIT` (Gateway) and `IDENTITY_AUDIT` (Identity Service).
+- Captured attributes: Operation name, UserId, Username, PersonId, Client IP, CorrelationId, and outcome status.
+- Strict security constraint: Access tokens, refresh tokens, passwords, and password reset codes are strictly excluded from all logs.
+
+### 5. Feature Flagging (`Features:UseIdentityService`)
+
+A configuration toggle `"Features:UseIdentityService"` is provided in `appsettings.json` and `appsettings.Development.json`:
+- When `true`: All auth requests are dynamically routed to `Clinic.Identity.Service`.
+- When `false`: `AuthController` rejects incoming auth operations with HTTP `503 Service Unavailable` and logs a warning with the Correlation ID, enabling instantaneous operational circuit breaking/rollback without redeploying containers.
+
