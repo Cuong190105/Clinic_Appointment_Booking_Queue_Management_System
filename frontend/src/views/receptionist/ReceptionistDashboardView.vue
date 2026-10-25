@@ -34,7 +34,7 @@ const stats = computed(() => [
     color: '#D97706',
   },
   {
-    label: 'Đang khám',
+    label: 'Đã gọi / đang khám',
     value: examiningCount.value,
     color: '#0E4D92',
   },

@@ -223,7 +223,7 @@ public class QueueManagerTests
     }
 
     [Fact]
-    public async Task CallNext_WhenDoctorHasActivePatient_ThrowsQueueConflictException()
+    public async Task CallNext_AllowsAnotherCalledTicketWhileDoctorHasActivePatient()
     {
         using var db = CreateInMemoryDbContext();
         var manager = new QueueManager(db, NullLogger<QueueManager>.Instance);
@@ -257,8 +257,10 @@ public class QueueManagerTests
 
         await db.SaveChangesAsync();
 
-        var ex = await Assert.ThrowsAsync<QueueConflictException>(() => manager.CallNextAsync(doctorId, today));
-        Assert.Contains("trạng thái 'Called'", ex.Message);
+        var called = await manager.CallNextAsync(doctorId, today);
+        Assert.Equal(2, called.QueueNumber);
+        Assert.Equal("Called", called.Status);
+        Assert.Equal(QueueStatus.Called, (await db.QueueTickets.FindAsync(called.Id))!.Status);
     }
 
     [Fact]
@@ -338,7 +340,7 @@ public class QueueManagerTests
     }
 
     [Fact]
-    public async Task Skip_WhenCalled_AutomaticallyCallsNextWaitingPatient()
+    public async Task Skip_WhenCalled_LeavesNextPatientWaitingForManualCall()
     {
         using var db = CreateInMemoryDbContext();
         var manager = new QueueManager(db, NullLogger<QueueManager>.Instance);
@@ -377,15 +379,14 @@ public class QueueManagerTests
         var result = await manager.SkipAsync(calledTicketId);
 
         Assert.Equal("Skipped", result.SkippedTicket.Status);
-        Assert.NotNull(result.NextCalledTicket);
-        Assert.Equal(nextWaitingId, result.NextCalledTicket.Id);
-        Assert.Equal("Called", result.NextCalledTicket.Status);
+        Assert.Null(result.NextCalledTicket);
+        Assert.Equal(QueueStatus.Waiting, (await db.QueueTickets.FindAsync(nextWaitingId))!.Status);
 
         var skippedOutbox = await db.OutboxMessages.FirstOrDefaultAsync(m => m.EventType == EventTypes.PatientSkipped);
         Assert.NotNull(skippedOutbox);
 
         var calledOutbox = await db.OutboxMessages.FirstOrDefaultAsync(m => m.EventType == EventTypes.PatientCalled);
-        Assert.NotNull(calledOutbox);
+        Assert.Null(calledOutbox);
     }
 
     [Fact]

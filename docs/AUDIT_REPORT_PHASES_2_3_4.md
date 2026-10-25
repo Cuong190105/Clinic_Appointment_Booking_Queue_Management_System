@@ -204,13 +204,14 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
 - **Ma trận Phân quyền & Bảo mật**:
   - Bác sĩ chỉ được xem và gọi số thuộc hàng đợi của chính mình (kiểm tra claim `doctorId` từ token).
   - Bệnh nhân chỉ xem được vé khám thuộc tài khoản của mình (`patientId` claim).
-  - Lễ tân và Quản trị viên (`StaffOnly`) có quyền điều phối toàn bộ hàng đợi.
+  - **Cập nhật quyền theo quyết định 2026-10-25:** Lễ tân chỉ được gọi số, bỏ qua ticket `Waiting`, đặt ưu tiên khi ticket `Waiting`, và retry ticket `Skipped`; không được bắt đầu/hoàn tất khám. Bác sĩ chỉ thao tác trên hàng đợi của mình, được gọi nhiều số lần lượt mà không cần hoàn tất lượt trước; chỉ bỏ qua ticket `Called` chưa bắt đầu khám. Admin giữ quyền theo policy hiện hành.
   - Appointment Service phát event hủy; Queue chỉ hủy vé `Waiting`/`Called`. Vé `InProgress`/`Completed` giữ nguyên và cần reconciliation nếu Appointment bị hủy đồng thời.
 
 #### 2.3. Quy trình Trạng thái Hàng đợi
 - Vòng đời trạng thái: `Waiting` $\to$ `Called` $\to$ `InProgress` $\to$ `Completed` (hoặc `Skipped`).
 - Event hủy chuyển vé `Waiting`/`Called` sang `Cancelled`; event cũ giải phóng slot do reschedule không hủy vé/tombstone.
 - Chuyển trạng thái phát sự kiện Outbox tức thời (`ExamStarted`, `ExamCompleted`, `PatientSkipped`).
+- Ticket `Skipped` được giữ hiển thị ở giao diện lễ tân để retry thủ công về `Waiting`; retry không tự gọi số.
 - Tích hợp telemetry OpenTelemetry: ghi nhận metrics `queue.consumer.processed`, `queue.consumer.lag`, `queue.ticket.processing_time`, `queue.outbox.published`.
 
 ---
@@ -230,6 +231,10 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
 ### 4. Kết luận Giai đoạn 4
 
 Queue core đã tách khỏi Clinic và có API, DB riêng, cấp số/idempotency/outbox. Hủy sau check-in đã được xử lý trong source, migration đã áp dụng và RabbitMQ consumer khởi động mà không có lỗi topology trong logs. Kiểm thử manager bao phủ cancellation và event đến lệch thứ tự; chưa phát event hủy end-to-end bằng token/Appointment thật. Reconciliation read-only chạy thành công; kết quả mismatch cần diễn giải thủ công vì dữ liệu hiện là mock. Không tự replay hoặc chỉnh dữ liệu lệch.
+
+**Bổ sung thiết kế và trạng thái sau nghiệm thu (2026-10-25):** ma trận quyền lễ tân/bác sĩ và thao tác retry `Skipped` được cập nhật theo mục 2.2–2.3 ở trên. Phần code tương ứng hiện được staged, gồm endpoint/domain/frontend và điều chỉnh QueueManager tests; chưa chạy lại test/build/smoke trong lượt tài liệu này, do đó đây là trạng thái implement chờ xác minh, chưa phải kết quả nghiệm thu mới.
+
+Source diff cùng đợt còn bổ sung `GET /receptionist/queue-doctors` để lễ tân tải queue theo các bác sĩ có ca trong ngày; sửa màn bác sĩ cho phép nhiều ticket được gọi/đang khám song song và mở/tạo Draft report từ lượt `InProgress`; sửa hiển thị trạng thái queue. Các thay đổi này chưa được smoke test sau commit `c13a7ef`. `queue-doctors.activeAppointmentsCount` hiện là placeholder `0`, không phải thống kê đã tính từ Appointment Service.
 
 ---
 
@@ -303,13 +308,15 @@ Queue core đã tách khỏi Clinic và có API, DB riêng, cấp số/idempoten
 
 ---
 
-### 3. Kế hoạch hành động khuyến nghị tiếp theo
+### 3. Kế hoạch hành động trong audit lịch sử (đã được thay thế)
+
+> Bảng hành động và mô tả ngay sau đây được lập trước các commit hoàn tất Phase 3/4. Nội dung giữ để truy vết lịch sử; trạng thái hiện hành nằm trong bảng tổng kết cập nhật bên dưới và các mục Phase 2–4 ở trên.
 
 | Hạng mục | Khả năng thực hiện ngay | Rủi ro nếu xóa ngay | Hành động đề xuất |
 | :--- | :---: | :---: | :--- |
 | **Phase 2 (Scheduling)** | **Đã hoàn tất 100%** | Không có | Duy trì hiện trạng |
-| **Phase 4 (Queue)** | **Có thể dọn ngay (95%)** | Rất thấp (Chỉ cần gỡ reference `QueueTicket` trong `MedicalReport` và xóa dead code) | Có thể tiến hành dọn sạch dead code và drop bảng `QueueTickets`, `QueueCounters` ngay khi có chỉ đạo. |
-| **Phase 3 (Appointment)** | **Chưa thể xóa ngay (Phải theo lộ trình)** | **CỰC KỲ CAO (Gãy chức năng Ghi bệnh án Phase 5 và Admin Dashboard)** | Thực hiện tái cấu trúc `MedicalReports` và `AdminController` theo lộ trình 7 bước trước khi drop bảng. |
+| **Phase 4 (Queue)** | **Đã tách khỏi ClinicDB** | Không còn Queue tables/handlers ở Clinic runtime | Các thay đổi quyền và thao tác lễ tân/bác sĩ mới đang chờ test/build/smoke sau commit `c13a7ef`; cải tiến vận hành DLQ/replay vẫn mở. |
+| **Phase 3 (Appointment)** | **Đã hoàn tất; Appointment không còn schema/runtime legacy trong ClinicDB** | Không còn dual-write hay Appointment repository; MedicalReports giữ snapshot trong Clinic | MedicalReports Service riêng thuộc giai đoạn sau; không phải blocker để đóng Phase 3 hiện tại. |
 
 ---
 
@@ -318,8 +325,8 @@ Queue core đã tách khỏi Clinic và có API, DB riêng, cấp số/idempoten
 | Giai đoạn | Service phụ trách | Cơ sở Dữ liệu riêng | Trạng thái dọn dẹp trên Monolith (`ClinicDB`) | Saga / Concurrency / Idempotency | Cơ chế Outbox & Event-Driven | Kiểm thử tự động (Unit/Integration) | Trạng thái Nghiệm thu |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Phase 2** | `Clinic.Scheduling.Service` | `ClinicSchedulingDB` | ✅ **Sạch 100%** (Đã drop 6 bảng) | ✅ Đạt (Dual-Constraint capacity, 10m lease) | ✅ Đạt (`SchedulingOutboxPublisher`, 122/122 sent) | 37/37 tests pass | **HOÀN TẤT & ĐẠT 100%** |
-| **Phase 3** | `Clinic.Appointment.Service` | `ClinicAppointmentDB` | ⚠️ **Còn tồn đọng** (Chưa drop do Phase 5 phụ thuộc) | ✅ Đạt (Booking Saga, Reschedule Saga, Compensate) | ✅ Đạt (`AppointmentOutboxPublisher`, 49/49 sent) | 32/32 tests pass | **DỊCH VỤ MỚI ĐẠT 100%**<br>*(Monolith giữ dual-write bridge)* |
-| **Phase 4** | `Clinic.Queue.Service` | `ClinicQueueDB` | ✅ Đã drop khỏi ClinicDB; migration lịch sử được giữ | ✅ Cấp số atomic, Inbox/idempotency và cancellation event | ✅ Queue Outbox/Appointment consumer | 50/50 Queue tests pass | **Queue core và migration đã xác minh runtime; còn P1 alert/replay vận hành** |
+| **Phase 3** | `Clinic.Appointment.Service` | `ClinicAppointmentDB` | ✅ Appointment schema/runtime đã gỡ khỏi ClinicDB; MedicalReports vẫn là module Clinic và dùng snapshot/API | ✅ Booking/Reschedule Saga, compensation | ✅ Appointment outbox/consumer | 33/33 Appointment tests ở mốc sau cutover | **HOÀN TẤT**; MedicalReports Service riêng là giai đoạn sau |
+| **Phase 4** | `Clinic.Queue.Service` | `ClinicQueueDB` | ✅ Queue tables/runtime đã gỡ khỏi ClinicDB; migration lịch sử được giữ | ✅ Atomic counter, Inbox/idempotency, cancellation event | ✅ Queue Outbox/Appointment consumer | 50/50 Queue tests ở mốc commit trước working diff hiện tại | **Queue core đã tách**; cập nhật phân quyền/UX mới đang chờ xác minh; P1 alert/replay vẫn mở |
 
-**Số kiểm thử Queue Service hiện tại:** **50/50 passed**; Appointment Service **33/33 passed**. Reconciliation script chỉ đọc, không tự sửa dữ liệu mock. Chưa chạy thao tác cancel/check-in bằng account đã xác thực trên live API.
+**Mốc kiểm thử gần nhất được ghi nhận trước working diff hiện tại:** Queue Service **50/50 passed**, Appointment Service **33/33 passed**. Đây không phải bằng chứng cho các thay đổi đang staged sau commit `c13a7ef`. Reconciliation script chỉ đọc, không tự sửa dữ liệu mock. Chưa chạy thao tác cancel/check-in bằng account đã xác thực trên live API.
 

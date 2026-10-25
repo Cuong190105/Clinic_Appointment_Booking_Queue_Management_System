@@ -70,6 +70,12 @@ export const receptionistApi = {
     return Array.isArray(unwrapped) ? unwrapped : []
   },
 
+  async getQueueDoctors(): Promise<WorkingDoctor[]> {
+    const res = await http.get('/receptionist/queue-doctors')
+    const unwrapped = unwrap<any>(res.data)
+    return Array.isArray(unwrapped) ? unwrapped : []
+  },
+
   async createWalkInAppointment(payload: WalkInPayload, idempotencyKey: string): Promise<WalkInResult> {
     const res = await http.post('/receptionist/appointments/walk-in', payload, {
       headers: { 'Idempotency-Key': idempotencyKey },
@@ -176,16 +182,18 @@ export const receptionistApi = {
     return items
   },
 
-  async startExam(queueTicketId: string): Promise<void> {
-    await http.post(`/queue/${queueTicketId}/start-exam`)
-  },
-
-  async completeExam(queueTicketId: string): Promise<void> {
-    await http.post(`/queue/${queueTicketId}/complete-exam`)
+  async callTicket(queueTicketId: string): Promise<QueueTicketDto> {
+    const res = await http.post(`/queue/${queueTicketId}/call`)
+    return unwrap<QueueTicketDto>(res.data)
   },
 
   async skipTicket(queueTicketId: string): Promise<void> {
     await http.post(`/queue/${queueTicketId}/skip`)
+  },
+
+  async retryTicket(queueTicketId: string): Promise<QueueTicketDto> {
+    const res = await http.post(`/queue/${queueTicketId}/retry`)
+    return unwrap<QueueTicketDto>(res.data)
   },
 
   async setPriority(queueTicketId: string, priority: boolean): Promise<void> {

@@ -497,13 +497,15 @@ Trong quá trình triển khai, kiểm thử thực tế từ cổng Frontend v�
 
 > Phần này ghi nhận trạng thái theo mã nguồn hiện tại sau Phase 4. Các số liệu database cũ trong báo cáo nghiệm thu bên trên chỉ là ảnh chụp tại thời điểm chạy; ClinicDB hiện chứa mock/test data nên không dùng số dòng giữa các database để kết luận tính đầy đủ hoặc yêu cầu đồng bộ dữ liệu.
 
+> **Lưu ý về nội dung lịch sử:** Mục 8.2–8.4 là audit baseline và completion plan được viết trước khi thực hiện mục 9. Các tồn đọng P1/P2 trong bảng 8.2 đã được xử lý theo nhật ký 9.3–9.4; không xem bảng đó hoặc ước tính 5–9 ngày ở mục 8.3 là trạng thái hiện hành.
+
 ### 8.1. Phần đã chuyển và đang được Appointment Service sở hữu
 
 - Appointment Service sở hữu vòng đời lịch hẹn, booking/reschedule/cancel/check-in, danh sách của người dùng hiện tại, luồng receptionist/walk-in, danh sách và summary cho Admin, changelog, persistence và outbox.
 - `AppointmentsController`, `MeAppointmentsController`, `ReceptionistController` và các route Admin cho danh sách/summary/history đã proxy các nghiệp vụ tương ứng sang Appointment Service.
 - Queue đã có Queue Service riêng. Consumer cấp ticket nằm ở Queue Service; các mô tả trong phần thiết kế ban đầu nói Monolith nhận `AppointmentCheckedIn` để tự cấp QueueTicket là nội dung lịch sử, không còn là đích triển khai hiện tại.
 
-### 8.2. Còn thiếu theo thiết kế / còn phụ thuộc Monolith
+### 8.2. Audit baseline trước khi hoàn thiện (đã supersede bởi mục 9)
 
 | Mức | Tồn đọng hiện tại | Có thể xử lý? | Hướng xử lý |
 |---|---|---|---|
@@ -514,7 +516,7 @@ Trong quá trình triển khai, kiểm thử thực tế từ cổng Frontend v�
 | P1 | ClinicDB vẫn còn Appointment/AppointmentSnapshot entity, DbSet, repository và các handler cũ. Ngoài hai route ở trên, handler/repository còn được gọi bởi MedicalReports và có thể còn service/test callers. | Có, nhưng xóa sau khi dọn tất cả caller. | Dùng reference search để xác nhận caller còn lại; chuyển các caller hợp lệ sang Appointment Service hoặc dữ liệu snapshot; xóa legacy handlers/repository/DI/configuration/DbSet/entity rồi tạo migration bỏ bảng. Trước khi drop, xác nhận MedicalReports không còn navigation/join và không còn API nghiệp vụ phụ thuộc bảng. Ước tính 0.5–1 ngày sau prerequisite, cộng thời gian chạy/review migration. |
 | P1 / phụ thuộc Phase 5 | `MedicalReportConfiguration` vẫn mô tả quan hệ EF `MedicalReport.Appointment`; repository dùng `Include`/lọc qua Appointment; lệnh lưu bệnh án còn kiểm tra lịch qua `IAppointmentRepository`. FK database đã được gỡ nhưng code vẫn phụ thuộc Appointment trong cùng ClinicDbContext. | Có thể tháo phụ thuộc trước khi chuyển toàn bộ Medical Records Service. | Thực hiện prerequisite dữ liệu cho Phase 5 ngay trong completion work: thêm snapshot tối thiểu vào MedicalReport (ít nhất DoctorId, DoctorName, SpecialtyName và ScheduleDate nếu các màn/query cần), backfill từ dữ liệu đang có khi phù hợp, đổi SaveMedicalReport sang gọi Appointment Service để xác thực và lấy snapshot, đổi query/repository sang cột snapshot, bỏ `Include` và navigation. Không chuyển MedicalReports Service trong phạm vi Phase 3; chỉ gỡ coupling để có thể xóa Appointment legacy. Ước tính 2–4 ngày, cần kiểm thử các luồng tạo/lưu/chốt/tra cứu bệnh án. |
 
-### 8.3. Thứ tự completion đề xuất
+### 8.3. Kế hoạch completion ban đầu (đã thực hiện; lịch sử)
 
 1. **Đóng các route còn thiếu:** patient-specific appointments và Admin statistics; bổ sung authorization/contract tests, cutover gateway.
 2. **Chuyển nguồn dashboard:** Appointment metrics từ Appointment Service, waiting metric từ Queue Service; giữ Clinic API làm composition endpoint.
@@ -524,7 +526,7 @@ Trong quá trình triển khai, kiểm thử thực tế từ cổng Frontend v�
 
 Ước tính tổng phần việc còn lại khoảng **5–9 ngày công** nếu thực hiện liên tục, trong đó 2–4 ngày thuộc tháo coupling MedicalReports. Không có blocker kiến trúc bắt buộc phải chờ hoàn thành Phase 5: có thể làm prerequisite snapshot trước, rồi xóa Appointment legacy trong cùng completion effort. Nếu chưa đưa phần MedicalReports prerequisite vào sprint hiện tại, chỉ nên hoãn bước xóa bảng/dual-write đến ngay sau khi prerequisite đó hoàn thành; dự kiến quay lại ở iteration kế tiếp, khoảng **2–4 ngày công kể từ lúc bắt đầu phần prerequisite**. Thời điểm lịch cụ thể phụ thuộc ưu tiên/sprint của nhóm, repo không có lịch phát hành để ấn định ngày.
 
-### 8.4. Tiêu chí đóng Phase 3
+### 8.4. Tiêu chí đóng Phase 3 (đạt theo mục 9.3–9.4)
 
 - Tất cả API Appointment cần thiết, gồm xem lịch của patient khác theo quyền, statistics, danh sách/summary/history, đều đọc Appointment Service.
 - Dashboard chỉ tổng hợp từ các service sở hữu metric tương ứng; không query Clinic Appointment repository.
@@ -590,3 +592,9 @@ Trong quá trình triển khai, kiểm thử thực tế từ cổng Frontend v�
 - Giới hạn nghiệm thu: lượt này chưa đăng nhập để chạy luồng tạo/sửa/hủy appointment hoặc thao tác MedicalReports từ giao diện. Các luồng logic và API được xác minh bằng service/integration tests; nên thực hiện thêm acceptance có xác thực khi cần nghiệm thu nghiệp vụ UI.
 - Lưu ý dữ liệu mẫu: report seed dùng Appointment ID duy nhất để bảo toàn unique index `IX_MedicalReports_AppointmentId`; các Clinic DB trong môi trường này là mock/test data theo quyết định trước đó.
 - Kết luận: không còn feature Appointment thuộc Phase 3 đang nằm trong monolith hoặc ClinicDB. MedicalReports vẫn là module Clinic, nhưng lưu snapshot độc lập và gọi service qua API; chuyển MedicalReports thành service riêng vẫn thuộc giai đoạn sau.
+
+### 9.5. Sửa luồng mở hồ sơ bệnh án từ màn khám (source cập nhật sau nghiệm thu)
+
+- Khi lượt khám đã `InProgress`, nút tạo/mở hồ sơ gọi `GET /medical-reports/appointment/{appointmentId}` trước; nếu chưa có hồ sơ (404), frontend tạo Draft qua `POST /medical-reports` rồi mở trang chi tiết. Không yêu cầu report trắng tách khỏi Appointment.
+- Thông báo lưu nháp/finalize thành công dùng `BaseAlert` với đúng prop `type="success"`; lỗi dùng `type="error"`. Trước đây view truyền `variant`, khiến alert success rơi về kiểu mặc định màu đỏ.
+- Source hiện có các thay đổi này trong working tree/staging. Chưa chạy lại frontend type-check/build hoặc xác nhận UI sau chuỗi commit mới; vì vậy đây là sửa đổi đã implement, chờ xác minh trước khi đánh dấu nghiệm thu.

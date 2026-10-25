@@ -79,6 +79,29 @@ public static class AppointmentEndpoints
             return Results.Ok(result);
         }).RequireAuthorization("StaffOnly");
 
+        app.MapGet("/receptionist/queue-doctors", async (
+            ISchedulingClient schedulingClient,
+            CancellationToken ct) =>
+        {
+            var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, ClinicTime.TimeZone));
+            var candidates = await schedulingClient.GetWalkInCandidatesAsync(today, Guid.Empty, null, ct);
+            var result = candidates
+                .Where(s => !s.Status.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+                .Select(s => new
+                {
+                    doctorId = s.DoctorId,
+                    fullName = s.DoctorName,
+                    specialtyName = s.SpecialtyName,
+                    workScheduleId = s.Id,
+                    shiftStart = s.ShiftStart,
+                    shiftEnd = s.ShiftEnd,
+                    activeAppointmentsCount = 0
+                })
+                .DistinctBy(s => s.doctorId)
+                .ToList();
+            return Results.Ok(result);
+        }).RequireAuthorization("StaffOnly");
+
         static async Task<IResult> CreateReceptionistAppointment(
             [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
             [FromBody] ReceptionistCreateAppointmentRequest request,

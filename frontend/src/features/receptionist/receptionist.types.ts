@@ -1,8 +1,9 @@
-export type QueueStatus = 'waiting' | 'examining' | 'completed' | 'skipped' | 'cancelled'
+export type QueueStatus = 'waiting' | 'called' | 'inprogress' | 'completed' | 'skipped' | 'cancelled'
 
 export interface QueuePatient {
   id?: string
   appointmentId?: string
+  doctorId?: string
   no: string
   name: string
   doctor: string
@@ -14,6 +15,7 @@ export interface QueuePatient {
 export interface QueueTicketDto {
   id: string
   appointmentId: string
+  doctorId?: string
   queueNumber: number | string
   patientName?: string
   doctorName?: string

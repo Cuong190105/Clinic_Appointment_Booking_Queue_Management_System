@@ -353,19 +353,6 @@ public class QueueManager : IQueueManager
     {
         var queueDate = date ?? ClinicTime.GetTodayQueueDate();
 
-        var activeTicket = await _dbContext.QueueTickets
-            .FirstOrDefaultAsync(t => t.DoctorId == doctorId
-                                      && t.QueueDate == queueDate
-                                      && !t.IsDeleted
-                                      && (t.Status == QueueStatus.Called || t.Status == QueueStatus.InProgress), ct);
-
-        if (activeTicket != null)
-        {
-            throw new QueueConflictException(
-                $"Bác sĩ đang có bệnh nhân số {activeTicket.QueueNumber} ở trạng thái '{activeTicket.Status}'. " +
-                "Cần hoàn tất (Complete) hoặc bỏ qua (Skip) vé này trước khi gọi số tiếp theo.");
-        }
-
         var nextTicket = await _dbContext.QueueTickets
             .Where(t => t.DoctorId == doctorId
                         && t.QueueDate == queueDate
@@ -394,12 +381,29 @@ public class QueueManager : IQueueManager
         return MapToDto(nextTicket);
     }
 
+    public async Task<QueueTicketDto> CallAsync(Guid queueTicketId, CancellationToken ct = default)
+    {
+        var ticket = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.Id == queueTicketId && !t.IsDeleted, ct)
+            ?? throw new QueueNotFoundException($"Queue ticket '{queueTicketId}' not found.");
+        if (ticket.Status != QueueStatus.Waiting)
+            throw new InvalidOperationException($"Cannot call patient from status '{ticket.Status}'. Must be Waiting.");
+
+        ticket.Call();
+        AddOutboxMessage(
+            new PatientCalled(ticket.Id, ticket.AppointmentId, ticket.DoctorId, ticket.QueueNumber, DateTimeOffset.UtcNow),
+            EventTypes.PatientCalled,
+            "queue.patient-called",
+            Guid.NewGuid());
+        await _dbContext.SaveChangesAsync(ct);
+        return MapToDto(ticket);
+    }
+
     public async Task StartExamAsync(Guid queueTicketId, Guid? actorDoctorId, bool hasAnyScope, CancellationToken ct = default)
     {
         var ticket = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.Id == queueTicketId && !t.IsDeleted, ct)
             ?? throw new QueueNotFoundException($"Queue ticket '{queueTicketId}' not found.");
 
-        if (!hasAnyScope && actorDoctorId.HasValue && actorDoctorId.Value != Guid.Empty && ticket.DoctorId != actorDoctorId.Value)
+        if (!hasAnyScope && (!actorDoctorId.HasValue || actorDoctorId.Value == Guid.Empty || ticket.DoctorId != actorDoctorId.Value))
         {
             throw new QueueForbiddenException("You are not allowed to start exam for another doctor's queue.");
         }
@@ -420,7 +424,7 @@ public class QueueManager : IQueueManager
         var ticket = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.Id == queueTicketId && !t.IsDeleted, ct)
             ?? throw new QueueNotFoundException($"Queue ticket '{queueTicketId}' not found.");
 
-        if (!hasAnyScope && actorDoctorId.HasValue && actorDoctorId.Value != Guid.Empty && ticket.DoctorId != actorDoctorId.Value)
+        if (!hasAnyScope && (!actorDoctorId.HasValue || actorDoctorId.Value == Guid.Empty || ticket.DoctorId != actorDoctorId.Value))
         {
             throw new QueueForbiddenException("You are not allowed to complete exam for another doctor's queue.");
         }
@@ -436,12 +440,13 @@ public class QueueManager : IQueueManager
         await _dbContext.SaveChangesAsync(ct);
     }
 
-    public async Task<SkipQueueResultDto> SkipAsync(Guid queueTicketId, CancellationToken ct = default)
+    public async Task<SkipQueueResultDto> SkipAsync(Guid queueTicketId, QueueStatus? requiredStatus = null, CancellationToken ct = default)
     {
         var ticket = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.Id == queueTicketId && !t.IsDeleted, ct)
             ?? throw new QueueNotFoundException($"Queue ticket '{queueTicketId}' not found.");
 
-        var wasHoldingDoctor = ticket.Status == QueueStatus.Called;
+        if (requiredStatus.HasValue && ticket.Status != requiredStatus.Value)
+            throw new InvalidOperationException($"Cannot skip patient from status '{ticket.Status}'. Must be '{requiredStatus.Value}'.");
         ticket.Skip();
 
         AddOutboxMessage(
@@ -450,32 +455,17 @@ public class QueueManager : IQueueManager
             "queue.patient-skipped",
             Guid.NewGuid());
 
-        QueueTicket? nextCalledTicket = null;
-        if (wasHoldingDoctor)
-        {
-            var nextWaiting = await _dbContext.QueueTickets
-                .Where(t => t.DoctorId == ticket.DoctorId
-                            && t.QueueDate == ticket.QueueDate
-                            && !t.IsDeleted
-                            && t.Status == QueueStatus.Waiting)
-                .OrderByDescending(t => t.Priority)
-                .ThenBy(t => t.QueueNumber)
-                .FirstOrDefaultAsync(ct);
-
-            if (nextWaiting != null)
-            {
-                nextWaiting.Call();
-                AddOutboxMessage(
-                    new PatientCalled(nextWaiting.Id, nextWaiting.AppointmentId, nextWaiting.DoctorId, nextWaiting.QueueNumber, DateTimeOffset.UtcNow),
-                    EventTypes.PatientCalled,
-                    "queue.patient-called",
-                    Guid.NewGuid());
-                nextCalledTicket = nextWaiting;
-            }
-        }
-
         await _dbContext.SaveChangesAsync(ct);
-        return new SkipQueueResultDto(MapToDto(ticket), nextCalledTicket != null ? MapToDto(nextCalledTicket) : null);
+        return new SkipQueueResultDto(MapToDto(ticket), null);
+    }
+
+    public async Task<QueueTicketDto> RetrySkippedAsync(Guid queueTicketId, CancellationToken ct = default)
+    {
+        var ticket = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.Id == queueTicketId && !t.IsDeleted, ct)
+            ?? throw new QueueNotFoundException($"Queue ticket '{queueTicketId}' not found.");
+        ticket.Retry();
+        await _dbContext.SaveChangesAsync(ct);
+        return MapToDto(ticket);
     }
 
     public async Task SetPriorityAsync(Guid queueTicketId, bool priority, CancellationToken ct = default)
@@ -483,6 +473,8 @@ public class QueueManager : IQueueManager
         var ticket = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.Id == queueTicketId && !t.IsDeleted, ct)
             ?? throw new QueueNotFoundException($"Queue ticket '{queueTicketId}' not found.");
 
+        if (ticket.Status != QueueStatus.Waiting)
+            throw new InvalidOperationException("Priority can only be changed before the ticket is called.");
         ticket.SetPriority(priority);
         await _dbContext.SaveChangesAsync(ct);
     }

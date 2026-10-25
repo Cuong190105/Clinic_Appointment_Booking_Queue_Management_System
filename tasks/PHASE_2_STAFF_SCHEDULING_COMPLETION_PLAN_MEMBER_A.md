@@ -2,6 +2,8 @@
 
 > **Mục tiêu tài liệu:** Rà soát đối chiếu giữa [`TASK_MEMBER_A.md`](./TASK_MEMBER_A.md), [`PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md`](./PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md) (Mục 8) và mã nguồn đang thay đổi trong working tree; xác định các phần còn sót và lập kế hoạch chi tiết để chuyển 100% quyền sở hữu nghiệp vụ & dữ liệu Staff/Scheduling sang `Clinic.Scheduling.Service`, dọn dẹp hoàn toàn code/schema legacy khỏi `ClinicDB`.
 
+> **Ghi chú trạng thái:** Mục 2.1–2.2 là ảnh chụp audit trước khi hoàn tất, không phải danh sách tồn đọng hiện hành. Giai đoạn 2 đã đóng; kết quả cuối và kiểm chứng tiếp nối nằm ở [`PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md`](./PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md), mục 8.7–8.8. Các số liệu/trạng thái cũ trong bảng 2.2 không được dùng làm blocker hiện tại.
+
 ---
 
 ## 1. Nguyên Tắc Kiến Trúc Bắt Buộc

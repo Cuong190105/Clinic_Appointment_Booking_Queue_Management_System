@@ -37,9 +37,9 @@ public class QueueTicket
 
     public void StartExam()
     {
-        if (Status != QueueStatus.Called && Status != QueueStatus.Waiting)
+        if (Status != QueueStatus.Called)
         {
-            throw new InvalidOperationException($"Cannot start examination from status '{Status}'. Must be Called or Waiting.");
+            throw new InvalidOperationException($"Cannot start examination from status '{Status}'. Patient must be called first.");
         }
         Status = QueueStatus.InProgress;
         ExamStartedAt = DateTime.UtcNow;
@@ -65,6 +65,16 @@ public class QueueTicket
         }
         Status = QueueStatus.Skipped;
         SkippedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void Retry()
+    {
+        if (Status != QueueStatus.Skipped)
+        {
+            throw new InvalidOperationException($"Cannot retry ticket from status '{Status}'. Must be Skipped.");
+        }
+        Status = QueueStatus.Waiting;
         UpdatedAt = DateTime.UtcNow;
     }
 

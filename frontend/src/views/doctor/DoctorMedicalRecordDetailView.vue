@@ -200,13 +200,13 @@ onMounted(() => {
     <!-- Alert Banners -->
     <BaseAlert
       v-if="errorMessage"
-      variant="danger"
+      type="error"
       :message="errorMessage"
       class="no-print"
     />
     <BaseAlert
       v-if="successMessage"
-      variant="success"
+      type="success"
       :message="successMessage"
       class="no-print"
     />

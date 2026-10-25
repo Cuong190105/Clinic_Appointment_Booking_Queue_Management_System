@@ -543,33 +543,46 @@ static async Task SeedRolesAsync(IdentityDbContext db)
             db.Roles.Add(new IdentityRole { Id = roleId, Name = roleName, Description = roleName });
     await db.SaveChangesAsync();
 
-    var doctorRole = await db.Roles.Include(r => r.RolePermissions).FirstOrDefaultAsync(r => r.Name == "Doctor");
-    if (doctorRole != null)
+    var queuePermissionNames = new[]
     {
-        var doctorQueuePermissions = new[] { "queue.call-next", "queue.skip", "queue.priority" };
-        var permissions = await db.Permissions
-            .Where(p => doctorQueuePermissions.Contains(p.Name))
-            .ToListAsync();
+        "queue.view", "doctor.queue.view", "queue.call-next", "queue.skip", "queue.skip-waiting",
+        "queue.retry", "queue.priority", "queue.start-exam.own", "queue.start-exam.any",
+        "queue.complete-exam.own", "queue.complete-exam.any"
+    };
+    var permissions = await db.Permissions.Where(p => queuePermissionNames.Contains(p.Name)).ToListAsync();
+    foreach (var name in queuePermissionNames.Except(permissions.Select(p => p.Name), StringComparer.OrdinalIgnoreCase))
+    {
+        var permission = new IdentityPermission { Id = Guid.NewGuid(), Name = name, Description = name };
+        db.Permissions.Add(permission);
+        permissions.Add(permission);
+    }
+    await db.SaveChangesAsync();
 
-        var existingPermissionIds = doctorRole.RolePermissions.Select(rp => rp.PermissionId).ToHashSet();
-        var added = false;
-        foreach (var perm in permissions)
+    var rolePermissionMap = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Admin"] = queuePermissionNames,
+        ["Receptionist"] = ["queue.view", "queue.call-next", "queue.skip-waiting", "queue.retry", "queue.priority"],
+        ["Doctor"] = ["doctor.queue.view", "queue.call-next", "queue.skip", "queue.start-exam.own", "queue.complete-exam.own"]
+    };
+    var knownQueuePermissions = queuePermissionNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var queueRoles = await db.Roles.Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission).ToListAsync();
+    foreach (var (roleName, permissionNames) in rolePermissionMap)
+    {
+        var role = queueRoles.FirstOrDefault(r => string.Equals(r.Name, roleName, StringComparison.OrdinalIgnoreCase));
+        if (role is null) continue;
+        var allowedPermissions = permissionNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var staleLinks = role.RolePermissions
+            .Where(rp => knownQueuePermissions.Contains(rp.Permission.Name) && !allowedPermissions.Contains(rp.Permission.Name))
+            .ToList();
+        db.RolePermissions.RemoveRange(staleLinks);
+        foreach (var permissionName in permissionNames)
         {
-            if (!existingPermissionIds.Contains(perm.Id))
-            {
-                db.RolePermissions.Add(new IdentityRolePermission
-                {
-                    RoleId = doctorRole.Id,
-                    PermissionId = perm.Id
-                });
-                added = true;
-            }
-        }
-        if (added)
-        {
-            await db.SaveChangesAsync();
+            var permission = permissions.First(p => string.Equals(p.Name, permissionName, StringComparison.OrdinalIgnoreCase));
+            if (!role.RolePermissions.Any(rp => rp.PermissionId == permission.Id))
+                db.RolePermissions.Add(new IdentityRolePermission { RoleId = role.Id, PermissionId = permission.Id });
         }
     }
+    await db.SaveChangesAsync();
 }
 
 public partial class Program { }

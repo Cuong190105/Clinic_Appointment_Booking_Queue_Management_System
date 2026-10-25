@@ -751,3 +751,7 @@ Kiểm chứng mới nhất:
 - Runtime smoke: `/readyz`, `/doctors`, `/specialties?pageNumber=2&pageSize=2` và frontend đều trả 200; `/internal/events/user-profile-updated` không có token trả 401.
 
 Build có cảnh báo NuGet hiện hữu `System.Security.Cryptography.Pkcs 9.0.4` (moderate/high advisory); không làm fail build hoặc tests. Theo dõi và cập nhật package trong đợt dependency maintenance.
+
+### 8.9. Bổ sung giao diện lịch Admin: phân biệt ca đã hủy
+
+Giao diện lịch Admin giữ ca đã hủy trên lịch để tra cứu nhưng hiển thị màu/nhãn đỏ “Đã hủy”, tách khỏi ca còn hiệu lực. Thay đổi nằm trong `frontend/src/views/admin/AdminScheduleView.vue` và nhận diện cả status enum dạng số (`1`) lẫn chuỗi `Cancelled`. Đây là phần hoàn thiện UI sau nghiệm thu Phase 2; source đã cập nhật, nhưng chưa có bằng chứng build/UI acceptance sau thay đổi này trong lượt rà soát commit hiện tại.

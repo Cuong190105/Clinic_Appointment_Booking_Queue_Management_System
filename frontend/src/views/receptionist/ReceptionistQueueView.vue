@@ -13,12 +13,20 @@ onMounted(() => {
   receptionistStore.fetchQueue()
 })
 
-async function callPatient(no: string) {
-  await receptionistStore.callPatient(no)
+async function callPatient(ticketId: string) {
+  await receptionistStore.callPatient(ticketId)
 }
 
-async function completePatient(no: string) {
-  await receptionistStore.completePatient(no)
+async function skipPatient(ticketId: string) {
+  await receptionistStore.skipPatient(ticketId)
+}
+
+async function retryPatient(ticketId: string) {
+  await receptionistStore.retryPatient(ticketId)
+}
+
+async function setPriority(ticketId: string, value: boolean) {
+  await receptionistStore.setPatientPriority(ticketId, value)
 }
 </script>
 
@@ -65,8 +73,11 @@ async function completePatient(no: string) {
 
       <QueueTable
         :queue="queue"
+        :loading="queueLoading"
         @call="callPatient"
-        @complete="completePatient"
+        @skip="skipPatient"
+        @retry="retryPatient"
+        @priority="setPriority"
       />
 
     </div>

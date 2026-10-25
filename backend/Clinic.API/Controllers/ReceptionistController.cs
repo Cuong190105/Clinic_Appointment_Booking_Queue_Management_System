@@ -41,7 +41,18 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(List<object>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetWorkingDoctors([FromQuery] Guid? specialtyId)
         {
-            return await _appointmentClient.ProxyAsync(HttpContext, $"receptionist/working-doctors?specialtyId={specialtyId}", HttpMethod.Get);
+            var path = specialtyId.HasValue
+                ? $"receptionist/working-doctors?specialtyId={specialtyId.Value}"
+                : "receptionist/working-doctors";
+            return await _appointmentClient.ProxyAsync(HttpContext, path, HttpMethod.Get);
+        }
+
+        [HttpGet("queue-doctors")]
+        [Authorize(Roles = "Receptionist,Admin")]
+        [ProducesResponseType(typeof(List<object>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetQueueDoctors()
+        {
+            return await _appointmentClient.ProxyAsync(HttpContext, "receptionist/queue-doctors", HttpMethod.Get);
         }
 
         // Đăng ký khám ngay (Walk-in) cho bệnh nhân tại quầy: tự động chọn bác sĩ ít tải nhất nếu không chọn, xác nhận, tự động check-in và sinh số thứ tự

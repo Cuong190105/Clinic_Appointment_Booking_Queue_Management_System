@@ -235,6 +235,11 @@ interface DoctorRowView {
   }[]
 }
 
+function isShiftCancelled(status: WorkSchedule['status']): boolean {
+  const normalized = String(status).toLowerCase()
+  return normalized === '1' || normalized === 'cancelled'
+}
+
 const filteredDoctorRows = computed<DoctorRowView[]>(() => {
   // Search and specialty filtering are performed by the paginated endpoint.
   return scheduleDoctors.value.map((doc) => {
@@ -564,14 +569,18 @@ async function onSuggestionRejected() {
                     <div
                       v-for="s in dayItem.shifts.slice(0, 4)"
                       :key="s.id"
-                      class="cursor-pointer rounded-lg border border-blue-200 bg-blue-50/80 px-2 py-1.5 text-left text-xs font-bold text-[#0E4D92] shadow-2xs transition-colors hover:bg-blue-100/80"
-                      title="Bấm để xem chi tiết lịch của bác sĩ"
+                      class="cursor-pointer rounded-lg border px-2 py-1.5 text-left text-xs shadow-2xs transition-colors"
+                      :class="isShiftCancelled(s.status)
+                        ? 'border-rose-200 bg-rose-50 text-rose-800 opacity-80 hover:bg-rose-100'
+                        : 'border-blue-200 bg-blue-50/80 font-bold text-[#0E4D92] hover:bg-blue-100/80'"
+                      :title="isShiftCancelled(s.status) ? 'Ca đã bị hủy' : 'Bấm để xem chi tiết lịch của bác sĩ'"
                       @click="openDoctorDetail(row.doctor)"
                     >
                       <div class="flex items-center justify-between">
                         <span>🕒 {{ s.startTime }} - {{ s.endTime }}</span>
+                        <span v-if="isShiftCancelled(s.status)" class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rose-700">Đã hủy</span>
                       </div>
-                      <div class="mt-0.5 text-[10px] font-normal text-slate-500">
+                      <div class="mt-0.5 text-[10px] font-normal" :class="isShiftCancelled(s.status) ? 'text-rose-700' : 'text-slate-500'">
                         Tối đa: {{ s.RecommendedCapacity }} BN
                       </div>
                     </div>

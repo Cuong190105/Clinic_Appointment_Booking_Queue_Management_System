@@ -6,8 +6,10 @@ defineProps<{
 }>()
 
 function statusText(status: QueuePatient['status']) {
-  if (status === 'examining') return 'Đang khám'
+  if (status === 'called') return 'Đã gọi'
+  if (status === 'inprogress') return 'Đang khám'
   if (status === 'completed') return 'Đã khám'
+  if (status === 'skipped') return 'Đã bỏ qua'
   return 'Chờ'
 }
 </script>
@@ -64,14 +66,12 @@ function statusText(status: QueuePatient['status']) {
           class="text-xs font-medium
                  px-2.5 py-1 rounded"
           :class="{
-            'bg-blue-50 text-blue-700':
-              patient.status === 'examining',
-
-            'bg-slate-100 text-slate-500':
-              patient.status === 'waiting',
-
-            'bg-emerald-50 text-emerald-700':
-              patient.status === 'completed'
+            'bg-blue-50 text-blue-700': patient.status === 'called',
+            'bg-violet-50 text-violet-700': patient.status === 'inprogress',
+            'bg-amber-50 text-amber-700': patient.status === 'waiting',
+            'bg-emerald-50 text-emerald-700': patient.status === 'completed',
+            'bg-rose-50 text-rose-700': patient.status === 'skipped',
+            'bg-slate-100 text-slate-500': patient.status === 'cancelled'
           }"
         >
           {{ statusText(patient.status) }}

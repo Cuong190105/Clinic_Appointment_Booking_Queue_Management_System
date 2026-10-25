@@ -7,27 +7,38 @@ const props = defineProps<{
 
 function normalizeStatus(s?: string): QueueStatus {
   const str = String(s || '').toLowerCase()
-  if (['called', 'inprogress', 'examining', 'beingexamined'].some(k => str.includes(k))) return 'examining'
+  if (str === 'called') return 'called'
+  if (['inprogress', 'examining', 'beingexamined'].some(k => str.includes(k))) return 'inprogress'
   if (['completed', 'done', 'finished'].some(k => str.includes(k))) return 'completed'
+  if (str.includes('skipped')) return 'skipped'
+  if (str.includes('cancel')) return 'cancelled'
   return 'waiting'
+}
+
+const statusStyles: Record<QueueStatus, string> = {
+  waiting: 'bg-amber-50 text-amber-700',
+  called: 'bg-blue-50 text-blue-700',
+  inprogress: 'bg-violet-50 text-violet-700',
+  completed: 'bg-emerald-50 text-emerald-700',
+  skipped: 'bg-rose-50 text-rose-700',
+  cancelled: 'bg-slate-100 text-slate-600',
+}
+
+const statusLabels: Record<QueueStatus, string> = {
+  waiting: 'Chờ gọi',
+  called: 'Đã gọi',
+  inprogress: 'Đang khám',
+  completed: 'Đã khám xong',
+  skipped: 'Đã bỏ qua',
+  cancelled: 'Đã hủy',
 }
 </script>
 
 <template>
   <span
     class="text-xs font-medium px-2.5 py-1 rounded"
-    :class="{
-      'bg-blue-50 text-blue-700': normalizeStatus(status) === 'examining',
-      'bg-amber-50 text-amber-700': normalizeStatus(status) === 'waiting',
-      'bg-emerald-50 text-emerald-700': normalizeStatus(status) === 'completed'
-    }"
+    :class="statusStyles[normalizeStatus(status)]"
   >
-    {{
-      normalizeStatus(status) === 'examining'
-        ? 'Đang khám'
-        : normalizeStatus(status) === 'waiting'
-          ? 'Chờ khám'
-          : 'Đã khám xong'
-    }}
+    {{ statusLabels[normalizeStatus(status)] }}
   </span>
 </template>

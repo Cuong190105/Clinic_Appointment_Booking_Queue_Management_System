@@ -331,13 +331,15 @@ public static class SchedulingEndpoints
             var query = db.WorkSchedules.AsNoTracking()
                 .Include(ws => ws.Doctor).ThenInclude(d => d.Employee)
                 .Include(ws => ws.Doctor).ThenInclude(d => d.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null)).ThenInclude(h => h.Specialty)
-                .Where(ws => ws.Date == date && ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted
+                .Where(ws => ws.Date == date && ws.Status != WorkScheduleStatus.Cancelled && !ws.IsDeleted
                     && !ws.Doctor.IsDeleted
-                    && ws.Doctor.WorkHistories.Any(h => !h.IsDeleted && h.EndDate == null && h.SpecialtyId == specialtyId));
+                    && ws.Doctor.WorkHistories.Any(h => !h.IsDeleted && h.EndDate == null
+                        && (specialtyId == Guid.Empty || h.SpecialtyId == specialtyId)));
             if (doctorId.HasValue) query = query.Where(ws => ws.DoctorId == doctorId.Value);
             var result = await query.OrderBy(ws => ws.ShiftStart).Select(ws => new WalkInScheduleDto(
                 ws.Id, ws.DoctorId, ws.Doctor.Employee.FullName,
-                ws.Doctor.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null && h.SpecialtyId == specialtyId).Select(h => h.Specialty.Name).FirstOrDefault(),
+                ws.Doctor.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null
+                    && (specialtyId == Guid.Empty || h.SpecialtyId == specialtyId)).Select(h => h.Specialty.Name).FirstOrDefault(),
                 ws.Date, ws.ShiftStart, ws.ShiftEnd, ws.Status.ToString())).ToListAsync(ct);
             return Results.Ok(new { isSuccess = true, result });
         });

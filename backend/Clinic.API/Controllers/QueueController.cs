@@ -25,6 +25,14 @@ namespace Clinic.API.Controllers
             return await _queueClient.ProxyAsync(HttpContext, $"/queue/call-next/{doctorId}", HttpMethod.Post);
         }
 
+        [HttpPost("{queueTicketId}/call")]
+        [Authorize(Policy = "Permission:queue.call-next")]
+        [ProducesResponseType(typeof(QueueTicketDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Call([FromRoute] Guid queueTicketId)
+        {
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/call", HttpMethod.Post);
+        }
+
         [HttpPost("{queueTicketId}/start-exam")]
         [Authorize(Policy = "Permission:queue.start-exam.own,queue.start-exam.any")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -42,11 +50,19 @@ namespace Clinic.API.Controllers
         }
 
         [HttpPost("{queueTicketId}/skip")]
-        [Authorize(Policy = "Permission:queue.skip")]
+        [Authorize(Policy = "Permission:queue.skip,queue.skip-waiting")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> Skip([FromRoute] Guid queueTicketId)
         {
             return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/skip", HttpMethod.Post);
+        }
+
+        [HttpPost("{queueTicketId}/retry")]
+        [Authorize(Policy = "Permission:queue.retry")]
+        [ProducesResponseType(typeof(QueueTicketDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Retry([FromRoute] Guid queueTicketId)
+        {
+            return await _queueClient.ProxyAsync(HttpContext, $"/queue/{queueTicketId}/retry", HttpMethod.Post);
         }
 
         [HttpPatch("{queueTicketId}/priority")]

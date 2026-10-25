@@ -54,6 +54,19 @@ export const medicalRecordsApi = {
     return unwrap<MedicalReportDto>(res.data)
   },
 
+  async getByAppointment(appointmentId: string): Promise<MedicalReportDto> {
+    const res = await http.get(`/medical-reports/appointment/${appointmentId}`)
+    return unwrap<MedicalReportDto>(res.data)
+  },
+
+  async createDraft(appointmentId: string): Promise<MedicalReportDto> {
+    const res = await http.post('/medical-reports', {
+      appointmentId,
+      isFinalize: false,
+    })
+    return unwrap<MedicalReportDto>(res.data)
+  },
+
   // PUT /medical-reports/{id}
   async update(id: string, payload: UpdateMedicalReportPayload): Promise<MedicalReportDto> {
     const res = await http.put(`/medical-reports/${id}`, payload)
