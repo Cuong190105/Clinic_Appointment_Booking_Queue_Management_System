@@ -48,12 +48,19 @@ export const http: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Request: attach bearer token.
+// Request: attach bearer token and correlation ID.
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  config.headers = config.headers ?? {}
   const token = tokenStorage.getAccess()
   if (token) {
-    config.headers = config.headers ?? {}
     ;(config.headers as Record<string, any>)['Authorization'] = 'Bearer ' + token
+  }
+  if (!config.headers['X-Correlation-ID']) {
+    const correlationId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `cid-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    config.headers['X-Correlation-ID'] = correlationId
   }
   return config
 })
@@ -63,19 +70,30 @@ let refreshing: Promise<void> | null = null
 
 async function refreshSession(): Promise<void> {
   const persistent = tokenStorage.isPersistent()
+  const refreshToken = tokenStorage.getRefresh()
+  const correlationId =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `cid-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
   const { data } = await axios.post<any>(
     `${env.apiBaseUrl}/auth/refresh`,
-    {},
-    { withCredentials: true },
+    { refreshToken },
+    {
+      withCredentials: true,
+      headers: {
+        'X-Correlation-ID': correlationId,
+      },
+    },
   )
 
   const newAccessToken = data?.result?.accessToken ?? data?.accessToken
+  const newRefreshToken = data?.result?.refreshToken ?? data?.refreshToken
 
   if (!newAccessToken) {
     throw new Error('Refresh endpoint did not return a new access token')
   }
 
-  tokenStorage.set(newAccessToken, undefined, persistent)
+  tokenStorage.set(newAccessToken, newRefreshToken, persistent)
 }
 
 http.interceptors.response.use(

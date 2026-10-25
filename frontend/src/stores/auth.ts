@@ -33,12 +33,18 @@ function normalizeRoleArray(value: unknown): string[] {
   return [String(value)]
 }
 
-function normalizeRoles(roles?: (UserRole | undefined)[] | UserRole | null | unknown[]): UserRole[] {
+function normalizeRoles(
+  roles?: (UserRole | undefined)[] | UserRole | null | unknown[],
+): UserRole[] {
   if (!roles) return []
 
   const list = Array.isArray(roles) ? roles : [roles]
   const flattened = list.flatMap((role) => normalizeRoleArray(role))
-  return [...new Set(flattened.filter((role): role is UserRole => VALID_ROLES.includes(role as UserRole)))]
+  return [
+    ...new Set(
+      flattened.filter((role): role is UserRole => VALID_ROLES.includes(role as UserRole)),
+    ),
+  ]
 }
 
 function decodeJwtPayload(token: string): Record<string, any> {
@@ -144,18 +150,18 @@ function safeGetStoredUser(): Partial<AuthUser> | null {
 function safeSetStoredUser(u: AuthUser | null, persistent = false) {
   try {
     const storage = persistent ? localStorage : sessionStorage
-  const opposite = persistent ? sessionStorage : localStorage
+    const opposite = persistent ? sessionStorage : localStorage
 
-  if (u) {
-    storage.setItem(USER_KEY, JSON.stringify(u))
-    opposite.removeItem(USER_KEY)
-  } else {
-    localStorage.removeItem(USER_KEY)
-    sessionStorage.removeItem(USER_KEY)
+    if (u) {
+      storage.setItem(USER_KEY, JSON.stringify(u))
+      opposite.removeItem(USER_KEY)
+    } else {
+      localStorage.removeItem(USER_KEY)
+      sessionStorage.removeItem(USER_KEY)
+    }
+  } catch (e) {
+    logger.warn('safeSetStoredUser failed', e)
   }
-} catch (e) {
-  logger.warn('safeSetStoredUser failed', e)
-}
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -168,7 +174,9 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
 
   const isAuthenticated = computed(() => user.value !== null)
-  const currentUserRole = computed<UserRole | null>(() => user.value?.activeRole ?? user.value?.role ?? user.value?.roles?.[0] ?? null)
+  const currentUserRole = computed<UserRole | null>(
+    () => user.value?.activeRole ?? user.value?.role ?? user.value?.roles?.[0] ?? null,
+  )
 
   function hasRole(allowedRoles: UserRole[]): boolean {
     if (!user.value) return false
@@ -178,11 +186,14 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function setToken(accessToken: string, refreshToken?: string, persistent = false) {
-      tokenStorage.set(accessToken, refreshToken, persistent)
+    tokenStorage.set(accessToken, refreshToken, persistent)
   }
 
   function setUser(userData: AuthUser | null, persistent = tokenStorage.isPersistent()) {
-    if (userData === null || (user.value && userData && String(user.value.id) !== String(userData.id))) {
+    if (
+      userData === null ||
+      (user.value && userData && String(user.value.id) !== String(userData.id))
+    ) {
       try {
         usePatientStore().reset()
       } catch {
@@ -220,25 +231,26 @@ export const useAuthStore = defineStore('auth', () => {
       setUser(me)
       return me
     } catch (e: any) {
-      const statusCode = e instanceof Error && (e as any).status ? (e as any).status : e?.response?.status
+      const statusCode =
+        e instanceof Error && (e as any).status ? (e as any).status : e?.response?.status
       const accessToken = tokenStorage.getAccess()
       const fallbackUser = buildUserFromToken(accessToken)
       const hasUsefulTokenUser = Boolean(
         accessToken &&
-          accessToken.includes('.') &&
-          (fallbackUser.name && fallbackUser.name !== 'User' ||
-            fallbackUser.email ||
-            (fallbackUser.roles?.length ?? 0) > 1),
+        accessToken.includes('.') &&
+        ((fallbackUser.name && fallbackUser.name !== 'User') ||
+          fallbackUser.email ||
+          (fallbackUser.roles?.length ?? 0) > 1),
       )
 
-    if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
+      if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
         if (hasUsefulTokenUser) {
           setUser(fallbackUser, tokenStorage.isPersistent())
           return fallbackUser
         }
         tokenStorage.clear()
         safeSetStoredUser(null, false)
-      return fallbackUser
+        return fallbackUser
       }
 
       if (hasUsefulTokenUser) {
@@ -268,7 +280,10 @@ export const useAuthStore = defineStore('auth', () => {
       const status = Number(err?.response?.status ?? err?.status ?? 0)
 
       if (status === 403 || status === 404) {
-        logger.debug('[auth] Patient profile endpoint unavailable; skipping auto-create to avoid noisy forbidden requests.', { status })
+        logger.debug(
+          '[auth] Patient profile endpoint unavailable; skipping auto-create to avoid noisy forbidden requests.',
+          { status },
+        )
         return false
       }
 
@@ -279,7 +294,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (createPayload && status >= 400) {
         const candidate = createPayload ?? user.value ?? {}
         const body: Record<string, any> = {}
-        if (candidate.fullName || candidate.name) body.fullName = candidate.fullName ?? candidate.name
+        if (candidate.fullName || candidate.name)
+          body.fullName = candidate.fullName ?? candidate.name
         if (candidate.email) body.email = candidate.email
         if (candidate.phoneNumber) body.phoneNumber = candidate.phoneNumber
         if (candidate.address) body.address = candidate.address
@@ -308,17 +324,26 @@ export const useAuthStore = defineStore('auth', () => {
             logger.warn('ensurePatientProfile: create failed', createErr)
 
             const createStatus = Number(createErr?.response?.status ?? createErr?.status ?? 0)
-            const createMessage = String(createErr?.response?.data?.message ?? createErr?.message ?? '')
+            const createMessage = String(
+              createErr?.response?.data?.message ?? createErr?.message ?? '',
+            )
 
-            const alreadyAssociated = createStatus === 409 || /already associated/i.test(createMessage) || /already exists/i.test(createMessage)
+            const alreadyAssociated =
+              createStatus === 409 ||
+              /already associated/i.test(createMessage) ||
+              /already exists/i.test(createMessage)
 
             if (alreadyAssociated) {
               try {
                 await http.get('/me/appointments')
                 return true
               } catch (recheckErr: any) {
-                logger.warn('ensurePatientProfile: recheck after already-associated failed', recheckErr)
-                error.value = 'Tài khoản đã được liên kết với một hồ sơ bệnh nhân. Nếu bạn không thể truy cập, vui lòng liên hệ lễ tân.'
+                logger.warn(
+                  'ensurePatientProfile: recheck after already-associated failed',
+                  recheckErr,
+                )
+                error.value =
+                  'Tài khoản đã được liên kết với một hồ sơ bệnh nhân. Nếu bạn không thể truy cập, vui lòng liên hệ lễ tân.'
                 return false
               }
             }
@@ -370,14 +395,16 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authApi.login(payload)
       const fallbackUser = buildUserFromToken(res.accessToken)
-      const normalizedUser = normalizeUser({
-        ...res.user,
-        role: res.role ?? res.user?.role ?? fallbackUser.role,
-        roles: res.roles ?? res.user?.roles ?? fallbackUser.roles,
-        activeRole: res.role ?? res.user?.activeRole ?? fallbackUser.activeRole,
-      }) ?? fallbackUser
+      const normalizedUser =
+        normalizeUser({
+          ...res.user,
+          role: res.role ?? res.user?.role ?? fallbackUser.role,
+          roles: res.roles ?? res.user?.roles ?? fallbackUser.roles,
+          activeRole: res.role ?? res.user?.activeRole ?? fallbackUser.activeRole,
+        }) ?? fallbackUser
 
-      const activeRole = payload.role ?? normalizedUser.activeRole ?? normalizedUser.roles?.[0] ?? 'Patient'
+      const activeRole =
+        payload.role ?? normalizedUser.activeRole ?? normalizedUser.roles?.[0] ?? 'Patient'
       normalizedUser.activeRole = activeRole
       normalizedUser.role = activeRole
       normalizedUser.roles = normalizeRoles(normalizedUser.roles ?? [activeRole])
@@ -417,7 +444,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (e instanceof ApiError) {
         error.value = e.message
       } else {
-        error.value = e?.response?.data?.message || (e instanceof Error ? e.message : 'Đăng nhập thất bại')
+        error.value =
+          e?.response?.data?.message || (e instanceof Error ? e.message : 'Đăng nhập thất bại')
       }
       throw e
     }
@@ -433,13 +461,15 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (res && token) {
         const fallbackUser = buildUserFromToken(token)
-        const normalizedUser = normalizeUser({
-          ...res.user,
-          role: res.role ?? res.user?.role ?? fallbackUser.role,
-          roles: res.roles ?? res.user?.roles ?? fallbackUser.roles,
-          activeRole: res.role ?? res.user?.activeRole ?? fallbackUser.activeRole,
-        }) ?? fallbackUser
-        const activeRole = normalizedUser.activeRole ?? normalizedUser.role ?? normalizedUser.roles?.[0] ?? 'Patient'
+        const normalizedUser =
+          normalizeUser({
+            ...res.user,
+            role: res.role ?? res.user?.role ?? fallbackUser.role,
+            roles: res.roles ?? res.user?.roles ?? fallbackUser.roles,
+            activeRole: res.role ?? res.user?.activeRole ?? fallbackUser.activeRole,
+          }) ?? fallbackUser
+        const activeRole =
+          normalizedUser.activeRole ?? normalizedUser.role ?? normalizedUser.roles?.[0] ?? 'Patient'
         normalizedUser.activeRole = activeRole
         normalizedUser.role = activeRole
         normalizedUser.roles = normalizeRoles(normalizedUser.roles ?? [activeRole])
@@ -457,7 +487,7 @@ export const useAuthStore = defineStore('auth', () => {
           // ensurePatientProfile reports friendly errors into auth.error
         }
       }
- 
+
       status.value = 'idle'
       return res
     } catch (e: any) {
@@ -465,19 +495,22 @@ export const useAuthStore = defineStore('auth', () => {
       if (e instanceof ApiError) {
         error.value = e.message
       } else {
-        error.value = e?.response?.data?.message || (e instanceof Error ? e.message : 'Đăng ký thất bại')
+        error.value =
+          e?.response?.data?.message || (e instanceof Error ? e.message : 'Đăng ký thất bại')
       }
       throw e
     }
   }
 
-  function logout() {
+  async function logout() {
+    const refreshToken = tokenStorage.getRefresh()
     tokenStorage.clear()
     setUser(null)
     status.value = 'idle'
     error.value = null
     enableProtectedPatientEndpoints()
     try {
+      await authApi.logout(refreshToken)
       usePatientStore().reset()
     } catch {
       // ignore
