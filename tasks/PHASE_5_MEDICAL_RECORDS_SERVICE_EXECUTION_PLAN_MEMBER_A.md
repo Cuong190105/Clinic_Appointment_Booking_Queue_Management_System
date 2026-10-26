@@ -341,3 +341,40 @@
      - `GetPatientById_WhenOwnPatientAccesses_ReturnsOk`: PASS (HTTP 200)
    - Kết quả: Toàn bộ **23/23 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
 
+---
+
+### Bước 4 — Nghiệp vụ hồ sơ bệnh án: Draft, Finalize, Amendments, và Medical History (Hoàn tất: 2026-10-26)
+
+1. **Khóa chính logic & Quản lý vòng đời ca khám (Encounter Lifecycle):**
+   - Định danh cuộc khám độc nhất bằng `AppointmentId`.
+   - `ExamStarted` khởi tạo / cập nhật ngữ cảnh `EncounterContext` (`DoctorId`, `DoctorName`, `PatientId`, `QueueDate`, `StartedAt`).
+   - `ExamCompleted` cập nhật `EncounterContext.MarkCompleted`.
+   - Lưu ý kiến trúc: `ExamStarted` KHÔNG sinh bệnh án rỗng và `ExamCompleted` KHÔNG tự ý chốt bệnh án. Bệnh án hoàn toàn do bác sĩ chủ động khởi tạo và chốt.
+
+2. **Triển khai toàn bộ API nghiệp vụ bệnh án & phụ lục điều chỉnh (Amendments):**
+   - **`POST /medical-records`**: Tạo mới bản ghi bệnh án (Draft hoặc Finalized). Yêu cầu quyền `ReportCreate`.
+   - **`PUT /medical-records/{id}`**: Cập nhật nội dung bản nháp (`Symptoms`, `Diagnosis`, `Prescription`, `Notes`). Khi hồ sơ đã `Finalized`, ném lỗi `400 Bad Request` để bảo vệ tính toàn vẹn y khoa. Yêu cầu quyền `ReportCreate`.
+   - **`POST /medical-records/{id}/finalize`**: Chốt hồ sơ bệnh án, gán `ExamEndTime`. Thao tác mang tính idempotent.
+     - **Nguyên tắc quyết định:** Tuyệt đối KHÔNG tự ý gọi ngầm sang Queue Service để `complete-exam`. Bác sĩ hoàn tất khám trên Queue riêng biệt.
+   - **`POST /medical-records/appointments/{appointmentId}/amendments`**: Bác sĩ tạo phụ lục sửa đổi cho hồ sơ đã Finalized (append-only, tự động tăng `AmendmentNumber`, lưu người sửa và lý do sửa). Yêu cầu quyền `ReportCreate`.
+   - **`GET /medical-records/{id}`** & **`GET /medical-records/appointment/{appointmentId}`**: Xem chi tiết bệnh án kèm toàn bộ danh sách `Amendments`. Yêu cầu quyền `ReportView`.
+   - **`GET /medical-records`**: Danh sách bệnh án phân trang, hỗ trợ lọc theo trạng thái, từ khóa tìm kiếm và khoảng ngày. Yêu cầu quyền `ReportView`.
+   - **`GET /patients/{patientId}/medical-history`**: Bác sĩ xem toàn bộ lịch sử khám của bệnh nhân. Yêu cầu quyền `PatientHistoryView`.
+   - **`GET /me/medical-history`**: Bệnh nhân tra cứu lịch sử các lần khám đã chốt của chính mình. Yêu cầu quyền `PatientViewOwn`.
+
+3. **Kiểm thử tự động (TDD):**
+   - Xây dựng các ca kiểm thử trong `MedicalReportsManagerTests` và `MedicalReportsApiIntegrationTests`:
+     - `SaveReportAsync_CreatesDraft_WhenNotFinalized`: PASS
+     - `UpdateReportDraftAsync_UpdatesContent_WhenDraft`: PASS
+     - `UpdateReportDraftAsync_ThrowsInvalidOperationException_WhenFinalized`: PASS
+     - `FinalizeReportAsync_SetsStatusFinalized_AndIsIdempotent`: PASS
+     - `CreateAmendmentAsync_AppendsAmendment_WhenFinalized`: PASS
+     - `CreateAmendmentAsync_Fails_WhenReportIsDraft`: PASS
+     - `GetPatientMedicalHistoryAsync_ReturnsOnlyReportsForTargetPatient`: PASS
+     - `SaveReport_AsDraft_ReturnsOkOrCreated`: PASS
+     - `FinalizeReport_Succeeds_WithoutCallingQueueCompleteExam`: PASS
+     - `CreateAmendment_AppendsToFinalizedReport`: PASS
+     - `GetPatientMedicalHistory_ReturnsListOfReports`: PASS
+     - `ReportEndpoints_WithoutToken_ReturnUnauthorized`: PASS (HTTP 401)
+   - Kết quả: **35/35 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
+

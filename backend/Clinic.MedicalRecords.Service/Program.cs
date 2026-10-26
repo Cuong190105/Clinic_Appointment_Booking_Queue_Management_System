@@ -70,6 +70,10 @@ builder.Services.AddAuthorization(options =>
         ctx.User.HasClaim("permission", "medical-report.view.own") ||
         ctx.User.HasClaim("permission", "medical-report.view.related") ||
         ctx.User.HasClaim("permission", "medical-report.view.any")));
+    options.AddPolicy("PatientHistoryView", policy => policy.RequireAssertion(ctx =>
+        ctx.User.IsInRole("Doctor") || ctx.User.IsInRole("Admin") ||
+        ctx.User.HasClaim("permission", "patient-history.view.related") ||
+        ctx.User.HasClaim("permission", "patient-history.view.any")));
     options.AddPolicy("PatientViewAny", policy => policy.RequireAssertion(ctx =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Receptionist") || ctx.User.IsInRole("Doctor") ||
         ctx.User.HasClaim("permission", "patient.view.any")));

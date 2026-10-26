@@ -151,6 +151,46 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
                         _logger.LogInformation("Processed UserProfileUpdated event for PersonId={PersonId}", payload.PersonId);
                     }
                 }
+                else if (args.RoutingKey == "queue.exam-started" || json.Contains(EventTypes.ExamStarted))
+                {
+                    ExamStarted? payload = null;
+                    try
+                    {
+                        var envelope = JsonSerializer.Deserialize<EventEnvelope<ExamStarted>>(
+                            json,
+                            EventJsonSerializerOptions.Default);
+                        payload = envelope?.Payload;
+                    }
+                    catch { }
+
+                    payload ??= JsonSerializer.Deserialize<ExamStarted>(json, EventJsonSerializerOptions.Default);
+
+                    if (payload != null)
+                    {
+                        await manager.HandleExamStartedAsync(payload, ct);
+                        _logger.LogInformation("Processed ExamStarted event for AppointmentId={AppointmentId}", payload.AppointmentId);
+                    }
+                }
+                else if (args.RoutingKey == "queue.exam-completed" || json.Contains(EventTypes.ExamCompleted))
+                {
+                    ExamCompleted? payload = null;
+                    try
+                    {
+                        var envelope = JsonSerializer.Deserialize<EventEnvelope<ExamCompleted>>(
+                            json,
+                            EventJsonSerializerOptions.Default);
+                        payload = envelope?.Payload;
+                    }
+                    catch { }
+
+                    payload ??= JsonSerializer.Deserialize<ExamCompleted>(json, EventJsonSerializerOptions.Default);
+
+                    if (payload != null)
+                    {
+                        await manager.HandleExamCompletedAsync(payload, ct);
+                        _logger.LogInformation("Processed ExamCompleted event for AppointmentId={AppointmentId}", payload.AppointmentId);
+                    }
+                }
 
                 await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, ct);
             }
