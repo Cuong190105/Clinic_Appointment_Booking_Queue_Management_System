@@ -396,6 +396,27 @@ services:
             start_period: 30s
         restart: always
 
+    medical-records-data-importer:
+        profiles: ["legacy-import"]
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        entrypoint: ["/bin/bash", "-c"]
+        command:
+            - >-
+                until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql &&
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /verify.sql
+        environment:
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+        volumes:
+            - ./backend/Clinic.MedicalRecords.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+            - ./backend/Clinic.MedicalRecords.Service/Persistence/verify-medical-records-import.sql:/verify.sql:ro
+        depends_on:
+            backend:
+                condition: service_healthy
+            medical-records-service:
+                condition: service_healthy
+        restart: "no"
+
     frontend:
         build:
             context: ./frontend # Thay bằng đường dẫn tới thư mục Vue.js của bạn

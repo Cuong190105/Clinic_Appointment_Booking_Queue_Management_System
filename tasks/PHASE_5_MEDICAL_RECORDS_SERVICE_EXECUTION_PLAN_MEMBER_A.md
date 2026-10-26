@@ -408,3 +408,36 @@
      - `Patient_CanViewOwnReport_ReturnsOk_AndLogsSuccessAudit`: PASS (HTTP 200 & Success Audit Log)
    - Kết quả: **40/40 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
 
+---
+
+### Bước 6 — Migration/import và kiểm chứng dữ liệu (Data Migration & Reconciliation) (Hoàn tất: 2026-10-26)
+
+1. **Xây dựng Script Migration/Import an toàn & Idempotent (`import-from-clinicdb.sql`):**
+   - Di chuyển toàn bộ dữ liệu `Patients` từ `ClinicDB.dbo.Patients` kết hợp thông tin nhân thân từ `ClinicDB.dbo.Persons` sang `ClinicMedicalRecordsDB.dbo.Patients`. Áp dụng `WHERE NOT EXISTS` bảo đảm khả năng chạy lặp nhiều lần (idempotent).
+   - Di chuyển toàn bộ `MedicalReports` từ `ClinicDB.dbo.MedicalReports` sang `ClinicMedicalRecordsDB.dbo.MedicalReports`.
+   - Kết nối với `ClinicAppointmentDB.dbo.Appointments` để bổ sung thông tin `DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate` khi cần thiết.
+   - Thêm điều kiện kiểm tra tiền khả thi (Pre-import validation): nếu có bất kỳ `MedicalReport` nào trỏ tới `PatientId` không tồn tại, script lập tức throw error và rollback transaction thay vì tự đoán dữ liệu.
+
+2. **Xây dựng Script Kiểm chứng Đối soát Toàn diện (`verify-medical-records-import.sql`):**
+   - Đối chiếu số lượng bản ghi:
+     - `Patients`: Source `ClinicDB` (63 dòng) = Target `ClinicMedicalRecordsDB` (63 dòng). Mismatch = 0.
+     - `MedicalReports`: Source `ClinicDB` (171 dòng) = Target `ClinicMedicalRecordsDB` (171 dòng). Mismatch = 0.
+   - Kiểm tra tính toàn vẹn và ràng buộc quan hệ:
+     - `Patients missing FullName`: 0.
+     - `MedicalReports missing Patient reference`: 0.
+     - `MedicalReports with duplicate AppointmentId`: 0.
+     - `MedicalReports missing DoctorId`: 0.
+     - `MedicalReports with invalid Status`: 0.
+     - `Status mismatch between ClinicDB and MedicalRecordsDB`: 0.
+   - Kết quả đối soát thực tế: **Zero unexplained mismatch** (Tất cả MismatchCount = 0).
+
+3. **Cấu hình Docker Compose Runner (`medical-records-data-importer`):**
+   - Bổ sung service `medical-records-data-importer` dưới profile `legacy-import` trong `docker-compose.yml`, tự động chạy import và verify khi kích hoạt profile.
+
+4. **Kiểm thử tự động (Unit & Integration Tests):**
+   - Bổ sung `MedicalRecordsImportVerificationTests` kiểm tra:
+     - Sự tồn tại và cấu trúc các script SQL (`WHERE NOT EXISTS`, các câu lệnh kiểm tra toàn vẹn dữ liệu).
+     - Kiểm thử mô phỏng import lặp lại nhiều lần (idempotency simulation) trên In-Memory context, xác nhận không sinh bản ghi trùng.
+   - Kết quả: **42/42 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
+
+
