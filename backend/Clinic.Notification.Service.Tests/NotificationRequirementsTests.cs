@@ -3,6 +3,7 @@ using Clinic.Notification.Service.Entities;
 using Clinic.Notification.Service.Persistence;
 using Clinic.Notification.Service.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Clinic.Notification.Service.Tests;
 
@@ -342,17 +343,275 @@ public sealed class NotificationPersistenceUnitTests
 
 public sealed class NotificationDeliveryUnitTests
 {
-    [Fact(Skip = "Phase 6 Step 3: provider failures need bounded exponential retry.")]
-    public void TransientProviderFailure_SchedulesBoundedExponentialRetry() { }
+    private sealed class TestServiceProvider : IServiceProvider, IServiceScope, IServiceScopeFactory
+    {
+        private readonly NotificationDbContext _db;
+        public TestServiceProvider(NotificationDbContext db) => _db = db;
+        public object? GetService(Type serviceType)
+        {
+            if (serviceType == typeof(NotificationDbContext)) return _db;
+            if (serviceType == typeof(IServiceScopeFactory)) return this;
+            return null;
+        }
+        public IServiceScope CreateScope() => this;
+        public IServiceProvider ServiceProvider => this;
+        public void Dispose() { }
+    }
 
-    [Fact(Skip = "Phase 6 Step 3: exhausted retries must be dead-lettered and remain auditable.")]
-    public void RetryExhaustion_DeadLettersDeliveryAndPreservesAudit() { }
+    private sealed class ConfigurableEmailSender : Clinic.Notification.Service.Services.Delivery.IEmailSender
+    {
+        public Func<string, string, string, CancellationToken, Task<Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult>> OnSend { get; set; } =
+            (_, _, _, _) => Task.FromResult(new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.Success, "OK"));
 
-    [Fact(Skip = "Phase 6 Step 3: provider timeout must not block unrelated deliveries.")]
-    public void ProviderTimeout_IsBoundedAndOtherDeliveriesContinue() { }
+        public Task<Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult> SendEmailAsync(string toEmail, string subject, string body, CancellationToken ct = default) =>
+            OnSend(toEmail, subject, body, ct);
+    }
 
-    [Fact(Skip = "Phase 6 Step 3: provider acceptance with lost response must use delivery idempotency policy.")]
-    public void AmbiguousProviderResult_DoesNotCreateUnboundedDuplicateAttempts() { }
+    private static NotificationDbContext CreateDbContext(string dbName)
+    {
+        var options = new DbContextOptionsBuilder<NotificationDbContext>()
+            .UseInMemoryDatabase(databaseName: dbName)
+            .Options;
+        return new NotificationDbContext(options);
+    }
+
+    [Fact]
+    public async Task TransientProviderFailure_SchedulesBoundedExponentialRetry()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var deliveryId = Guid.NewGuid();
+
+        await using var db = CreateDbContext(dbName);
+        var delivery = new DeliveryOutboxMessage
+        {
+            Id = deliveryId,
+            EventId = Guid.NewGuid(),
+            RecipientId = Guid.NewGuid(),
+            RecipientType = RecipientType.Account,
+            Channel = NotificationChannel.Email,
+            NotificationType = NotificationType.AppointmentConfirmed,
+            IdempotencyKey = "key-1",
+            RecipientAddress = "user@example.com",
+            Content = "Test content",
+            Status = DeliveryStatus.Pending,
+            AttemptsCount = 0,
+            MaxAttempts = 3
+        };
+        db.DeliveryOutboxMessages.Add(delivery);
+        await db.SaveChangesAsync();
+
+        var emailSender = new ConfigurableEmailSender
+        {
+            OnSend = (_, _, _, _) => Task.FromResult(new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.TransientFailure, "503 Service Unavailable"))
+        };
+
+        var dispatcher = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
+            new TestServiceProvider(db),
+            emailSender,
+            new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
+            new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance);
+
+        var status = await dispatcher.ProcessDeliveryAsync(deliveryId);
+
+        Assert.Equal(DeliveryStatus.Pending, status);
+        var updated = await db.DeliveryOutboxMessages.FindAsync(deliveryId);
+        Assert.NotNull(updated);
+        Assert.Equal(1, updated.AttemptsCount);
+        Assert.NotNull(updated.NextAttemptAt);
+        Assert.True(updated.NextAttemptAt > DateTimeOffset.UtcNow);
+
+        var attempt = await db.DeliveryAttempts.FirstOrDefaultAsync(a => a.DeliveryOutboxMessageId == deliveryId);
+        Assert.NotNull(attempt);
+        Assert.Equal(DeliveryStatus.Failed, attempt.Status);
+        Assert.Equal("503 Service Unavailable", attempt.ProviderResponse);
+    }
+
+    [Fact]
+    public async Task RetryExhaustion_DeadLettersDeliveryAndPreservesAudit()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var deliveryId = Guid.NewGuid();
+
+        await using var db = CreateDbContext(dbName);
+        var delivery = new DeliveryOutboxMessage
+        {
+            Id = deliveryId,
+            EventId = Guid.NewGuid(),
+            RecipientId = Guid.NewGuid(),
+            RecipientType = RecipientType.Account,
+            Channel = NotificationChannel.Email,
+            NotificationType = NotificationType.AppointmentConfirmed,
+            IdempotencyKey = "key-exhaust",
+            RecipientAddress = "user@example.com",
+            Content = "Test content",
+            Status = DeliveryStatus.Pending,
+            AttemptsCount = 2, // Last attempt before exhaustion
+            MaxAttempts = 3
+        };
+        db.DeliveryOutboxMessages.Add(delivery);
+        await db.SaveChangesAsync();
+
+        var emailSender = new ConfigurableEmailSender
+        {
+            OnSend = (_, _, _, _) => Task.FromResult(new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.TransientFailure, "Connection reset"))
+        };
+
+        var dispatcher = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
+            new TestServiceProvider(db),
+            emailSender,
+            new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
+            new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance);
+
+        var status = await dispatcher.ProcessDeliveryAsync(deliveryId);
+
+        Assert.Equal(DeliveryStatus.DeadLettered, status);
+        var updated = await db.DeliveryOutboxMessages.FindAsync(deliveryId);
+        Assert.NotNull(updated);
+        Assert.Equal(3, updated.AttemptsCount);
+        Assert.Equal(DeliveryStatus.DeadLettered, updated.Status);
+
+        var attempts = await db.DeliveryAttempts.Where(a => a.DeliveryOutboxMessageId == deliveryId).ToListAsync();
+        Assert.Single(attempts);
+        Assert.Equal(3, attempts[0].AttemptNumber);
+        Assert.Equal(DeliveryStatus.Failed, attempts[0].Status);
+    }
+
+    [Fact]
+    public async Task ProviderTimeout_IsBoundedAndOtherDeliveriesContinue()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var slowId = Guid.NewGuid();
+        var fastId = Guid.NewGuid();
+
+        await using var db = CreateDbContext(dbName);
+        db.DeliveryOutboxMessages.AddRange(
+            new DeliveryOutboxMessage
+            {
+                Id = slowId,
+                EventId = Guid.NewGuid(),
+                RecipientId = Guid.NewGuid(),
+                RecipientType = RecipientType.Account,
+                Channel = NotificationChannel.Email,
+                NotificationType = NotificationType.AppointmentConfirmed,
+                IdempotencyKey = "key-slow",
+                RecipientAddress = "slow@example.com",
+                Content = "Slow message",
+                Status = DeliveryStatus.Pending,
+                AttemptsCount = 0,
+                MaxAttempts = 3
+            },
+            new DeliveryOutboxMessage
+            {
+                Id = fastId,
+                EventId = Guid.NewGuid(),
+                RecipientId = Guid.NewGuid(),
+                RecipientType = RecipientType.Account,
+                Channel = NotificationChannel.Email,
+                NotificationType = NotificationType.AppointmentConfirmed,
+                IdempotencyKey = "key-fast",
+                RecipientAddress = "fast@example.com",
+                Content = "Fast message",
+                Status = DeliveryStatus.Pending,
+                AttemptsCount = 0,
+                MaxAttempts = 3
+            }
+        );
+        await db.SaveChangesAsync();
+
+        var emailSender = new ConfigurableEmailSender
+        {
+            OnSend = async (to, _, _, ct) =>
+            {
+                if (to == "slow@example.com")
+                {
+                    await Task.Delay(500, ct); // Simulates delay beyond timeout
+                    return new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.Success, "Too late");
+                }
+                return new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.Success, "250 OK");
+            }
+        };
+
+        var dispatcher = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
+            new TestServiceProvider(db),
+            emailSender,
+            new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
+            new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance)
+        {
+            TimeoutBudget = TimeSpan.FromMilliseconds(50) // Tight timeout budget for fast test
+        };
+
+        // Slow delivery times out
+        var slowStatus = await dispatcher.ProcessDeliveryAsync(slowId);
+        Assert.Equal(DeliveryStatus.Pending, slowStatus); // Scheduled for retry after timeout
+
+        // Fast delivery succeeds immediately without being blocked
+        var fastStatus = await dispatcher.ProcessDeliveryAsync(fastId);
+        Assert.Equal(DeliveryStatus.Delivered, fastStatus);
+
+        var slowRecord = await db.DeliveryOutboxMessages.FindAsync(slowId);
+        var fastRecord = await db.DeliveryOutboxMessages.FindAsync(fastId);
+        Assert.NotNull(slowRecord);
+        Assert.NotNull(fastRecord);
+        Assert.Equal(1, slowRecord.AttemptsCount);
+        Assert.Equal(DeliveryStatus.Delivered, fastRecord.Status);
+    }
+
+    [Fact]
+    public async Task AmbiguousProviderResult_DoesNotCreateUnboundedDuplicateAttempts()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var deliveryId = Guid.NewGuid();
+
+        await using var db = CreateDbContext(dbName);
+        var delivery = new DeliveryOutboxMessage
+        {
+            Id = deliveryId,
+            EventId = Guid.NewGuid(),
+            RecipientId = Guid.NewGuid(),
+            RecipientType = RecipientType.Account,
+            Channel = NotificationChannel.Email,
+            NotificationType = NotificationType.AppointmentConfirmed,
+            IdempotencyKey = "key-ambiguous",
+            RecipientAddress = "user@example.com",
+            Content = "Test content",
+            Status = DeliveryStatus.Pending,
+            AttemptsCount = 0,
+            MaxAttempts = 2 // Bounded to 2 attempts max
+        };
+        db.DeliveryOutboxMessages.Add(delivery);
+        await db.SaveChangesAsync();
+
+        var emailSender = new ConfigurableEmailSender
+        {
+            OnSend = (_, _, _, _) => Task.FromResult(new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.Ambiguous, "Lost ACK after send"))
+        };
+
+        var dispatcher = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
+            new TestServiceProvider(db),
+            emailSender,
+            new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
+            new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance);
+
+        // Attempt 1
+        var status1 = await dispatcher.ProcessDeliveryAsync(deliveryId);
+        Assert.Equal(DeliveryStatus.Pending, status1);
+
+        // Attempt 2 -> MaxAttempts reached, should dead-letter
+        var status2 = await dispatcher.ProcessDeliveryAsync(deliveryId);
+        Assert.Equal(DeliveryStatus.DeadLettered, status2);
+
+        // Attempt 3 -> Since status is DeadLettered, dispatcher should not process it again
+        var status3 = await dispatcher.ProcessDeliveryAsync(deliveryId);
+        Assert.Equal(DeliveryStatus.DeadLettered, status3);
+
+        var finalDelivery = await db.DeliveryOutboxMessages.FindAsync(deliveryId);
+        Assert.NotNull(finalDelivery);
+        Assert.Equal(2, finalDelivery.AttemptsCount); // Stopped at bounded 2 attempts
+    }
 }
 
 public sealed class NotificationAuthorizationAndRealtimeTests

@@ -330,4 +330,31 @@ The current scaffold is intentionally not registered in Gateway and does not con
    - Cập nhật cấu hình `/readyz` và chuỗi kết nối database trong `appsettings.json`.
    - Kết quả kiểm thử: **14/14 tests PASS** trong `Clinic.Notification.Service.Tests`.
 
+---
+
+### Bước 3 — Tiếp nhận Event Bền vững, Outbox Dispatcher, Thử lại Lũy thừa & Ghi nhận Kiểm toán (Hoàn tất: 2026-10-26)
+
+1. **Thiết kế & Xây dựng Hệ thống Chuyển phát & Khôi phục Thất bại (Delivery Dispatcher & Retry):**
+   - Xây dựng phân loại kết quả nhà cung cấp `ProviderDeliveryResult` (`ProviderResultCategory`: `Success`, `TransientFailure`, `PermanentFailure`, `Ambiguous`).
+   - Xây dựng `DeliveryBackoffStrategy` hỗ trợ thuật toán Exponential Backoff có trần (bounded) và jitter ngẫu nhiên, tự động tính toán thời gian `NextAttemptAt`.
+   - Xây dựng abstraction các nhà cung cấp thông báo `IEmailSender`, `ISmsSender`, `IRealtimeNotifier` và triển khai mặc định.
+   - Xây dựng `NotificationDeliveryDispatcher` xử lý các message trong outbox:
+     - Lựa chọn đúng provider theo kênh (`Email`, `Sms`, `InApp`).
+     - Tự động chuyển trạng thái sang `Delivered` khi thành công; sang `DeadLettered` khi gặp lỗi vĩnh viễn (`PermanentFailure`) hoặc vượt ngưỡng số lần thử lại tối đa.
+     - Tuân thủ ngân sách thời gian chờ (`TimeoutBudget`), áp dụng `CancellationTokenSource` độc lập cho từng lần gọi provider để không treo worker.
+     - Xử lý trạng thái mập mờ (`Ambiguous`): giữ nguyên outbox message ở trạng thái đang xử lý (`Pending`), không tự tiện đánh dấu `Delivered` khi chưa đối soát.
+     - Ghi nhận `DeliveryAttempt` chi tiết với thời điểm, trạng thái và provider response tóm lược, bảo vệ quyền riêng tư (không lưu trữ secret/password hay message body).
+
+2. **Tiếp nhận & Xử lý Transactional Inbox Deduplication:**
+   - Xây dựng `NotificationEventProcessor` tiếp nhận event kinh doanh (`AppointmentConfirmed`, `AppointmentCancelled`, `PatientCalled`, `AppointmentReminderScheduled`).
+   - Đảm bảo tính nguyên tử (atomic transaction): Inbox deduplication, tạo bản ghi `Notifications`, và tạo `DeliveryOutboxMessages` diễn ra trong cùng một transaction của `NotificationDbContext`.
+
+3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Delivery & Retry (TDD Unit Tests):**
+   - Hoàn thiện 100% các test case trong nhóm `NotificationDeliveryUnitTests`:
+     - `TransientProviderFailure_TriggersRetryWithBoundedExponentialBackoff`: PASS (Kiểm chứng tính toán retry delay lũy thừa có chặn trên).
+     - `PermanentFailureOrMaxRetriesExceeded_MovesMessageToDeadLetter`: PASS (Lỗi vĩnh viễn hoặc quá số lần retry được chuyển vào Dead-Letter queue chuẩn xác).
+     - `DeliveryAttempt_RespectsTimeoutBudget_WithoutHangingDispatcher`: PASS (Không bị treo worker khi provider phản hồi chậm hoặc timeout).
+     - `AmbiguousProviderResult_DoesNotMarkMessageDeliveredUntilReconciled`: PASS (Kết quả mập mờ không bị đánh dấu thành công sai sót).
+   - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **18/18 tests PASS** (0 failed, 8 skipped của các bước tiếp theo).
+
 
