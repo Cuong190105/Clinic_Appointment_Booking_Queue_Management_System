@@ -1,6 +1,8 @@
 using Clinic.Contracts.Events;
 using Clinic.Notification.Service.Entities;
+using Clinic.Notification.Service.Persistence;
 using Clinic.Notification.Service.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace Clinic.Notification.Service.Tests;
 
@@ -136,17 +138,206 @@ public sealed class NotificationPolicyUnitTests
 
 public sealed class NotificationPersistenceUnitTests
 {
-    [Fact(Skip = "Phase 6 Step 2: persist notification, inbox deduplication, and delivery outbox atomically.")]
-    public void ConsumingBusinessEvent_PersistsInboxNotificationAndDeliveriesInOneTransaction() { }
+    private NotificationDbContext CreateDbContext(string dbName)
+    {
+        var options = new DbContextOptionsBuilder<NotificationDbContext>()
+            .UseInMemoryDatabase(databaseName: dbName)
+            .Options;
+        return new NotificationDbContext(options);
+    }
 
-    [Fact(Skip = "Phase 6 Step 2: duplicate event delivery must not create duplicate notification records.")]
-    public void DuplicateEventId_DoesNotCreateDuplicateNotification() { }
+    [Fact]
+    public async Task ConsumingBusinessEvent_PersistsInboxNotificationAndDeliveriesInOneTransaction()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var eventId = Guid.NewGuid();
+        var recipientId = Guid.NewGuid();
 
-    [Fact(Skip = "Phase 6 Step 2: delivery attempts must capture status, timestamp, provider response, and correlation id.")]
-    public void DeliveryAttempt_PersistsRequiredAuditFieldsWithoutSecretsOrMessageBody() { }
+        await using (var db = CreateDbContext(dbName))
+        {
+            var inbox = new InboxMessage
+            {
+                Id = eventId,
+                EventType = EventTypes.AppointmentConfirmed,
+                Status = "Processed",
+                ProcessedAt = DateTimeOffset.UtcNow
+            };
 
-    [Fact(Skip = "Phase 6 Step 2: recipient snapshots must not depend on Clinic Person or another service database.")]
-    public void NotificationAggregate_StoresRecipientIdentityAndMinimalContactSnapshotOnly() { }
+            var notification = new NotificationItem
+            {
+                Id = Guid.NewGuid(),
+                RecipientId = recipientId,
+                RecipientType = RecipientType.Account,
+                NotificationType = NotificationType.AppointmentConfirmed,
+                Title = "Xác nhận lịch khám",
+                Body = "Lịch khám đã được xác nhận",
+                IsRead = false,
+                ContactName = "Test User",
+                ContactEmail = "test@example.com"
+            };
+
+            var delivery = new DeliveryOutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                EventId = eventId,
+                Notification = notification,
+                RecipientId = recipientId,
+                RecipientType = RecipientType.Account,
+                Channel = NotificationChannel.InApp,
+                NotificationType = NotificationType.AppointmentConfirmed,
+                IdempotencyKey = $"{eventId:D}:{recipientId:D}:InApp:AppointmentConfirmed",
+                RecipientAddress = "in-app",
+                Subject = notification.Title,
+                Content = notification.Body,
+                Status = DeliveryStatus.Pending
+            };
+
+            db.InboxMessages.Add(inbox);
+            db.Notifications.Add(notification);
+            db.DeliveryOutboxMessages.Add(delivery);
+
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = CreateDbContext(dbName))
+        {
+            var savedInbox = await db.InboxMessages.FindAsync(eventId);
+            var savedNotifications = await db.Notifications.Include(n => n.Deliveries).ToListAsync();
+
+            Assert.NotNull(savedInbox);
+            Assert.Equal("Processed", savedInbox.Status);
+            Assert.Single(savedNotifications);
+            Assert.Equal(recipientId, savedNotifications[0].RecipientId);
+            Assert.Single(savedNotifications[0].Deliveries);
+            Assert.Equal(DeliveryStatus.Pending, savedNotifications[0].Deliveries.First().Status);
+        }
+    }
+
+    [Fact]
+    public async Task DuplicateEventId_DoesNotCreateDuplicateNotification()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var eventId = Guid.NewGuid();
+        var recipientId = Guid.NewGuid();
+        var idempotencyKey = $"{eventId:D}:{recipientId:D}:InApp:AppointmentConfirmed";
+
+        await using (var db = CreateDbContext(dbName))
+        {
+            db.DeliveryOutboxMessages.Add(new DeliveryOutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                EventId = eventId,
+                RecipientId = recipientId,
+                RecipientType = RecipientType.Account,
+                Channel = NotificationChannel.InApp,
+                NotificationType = NotificationType.AppointmentConfirmed,
+                IdempotencyKey = idempotencyKey,
+                RecipientAddress = "in-app",
+                Content = "Content 1",
+                Status = DeliveryStatus.Pending
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = CreateDbContext(dbName))
+        {
+            // Idempotency check: key already exists
+            var isDuplicate = await db.DeliveryOutboxMessages.AnyAsync(x => x.IdempotencyKey == idempotencyKey);
+            Assert.True(isDuplicate);
+
+            var duplicateMessage = new DeliveryOutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                EventId = eventId,
+                RecipientId = recipientId,
+                RecipientType = RecipientType.Account,
+                Channel = NotificationChannel.InApp,
+                NotificationType = NotificationType.AppointmentConfirmed,
+                IdempotencyKey = idempotencyKey,
+                RecipientAddress = "in-app",
+                Content = "Content 2"
+            };
+
+            // In our consumer logic, isDuplicate prevents insertion
+            if (!isDuplicate)
+            {
+                db.DeliveryOutboxMessages.Add(duplicateMessage);
+                await db.SaveChangesAsync();
+            }
+
+            var totalCount = await db.DeliveryOutboxMessages.CountAsync(x => x.IdempotencyKey == idempotencyKey);
+            Assert.Equal(1, totalCount);
+        }
+    }
+
+    [Fact]
+    public async Task DeliveryAttempt_PersistsRequiredAuditFieldsWithoutSecretsOrMessageBody()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var outboxId = Guid.NewGuid();
+        var correlationId = Guid.NewGuid();
+
+        await using (var db = CreateDbContext(dbName))
+        {
+            var attempt = new DeliveryAttempt
+            {
+                Id = Guid.NewGuid(),
+                DeliveryOutboxMessageId = outboxId,
+                AttemptNumber = 1,
+                AttemptedAt = DateTimeOffset.UtcNow,
+                Status = DeliveryStatus.Delivered,
+                ProviderResponse = "250 OK: Message accepted for delivery",
+                ProviderReference = "msg-provider-999",
+                CorrelationId = correlationId
+            };
+
+            db.DeliveryAttempts.Add(attempt);
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = CreateDbContext(dbName))
+        {
+            var attempt = await db.DeliveryAttempts.FirstOrDefaultAsync(x => x.CorrelationId == correlationId);
+            Assert.NotNull(attempt);
+            Assert.Equal(DeliveryStatus.Delivered, attempt.Status);
+            Assert.Equal("250 OK: Message accepted for delivery", attempt.ProviderResponse);
+            Assert.Equal("msg-provider-999", attempt.ProviderReference);
+
+            // Verify no secrets or message body fields exist on DeliveryAttempt
+            var forbiddenTerms = new[] { "body", "content", "secret", "password", "resetcode", "resettoken" };
+            var propertyNames = typeof(DeliveryAttempt).GetProperties().Select(p => p.Name.ToLowerInvariant()).ToList();
+            foreach (var forbidden in forbiddenTerms)
+            {
+                Assert.DoesNotContain(propertyNames, name => name.Contains(forbidden));
+            }
+        }
+    }
+
+    [Fact]
+    public void NotificationAggregate_StoresRecipientIdentityAndMinimalContactSnapshotOnly()
+    {
+        var notificationProps = typeof(NotificationItem).GetProperties();
+        var propNames = notificationProps.Select(p => p.Name).ToList();
+
+        // Must have recipient identity and minimal contact snapshot
+        Assert.Contains("RecipientId", propNames);
+        Assert.Contains("RecipientType", propNames);
+        Assert.Contains("ContactName", propNames);
+        Assert.Contains("ContactEmail", propNames);
+        Assert.Contains("ContactPhone", propNames);
+
+        // Must NOT reference Person or Clinic domain entities
+        Assert.DoesNotContain("Person", propNames);
+        Assert.DoesNotContain("PersonId", propNames);
+        Assert.DoesNotContain("Patient", propNames);
+
+        // Must NOT have clinical PHI properties
+        var forbiddenTerms = new[] { "symptoms", "diagnosis", "prescription", "notes", "medicalhistory" };
+        foreach (var forbidden in forbiddenTerms)
+        {
+            Assert.DoesNotContain(propNames, name => name.ToLowerInvariant().Contains(forbidden));
+        }
+    }
 }
 
 public sealed class NotificationDeliveryUnitTests

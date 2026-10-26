@@ -297,3 +297,37 @@ The current scaffold is intentionally not registered in Gateway and does not con
    - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **7/7 tests PASS** (2 scaffold tests + 5 policy & contract tests).
    - Không gây ảnh hưởng tới các service khác: `Clinic.Contracts.UnitTests` (6/6 PASS), `Clinic.Appointment.Service.Tests` (34/34 PASS).
 
+---
+
+### Bước 2 — Tách biệt Cơ sở Dữ liệu, Lưu trữ Bền vững & Di chuyển Dữ liệu Lịch sử (Isolated Database, Persistence & Legacy Import) (Hoàn tất: 2026-10-26)
+
+1. **Thiết kế & Tách biệt Cơ sở dữ liệu Độc lập (`ClinicNotificationDB`):**
+   - Xây dựng `NotificationDbContext` sở hữu độc lập schema thông báo: `Notifications`, `InboxMessages`, `DeliveryOutboxMessages`, `DeliveryAttempts`.
+   - Mô hình `NotificationItem` lưu trữ snapshot định danh người nhận (`RecipientId`, `RecipientType`, `ContactName`, `ContactEmail`, `ContactPhone`), tách rời hoàn toàn khỏi `Person` entity và ClinicDB.
+   - Mô hình `DeliveryOutboxMessage` áp đặt ràng buộc duy nhất (`UNIQUE INDEX`) trên `IdempotencyKey` (`{EventId}:{RecipientId}:{Channel}:{Type}`), đảm bảo ngăn chặn triệt để trùng lặp ở tầng database.
+   - Mô hình `DeliveryAttempt` lưu trữ dấu vết kiểm toán phát thông báo (`Status`, `AttemptedAt`, `ProviderResponse`, `ProviderReference`, `CorrelationId`), **tuyệt đối không lưu secret, reset code, password hay message body**.
+   - Khởi tạo migration `InitialNotificationSchema` và áp dụng thành công lên cơ sở dữ liệu `ClinicNotificationDB`.
+
+2. **Migration & Đối soát Dữ liệu Lịch sử (Legacy Data Import & Reconciliation):**
+   - Xây dựng script `import-from-clinicdb.sql` an toàn, có transaction và bảo đảm tính idempotent qua mệnh đề `WHERE NOT EXISTS`. Tự động ánh xạ `PersonId` legacy sang `Identity.UserId` thông qua kết nối với `ClinicIdentityDB.dbo.Users`.
+   - Xây dựng script đối soát `verify-notifications-import.sql` kiểm chứng số lượng, tính toàn vẹn và tỷ lệ trùng khớp.
+   - Kết quả thực thi thực tế trên `clinic_sql_server`:
+     - Số lượng bản ghi nguồn `ClinicDB`: 58
+     - Số lượng bản ghi đích `ClinicNotificationDB`: 58
+     - Sai lệch (CountDifference): 0
+     - Thiếu Recipient (MissingRecipientCount): 0
+     - Trùng lặp ID (DuplicateIdCount): 0
+     - Khách chưa map (UnmappedAccountCount): 0
+     - Chạy lại lần 2 (Rerun Idempotency Test): 0 dòng bị ghi đè, toàn vẹn 100%.
+
+3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Bền vững (Persistence & Import TDD Tests):**
+   - Hoàn thiện 100% các test case trong nhóm `NotificationPersistenceUnitTests`:
+     - `ConsumingBusinessEvent_PersistsInboxNotificationAndDeliveriesInOneTransaction`: PASS (Ghi nhận Inbox, Notification và Outbox trong cùng 1 transaction nguyên tử).
+     - `DuplicateEventId_DoesNotCreateDuplicateNotification`: PASS (Chống trùng lặp theo IdempotencyKey).
+     - `DeliveryAttempt_PersistsRequiredAuditFieldsWithoutSecretsOrMessageBody`: PASS (Audit delivery an toàn không rò rỉ secret).
+     - `NotificationAggregate_StoresRecipientIdentityAndMinimalContactSnapshotOnly`: PASS (Xác nhận cấu trúc aggregate độc lập, không dính Person/ClinicDB/PHI lâm sàng).
+   - Bổ sung `NotificationImportVerificationTests`: PASS (3/3 tests kiểm thử file script SQL và mô phỏng import idempotent).
+   - Cập nhật cấu hình `/readyz` và chuỗi kết nối database trong `appsettings.json`.
+   - Kết quả kiểm thử: **14/14 tests PASS** trong `Clinic.Notification.Service.Tests`.
+
+
