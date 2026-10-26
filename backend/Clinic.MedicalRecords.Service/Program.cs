@@ -21,11 +21,13 @@ var requireHttpsMetadata = builder.Configuration.GetValue<bool>("Identity:Requir
 var medicalRecordsConnection = builder.Configuration.GetConnectionString("MedicalRecordsConnection");
 
 // Persistence
-builder.Services.AddDbContext<MedicalRecordsDbContext>(options =>
+builder.Services.AddDbContext<MedicalRecordsDbContext>((sp, options) =>
 {
-    if (!string.IsNullOrEmpty(medicalRecordsConnection))
+    var config = sp.GetRequiredService<IConfiguration>();
+    var conn = config.GetConnectionString("MedicalRecordsConnection");
+    if (!string.IsNullOrEmpty(conn))
     {
-        options.UseSqlServer(medicalRecordsConnection);
+        options.UseSqlServer(conn);
     }
 });
 
@@ -69,11 +71,20 @@ builder.Services.AddAuthorization(options =>
         ctx.User.HasClaim("permission", "medical-report.view.related") ||
         ctx.User.HasClaim("permission", "medical-report.view.any")));
     options.AddPolicy("PatientViewAny", policy => policy.RequireAssertion(ctx =>
-        ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Receptionist") ||
+        ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Receptionist") || ctx.User.IsInRole("Doctor") ||
         ctx.User.HasClaim("permission", "patient.view.any")));
     options.AddPolicy("PatientCreateAny", policy => policy.RequireAssertion(ctx =>
         ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Receptionist") ||
         ctx.User.HasClaim("permission", "patient.create.any")));
+    options.AddPolicy("PatientEditAny", policy => policy.RequireAssertion(ctx =>
+        ctx.User.IsInRole("Admin") || ctx.User.IsInRole("Receptionist") ||
+        ctx.User.HasClaim("permission", "patient.edit.any")));
+    options.AddPolicy("PatientViewOwn", policy => policy.RequireAssertion(ctx =>
+        ctx.User.IsInRole("Patient") || ctx.User.IsInRole("Admin") ||
+        ctx.User.HasClaim("permission", "patient.view.own")));
+    options.AddPolicy("PatientEditOwn", policy => policy.RequireAssertion(ctx =>
+        ctx.User.IsInRole("Patient") || ctx.User.IsInRole("Admin") ||
+        ctx.User.HasClaim("permission", "patient.edit.own")));
 });
 
 var app = builder.Build();

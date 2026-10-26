@@ -303,3 +303,41 @@
      - `MedicalRecordsDbContext_CanPersistAndTrack_EncounterContext`: PASS
    - Kết quả: **8/8 tests PASS** (Toàn bộ test suite của Queue 50/50, Appointment 33/33, Scheduling 38/38, Domain 20/20, Contracts 6/6 đều PASS).
 
+---
+
+### Bước 3 — Luồng sở hữu bệnh nhân & đồng bộ hồ sơ (Patient Ownership & Profile Flow) (Hoàn tất: 2026-10-26)
+
+1. **Khẳng định quyền ghi độc quyền (Authoritative Source):**
+   - Thực thể `Patient` được sở hữu hoàn toàn bởi `Clinic.MedicalRecords.Service` (`ClinicMedicalRecordsDB`).
+   - Cung cấp đầy đủ DTOs: `CreatePatientRequest`, `UpdatePatientRequest`, `PatientDto`, `PagedResult<PatientDto>`.
+
+2. **Triển khai các API quản lý bệnh nhân & phân quyền nghiêm ngặt:**
+   - **`POST /patients`**, **`POST /patients/add`**, **`POST /patients/walk-in`**: Đăng ký bệnh nhân mới (Walk-in hoặc trực tuyến), trả về `201 Created` kèm Location header `/patients/{id}`. Yêu cầu quyền `PatientCreateAny` (Admin, Receptionist hoặc claim `patient.create.any`).
+   - **`GET /patients`**: Danh sách bệnh nhân phân trang, hỗ trợ tìm kiếm theo họ tên, SĐT, BHYT, email và sắp xếp. Yêu cầu quyền `PatientViewAny` (Admin, Receptionist, Doctor hoặc claim `patient.view.any`).
+   - **`GET /patients/{id}`**: Chi tiết bệnh nhân. Bảo vệ chống IDOR: nhân viên y tế xem được mọi hồ sơ; bệnh nhân chỉ xem được hồ sơ của chính mình (đối soát qua claim `patientId`, `personId` hoặc `sub`).
+   - **`GET /patients/me`** & **`PUT /patients/me`**: Bệnh nhân tự xem và cập nhật thông tin liên hệ, BHYT, địa chỉ của chính mình. Yêu cầu quyền `PatientViewOwn` và `PatientEditOwn`.
+   - **`PUT /patients/{id}`**: Lễ tân/Admin cập nhật thông tin bệnh nhân. Yêu cầu quyền `PatientEditAny`.
+
+3. **Lắng nghe sự kiện đồng bộ từ RabbitMQ & Internal Endpoint:**
+   - Cung cấp internal endpoint `POST /internal/events/user-profile-updated` cho đồng bộ profile.
+   - Hoàn tất `MedicalRecordsEventConsumer` (RabbitMQ topic consumer) kết nối exchange `clinic.events`, queue `clinic.medical-records.events`, lắng nghe routing key `identity.user-profile-updated`. Khi người dùng sửa thông tin trên Identity Service, consumer tự động cập nhật chiếu nhân thân (`FullName`, `PhoneNumber`, `Email`, `Gender`, `Address`, `DateOfBirth`) của `Patient` tương ứng.
+
+4. **Kiểm thử tự động (TDD):**
+   - Viết test trước khi thực hiện (`PatientManagerTests` và `PatientApiIntegrationTests`):
+     - `CreatePatientAsync_PersistsAndReturnsDto`: PASS
+     - `GetPagedPatientsAsync_FiltersAndPaginates`: PASS
+     - `GetPatientByIdAsync_ReturnsCorrectDto`: PASS
+     - `UpdatePatientAsync_UpdatesContactAndInsurance`: PASS
+     - `HandleUserProfileUpdatedAsync_SynchronizesPatientIdentityProjection`: PASS
+     - `CreatePatient_ViaHttpApi_ReturnsCreated`: PASS
+     - `CreatePatient_ViaLegacyAddRoute_ReturnsCreated`: PASS
+     - `GetPatientById_WhenFound_ReturnsOk`: PASS
+     - `GetPatientById_WhenMissing_ReturnsNotFound`: PASS
+     - `GetPagedPatients_ReturnsOk`: PASS
+     - `InternalUserProfileUpdated_ViaHttp_SynchronizesPatient`: PASS
+     - `CreatePatient_WithoutAuth_ReturnsUnauthorized`: PASS (HTTP 401)
+     - `CreatePatient_AsPatientRole_ReturnsForbidden`: PASS (HTTP 403)
+     - `GetPatientById_WhenOtherPatientAccesses_ReturnsForbidden`: PASS (IDOR defense - HTTP 403)
+     - `GetPatientById_WhenOwnPatientAccesses_ReturnsOk`: PASS (HTTP 200)
+   - Kết quả: Toàn bộ **23/23 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
+
