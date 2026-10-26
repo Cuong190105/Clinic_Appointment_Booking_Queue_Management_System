@@ -37,7 +37,7 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
 | **2. Staff & Scheduling Service** | `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`, `SlotReservation` | Quản lý nhân viên y tế, bác sĩ, lịch trực, duyệt ca và sở hữu capacity/slot.           | Cung cấp Synchronous API (`GetAvailability`, `ReserveSlot`, `ReleaseSlot`, `ConfirmSlot`); phát sự kiện lịch trực qua Outbox; tiêu thụ `AppointmentCancelled` để giải phóng slot. |
 | **3. Appointment Service**        | `Appointment`, `AppointmentSnapshot` (Traceback), `PatientProjection`            | Đặt lịch, xác nhận, đổi lịch, hủy lịch và check-in lịch hẹn khám bệnh.                 | Sử dụng Saga điều phối giữ chỗ với Scheduling Service; lưu thông tin hiển thị denormalized trên `Appointment` & nhật ký chỉnh sửa trên `AppointmentSnapshot`; phát sự kiện `AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentCheckedIn`; tiêu thụ `ExamCompleted`, `UserProfileUpdated`. |
 | **4. Queue Service**              | `QueueTicket`, `QueueCounter`                                                    | Tiếp nhận bệnh nhân, cấp số thứ tự khám tại chỗ, quản lý vòng đời hàng đợi phòng khám. | Nhận sự kiện check-in; tự sinh số khám với unique constraint cục bộ; phát sự kiện `PatientCalled`, `ExamStarted`, `ExamCompleted`.                                               |
-| **5. Medical Service**    | `Patient`, `MedicalReport`, `MedicalReportHistory` (Amendment)                              | Quản lý hồ sơ bệnh án, chẩn đoán, toa thuốc, lưu nháp và chốt hồ sơ.                   | Liên kết bằng `visitId`/`encounterId` ổn định; kiểm soát phân quyền riêng biệt và Audit Log truy cập y tế.                                                                       |
+| **5. Medical Records Service** | `Patient`, `MedicalReport`, `MedicalReportAmendment`, `MedicalAccessAudit` | Quản lý hồ sơ bệnh nhân và bệnh án trong cùng service/DB; không có Patient Service riêng. | Dùng `AppointmentId` làm encounter key, loose reference tới Appointment; permission riêng và audit truy cập y tế. |
 | **6. Notification Service**       | `Notification`, `NotificationTemplate`, `DeliveryAudit`                          | Quản lý thông báo in-app, SignalR Hub, gửi SMS/Email.                                  | Lắng nghe event từ message broker qua outbox/inbox; không nhận domain entity.                                                                                                    |
 
 ---
@@ -132,7 +132,7 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
         - **Queue Service** sở hữu việc sinh số thứ tự và quản lý vé khám (`QueueTicket`, `QueueCounter`).
     - **Workflow Check-in qua Event / API**:
         - Khi tiếp nhận bệnh nhân qua `POST /api/v1/appointments/{id}/check-in`, Appointment Service cập nhật trạng thái lịch sang `CheckedIn` và ghi Outbox phát sự kiện:
-          `AppointmentCheckedIn { appointmentId, patientId, doctorId, scheduleDate, visitId, patientName, roomNumber }`.
+          `AppointmentCheckedIn { appointmentId, patientId, doctorId, scheduleDate, patientName, roomNumber }`.
         - **Queue Service** lắng nghe sự kiện trên (hoặc tiếp nhận API check-in trực tiếp từ Lễ tân kèm snapshot dữ liệu): tiến hành cấp số thứ tự trong transaction cục bộ của Queue DB.
     - **Bảo đảm tính duy nhất**: Queue DB thiết lập **Unique Constraint** trên bộ `(DoctorId, ScheduleDate, QueueNumber)` để đảm bảo không bao giờ trùng số khám trong cùng một ca. Hỗ trợ Idempotency trên `appointmentId` để việc retry không tạo vé thứ hai.
 
@@ -147,7 +147,7 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
     - **Endpoint chuẩn hóa**: `/api/v1/queue/tickets/...`, `/api/v1/queue/doctors/{doctorId}/call-next`.
     - **Tách biệt quyền ghi**: Queue Service **chỉ sở hữu trạng thái vé**:
       $$\text{Waiting} \longrightarrow \text{Called} \longrightarrow \text{InProgress} \longrightarrow \text{Completed} \text{ (hoặc Skipped)}$$
-    - **Phát sự kiện thay vì sửa trực tiếp**: Khi bác sĩ bấm hoàn tất khám (`complete-exam`), Queue Service chỉ cập nhật `QueueTicket.Status = Completed` trong Queue DB, sau đó ghi Outbox phát sự kiện `ExamCompleted { visitId, ticketId, appointmentId, doctorId, completedAt }`.
+    - **Phát sự kiện thay vì sửa trực tiếp**: Khi bác sĩ bấm hoàn tất khám (`complete-exam`), Queue Service chỉ cập nhật `QueueTicket.Status = Completed` trong Queue DB, sau đó ghi Outbox phát `ExamCompleted { ticketId, appointmentId, doctorId, completedAt }`. `AppointmentId` là encounter key; không có `visitId` riêng.
     - **Đồng bộ hóa Eventual Consistency**: Appointment Service tiêu thụ sự kiện `ExamCompleted` và tự chuyển trạng thái của `Appointment` thành `Completed`. Không phụ thuộc vào distributed transaction.
 
 ---
@@ -158,13 +158,13 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
     - Endpoint: `POST /medical-reports`, `GET /medical-reports/ticket/{queueTicketId}`, `POST /medical-reports/{id}/finalize` (trong `MedicalReportsController.cs`).
     - Luồng xử lý: `MedicalReport` gắn chặt vào khóa ngoại `QueueTicketId`. Khi `FinalizeReport`, handler tự động gọi `ticket.Complete()` và `ticket.Appointment.Complete()`. DTO lấy thông tin bệnh nhân qua navigation `ticket.Appointment.Patient.Person`.
 - **Thay đổi khi chuyển sang Microservices**:
-    - **Thay thế định danh**: Bỏ việc phụ thuộc vào `QueueTicketId` làm khóa liên kết lâu dài. Sử dụng **`visitId` / `encounterId`** ổn định xuyên suốt buổi khám (được tạo ra ngay từ lúc check-in / bắt đầu khám).
+    - **Định danh hồ sơ**: Bỏ việc phụ thuộc vào `QueueTicketId`; dùng `AppointmentId` ổn định làm khóa encounter duy nhất. Không tạo `visitId`/`encounterId` riêng.
     - **Endpoint chuẩn hóa**:
-        - `POST /api/v1/medical-records/encounters/{visitId}/draft`: Lưu nháp hồ sơ khám bệnh.
+        - `POST /api/v1/medical-records/appointments/{appointmentId}/draft`: Tạo/cập nhật nháp hồ sơ khám bệnh.
         - `POST /api/v1/medical-records/reports/{reportId}/finalize`: Chốt hồ sơ (bắt buộc `Idempotency-Key`).
-        - `GET /api/v1/medical-records/encounters/{visitId}`: Xem hồ sơ bệnh án theo ca khám.
+        - `GET /api/v1/medical-records/appointments/{appointmentId}`: Xem hồ sơ bệnh án theo lượt khám.
         - `POST /api/v1/medical-records/reports/{reportId}/amendments`: Tạo bản ghi chỉnh sửa/bổ sung hồ sơ sau khi đã chốt.
-    - **Lifecycle & Audit**: Bệnh án có trạng thái `Draft` $\rightarrow$ `Finalized`. Hồ sơ đã chốt không được sửa trực tiếp mà phải ghi nhận phiên bản sửa đổi (amendment).
+    - **Lifecycle & Audit**: `ExamStarted` mở context idempotent; bác sĩ tạo Draft khi bắt đầu ghi. `ExamCompleted` chỉ đánh dấu lượt khám kết thúc, không finalize report. Report có trạng thái `Draft` $\rightarrow$ `Finalized`; hồ sơ đã chốt không được sửa trực tiếp, amendment là bản ghi append-only có tác giả, thời điểm, lý do và liên kết phiên bản trước.
     - **Bảo mật & Phân quyền**: Toàn bộ thao tác truy cập hồ sơ bệnh án phải có quyền riêng biệt và ghi nhận **Audit Log độc lập** trong Medical Records DB (không đưa nội dung chẩn đoán/bệnh án vào event notification thông thường).
 
 ---
@@ -218,7 +218,7 @@ Tất cả các service trả về cấu trúc lỗi đồng nhất khi phát si
 | **4** | **Appointment**    | `POST /appointments`<br>`PATCH /appointments/{id}`               | `POST /api/v1/appointments`<br>`PATCH /api/v1/appointments/{id}`                                                           | Appointment Service             | Saga Booking 3 bước; lưu `AppointmentSnapshot`; hỗ trợ `Idempotency-Key`; phát event qua Outbox.                          |
 | **5** | **Check-in**       | `POST /appointments/{id}/check-in`                               | `POST /api/v1/appointments/{id}/check-in`<br>`POST /api/v1/queue/tickets/check-in`                                         | Appointment $\rightarrow$ Queue | Tách việc đổi trạng thái lịch khám với việc sinh số thứ tự; Unique Constraint `(Doctor, Date, QueueNumber)`.              |
 | **6** | **Queue**          | `POST /queue/complete-exam`                                      | `POST /api/v1/queue/tickets/{id}/complete-exam`                                                                            | Queue Service                   | Không sửa trực tiếp aggregate Appointment; phát sự kiện `ExamCompleted` qua broker (Eventual Consistency).                |
-| **7** | **Medical Report** | `POST /medical-reports`<br>`POST /medical-reports/{id}/finalize` | `POST /api/v1/medical-records/encounters/{visitId}/draft`<br>`POST .../reports/{id}/finalize`                              | Medical Records                 | Dùng `visitId` thay cho `QueueTicketId`; quản lý trạng thái `Draft` / `Finalized`; quy trình Amendment và Audit Log y tế. |
+| **7** | **Medical Report** | `POST /medical-reports`<br>`POST /medical-reports/{id}/finalize` | `PUT /medical-records/appointments/{appointmentId}/draft`<br>`POST /medical-records/reports/{id}/finalize` | Medical Records | `AppointmentId` là encounter key; Patient và MedicalReport cùng owner; amendment append-only và audit log y tế. |
 
 ---
 

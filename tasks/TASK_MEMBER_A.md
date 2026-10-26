@@ -35,7 +35,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
     - Queue Service
 
-    - Medical Service
+    - Medical Records Service
 
     - Notification Service
 
@@ -266,13 +266,13 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 1. **Vai trò `AppointmentSnapshot` & Denormalized Read Model**: `AppointmentSnapshot` giữ đúng vai trò lưu nhật ký chỉnh sửa (1-N) để traceback khi người khám có vấn đề về đặt/đổi lịch (lưu kèm `OldDoctorId`, `OldDoctorName`, `OldSpecialtyName`, `OldScheduleDate`, `UpdatedByUserName` để không cần join xuyên service). Thông tin hiển thị chính thức đọc trực tiếp từ các cột denormalized trên bảng `Appointments`.
 
-2. **Bản chiếu `PatientProjections`**: Khi chưa tách Patient Service (GĐ 5), `ClinicAppointmentDB` lưu bản chiếu nhẹ `PatientProjections` được nạp từ script import và đồng bộ qua sự kiện `UserProfileUpdated` từ Identity Service.
+2. **Bản chiếu `PatientProjections`**: Appointment Service lưu bản chiếu nhẹ `PatientProjections` được nạp từ script import và đồng bộ qua sự kiện `UserProfileUpdated` từ Identity Service. Bản chiếu này phục vụ booking; hồ sơ Patient nguồn và MedicalReport cùng thuộc Medical Records Service từ Phase 5.
 
 3. **Event-Driven Check-in**: `POST /appointments/{id}/check-in` tại Appointment Service chuyển trạng thái sang `CheckedIn` và ghi Outbox phát `AppointmentCheckedIn`. Monolith tiêu thụ sự kiện này để cấp `QueueNumber` và tạo `QueueTicket` trong `ClinicDB`.
 
 4. **Gỡ bỏ Foreign Key trên `ClinicDB`**: Tạo migration xóa `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId` trên `ClinicDB`, chuyển `AppointmentId` thành loose UUID reference.
 
-5. **Đồng bộ `ExamCompleted`**: Appointment Service lắng nghe sự kiện `ExamCompleted` từ Queue/MedicalReports để tự động chuyển `Appointment.Status = Completed` (Eventual Consistency).
+5. **Đồng bộ `ExamCompleted`**: Appointment Service lắng nghe `ExamCompleted` do Queue Service phát để chuyển `Appointment.Status = Completed` (Eventual Consistency). Finalize bệnh án không tự hoàn tất queue/appointment; hai trạng thái khám và hồ sơ là độc lập.
 
 6. **Hủy lịch & Đổi lịch với Scheduling Service**: Khi hủy lịch hoặc đổi lịch, giải phóng `SlotReservation` cũ qua cả internal API (`POST /internal/slots/release-by-appointment`) và sự kiện `AppointmentCancelled` trên RabbitMQ; khi đổi lịch, thực hiện Reschedule Saga 2 pha (giữ slot mới $\r\nightarrow$ lưu snapshot & cập nhật $\r\nightarrow$ confirm slot mới & giải phóng slot cũ).
 
@@ -305,7 +305,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
     - Phía Monolith (`Clinic.API` & `ClinicDB`): Áp dụng migration `20261023013218_DecoupleAppointmentForeignKeys.cs` gỡ bỏ hoàn toàn `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId`; triển khai `AppointmentServiceClient` cắt chuyển toàn bộ định tuyến lịch hẹn (`/appointments/**`, `/me/appointments/**`, `/receptionist/appointments/**`, `/admin/appointments/**`) sang `Clinic.Appointment.Service`.
 
 - **Hoàn thiện tính năng Bác sĩ & Lễ tân trên Frontend và Backend**:
-    - **Bác sĩ (`/doctor/medical-records` & `/doctor/medical-records/:id`)**: Bổ sung API `GET /medical-reports` (hỗ trợ tìm kiếm từ khóa, lọc trạng thái `Draft`/`Finalized`, khoảng ngày khám, phân trang) và `PUT /medical-reports/{id}` (lưu bản nháp hoặc chốt hồ sơ kèm phát sự kiện `ExamCompleted`); xây dựng giao diện danh sách và chi tiết hồ sơ (cho phép sửa/lưu nháp/finalize đối với `Draft`, khóa chỉnh sửa và hỗ trợ in ấn `window.print()` đối với `Finalized`).
+    - **Bác sĩ (`/doctor/medical-records` & `/doctor/medical-records/:id`)**: API tra cứu, lưu Draft và finalize report. Theo ownership đã chốt, thao tác Queue phát `ExamCompleted`; finalize report không phát event hoàn tất khám và không gọi Queue. Frontend hiển thị hai lifecycle riêng.
 
     - **Lễ tân (`/reception/booking`)**: Xây dựng quy trình đặt khám 4 bước (chọn bệnh nhân có sẵn hoặc tạo mới qua `POST /patients/add` $\r\nightarrow$ đối chiếu xác nhận thông tin $\r\nightarrow$ chọn Đặt lịch trước hoặc Đăng ký khám ngay Walk-in với API `GET /receptionist/working-doctors` và `POST /receptionist/appointments/walk-in` tự động phân bổ bác sĩ đang trực có ít ca khám nhất, tự động check-in cấp số thứ tự và gán cờ ưu tiên khẩn cấp `Priority = true`, đồng bộ tức thời sang `ClinicAppointmentDB` $\r\nightarrow$ màn hình xác nhận & in phiếu).
 
@@ -417,17 +417,19 @@ Các quy tắc quyền và vòng đời thao tác trên đã được triển kh
 
 ---
 
-## Giai đoạn 5: Tách Medical Records Service
+## Giai đoạn 5: Tách Medical Records Service (bao gồm Patient)
+
+Execution plan theo từng bước và phân công phối hợp A/B: [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md).
 
 ### Nhiệm vụ
 
-1. Chuẩn hóa `visitId` hoặc `encounterId`.
+1. Dùng `AppointmentId` làm định danh lượt khám và khóa liên kết duy nhất cho hồ sơ; không tạo `VisitId`/`EncounterId` riêng trong phạm vi hiện tại hay tương lai.
 
 2. Tạo Medical Records Service.
 
-3. Di chuyển `MedicalReport` và version history sang Medical Records DB.
+3. Chuyển `Patient`, `MedicalReport`, lịch sử amendment và audit records vào cùng Medical Records DB. Không tạo Patient Service riêng.
 
-4. Xây trạng thái `Draft`, `Finalized` và cơ chế amendment nếu cần.
+4. Xây trạng thái `Draft`, `Finalized`; report Finalized bất biến, mọi sửa đổi tiếp theo phải được ghi thành amendment append-only.
 
 5. Tách authorization và audit log của hồ sơ bệnh án.
 
@@ -437,11 +439,14 @@ Các quy tắc quyền và vòng đời thao tác trên đã được triển kh
 
 - Medical Records không phụ thuộc Queue repository.
 
-- Report sử dụng `visitId`/`encounterId` ổn định.
+- `AppointmentId` là định danh ổn định của lượt khám; Medical Records lưu loose reference, không FK tới Appointment DB.
+- Patient và MedicalReport cùng được sở hữu trong Medical Records Service/DB.
 
 - Hồ sơ bệnh án có permission và audit log riêng.
 
-- Report Finalized không thể sửa trực tiếp nếu không có quy trình amendment.
+- Report Finalized không thể sửa trực tiếp; mọi thay đổi sau finalize phải có amendment append-only, ghi tác giả, thời điểm, lý do và liên kết phiên bản gốc.
+
+- `ExamStarted` mở encounter context idempotent theo `AppointmentId`; Draft nội dung được tạo khi bác sĩ bắt đầu ghi. `ExamCompleted` chỉ đánh dấu lượt khám đã kết thúc, không finalize hồ sơ.
 
 - Không chứa dữ liệu bệnh án không cần thiết trong event.
 

@@ -223,23 +223,27 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 5: Tách Medical Records Service
 
+**Phạm vi phối hợp với Thành viên A:** A sở hữu Medical Records Service/API/DB, Patient và MedicalReport data, migration/cutover, authorization và audit policy. B sở hữu hoặc phối hợp phần event contracts, broker publisher/consumer reliability, contract/failure tests, telemetry và kiểm thử tích hợp; không tự tạo Patient Service riêng.
+
+Kế hoạch triển khai chung và checklist handoff: [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md), mục 3 và 4.1, 4.8–4.9.
+
 ### Nhiệm vụ
 
-1. Tạo consumer cho `ExamStarted`.
-2. Tạo consumer cho `ExamCompleted`.
-3. Kiểm thử tạo report context Draft từ event.
-4. Kiểm thử duplicate và out-of-order event.
-5. Xây read model cho medical history.
-6. Bổ sung audit trace cho truy cập và thay đổi hồ sơ.
-7. Viết contract test cho Save Report và Finalize Report.
+1. Chốt event contract `ExamStarted`/`ExamCompleted` với A; dùng `AppointmentId` làm encounter key duy nhất, không thêm `VisitId`/`EncounterId`. `ExamStarted` cung cấp `PatientId`, `DoctorId`, `StartedAt` và snapshot doctor/date tối thiểu mà UI cần để tránh sync reads.
+2. Tích hợp consumer idempotent cho `ExamStarted` để mở encounter context; event không chứa nội dung bệnh án.
+3. Tích hợp consumer idempotent cho `ExamCompleted` để đánh dấu encounter kết thúc; không finalize MedicalReport.
+4. Kiểm thử duplicate, out-of-order, poison message, retry, DLQ và broker restart.
+5. Hỗ trợ contract/integration tests cho API Save, Finalize, amendment và authorization của Medical Records.
+6. Bổ sung telemetry/audit trace không ghi PHI; phối hợp A xác minh audit truy cập được lưu bền vững trong Medical Records DB.
+7. Không xây medical history projection riêng nếu cùng Medical Records DB đã đáp ứng truy vấn; chỉ thêm read model khi có nhu cầu đo được.
 
 ### Yêu cầu cần đạt
 
-- `ExamStarted` mở đúng report context theo `visitId`/`encounterId`.
-- `ExamCompleted` cập nhật đúng visit.
-- Duplicate event không tạo report hoặc version trùng.
+- `ExamStarted` mở đúng report context theo `AppointmentId` một cách idempotent.
+- `ExamCompleted` cập nhật trạng thái encounter theo `AppointmentId`, không finalize report.
+- Duplicate event không tạo context/report/amendment trùng.
 - Event đến trễ không làm report quay về trạng thái cũ.
-- Medical history projection cập nhật được và có thể rebuild.
+- Medical history truy vấn đúng từ Medical Records DB; nếu A/B quyết định cần projection riêng thì consumer phải idempotent và projection rebuild được.
 
 ### Lưu ý
 

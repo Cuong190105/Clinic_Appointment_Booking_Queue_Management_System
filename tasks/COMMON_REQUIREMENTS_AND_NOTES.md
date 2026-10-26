@@ -152,9 +152,12 @@ Yêu cầu:
 
 ### Medical Records
 
-- Dùng `visitId` hoặc `encounterId` làm định danh ổn định.
+- Dùng `AppointmentId` làm định danh ổn định của lượt khám; không tạo `VisitId`/`EncounterId` riêng.
+- `Patient` và `MedicalReport` thuộc cùng Medical Records Service và database; không tạo Patient Service riêng.
 - Không dùng `QueueTicketId` làm liên kết lâu dài.
-- Có trạng thái Draft, Finalized và quy trình amendment nếu cần.
+- `ExamStarted` idempotently mở encounter context theo `AppointmentId`; Draft nội dung được tạo khi bác sĩ bắt đầu ghi.
+- `ExamCompleted` chỉ đánh dấu lượt khám kết thúc; không tự finalize report. Draft/Finalized là lifecycle riêng của hồ sơ.
+- Hồ sơ Finalized không sửa trực tiếp; mọi amendment là bản ghi append-only có tác giả, thời điểm, lý do và liên kết phiên bản trước.
 - Mọi truy cập hồ sơ bệnh án phải được audit.
 
 ## 7. Yêu cầu bảo mật

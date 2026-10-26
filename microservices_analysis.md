@@ -4,6 +4,8 @@
 
 > **Phạm vi**: Khảo sát hiện trạng và xác định phương hướng chuyển bắt buộc sang microservices. Các nhận định về hiện trạng có nguồn gốc từ code thực tế.  
 > **Ngày phân tích**: 2026-10-12 | **Phiên bản**: Định hướng microservices
+>
+> **Cập nhật theo quyết định 2026-10-26:** các mô tả ở Phần 1–2 là baseline lịch sử trước khi hoàn tất các cutover Phase 1–4; không dùng các flow monolith ở đó làm trạng thái runtime hiện tại. Các quyết định Medical Records chuẩn hiện nằm ở Phần 3.5, 4.4 và Giai đoạn 5 bên dưới: AppointmentId là encounter key; Patient và MedicalReport cùng Medical Records Service/DB; không có Patient Service riêng.
 
 ---
 
@@ -71,8 +73,7 @@ Clinic_Appointment_Booking_Queue_Management_System/
 | Scheduling      | WorkSchedule, ShiftRequest               | Doctor, Appointment                       |
 | Appointment     | Appointment, AppointmentSnapshot         | Patient, WorkSchedule, QueueTicket        |
 | Queue           | QueueTicket, QueueCounter                | Appointment, WorkSchedule, Doctor         |
-| Medical Records | MedicalReport                            | QueueTicket, Appointment, Patient, Doctor |
-| Patient         | Patient, Person                          | User, Appointment, Notification           |
+| Medical Records | Patient, MedicalReport, MedicalReportAmendment, MedicalAccessAudit | QueueTicket, Appointment, Doctor |
 | Notification    | Notification                             | Person và các notification handler        |
 
 ### 2.2 Coupling hotspots
@@ -80,7 +81,7 @@ Clinic_Appointment_Booking_Queue_Management_System/
 1. **Appointment - QueueTicket: rất cao**. `Appointment.CheckIn()` tạo QueueTicket; cancel và complete có thể tác động cả hai entity.
 2. **WorkSchedule - Appointment: cao**. Slot conflict và patient limit cần được kiểm tra cùng lúc với booking.
 3. **Doctor - WorkSchedule - ShiftRequest: trung bình-cao**. Approve request tạo schedule và kiểm tra conflict trong một operation.
-4. **QueueTicket - MedicalReport: trung bình**. MedicalReport phải đi qua QueueTicket để suy ra Appointment, Doctor và Patient.
+4. **QueueTicket - MedicalReport: trung bình (legacy coupling, mục tiêu đã chốt)**. Clinic hiện còn API orchestration qua Queue/Appointment; Phase 5 dùng AppointmentId và local context/projection, không truy vấn Queue để dựng report.
 5. **Person - mọi module: trung bình**. Person đang là bảng trung tâm của User, Employee, Patient và Notification.
 6. **Notification queue: trung bình về dữ liệu, cao về reliability**. Restart process có thể làm mất job chưa gửi.
 
@@ -140,12 +141,16 @@ Queue Service không truy cập chuỗi `QueueTicket -> Appointment -> WorkSched
 
 ### 3.5 Medical Records Service
 
-Sở hữu `MedicalReport` và lịch sử chỉnh sửa hồ sơ.
+Sở hữu `Patient`, `MedicalReport`, lịch sử amendment và audit truy cập trong cùng service/database. Không có Patient Service riêng.
 
-- Dùng `visitId` hoặc `encounterId` làm định danh ổn định cho lượt khám.
-- Chỉ nhận `appointmentId`, `patientId`, `doctorId` và snapshot cần thiết.
+- Dùng `AppointmentId` làm định danh lượt khám hiện tại và lâu dài; không tạo `visitId`/`encounterId` riêng.
+- Lưu `appointmentId` dạng loose reference, không tạo FK hay navigation sang Appointment DB.
+- Chỉ nhận `appointmentId`, `patientId`, `doctorId` và snapshot tối thiểu cần thiết.
 - Consume `ExamStarted` và `ExamCompleted`.
 - Không inject Queue repository và không có navigation property đến QueueTicket.
+- `ExamStarted` mở encounter context idempotent; Draft nội dung được tạo khi bác sĩ bắt đầu ghi hồ sơ.
+- `ExamCompleted` chỉ đánh dấu lượt khám kết thúc; không finalize report. Draft/Finalized là lifecycle riêng.
+- Hồ sơ Finalized không sửa trực tiếp; amendment được ghi append-only, có tác giả, thời điểm, lý do và liên kết phiên bản trước.
 
 ### 3.6 Notification Service
 
@@ -209,22 +214,23 @@ Queue Service phát `ExamCompleted`; Appointment Service consume event để chu
 
 ### 4.3 Check-in và QueueCounter
 
-`AppointmentCheckedIn` phải chứa `appointmentId`, `patientId`, `doctorId`, `scheduleDate` và `visitId`. Queue Service dùng dữ liệu này để cấp số, không gọi ngược Appointment Service để đọc graph.
+`AppointmentCheckedIn` phải chứa `appointmentId`, `patientId`, `doctorId` và snapshot tối thiểu cần cho Queue. `AppointmentId` cũng là định danh lượt khám; không thêm `visitId`. Queue Service dùng dữ liệu event để cấp số, không gọi ngược Appointment Service để đọc graph.
 
 Trước khi extract Queue Service, cần test concurrency cho nhiều check-in cùng bác sĩ/ngày, rollback khi tạo ticket thất bại và uniqueness của queue number. Không kết luận `MERGE ... HOLDLOCK` an toàn nếu chưa xác minh transaction boundary thực tế.
 
-### 4.4 Medical Records và Visit/Encounter
+### 4.4 Medical Records và AppointmentId
 
-Không dùng `QueueTicketId` làm liên kết xuyên service lâu dài. Tạo `visitId` hoặc `encounterId` ngay từ workflow `ExamStarted`.
+Không dùng `QueueTicketId` làm liên kết xuyên service lâu dài. Dùng `AppointmentId` làm khóa encounter lâu dài trong phạm vi hiện tại và tương lai. Queue ticket chỉ là mã ticket của Queue; không được dùng làm khóa hồ sơ.
 
 ```text
-ExamStarted -> Medical Records mở report context
-SaveReport -> Medical Records ghi Draft
-ExamCompleted -> Medical Records cập nhật visit
-FinalizeReport -> Medical Records chuyển Finalized
+ExamStarted(AppointmentId) -> Medical Records mở encounter context idempotent
+SaveReport(AppointmentId) -> Medical Records tạo/cập nhật Draft
+ExamCompleted(AppointmentId) -> Medical Records đánh dấu encounter đã kết thúc
+FinalizeReport(AppointmentId) -> Medical Records chuyển report Draft sang Finalized
 ```
 
 Medical Records có thể hoạt động khi Queue Service tạm thời không khả dụng vì dữ liệu cần thiết đã nằm trong event hoặc projection local.
+`ExamCompleted` không finalize hồ sơ; hoàn thành khám và finalize bệnh án là hai trạng thái độc lập.
 
 ### 4.5 Person và dữ liệu hồ sơ
 
@@ -232,7 +238,7 @@ Không duy trì một `Person` entity dùng chung giữa mọi service.
 
 - Identity sở hữu tài khoản và credential.
 - Staff sở hữu hồ sơ nhân viên/bác sĩ.
-- Appointment hoặc Patient Profile sở hữu dữ liệu bệnh nhân.
+- Medical Records sở hữu Patient profile và dữ liệu bệnh nhân; Identity là SSOT cho account/basic person profile, đồng bộ projection qua event.
 - Notification chỉ nhận recipient ID và contact snapshot cần gửi.
 
 Event không được chứa domain entity, navigation object hoặc dữ liệu cá nhân không cần thiết.
@@ -303,13 +309,13 @@ Màn hình cần dữ liệu từ nhiều service dùng read model hoặc API co
 
 **Tiêu chí hoàn thành**: Không trùng queue number, duplicate event không tạo ticket trùng và Queue không truy cập Appointment DB.
 
-### Giai đoạn 5: Tách Medical Records Service
+### Giai đoạn 5: Tách Medical Records Service (Patient cùng ownership)
 
-1. Giới thiệu `visitId`/`encounterId`.
-2. Di chuyển MedicalReport và version history sang database riêng.
-3. Consume `ExamStarted` và `ExamCompleted`.
+1. Dùng `AppointmentId` làm encounter key; không phát sinh `visitId`/`encounterId`.
+2. Di chuyển Patient, MedicalReport, amendment history và audit record vào Medical Records DB riêng.
+3. Consume `ExamStarted`/`ExamCompleted` idempotently theo `AppointmentId`.
 4. Tách authorization và audit log của hồ sơ bệnh án.
-5. Xây read model cho medical history.
+5. Cung cấp truy vấn lịch sử bệnh nhân từ Medical Records Service; không tạo Patient Service riêng.
 
 **Tiêu chí hoàn thành**: Report không phụ thuộc Queue repository; duplicate/out-of-order event được xử lý an toàn.
 
@@ -384,7 +390,7 @@ Docker Compose cần health check, persistent volume, resource limit, dependency
 2. YARP hay Nginx cho Gateway.
 3. Giữ SQL Server hay chọn database riêng theo service.
 4. Saga owner cho reservation và exam completion.
-5. Chuẩn định danh `visitId`/`encounterId`.
+5. Định danh encounter đã chốt: `AppointmentId`; không tạo `visitId`/`encounterId` riêng.
 6. TTL và chính sách thu hồi JWT.
 7. SLA, retry policy và retention cho từng event.
 
@@ -395,7 +401,7 @@ Docker Compose cần health check, persistent volume, resource limit, dependency
 1. Hệ thống phục vụ bao nhiêu bệnh nhân/ngày và bao nhiêu concurrent users để sizing service, broker và database?
 2. SLA riêng của Queue, Appointment, Identity và Notification là bao nhiêu?
 3. Hệ thống phục vụ một cơ sở hay nhiều cơ sở; có cần tenant ID trong mọi aggregate không?
-4. Luồng walk-in patient và ownership của Patient Profile cần được chốt thế nào?
+4. **Đã chốt 2026-10-26:** Patient và MedicalReport cùng thuộc Medical Records Service/DB; không có Patient Service riêng. Identity vẫn là SSOT cho tài khoản/person profile cơ bản.
 5. `SmsSender` đã gửi SMS thật hay vẫn là stub?
 6. Scheduled notification dùng lease/lock nào khi chạy nhiều instance?
 7. SQL Server `MERGE ... HOLDLOCK` có transaction boundary nào trong luồng check-in hiện tại?
