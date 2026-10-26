@@ -267,3 +267,39 @@
    - Kết quả: `Clinic.Contracts.UnitTests` pass **6/6 tests**; `Clinic.Queue.Service.Tests` pass **50/50 tests**.
 
 
+---
+
+### Bước 2 — Khởi tạo Medical Records Service và cơ sở dữ liệu riêng (Hoàn tất: 2026-10-26)
+
+1. **Khởi tạo Project & Cấu trúc Service mới:**
+   - Tạo `backend/Clinic.MedicalRecords.Service` (.NET 10 Web API) và `backend/Clinic.MedicalRecords.Service.Tests` (xUnit test project).
+   - Đã thêm cả 2 project vào solution `backend/Clinic.slnx`.
+   - Cấu hình Authentication JwtBearer (kết nối JWKS của Identity Service), Authorization policies, OpenTelemetry tracing/metrics và EF Core SQL Server.
+
+2. **Thiết kế Domain Entities & Persistence độc lập (`ClinicMedicalRecordsDB`):**
+   - **`Patient`**: Quản lý thông tin nhân thân, liên lạc, BHYT, người liên hệ khẩn cấp, liên kết `IdentityUserId` và hỗ trợ cập nhật chiếu hồ sơ (`UpdateProjectionFromIdentity`).
+   - **`MedicalReport`**: Khóa duy nhất theo `AppointmentId` (`Unique Index`), lưu trữ `PatientId`, `DoctorId`, `Diagnosis`, `TreatmentPlan`, `Notes`, `PrescriptionsJson`, trạng thái `Draft` / `Finalized`, `CreatedAt`, `FinalizedAt`. Đảm bảo tính bất biến khi đã `Finalized`.
+   - **`MedicalReportAmendment`**: Phụ lục điều chỉnh sau khi hồ sơ đã `Finalized` (append-only, sequence number, author, reason, changes).
+   - **`MedicalAccessAudit`**: Bảng kiểm toán truy cập hồ sơ bệnh án (actor, patientId, reportId, action, outcome, ip address, correlationId - tuyệt đối không ghi dữ liệu PHI).
+   - **`EncounterContext`**: Ngữ cảnh tiếp nhận lượt khám mở bởi `ExamStarted` và đánh dấu hoàn thành bởi `ExamCompleted`, đảm bảo idempotent.
+   - **`InboxMessage`**: Bảng deduplication store hỗ trợ idempotency cho Message Consumer.
+   - **`MedicalRecordsDbContext`**: Cấu hình quan hệ, index tối ưu, cascading delete restriction để đảm bảo tính toàn vẹn dữ liệu y tế.
+
+3. **EF Core Migration & Docker Compose:**
+   - Sinh migration ban đầu `InitialMedicalRecordsSchema` cho `ClinicMedicalRecordsDB`.
+   - Khởi tạo `backend/Clinic.MedicalRecords.Service/Dockerfile`.
+   - Cập nhật `docker-compose.yml` bổ sung container `clinic_medical_records_service` (port `5005:8080`, database `ClinicMedicalRecordsDB`, healthcheck `/readyz`).
+   - Cấu hình biến môi trường kết nối `MedicalRecords__Authority` và `Services__MedicalRecords__BaseUrl` trên gateway/monolith.
+
+4. **Kiểm thử tự động (Unit & Integration Tests):**
+   - Đã hoàn tất 8 bài kiểm thử nghiệp vụ domain và persistence trong `Clinic.MedicalRecords.Service.Tests`:
+     - `Patient_CanBeCreated_And_UpdatedFromIdentityProjection`: PASS
+     - `MedicalReport_CanBeCreated_AsDraft`: PASS
+     - `MedicalReport_CanBeUpdated_WhileDraft`: PASS
+     - `MedicalReport_CannotBeUpdated_WhenFinalized`: PASS
+     - `MedicalReport_Finalize_IsIdempotent`: PASS
+     - `MedicalReport_CanAddAmendment_WhenFinalized`: PASS
+     - `MedicalRecordsDbContext_CanPersistAndRetrieve_Report_Amendment_Audit`: PASS
+     - `MedicalRecordsDbContext_CanPersistAndTrack_EncounterContext`: PASS
+   - Kết quả: **8/8 tests PASS** (Toàn bộ test suite của Queue 50/50, Appointment 33/33, Scheduling 38/38, Domain 20/20, Contracts 6/6 đều PASS).
+
