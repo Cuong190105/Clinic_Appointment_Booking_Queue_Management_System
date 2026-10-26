@@ -267,6 +267,50 @@ public class PatientApiIntegrationTests : IClassFixture<MedicalRecordsServiceFac
         Assert.True(await db.PatientProjectionOutbox.AnyAsync(m => m.PatientId == resolved.PatientId && m.ProcessedAt == null));
     }
 
+    [Fact]
+    public async Task ResolveRegistration_WithClinicPersonId_PreservesIdAndExistingPatientLink()
+    {
+        var phone = $"09{Random.Shared.Next(100000000, 999999999)}";
+        var personId = Guid.NewGuid();
+        using var resolve = new HttpRequestMessage(HttpMethod.Get,
+            $"/internal/patients/resolve-registration?phoneNumber={phone}&personId={personId}");
+        resolve.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+
+        var resolvedResponse = await _client.SendAsync(resolve);
+        Assert.Equal(HttpStatusCode.OK, resolvedResponse.StatusCode);
+        var resolved = await resolvedResponse.Content.ReadFromJsonAsync<RegistrationIds>();
+        Assert.NotNull(resolved);
+        Assert.Equal(personId, resolved.PersonId);
+
+        using var provision = new HttpRequestMessage(HttpMethod.Post, "/internal/patients/provision-identity")
+        {
+            Content = JsonContent.Create(new
+            {
+                patientId = resolved.PatientId,
+                personId,
+                identityUserId = Guid.NewGuid(),
+                fullName = "Linked Staff Patient",
+                phoneNumber = phone,
+                email = "linked-staff@example.test",
+                dateOfBirth = new DateOnly(1990, 1, 1),
+                gender = "Other",
+                address = "Test address"
+            })
+        };
+        provision.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(provision)).StatusCode);
+
+        using var retry = new HttpRequestMessage(HttpMethod.Get,
+            $"/internal/patients/resolve-registration?phoneNumber={phone}&personId={personId}");
+        retry.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var retryResponse = await _client.SendAsync(retry);
+        Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
+        var retried = await retryResponse.Content.ReadFromJsonAsync<RegistrationIds>();
+        Assert.NotNull(retried);
+        Assert.Equal(resolved.PatientId, retried.PatientId);
+        Assert.Equal(personId, retried.PersonId);
+    }
+
     private sealed record RegistrationIds(Guid PersonId, Guid PatientId);
 
     [Fact]

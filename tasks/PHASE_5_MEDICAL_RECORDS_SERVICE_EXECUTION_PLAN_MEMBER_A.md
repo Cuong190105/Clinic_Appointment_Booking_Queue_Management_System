@@ -662,3 +662,12 @@ Mục này là trạng thái nghiệm thu cuối và thay thế các ghi chú �
 ClinicDB hiện được giữ làm nguồn legacy đã đối soát trên dữ liệu mock. Không dùng các bảng Patient/MedicalReport legacy làm nguồn đọc/ghi cho các API Patient/Medical Records đã cutover. Việc xóa vật lý các bảng legacy là thao tác cleanup schema riêng; thực hiện sau khi lưu backup và không nằm trong commit chốt chức năng này. Importer và verifier được giữ để có thể tái lập/kiểm toán việc chuyển dữ liệu.
 
 Các tài khoản `phase5e2e_*` cùng dữ liệu tổng hợp được giữ trong DB mock để phục vụ demo/kiểm tra lại; không phải dữ liệu người dùng thật.
+
+
+### Dọn dẹp mã nguồn Clinic sau cutover (2026-10-26)
+
+- Đã xóa Patient/MedicalReport entity, handler, repository, cấu hình EF, DI registration và test cũ khỏi Clinic; không còn Patient/MedicalReport trong ApplicationDbContext hoặc Person navigation. Patient/MedicalReport runtime thuộc Medical Records Service.
+- Onboarding bác sĩ/nhân viên vẫn cần tạo Person trong Clinic. Việc resolve/provision PatientId chuyển qua internal API của Medical Records; thao tác retry trả lại PatientId Identity đã lưu để tránh tạo lệch liên kết.
+- EF snapshot Clinic đã bỏ hai entity. Migration 20261026145047_RemoveLegacyPatientMedicalReportModel cố ý không chạy SQL: các bảng dbo.Patients/dbo.MedicalReports cùng dữ liệu hiện có được giữ làm archive/import source. Không áp dụng thao tác drop bảng trong lần cleanup này.
+- SampleData không còn seed Patient/MedicalReport Clinic; lịch sử migration cũ và importer/verifier vẫn được giữ để tái lập/kiểm toán việc cutover.
+- Build solution thành công (0 lỗi). Medical Records Service **52/52**, Infrastructure **17/17**, Identity **4/4**, Application **5/5**, Domain **16/16** đều pass. API Integration sau khi chốt authorization cho Scheduling proxy **28/28 PASS**; Scheduling Service **38/38 PASS**. Gateway kiểm tra `specialty.manage` trước khi proxy và Scheduling Service xác thực cùng permission; các test thiếu quyền bị từ chối, test có quyền nhận `201 Created`. EF xác nhận không còn pending model changes.

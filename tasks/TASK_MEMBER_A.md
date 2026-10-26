@@ -469,6 +469,8 @@ Execution plan theo từng bước và phân công phối hợp A/B: [`PHASE_5_M
 - Chi tiết nghiệm thu: [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md), Mục 13.
 
 ---
+- Cleanup sau cutover (2026-10-26): Patient/MedicalReport entity, handler, repository và EF mapping đã được gỡ khỏi Clinic; Clinic runtime không còn đọc/ghi các bảng này. Migration model-only không xóa `dbo.Patients`/`dbo.MedicalReports`; các bảng legacy được giữ làm archive/import source. Chi tiết: mục dọn dẹp cuối [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md).
+
 ## Giai đoạn 6: Tách Notification Service và hoàn thiện Gateway
 
 ### Nhiệm vụ

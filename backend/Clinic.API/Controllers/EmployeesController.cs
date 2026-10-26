@@ -20,15 +20,17 @@ namespace Clinic.API.Controllers
         private readonly ISender _sender;
         private readonly ICurrentUser _currentUser;
         private readonly IdentityAccountClient _identityAccounts;
+        private readonly MedicalRecordsServiceClient _medicalRecords;
         private readonly SchedulingManagementClient _scheduling;
         private readonly ProfileProjectionSyncClient _profileSync;
         private readonly ILogger<EmployeesController> _logger;
 
-        public EmployeesController(ISender sender, ICurrentUser currentUser, IdentityAccountClient identityAccounts, SchedulingManagementClient scheduling, ProfileProjectionSyncClient profileSync, ILogger<EmployeesController> logger)
+        public EmployeesController(ISender sender, ICurrentUser currentUser, IdentityAccountClient identityAccounts, MedicalRecordsServiceClient medicalRecords, SchedulingManagementClient scheduling, ProfileProjectionSyncClient profileSync, ILogger<EmployeesController> logger)
         {
             _sender = sender;
             _currentUser = currentUser;
             _identityAccounts = identityAccounts;
+            _medicalRecords = medicalRecords;
             _scheduling = scheduling;
             _profileSync = profileSync;
             _logger = logger;
@@ -41,13 +43,20 @@ namespace Clinic.API.Controllers
         {
             var profileIds = await _sender.Send(new EnsureIdentityRegistrationProfileCommand(request.FullName, request.PhoneNumber, request.Email, request.DateOfBirth, request.Gender, request.Address), HttpContext.RequestAborted);
             if (profileIds.DoctorId is not null) return Conflict(new { message = "This account already has a doctor profile." });
+            var patientIds = await _medicalRecords.ResolveRegistrationPatientAsync(request.PhoneNumber, profileIds.PersonId, HttpContext.RequestAborted);
+            if (patientIds is null) return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Medical Records could not resolve the employee account's Patient profile." });
             var identityUserId = Guid.NewGuid();
             var roles = request.Roles.Append("Patient").Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var provisioned = await _identityAccounts.ProvisionAsync(identityUserId, profileIds.PersonId,
                 request.Username, request.Password, request.FullName, request.PhoneNumber, request.Email,
-                request.DateOfBirth, request.Gender, request.Address, roles, profileIds.PatientId, HttpContext.RequestAborted);
+                request.DateOfBirth, request.Gender, request.Address, roles, patientIds.PatientId, HttpContext.RequestAborted);
             if (provisioned is null) return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Identity could not provision the employee account." });
             identityUserId = provisioned.UserId;
+            var patientId = provisioned.PatientId ?? patientIds.PatientId;
+            if (!await _medicalRecords.ProvisionIdentityPatientAsync(new IdentityPatientProvisionRequest(
+                    patientId, profileIds.PersonId, identityUserId, request.FullName, request.PhoneNumber,
+                    request.Email, request.DateOfBirth, request.Gender.ToString(), request.Address), HttpContext.RequestAborted))
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "The Identity account was created, but its Medical Records Patient profile is pending. Retry the operation." });
             var created = await _scheduling.SendAsync(HttpContext, HttpMethod.Post, "employees", new
             {
                 id = profileIds.EmployeeId,
@@ -67,7 +76,7 @@ namespace Clinic.API.Controllers
             if (createdJson is not null && createdJson.RootElement.TryGetProperty("id", out var idElement)) employeeId = idElement.GetGuid();
             if (created.StatusCode is < 200 or >= 300)
                 return created.ToActionResult();
-            if (employeeId == Guid.Empty || !await _identityAccounts.UpdateRolesAsync(identityUserId, roles, profileIds.PatientId, employeeId, null, HttpContext.RequestAborted))
+            if (employeeId == Guid.Empty || !await _identityAccounts.UpdateRolesAsync(identityUserId, roles, patientId, employeeId, null, HttpContext.RequestAborted))
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "The employee profile was created, but Identity activation is pending." });
             return PublicCreateResult(created, roles);
         }

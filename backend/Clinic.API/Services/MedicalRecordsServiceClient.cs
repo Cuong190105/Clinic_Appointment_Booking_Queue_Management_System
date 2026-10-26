@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Clinic.API.Models;
 
 namespace Clinic.API.Services;
 
@@ -132,6 +133,18 @@ public sealed class MedicalRecordsServiceClient
         catch (HttpRequestException) when (!ct.IsCancellationRequested) { return default; }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return default; }
     }
+
+    public Task<IdentityRegistrationPatientIds?> ResolveRegistrationPatientAsync(
+        string phoneNumber,
+        Guid personId,
+        CancellationToken ct = default) =>
+        GetInternalAsync<IdentityRegistrationPatientIds>(
+            $"internal/patients/resolve-registration?phoneNumber={Uri.EscapeDataString(phoneNumber)}&personId={personId}", ct);
+
+    public Task<bool> ProvisionIdentityPatientAsync(
+        IdentityPatientProvisionRequest request,
+        CancellationToken ct = default) =>
+        PostInternalAsync("internal/patients/provision-identity", request, ct);
 
     public async Task<ServiceReadResult<T>> GetResultAsync<T>(HttpContext httpContext, string targetPath, CancellationToken ct = default)
     {

@@ -12,7 +12,7 @@ public interface IMedicalRecordsManager
     // Patient operations
     Task<PatientDto> CreatePatientAsync(CreatePatientRequest request, Guid actorUserId = default, string actorRole = "System", string? ipAddress = null, CancellationToken ct = default);
     Task<PatientDto> ProvisionIdentityPatientAsync(ProvisionIdentityPatientRequest request, CancellationToken ct = default);
-    Task<IdentityRegistrationPatientIds> ResolveRegistrationPatientAsync(string phoneNumber, CancellationToken ct = default);
+    Task<IdentityRegistrationPatientIds> ResolveRegistrationPatientAsync(string phoneNumber, Guid? preferredPersonId = null, CancellationToken ct = default);
     Task<int> GetPatientCountAsync(CancellationToken ct = default);
     Task<PagedResult<PatientDto>> GetPagedPatientsAsync(string? search, string? sortBy, string? orderBy, int pageNumber, int pageSize, CancellationToken ct = default);
     Task<PatientDto?> GetPatientByIdAsync(Guid patientId, CancellationToken ct = default);
@@ -121,17 +121,24 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         return MapPatientToDto(patient);
     }
 
-    public async Task<IdentityRegistrationPatientIds> ResolveRegistrationPatientAsync(string phoneNumber, CancellationToken ct = default)
+    public async Task<IdentityRegistrationPatientIds> ResolveRegistrationPatientAsync(
+        string phoneNumber,
+        Guid? preferredPersonId = null,
+        CancellationToken ct = default)
     {
         var patient = await _db.Patients.FirstOrDefaultAsync(p => !p.IsDeleted && p.PhoneNumber == phoneNumber.Trim(), ct);
         if (patient is null)
-            return new IdentityRegistrationPatientIds(Guid.NewGuid(), Guid.NewGuid());
+            return new IdentityRegistrationPatientIds(preferredPersonId ?? Guid.NewGuid(), Guid.NewGuid());
 
         if (!patient.PersonId.HasValue)
         {
-            patient.PersonId = Guid.NewGuid();
+            patient.PersonId = preferredPersonId ?? Guid.NewGuid();
             patient.UpdatedAt = DateTimeOffset.UtcNow;
             await _db.SaveChangesAsync(ct);
+        }
+        else if (preferredPersonId.HasValue && patient.PersonId.Value != preferredPersonId.Value)
+        {
+            throw new InvalidOperationException("Clinic and Medical Records person IDs do not match for this phone number.");
         }
 
         return new IdentityRegistrationPatientIds(patient.PersonId.Value, patient.Id);
