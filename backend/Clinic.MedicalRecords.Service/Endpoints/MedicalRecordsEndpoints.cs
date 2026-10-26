@@ -659,6 +659,7 @@ public static class MedicalRecordsEndpoints
 
     private static async Task<IResult> ResolveRegistrationPatientHandler(
         [FromQuery] string phoneNumber,
+        [FromQuery] Guid? personId,
         HttpRequest httpRequest,
         IConfiguration configuration,
         IMedicalRecordsManager manager,
@@ -666,8 +667,15 @@ public static class MedicalRecordsEndpoints
     {
         if (!HasValidServiceToken(httpRequest, configuration)) return Results.Unauthorized();
         if (string.IsNullOrWhiteSpace(phoneNumber)) return Results.BadRequest();
-        var ids = await manager.ResolveRegistrationPatientAsync(phoneNumber, ct);
-        return Results.Ok(ids);
+        try
+        {
+            var ids = await manager.ResolveRegistrationPatientAsync(phoneNumber, personId, ct);
+            return Results.Ok(ids);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Conflict(new { message = ex.Message });
+        }
     }
 
     private static async Task<IResult> GetPatientCountHandler(

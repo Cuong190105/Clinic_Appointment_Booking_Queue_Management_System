@@ -14,8 +14,6 @@ namespace Clinic.Infrastructure.Sqlserver.Persistence
         }
 
         public DbSet<Person> Persons => Set<Person>();
-        public DbSet<Patient> Patients => Set<Patient>();
-        public DbSet<MedicalReport> MedicalReports => Set<MedicalReport>();
         public DbSet<Notification> Notifications => Set<Notification>();
         public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
         public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();

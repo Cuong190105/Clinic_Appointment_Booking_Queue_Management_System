@@ -376,6 +376,14 @@ public class GatewayAuthTestFactory : WebApplicationFactory<Program>
 
             var path = request.RequestUri?.AbsolutePath ?? string.Empty;
 
+            if (request.Method == HttpMethod.Post && path.Equals("/specialties", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Created)
+                {
+                    Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json")
+                });
+            }
+
             if (path.EndsWith(".well-known/jwks.json", StringComparison.OrdinalIgnoreCase))
             {
                 if (_parent.SimulateUpstreamJwksFailure)

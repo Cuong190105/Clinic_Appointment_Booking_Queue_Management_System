@@ -403,7 +403,7 @@ internalUsers.MapPost("/provision", async (ProvisionAccountRequest request, Http
     }
     try { await db.SaveChangesAsync(ct); }
     catch (DbUpdateException) { return Results.Conflict(new { code = "identity_conflict", message = "Username, person, or contact information is already in use." }); }
-    return Results.Ok(new { userId = user.Id, personId = user.PersonId, isActive = user.IsActive, created });
+    return Results.Ok(new { userId = user.Id, personId = user.PersonId, patientId = user.PatientId, isActive = user.IsActive, created });
 }).AllowAnonymous();
 
 internalUsers.MapPut("/{userId:guid}/roles", async (Guid userId, UpdateAccountRolesRequest request, HttpRequest httpRequest, IdentityDbContext db, CancellationToken ct) =>
