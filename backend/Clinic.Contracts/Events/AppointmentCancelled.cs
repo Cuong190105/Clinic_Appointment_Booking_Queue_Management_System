@@ -7,5 +7,9 @@ public sealed record AppointmentCancelled(
     DateTimeOffset CancelledAt,
     Guid WorkScheduleId = default,
     TimeOnly TimeSlot = default,
-    bool IsRescheduleRelease = false
+    bool IsRescheduleRelease = false,
+    string? PatientName = null,
+    string? PatientEmail = null,
+    string? PatientPhone = null,
+    Guid? IdentityUserId = null
 );

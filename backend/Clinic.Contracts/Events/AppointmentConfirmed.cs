@@ -8,6 +8,9 @@ public sealed record AppointmentConfirmed(
     DateOnly ScheduleDate,
     TimeOnly TimeSlot,
     Guid ConfirmedByUserId,
-    DateTimeOffset ConfirmedAt
+    DateTimeOffset ConfirmedAt,
+    string? PatientName = null,
+    string? PatientEmail = null,
+    string? PatientPhone = null,
+    Guid? IdentityUserId = null
 );
-

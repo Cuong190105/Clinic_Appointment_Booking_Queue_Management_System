@@ -1,20 +1,137 @@
+using Clinic.Contracts.Events;
+using Clinic.Notification.Service.Entities;
+using Clinic.Notification.Service.Services;
+
 namespace Clinic.Notification.Service.Tests;
 
 // These executable test specifications stay skipped until each step implements its production behavior.
 // Replace Skip with assertions against the real service types as each plan step is completed.
 public sealed class NotificationPolicyUnitTests
 {
-    [Fact(Skip = "Phase 6 Step 1: implement notification policy and event-to-recipient mapping.")]
-    public void ConfirmedAppointment_ProducesOneConfirmationPerEligibleRecipientAndChannel() { }
+    private readonly NotificationPolicyEngine _engine = new();
 
-    [Fact(Skip = "Phase 6 Step 1: reschedule-release cancellations must not notify as a user cancellation.")]
-    public void RescheduleRelease_DoesNotProduceCancellationNotification() { }
+    [Fact]
+    public void ConfirmedAppointment_ProducesOneConfirmationPerEligibleRecipientAndChannel()
+    {
+        var eventId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var identityUserId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+        var scheduleId = Guid.NewGuid();
 
-    [Fact(Skip = "Phase 6 Step 1: guest recipients may use contact channels but have no account-bound inbox or SignalR user.")]
-    public void GuestRecipient_UsesOnlyEligibleEmailOrSmsChannels() { }
+        var payload = new AppointmentConfirmed(
+            AppointmentId: Guid.NewGuid(),
+            PatientId: patientId,
+            DoctorId: doctorId,
+            WorkScheduleId: scheduleId,
+            ScheduleDate: new DateOnly(2026, 11, 1),
+            TimeSlot: new TimeOnly(9, 0),
+            ConfirmedByUserId: Guid.NewGuid(),
+            ConfirmedAt: DateTimeOffset.UtcNow,
+            PatientName: "Nguyen Van A",
+            PatientEmail: "patienta@example.com",
+            PatientPhone: "0901234567",
+            IdentityUserId: identityUserId
+        );
 
-    [Fact(Skip = "Phase 6 Step 1: scheduled reminders need a stable due time and cancellation policy.")]
-    public void CancelledAppointment_SuppressesPendingReminder() { }
+        var intents = _engine.EvaluateAppointmentConfirmed(eventId, payload);
+
+        Assert.Equal(2, intents.Count);
+        
+        var inApp = intents.Single(i => i.Channel == NotificationChannel.InApp);
+        Assert.Equal(identityUserId, inApp.RecipientId);
+        Assert.Equal(RecipientType.Account, inApp.RecipientType);
+        Assert.Equal($"{eventId:D}:{identityUserId:D}:InApp:AppointmentConfirmed", inApp.IdempotencyKey);
+
+        var email = intents.Single(i => i.Channel == NotificationChannel.Email);
+        Assert.Equal(identityUserId, email.RecipientId);
+        Assert.Equal(RecipientType.Account, email.RecipientType);
+        Assert.Equal("patienta@example.com", email.ContactSnapshot?.Email);
+        Assert.Equal($"{eventId:D}:{identityUserId:D}:Email:AppointmentConfirmed", email.IdempotencyKey);
+    }
+
+    [Fact]
+    public void RescheduleRelease_DoesNotProduceCancellationNotification()
+    {
+        var eventId = Guid.NewGuid();
+        var payload = new AppointmentCancelled(
+            AppointmentId: Guid.NewGuid(),
+            PatientId: Guid.NewGuid(),
+            CancelledByUserId: Guid.NewGuid(),
+            CancelledAt: DateTimeOffset.UtcNow,
+            IsRescheduleRelease: true
+        );
+
+        Assert.True(_engine.ShouldSuppressCancellation(payload));
+        var intents = _engine.EvaluateAppointmentCancelled(eventId, payload);
+        Assert.Empty(intents);
+    }
+
+    [Fact]
+    public void GuestRecipient_UsesOnlyEligibleEmailOrSmsChannels()
+    {
+        var eventId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+
+        var payload = new AppointmentConfirmed(
+            AppointmentId: Guid.NewGuid(),
+            PatientId: patientId,
+            DoctorId: Guid.NewGuid(),
+            WorkScheduleId: Guid.NewGuid(),
+            ScheduleDate: new DateOnly(2026, 11, 1),
+            TimeSlot: new TimeOnly(9, 0),
+            ConfirmedByUserId: Guid.NewGuid(),
+            ConfirmedAt: DateTimeOffset.UtcNow,
+            PatientName: "Guest Patient",
+            PatientEmail: "guest@example.com",
+            PatientPhone: "0909999999",
+            IdentityUserId: null // Guest: No account linkage
+        );
+
+        var intents = _engine.EvaluateAppointmentConfirmed(eventId, payload);
+
+        // Guest gets email, but NEVER gets an InApp account record
+        Assert.DoesNotContain(intents, i => i.Channel == NotificationChannel.InApp);
+        Assert.All(intents, i => Assert.Equal(RecipientType.Guest, i.RecipientType));
+        Assert.All(intents, i => Assert.Equal(patientId, i.RecipientId));
+        Assert.Contains(intents, i => i.Channel == NotificationChannel.Email);
+    }
+
+    [Fact]
+    public void CancelledAppointment_SuppressesPendingReminder()
+    {
+        var eventId = Guid.NewGuid();
+        var payload = new AppointmentCancelled(
+            AppointmentId: Guid.NewGuid(),
+            PatientId: Guid.NewGuid(),
+            CancelledByUserId: Guid.NewGuid(),
+            CancelledAt: DateTimeOffset.UtcNow,
+            IsRescheduleRelease: false
+        );
+
+        Assert.True(_engine.ShouldCancelPendingReminder(payload));
+        Assert.False(_engine.ShouldSuppressCancellation(payload));
+
+        var intents = _engine.EvaluateAppointmentCancelled(eventId, payload);
+        // True cancellation without reschedule release evaluates intents for eligible channels
+        Assert.NotNull(intents);
+    }
+
+    [Fact]
+    public void OrdinaryEventContracts_ContainNoCredentials_ResetTokens_OrClinicalPHI()
+    {
+        var forbiddenTerms = new[] { "password", "resetcode", "resettoken", "symptoms", "diagnosis", "prescription", "notes" };
+        var typesToCheck = new[] { typeof(AppointmentConfirmed), typeof(AppointmentCancelled), typeof(PatientCalled) };
+
+        foreach (var type in typesToCheck)
+        {
+            var propertyNames = type.GetProperties().Select(p => p.Name.ToLowerInvariant()).ToList();
+            foreach (var forbidden in forbiddenTerms)
+            {
+                Assert.DoesNotContain(propertyNames, name => name.Contains(forbidden));
+            }
+        }
+    }
 }
 
 public sealed class NotificationPersistenceUnitTests

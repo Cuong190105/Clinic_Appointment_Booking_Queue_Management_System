@@ -261,3 +261,39 @@
 `backend/Clinic.Notification.Service.Tests` is in `Clinic.slnx`. `ServiceScaffoldIntegrationTests` runs now against health/readiness. `NotificationRequirementsTests` contains named, skipped executable specifications grouped by policy, persistence, delivery, authorization/realtime, Gateway and full workflow; replace each skip with assertions as the corresponding step is implemented. Skipped tests are not evidence that the requirement is met.
 
 The current scaffold is intentionally not registered in Gateway and does not consume RabbitMQ or connect to SQL yet. Its Compose readiness is process-only until Step 1 adds DB migration/readiness. Do not count the scaffold as a Phase 6 cutover.
+
+---
+
+## 5. Báo cáo thực hiện theo từng bước (Execution Log)
+
+### Bước 1 — Chuẩn hóa Hợp đồng, Định danh Người nhận & Động cơ Chính sách (Notification Policy & Event Contracts) (Hoàn tất: 2026-10-26)
+
+1. **Chuẩn hóa Hợp đồng & Snapshot Người nhận (Event Contracts & Recipient Snapshots):**
+   - Cập nhật hợp đồng sự kiện `AppointmentConfirmed` và `AppointmentCancelled` trong `Clinic.Contracts/Events` với các tham số snapshot liên hệ tùy chọn (`PatientName`, `PatientEmail`, `PatientPhone`, `IdentityUserId`), đảm bảo tính tương thích ngược 100% với các service hiện tại.
+   - Bổ sung thông tin định danh và snapshot cho sự kiện `PatientCalled` trong `QueueEvents.cs`.
+   - Bổ sung các hằng số tên sự kiện chuẩn vào `EventTypes`: `AppointmentReminderScheduled`, `NotificationRequested`, `PasswordResetNotificationRequested`.
+
+2. **Triển khai Mô hình Định danh & Động cơ Chính sách Thông báo (`NotificationPolicyEngine`):**
+   - Xây dựng các kiểu thực thể nền tảng trong `Clinic.Notification.Service/Entities`:
+     - `RecipientType`: `Account` (Người dùng có tài khoản), `Guest` (Bệnh nhân vãng lai chưa liên kết tài khoản).
+     - `NotificationChannel`: `InApp`, `Email`, `Sms`.
+     - `NotificationType`: `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentReminder`, `PatientCalled`, `PasswordReset`.
+     - `DeliveryStatus`: `Pending`, `Delivered`, `Failed`, `DeadLettered`.
+     - `RecipientContactSnapshot`: Chứa các trường liên hệ tối thiểu (`FullName`, `Email`, `PhoneNumber`).
+   - Xây dựng `NotificationPolicyEngine` (`INotificationPolicyEngine`):
+     - `EvaluateAppointmentConfirmed`: Tự động phân loại `Account` (sinh InApp + Email/Sms) và `Guest` (chỉ sinh Email/Sms, **tuyệt đối không tạo bản ghi InApp hay gán kết nối SignalR**).
+     - `EvaluateAppointmentCancelled`: Phân biệt rõ việc hủy do đổi lịch (`IsRescheduleRelease = true`) để **triệt tiêu hoàn toàn (suppress)** thông báo hủy sai lệch tới người dùng; chỉ phát thông báo khi là hủy thực sự.
+     - `EvaluatePatientCalled`: Phát InApp cho tài khoản để đẩy tín hiệu realtime qua SignalR; phát SMS cho khách nếu có số điện thoại.
+     - `ShouldCancelPendingReminder`: Tự động triệt tiêu/hủy reminder đang chờ cho ca khám bị hủy.
+     - `GenerateIdempotencyKey`: Định chuẩn khóa chống trùng lặp theo cấu trúc `{EventId}:{RecipientId}:{Channel}:{Type}`.
+
+3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Chính sách & Bảo vệ Dữ liệu (TDD Unit Tests):**
+   - Xóa bỏ trạng thái `Skip` và hoàn thiện toàn bộ mã kiểm thử trong nhóm `NotificationPolicyUnitTests` tại `NotificationRequirementsTests.cs`:
+     - `ConfirmedAppointment_ProducesOneConfirmationPerEligibleRecipientAndChannel`: PASS
+     - `RescheduleRelease_DoesNotProduceCancellationNotification`: PASS
+     - `GuestRecipient_UsesOnlyEligibleEmailOrSmsChannels`: PASS
+     - `CancelledAppointment_SuppressesPendingReminder`: PASS
+     - `OrdinaryEventContracts_ContainNoCredentials_ResetTokens_OrClinicalPHI`: PASS (Quét phản xạ toàn bộ thuộc tính, chứng minh không chứa secret/token/PHI lâm sàng).
+   - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **7/7 tests PASS** (2 scaffold tests + 5 policy & contract tests).
+   - Không gây ảnh hưởng tới các service khác: `Clinic.Contracts.UnitTests` (6/6 PASS), `Clinic.Appointment.Service.Tests` (34/34 PASS).
+

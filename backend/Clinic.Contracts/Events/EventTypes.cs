@@ -28,4 +28,10 @@ public static class EventTypes
     public const string WorkScheduleCancelled = "WorkScheduleCancelled";
 
     public const string UserProfileUpdated = "UserProfileUpdated";
+
+    public const string AppointmentReminderScheduled = "AppointmentReminderScheduled";
+
+    public const string NotificationRequested = "NotificationRequested";
+
+    public const string PasswordResetNotificationRequested = "PasswordResetNotificationRequested";
 }

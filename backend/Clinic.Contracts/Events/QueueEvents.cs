@@ -42,7 +42,11 @@ public sealed record PatientCalled(
     Guid AppointmentId,
     Guid DoctorId,
     int QueueNumber,
-    DateTimeOffset CalledAt
+    DateTimeOffset CalledAt,
+    Guid PatientId = default,
+    Guid? IdentityUserId = null,
+    string? PatientName = null,
+    string? PatientPhone = null
 );
 
 public sealed record PatientSkipped(
