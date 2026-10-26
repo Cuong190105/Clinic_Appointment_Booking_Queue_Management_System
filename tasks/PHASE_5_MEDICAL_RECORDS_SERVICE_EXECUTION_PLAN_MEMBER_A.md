@@ -466,5 +466,33 @@
    - Frontend `medicalRecordsApi`, `patientApi`, `receptionistApi` hoạt động liền mạch qua Gateway mà không cần thay đổi client contract.
    - Kiểm tra biên dịch frontend (`npm run build`): Thành công 100% không phát sinh lỗi (`✓ built in 1.88s`).
 
+---
+
+### Bước 8 — Kiểm thử toàn diện & Khả năng chịu lỗi (Tests & Fault Acceptance) (Hoàn tất: 2026-10-26)
+
+1. **Kiểm thử khả năng chịu lỗi sự kiện bất đồng bộ (Fault Tolerance & Messaging):**
+   - **Xử lý sự kiện trùng lặp (Duplicate Events):** Kiểm thử `DuplicateExamStartedEvents_AreHandledIdempotently_WithoutErrorOrDuplicateContext` xác nhận việc nhận trùng sự kiện `ExamStarted` nhiều lần không sinh ra trùng lặp ngữ cảnh tiếp nhận hoặc gây lỗi hệ thống.
+   - **Tách biệt vòng đời ca khám (Decoupled Lifecycle):** Kiểm thử `ExamCompleted_DoesNotFinalizeDraftMedicalReport` chứng minh khi Queue phát sự kiện `ExamCompleted`, hồ sơ bệnh án vẫn được bảo toàn nguyên trạng ở trạng thái `Draft`. Chỉ khi bác sĩ chủ động gọi lệnh chốt hồ sơ (`FinalizeReportAsync`), trạng thái mới chuyển thành `Finalized`.
+   - **Sự kiện đến sai thứ tự (Out-of-order Events):** Kiểm thử `OutOfOrderExamCompleted_HandlesGracefully_WithoutCrashing` chứng minh việc nhận `ExamCompleted` trước khi có `ExamStarted` hoặc Draft được xử lý an toàn và không gây sập ứng dụng.
+   - **Bảo mật PHI trong Hợp đồng sự kiện (Event Privacy):** Kiểm thử `EventContracts_ContainNoPHI` quét toàn bộ thuộc tính của `ExamStarted` và `ExamCompleted`, khẳng định không rò rỉ bất kỳ thông tin lâm sàng nào (`symptoms`, `diagnosis`, `prescription`, `notes`).
+
+2. **Kiểm thử chuyển tiếp Gateway Proxy (`MedicalRecordsProxyTests`):**
+   - Xác nhận `MedicalRecordsServiceClient.ProxyAsync` chuyển tiếp trọn vẹn:
+     - Header xác thực `Authorization: Bearer <token>`.
+     - Header bảo đảm tính duy nhất `Idempotency-Key`.
+     - Tham số QueryString (`?isUrgent=true`).
+     - Nội dung body JSON đến đúng URI đích trên `Clinic.MedicalRecords.Service`.
+
+3. **Tổng kết kết quả kiểm thử tự động toàn hệ thống:**
+   - `Clinic.MedicalRecords.Service.Tests`: **46/46 tests PASS**
+   - `Clinic.Queue.Service.Tests`: **50/50 tests PASS**
+   - `Clinic.Appointment.Service.Tests`: **33/33 tests PASS**
+   - `Clinic.Scheduling.Service.Tests`: **38/38 tests PASS**
+   - `Clinic.Domain.UnitTests`: **20/20 tests PASS**
+   - `Clinic.Contracts.UnitTests`: **6/6 tests PASS**
+   - `Clinic.Application.UnitTests`: **24/24 tests PASS**
+   - `Clinic.Infrastructure.UnitTests`: **17/17 tests PASS**
+
+
 
 
