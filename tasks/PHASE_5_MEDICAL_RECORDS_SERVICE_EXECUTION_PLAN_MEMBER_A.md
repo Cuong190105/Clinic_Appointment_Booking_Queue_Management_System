@@ -245,3 +245,25 @@
    - `ExamCompleted` mang: `QueueTicketId`, `AppointmentId`, `DoctorId`, `CompletedAt`.
    - Tuyệt đối không đưa nội dung bệnh án (triệu chứng, chẩn đoán, toa thuốc) vào Event payload hoặc Error log/DLQ.
 
+---
+
+### Bước 1 — Hoàn tất event contract và consumer semantics (Hoàn tất: 2026-10-26)
+
+1. **Chuẩn hóa Event Contract (`Clinic.Contracts/Events`):**
+   - **`ExamStarted`**: Nâng cấp mang đầy đủ snapshot tối thiểu gồm `(Guid QueueTicketId, Guid AppointmentId, Guid PatientId, Guid DoctorId, string? DoctorName, DateOnly? QueueDate, DateTimeOffset StartedAt)`.
+   - Hỗ trợ `[JsonConstructor]` cho primary constructor và constructor phụ bảo đảm backward compatibility 100% với các component cũ.
+   - **`ExamCompleted`**: Định danh quanh `(Guid QueueTicketId, Guid AppointmentId, Guid DoctorId, DateTimeOffset CompletedAt)`.
+   - **Tuân thủ PHI Privacy**: Cả 2 event tuyệt đối không chứa chẩn đoán, triệu chứng, toa thuốc hoặc ghi chú lâm sàng.
+
+2. **Cập nhật Publisher phía Queue Service (`Clinic.Queue.Service`):**
+   - Trong `QueueManager.cs`, cập nhật lệnh phát outbox `ExamStarted` mang đầy đủ snapshot nhân thân và bác sĩ (`PatientId`, `DoctorId`, `DoctorName`, `QueueDate`).
+   - Khắc phục ràng buộc conflict trong `CallNextAsync` khi bác sĩ đã có lượt khám `Called`/`InProgress`.
+
+3. **Kiểm thử Hợp đồng Tự động (Contract Tests):**
+   - Tạo bộ test [`MedicalRecordsEventContractTests.cs`](../backend/Clinic.Contracts.UnitTests/MedicalRecordsEventContractTests.cs) kiểm chứng:
+     - `ExamStarted_Serializes_With_AppointmentId_And_ContextSnapshot_Without_PHI`: PASS.
+     - `ExamStarted_Backward_Compatible_Constructor_Succeeds`: PASS.
+     - `ExamCompleted_Keyed_By_AppointmentId_Without_PHI`: PASS.
+   - Kết quả: `Clinic.Contracts.UnitTests` pass **6/6 tests**; `Clinic.Queue.Service.Tests` pass **50/50 tests**.
+
+

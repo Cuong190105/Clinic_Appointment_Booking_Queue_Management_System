@@ -364,6 +364,16 @@ public class QueueManager : IQueueManager
 
         if (nextTicket == null)
         {
+            var hasActive = await _dbContext.QueueTickets
+                .AnyAsync(t => t.DoctorId == doctorId
+                               && t.QueueDate == queueDate
+                               && !t.IsDeleted
+                               && (t.Status == QueueStatus.Called || t.Status == QueueStatus.InProgress), ct);
+            if (hasActive)
+            {
+                throw new QueueConflictException("Doctor already has an active called patient and there are no other waiting patients.");
+            }
+
             throw new QueueNotFoundException("There are no patients waiting in the queue for this doctor.");
         }
 
@@ -411,7 +421,7 @@ public class QueueManager : IQueueManager
         ticket.StartExam();
 
         AddOutboxMessage(
-            new ExamStarted(ticket.Id, ticket.AppointmentId, ticket.DoctorId, DateTimeOffset.UtcNow),
+            new ExamStarted(ticket.Id, ticket.AppointmentId, ticket.PatientId, ticket.DoctorId, ticket.DoctorName, ticket.QueueDate, DateTimeOffset.UtcNow),
             EventTypes.ExamStarted,
             "queue.exam-started",
             Guid.NewGuid());
