@@ -186,3 +186,62 @@
 - `tasks/PHASE_0_API_CONTRACT_ANALYSIS_MEMBER_A.md` — service boundaries và API contracts.
 - `tasks/COMMON_REQUIREMENTS_AND_NOTES.md` — security, audit, privacy và test requirements.
 - `microservices_analysis.md` — kiến trúc tổng thể và ownership.
+
+---
+
+## 8. Báo cáo tiến độ triển khai theo từng bước
+
+### Bước 0 — Baseline, inventory và feature ownership (Hoàn tất: 2026-10-26)
+
+1. **Commit & Branch Baseline:**
+   - Branch: `memAp5`
+   - Baseline Commit: `617675d8eec6190453957d5ab5ff0b3a2be8142c`
+   - Trạng thái Docker: 10/10 containers active & healthy (`clinic_sql_server`, `rabbitmq`, `clinic_jaeger`, `clinic_prometheus`, `identity-service`, `clinic_scheduling_service`, `clinic_appointment_service`, `clinic_queue_service`, `clinic_backend`, `clinic_frontend`).
+   - Catalog cơ sở dữ liệu trên SQL Server: 5 database (`ClinicDB`, `ClinicAppointmentDB`, `ClinicQueueDB`, `ClinicSchedulingDB`, `ClinicIdentityDB`).
+
+2. **Inventory toàn diện về Patient & MedicalReport:**
+   - **Routes & Handlers (Monolith):**
+     - `GET /medical-reports` (`GetMedicalReportsQuery`)
+     - `POST /medical-reports` (`SaveMedicalReportCommand`)
+     - `PUT /medical-reports/{id}` (`UpdateDraftMedicalReportCommand`)
+     - `GET /medical-reports/{id}` (`GetMedicalReportByIdQuery`)
+     - `GET /medical-reports/appointment/{appointmentId}` (`GetMedicalReportByAppointmentQuery`)
+     - `POST /medical-reports/{id}/finalize` (`FinalizeMedicalReportCommand`)
+     - `GET /patients/{patientId}/medical-history` (`GetPatientMedicalHistoryForDoctorQuery`)
+     - `GET /me/medical-history` (`GetMyMedicalHistoryQuery`)
+     - `GET /patients` (`GetPagedPatientsQuery`)
+     - `GET /patients/{patientId}` (`GetPatientByIdQuery`)
+     - `GET /patients/me` (`GetPatientByIdQuery`)
+     - `PUT /patients/me` (`UpdatePatientCommand`)
+     - `POST /patients/add` (`CreatePatientCommand`)
+     - `GET /patients/{patientId}/appointments` (Proxy sang Appointment Service)
+   - **Callers từ Frontend:**
+     - `medicalRecordsApi` (`frontend/src/features/medical-records/medical-records.api.ts`): `list`, `getById`, `getByAppointment`, `createDraft`, `update`, `finalize`.
+     - `patientApi` (`frontend/src/features/patients/patient.api.ts`): `getProfile`, `updateProfile`, `getMyMedicalHistory`, `getPagedPatients`.
+     - `receptionistApi` (`frontend/src/features/receptionist/receptionist.api.ts`): `createPatient` (`POST /patients/add`), `listPatients` (`GET /patients`).
+   - **Thực thể & Repository:**
+     - `Patient.cs`, `MedicalReport.cs` trong `Clinic.Domain/Entities`.
+     - `IPatientRepository`, `PatientRepository` trong `Clinic.Infrastructure.Sqlserver`.
+     - `IMedicalReportRepository`, `MedicalReportRepository` trong `Clinic.Infrastructure.Sqlserver`.
+   - **Permissions trên Identity Service:**
+     - `medical-report.create`, `medical-report.view.own`, `medical-report.view.related`, `medical-report.view.any`, `medical-report.edit.own`, `medical-report.edit.any`.
+     - `patient.create.any`, `patient.view.own`, `patient.view.any`, `patient.edit.own`, `patient.edit.any`.
+     - `patient-history.view.related`, `patient-history.view.any`.
+
+3. **Phân loại Route & Định danh sau Cutover:**
+   - **Patient CRUD & Profile:** Chuyển sang `Clinic.MedicalRecords.Service`.
+   - **Draft / Save / Finalize:** Chuyển sang `Clinic.MedicalRecords.Service`. Bỏ việc finalize gọi ngầm sang Queue `complete-exam`.
+   - **Encounter Key:** Dùng duy nhất `AppointmentId`.
+   - **Tính năng mới:** Bổ sung `POST /medical-records/appointments/{appointmentId}/amendments` (amendment append-only cho hồ sơ Finalized) và `GET /medical-records/appointments/{appointmentId}/audits` (access audit trail).
+
+4. **Xác nhận quyền sở hữu (Feature Ownership) sau Cutover:**
+   - `Clinic.MedicalRecords.Service` (`ClinicMedicalRecordsDB`): Sở hữu `Patient`, `MedicalReport`, `MedicalReportAmendment`, `MedicalAccessAudit`.
+   - `Clinic.Appointment.Service` (`ClinicAppointmentDB`): Sở hữu `Appointment`, `AppointmentSnapshot`, `PatientProjection`.
+   - `Clinic.Queue.Service` (`ClinicQueueDB`): Sở hữu `QueueTicket`, `QueueCounter`.
+   - `Clinic.Identity.Service` (`ClinicIdentityDB`): Sở hữu `User`, `Person` (credentials/auth).
+
+5. **Thống nhất Event Contract & Bảo vệ PHI:**
+   - `ExamStarted` bổ sung snapshot tối thiểu: `PatientId`, `DoctorId`, `DoctorName`, `QueueDate`, `StartedAt`.
+   - `ExamCompleted` mang: `QueueTicketId`, `AppointmentId`, `DoctorId`, `CompletedAt`.
+   - Tuyệt đối không đưa nội dung bệnh án (triệu chứng, chẩn đoán, toa thuốc) vào Event payload hoặc Error log/DLQ.
+
