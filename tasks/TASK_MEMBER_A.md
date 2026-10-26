@@ -471,6 +471,8 @@ Execution plan theo từng bước và phân công phối hợp A/B: [`PHASE_5_M
 ---
 ## Giai đoạn 6: Tách Notification Service và hoàn thiện Gateway
 
+Kế hoạch chi tiết, quyết định thiết kế, ma trận kiểm thử và các kịch bản nghiệm thu runtime: [`PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md).
+
 ### Nhiệm vụ
 
 1. Tạo Notification Service.
@@ -491,9 +493,24 @@ Execution plan theo từng bước và phân công phối hợp A/B: [`PHASE_5_M
 
 - Frontend chỉ truy cập hệ thống qua API Gateway.
 
-- SignalR hoạt động đúng khi chạy một hoặc nhiều instance.
+- SignalR hoạt động trên một instance trong Compose hiện tại; khi chạy nhiều instance phải bật Redis backplane.
 
 - Không còn dependency vào notification entity hoặc `Person` từ service khác.
+
+### Quyết định đã chốt
+
+- `Clinic.API` tiếp tục là API Gateway/BFF; không tạo Gateway service mới trong Phase 6. Mọi REST và SignalR client của frontend đi qua Gateway; Notification Service vẫn tự validate JWT.
+- Notification DB là nguồn lịch sử in-app bền vững. SignalR chỉ gửi thông báo có bản ghi mới/cập nhật; client tải nội dung qua Gateway và khôi phục sau reconnect.
+- Recipient dùng `RecipientId` và `RecipientType`, không dùng `Person` entity. Người có tài khoản có inbox; khách chưa có tài khoản chỉ nhận email/SMS theo policy và contact snapshot tối thiểu, không có in-app/SignalR.
+- Với account, tạo bản ghi in-app theo policy; email/SMS chỉ gửi khi event policy cho phép và có contact hợp lệ. Không query đồng bộ service khác để dựng recipient.
+- Event ban đầu: appointment confirmed, appointment cancelled (bỏ qua reschedule-release), reminder và `PatientCalled`. Password reset dùng contract/template riêng, không đi chung event business và không log mã reset.
+- Retry hữu hạn với exponential backoff; idempotency theo `EventId + RecipientId + Channel + NotificationType`; từng attempt được audit. SignalR chạy một instance ở cấu hình hiện tại; Redis backplane chỉ thêm khi triển khai nhiều instance.
+- Phase 2–5 của B không phải điều kiện chặn để A dựng service. B phối hợp contract/outbox/inbox, failure tests, telemetry và E2E cho consumer.
+
+### Trạng thái khởi tạo
+
+- Đã thêm project/service test project, solution entry, Dockerfile, Compose service và health/readiness scaffold.
+- Đã thêm test specifications cho yêu cầu Phase 6; các ca nghiệp vụ được skip có chủ đích tới khi implementation tương ứng được viết. Chưa chuyển traffic hay xử lý notification production.
 
 ### Lưu ý
 

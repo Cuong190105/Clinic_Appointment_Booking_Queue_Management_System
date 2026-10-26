@@ -154,11 +154,14 @@ Sở hữu `Patient`, `MedicalReport`, lịch sử amendment và audit truy cậ
 
 ### 3.6 Notification Service
 
-Sở hữu notification persistence, outbox, delivery attempt, email/SMS/in-app và SignalR delivery.
+Sở hữu notification persistence, inbox/idempotency, delivery outbox, delivery attempt, email/SMS/in-app và SignalR delivery. Clinic API tiếp tục là Gateway/BFF; không tạo Gateway service riêng ở Phase 6.
 
-- Consume business event, không nhận `Person` hoặc entity từ service khác.
-- Thay `Channel<T>` bằng persisted outbox và broker consumer.
-- Có retry, dead-letter queue, idempotency và delivery audit.
+- Consume business event, không nhận `Person` hoặc entity từ service khác; dùng `RecipientId`, `RecipientType` và contact snapshot tối thiểu do service sở hữu recipient phát ra.
+- Thay `Channel<T>` bằng durable inbox/outbox và broker consumer. Notification DB là nguồn lịch sử in-app; SignalR chỉ là hint để client tải lại từ Gateway.
+- Có retry hữu hạn với exponential backoff, dead-letter queue, idempotency và delivery audit cho từng channel/attempt.
+- Người có tài khoản có in-app inbox theo policy; khách chưa có tài khoản chỉ nhận email/SMS, không dùng in-app hoặc SignalR.
+- Bỏ notification cancellation cho `AppointmentCancelled` mang cờ reschedule-release. Password reset dùng contract/template riêng; token không xuất hiện trong log hay event business chung.
+- SignalR chạy một instance trên Compose hiện tại; chỉ thêm Redis backplane khi chạy nhiều instance.
 
 ### 3.7 API Gateway và nền tảng chung
 
@@ -321,13 +324,14 @@ Màn hình cần dữ liệu từ nhiều service dùng read model hoặc API co
 
 ### Giai đoạn 6: Tách Notification Service và hoàn thiện Gateway
 
-1. Di chuyển notification persistence và scheduled jobs sang database riêng.
-2. Thay channel in-memory bằng outbox publisher và broker consumer.
-3. Chuyển SignalR Hub sang Notification Service; dùng Redis backplane nếu chạy nhiều instance.
-4. Bổ sung provider timeout, retry, dead-letter queue và delivery audit.
-5. Gateway trở thành route duy nhất cho frontend.
+1. Tạo Notification DB riêng, migrate/reconcile lịch sử cần giữ từ ClinicDB, rồi tắt persistence notification cũ.
+2. Thay channel in-memory bằng durable inbox/outbox, event policy và broker consumer idempotent.
+3. Chuyển template/provider, scheduled reminder, delivery audit và password-reset delivery riêng sang service mới.
+4. Chuyển SignalR Hub vào service; persistence là nguồn chuẩn, SignalR là hint. Một instance ở Compose hiện tại; Redis khi scale nhiều instance.
+5. Clinic API tiếp tục làm Gateway và route toàn bộ REST/SignalR traffic từ frontend; mỗi service tự xác thực JWT.
+6. Chạy failure/recovery tests cho broker, provider, service restart và client reconnect.
 
-**Tiêu chí hoàn thành**: Restart không làm mất notification; mọi delivery attempt có thể truy vết.
+**Tiêu chí hoàn thành**: Restart không làm mất notification; duplicate event không nhân bản side effect; delivery attempt truy vết được; frontend chỉ dùng Gateway; không còn runtime dependency vào `Person`/Clinic notification persistence.
 
 ---
 
@@ -405,7 +409,7 @@ Docker Compose cần health check, persistent volume, resource limit, dependency
 5. `SmsSender` đã gửi SMS thật hay vẫn là stub?
 6. Scheduled notification dùng lease/lock nào khi chạy nhiều instance?
 7. SQL Server `MERGE ... HOLDLOCK` có transaction boundary nào trong luồng check-in hiện tại?
-8. Frontend có sử dụng SignalR client không và cần giữ backward compatibility trong bao lâu?
+8. **Đã quyết định cho Phase 6:** frontend dùng SignalR client qua Clinic API Gateway; giữ REST history làm recovery path. Chạy một instance hiện tại, Redis backplane chỉ khi scale nhiều instance.
 9. Permission deprecated như `appointment.cancel` được mapping sang permission mới thế nào khi tách Identity?
 10. Retention, mã hóa và quyền truy cập audit cho Medical Records là gì?
 

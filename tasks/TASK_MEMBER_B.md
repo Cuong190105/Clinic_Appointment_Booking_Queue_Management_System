@@ -255,6 +255,10 @@ Kế hoạch triển khai chung và checklist handoff: [`PHASE_5_MEDICAL_RECORDS
 
 ## Giai đoạn 6: Tách Notification Service và hoàn thiện Gateway
 
+Thiết kế và ma trận nghiệm thu đã chốt trong [`PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md). A sở hữu service/API/DB/cutover; B phối hợp event contracts, publisher/consumer reliability, retry/DLQ, telemetry, failure tests và E2E.
+
+Quyết định: Clinic API giữ vai trò Gateway; persisted notification history là nguồn dữ liệu chính, SignalR chỉ là hint; khách chưa có account chỉ nhận email/SMS; reset-password dùng contract riêng; SignalR chạy một instance trên Compose hiện tại, Redis chỉ khi scale nhiều instance.
+
 ### Nhiệm vụ
 
 1. Tạo consumer cho các business event cần gửi thông báo.

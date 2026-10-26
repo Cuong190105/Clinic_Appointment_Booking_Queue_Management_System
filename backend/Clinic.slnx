@@ -10,6 +10,7 @@
     <Project Path="Clinic.Appointment.Service.Tests/Clinic.Appointment.Service.Tests.csproj" />
     <Project Path="Clinic.Queue.Service.Tests/Clinic.Queue.Service.Tests.csproj" />
     <Project Path="Clinic.MedicalRecords.Service.Tests/Clinic.MedicalRecords.Service.Tests.csproj" />
+    <Project Path="Clinic.Notification.Service.Tests/Clinic.Notification.Service.Tests.csproj" />
   </Folder>
   <Project Path="Clinic.API/Clinic.API.csproj" />
   <Project Path="Clinic.Identity.Service/Clinic.Identity.Service.csproj" />
@@ -17,6 +18,7 @@
   <Project Path="Clinic.Appointment.Service/Clinic.Appointment.Service.csproj" />
   <Project Path="Clinic.Queue.Service/Clinic.Queue.Service.csproj" />
   <Project Path="Clinic.MedicalRecords.Service/Clinic.MedicalRecords.Service.csproj" />
+  <Project Path="Clinic.Notification.Service/Clinic.Notification.Service.csproj" />
   <Project Path="Clinic.Application/Clinic.Application.csproj" />
   <Project Path="Clinic.Contracts/Clinic.Contracts.csproj" />
   <Project Path="Clinic.Domain/Clinic.Domain.csproj" />
