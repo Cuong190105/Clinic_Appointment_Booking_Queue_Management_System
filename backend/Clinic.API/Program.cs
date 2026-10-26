@@ -124,6 +124,15 @@ builder.Services.AddHttpClient("MedicalRecords", client =>
 });
 builder.Services.AddTransient<Clinic.API.Services.QueueServiceClient>();
 builder.Services.AddTransient<Clinic.API.Services.MedicalRecordsServiceClient>();
+builder.Services.AddHttpClient("Notification", client =>
+{
+    var notificationAuthority = builder.Configuration["Notification:Authority"]
+        ?? builder.Configuration["Services:Notification:BaseUrl"]
+        ?? "http://localhost:5006";
+    client.BaseAddress = new Uri(notificationAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddTransient<Clinic.API.Services.NotificationServiceClient>();
 
 builder.Services
     .AddAuthentication(options =>

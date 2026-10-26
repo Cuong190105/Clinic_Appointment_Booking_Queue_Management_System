@@ -22,13 +22,15 @@ namespace Clinic.API.Controllers
         private readonly bool _useIdentityService;
         private readonly ILogger<AuthController> _logger;
         private readonly MedicalRecordsServiceClient _medicalRecordsClient;
+        private readonly NotificationServiceClient _notificationClient;
 
         public AuthController(
             ISender sender,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
             ILogger<AuthController> logger,
-            MedicalRecordsServiceClient medicalRecordsClient)
+            MedicalRecordsServiceClient medicalRecordsClient,
+            NotificationServiceClient notificationClient)
         {
             _sender = sender;
             _identityClient = httpClientFactory.CreateClient("Identity");
@@ -37,6 +39,7 @@ namespace Clinic.API.Controllers
             _useIdentityService = configuration.GetValue("Features:UseIdentityService", true);
             _logger = logger;
             _medicalRecordsClient = medicalRecordsClient;
+            _notificationClient = notificationClient;
         }
 
         [HttpPost("login")]
@@ -385,7 +388,20 @@ namespace Clinic.API.Controllers
                         new { message = "Password reset is temporarily unavailable." });
                 var delivery = await upstream.Content.ReadFromJsonAsync<IdentityPasswordResetDelivery>(cancellationToken: HttpContext.RequestAborted);
                 if (delivery is { Found: true, PersonId: not null, ResetToken: not null })
-                    await _sender.Send(new QueuePasswordResetNotificationCommand(delivery.PersonId.Value, delivery.ResetToken), HttpContext.RequestAborted);
+                {
+                    var identifierValue = request.PhoneNumberOrEmail.Trim();
+                    var isEmail = identifierValue.Contains('@');
+                    var email = isEmail ? identifierValue : null;
+                    var phone = isEmail ? null : identifierValue;
+
+                    await _notificationClient.SendPasswordResetNotificationAsync(
+                        delivery.PersonId.Value,
+                        email,
+                        phone,
+                        delivery.ResetToken,
+                        HttpContext.RequestAborted);
+                }
+
 
                 _logger.LogInformation("AUTH_AUDIT: Forgot password request completed for identifier '{Identifier}'. Found: {Found}. CorrelationId: {CorrelationId}",
                     request.PhoneNumberOrEmail, delivery?.Found == true, correlationId);

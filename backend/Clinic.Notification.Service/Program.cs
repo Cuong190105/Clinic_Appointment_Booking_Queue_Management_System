@@ -125,6 +125,7 @@ app.MapGet("/readyz", async (NotificationDbContext db, CancellationToken ct) =>
 // SignalR Hub & REST endpoints
 app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapNotificationEndpoints();
+app.MapInternalNotificationEndpoints();
 
 // Auto-migrate on relational startup
 if (app.Environment.EnvironmentName != "Testing")

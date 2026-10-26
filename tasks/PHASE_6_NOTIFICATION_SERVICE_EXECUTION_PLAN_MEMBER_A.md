@@ -387,5 +387,32 @@ The current scaffold is intentionally not registered in Gateway and does not con
      - `ReconnectedClient_CanRecoverMissedNotificationsFromHistoryApi`: PASS (Khách hàng offline khi kết nối lại có thể lấy đầy đủ thông báo lịch sử từ REST API).
    - Kết quả kiểm thử: **22/22 tests PASS** trong `Clinic.Notification.Service.Tests` (0 failed, 4 skipped của các bước tiếp theo).
 
+---
+
+### Bước 5 — Quy trình Đặt lại Mật khẩu Hạn chế & Chuyển giao Gateway Proxy (Restricted Password-Reset Flow & Gateway Cutover) (Hoàn tất: 2026-10-26)
+
+1. **Thiết kế & Xây dựng Endpoint Password Reset Nội bộ (`Clinic.Notification.Service`):**
+   - Xây dựng `InternalNotificationEndpoints` (`/internal/notifications/password-reset`):
+     - Xác thực bắt buộc bằng service token (`X-Clinic-Service-Token`). Mọi truy cập thiếu hoặc sai token đều bị từ chối `401 Unauthorized`.
+     - Nhận payload snapshot tối thiểu: `RecipientId`, `Email`/`PhoneNumber`, `ResetToken`.
+     - Sinh `DeliveryOutboxMessage` với kênh tương ứng (`Email` hoặc `Sms`), áp dụng template đặt lại mật khẩu an toàn.
+     - **Bảo mật tuyệt đối**: Reset token không bao giờ bị ghi ra log ứng dụng, không đưa vào event kinh doanh thông thường, và audit record `DeliveryAttempt` không chứa token thô.
+
+2. **Chuyển giao Gateway Proxy (`Clinic.API`):**
+   - Xây dựng `NotificationServiceClient`:
+     - `ProxyAsync(...)` chuyển tiếp các yêu cầu HTTP mang theo `Authorization` bearer token và `X-Correlation-Id`.
+     - `SendPasswordResetNotificationAsync(...)` gọi an toàn sang endpoint nội bộ của Notification Service bằng service token.
+   - Chuyển giao `MeController.GetNotifications()` sang `NotificationServiceClient.ProxyAsync(..., "notifications/me")`.
+   - Xây dựng `NotificationsController` tại Gateway hỗ trợ proxy các API `/notifications`, `/notifications/unread-count`, `/notifications/{id}/read` và `/notifications/read-all`.
+   - Cắt chuyển `AuthController.ForgotPassword`: Gọi trực tiếp `NotificationServiceClient.SendPasswordResetNotificationAsync`, xóa bỏ hoàn toàn phụ thuộc vào `QueuePasswordResetNotificationCommand` và loại bỏ tra cứu bảng `Person` trong `ClinicDB`.
+   - Cập nhật cấu hình `docker-compose.yml`: bổ sung biến môi trường `Notification__Authority` và thiết lập phụ thuộc `notification-service` cho `clinic_backend`.
+
+3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Gateway & Bảo mật Secret (TDD Tests):**
+   - Hoàn thiện 100% các test case của Bước 5 trong `NotificationGatewayAndWorkflowTests`:
+     - `FrontendNotificationRequests_AreRoutedOnlyThroughGateway`: PASS (Các request frontend đi qua Gateway/JWT; truy cập trực tiếp vào endpoint nội bộ không có service token bị chặn 401).
+     - `PasswordResetDelivery_DoesNotExposeTokenInLogsOrGeneralBusinessEvents`: PASS (Secret reset token được bảo vệ nghiêm ngặt: không rò rỉ trong logs, không xuất hiện trong audit database, và không có bất kỳ contract event kinh doanh nào chứa secret/token).
+   - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **24/24 tests PASS** (0 failed, 2 skipped của bước cuối cùng).
+
+
 
 

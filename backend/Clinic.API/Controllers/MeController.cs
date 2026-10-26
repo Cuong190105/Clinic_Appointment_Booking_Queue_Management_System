@@ -19,12 +19,14 @@ namespace Clinic.API.Controllers
         private readonly ISender _sender;
         private readonly QueueServiceClient _queueClient;
         private readonly MedicalRecordsServiceClient _medicalRecordsClient;
+        private readonly NotificationServiceClient _notificationClient;
 
-        public MeController(ISender sender, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient)
+        public MeController(ISender sender, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient, NotificationServiceClient notificationClient)
         {
             _sender = sender;
             _queueClient = queueClient;
             _medicalRecordsClient = medicalRecordsClient;
+            _notificationClient = notificationClient;
         }
 
         /// <summary>
@@ -52,10 +54,10 @@ namespace Clinic.API.Controllers
         [Authorize]
         [HttpGet("notifications")]
         [ProducesResponseType(typeof(PaginationResponse<NotificationDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetNotifications([FromQuery] DateTime createdBefore, [FromQuery] int limit)
+        public async Task<IActionResult> GetNotifications()
         {
-            var result = await _sender.Send(new GetNotificationsQuery{ CreatedBefore = createdBefore, Limit = limit });
-            return Ok(result);
+            return await _notificationClient.ProxyAsync(HttpContext, "notifications/me");
+
         }
     }
 }

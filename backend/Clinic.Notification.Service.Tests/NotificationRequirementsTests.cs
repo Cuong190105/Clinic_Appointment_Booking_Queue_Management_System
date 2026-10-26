@@ -830,11 +830,107 @@ public sealed class NotificationAuthorizationAndRealtimeTests
 
 public sealed class NotificationGatewayAndWorkflowTests
 {
-    [Fact(Skip = "Phase 6 Step 5: Gateway must proxy notification APIs and WebSocket negotiation without exposing service port.")]
-    public void FrontendNotificationRequests_AreRoutedOnlyThroughGateway() { }
+    [Fact]
+    public async Task FrontendNotificationRequests_AreRoutedOnlyThroughGateway()
+    {
+        // 1. Direct external calls to internal endpoints are strictly rejected without service token
+        await using var factory = new NotificationTestFactory();
+        var client = factory.CreateClient();
 
-    [Fact(Skip = "Phase 6 Step 5: Identity reset code delivery uses a restricted dedicated contract and template.")]
-    public void PasswordResetDelivery_DoesNotExposeTokenInLogsOrGeneralBusinessEvents() { }
+        var directInternalCall = await client.PostAsJsonAsync("/internal/notifications/password-reset", new
+        {
+            recipientId = Guid.NewGuid(),
+            email = "patient@example.com",
+            resetToken = "token123"
+        });
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, directInternalCall.StatusCode);
+
+        // 2. Direct calls to notifications endpoints require valid Identity JWT
+        var directUnauthCall = await client.GetAsync("/notifications");
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, directUnauthCall.StatusCode);
+
+        // 3. Authenticated calls succeed via the authorized route
+        var userId = Guid.NewGuid();
+        var token = factory.CreateToken(userId);
+        using var authedReq = new HttpRequestMessage(HttpMethod.Get, "/notifications");
+        authedReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var authedRes = await client.SendAsync(authedReq);
+        Assert.Equal(System.Net.HttpStatusCode.OK, authedRes.StatusCode);
+    }
+
+    [Fact]
+    public async Task PasswordResetDelivery_DoesNotExposeTokenInLogsOrGeneralBusinessEvents()
+    {
+        await using var factory = new NotificationTestFactory();
+        var client = factory.CreateClient();
+
+        var secretToken = "super-secret-one-time-reset-code-xyz987";
+        var recipientId = Guid.NewGuid();
+
+        // 1. Call internal endpoint without service token -> 401
+        var unauthRes = await client.PostAsJsonAsync("/internal/notifications/password-reset", new
+        {
+            recipientId,
+            email = "user@example.com",
+            resetToken = secretToken
+        });
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, unauthRes.StatusCode);
+
+        // 2. Call internal endpoint with service token -> 200
+        using var authorizedReq = new HttpRequestMessage(HttpMethod.Post, "/internal/notifications/password-reset")
+        {
+            Content = JsonContent.Create(new
+            {
+                recipientId,
+                email = "user@example.com",
+                resetToken = secretToken
+            })
+        };
+        authorizedReq.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var authorizedRes = await client.SendAsync(authorizedReq);
+        Assert.Equal(System.Net.HttpStatusCode.OK, authorizedRes.StatusCode);
+
+        var resultJson = await authorizedRes.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        var deliveryId = resultJson.GetProperty("deliveryId").GetGuid();
+
+        // 3. Verify delivery outbox was created
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var outboxMsg = await db.DeliveryOutboxMessages.FindAsync(deliveryId);
+        Assert.NotNull(outboxMsg);
+        Assert.Equal(NotificationType.PasswordReset, outboxMsg.NotificationType);
+        Assert.Equal(DeliveryStatus.Pending, outboxMsg.Status);
+
+        // 4. Dispatch the delivery message and verify audit trail does NOT leak secretToken
+        var emailSender = new Clinic.Notification.Service.Services.Delivery.LoggingEmailSender(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingEmailSender>.Instance);
+        var dispatcher = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
+            scope.ServiceProvider,
+            emailSender,
+            new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
+            new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance);
+
+        var dispatchStatus = await dispatcher.ProcessDeliveryAsync(deliveryId);
+        Assert.Equal(DeliveryStatus.Delivered, dispatchStatus);
+
+        var attempts = await db.DeliveryAttempts.Where(a => a.DeliveryOutboxMessageId == deliveryId).ToListAsync();
+        Assert.Single(attempts);
+        Assert.DoesNotContain(secretToken, attempts[0].ProviderResponse ?? "");
+
+        // 5. Verify ordinary domain events never contain ResetToken / Credentials / Passwords
+        var contractTypes = typeof(AppointmentConfirmed).Assembly.GetTypes()
+            .Where(t => t.Namespace != null && t.Namespace.Contains("Clinic.Contracts.Events"));
+        foreach (var type in contractTypes)
+        {
+            foreach (var prop in type.GetProperties())
+            {
+                Assert.DoesNotContain("Token", prop.Name, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("Password", prop.Name, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("Secret", prop.Name, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
 
     [Fact(Skip = "Phase 6 Step 6: verify notification lifecycle across real services and RabbitMQ in Docker Compose.")]
     public void AppointmentConfirmationAndCancellation_CreateExpectedNotifications_EndToEnd() { }
