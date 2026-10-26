@@ -378,3 +378,33 @@
      - `ReportEndpoints_WithoutToken_ReturnUnauthorized`: PASS (HTTP 401)
    - Kết quả: **35/35 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
 
+---
+
+### Bước 5 — Kiểm soát truy cập, bảo vệ quyền riêng tư & Audit Log (Authorization, Privacy & Audit) (Hoàn tất: 2026-10-26)
+
+1. **Thực thi ma trận kiểm soát truy cập y tế (Access Control Matrix):**
+   - **Bảo vệ quyền riêng tư bệnh nhân (IDOR Prevention):**
+     - Bệnh nhân chỉ được phép xem hồ sơ và lịch sử khám của chính mình (`medical-report.view.own`, `patient.view.own`).
+     - Khi bệnh nhân cố tình truy cập ID hồ sơ hoặc lịch sử của bệnh nhân khác, hệ thống chặn đứng với mã `403 Forbidden` và tự động ghi log kiểm toán hành vi bị từ chối (`Outcome = "Denied"`).
+   - **Giới hạn phân quyền Lễ tân (Receptionist Privacy Boundary):**
+     - Lễ tân được cấp quyền xem và quản lý thông tin hành chính bệnh nhân (`Patient` administrative info).
+     - Lễ tân bị **CẤM TUYỆT ĐỐI (`403 Forbidden`)** truy cập các dữ liệu lâm sàng y tế (`MedicalReport`, `Diagnosis`, `Symptoms`, `Prescription`, `MedicalHistory`). Bất kỳ yêu cầu nào từ tài khoản chỉ mang role `Receptionist` đều bị từ chối ngay lập tức và ghi nhận audit log `Outcome = "Denied"`.
+   - **Bác sĩ & Quản trị viên (Doctor & Admin):**
+     - Bác sĩ có thẩm quyền xem các bệnh án liên quan và lịch sử điều trị của bệnh nhân (`medical-report.view.any`, `patient-history.view.related`).
+     - Admin có toàn quyền giám sát hệ thống.
+
+2. **Kiểm toán truy cập y tế (`MedicalAccessAudit`):**
+   - Mọi hành vi đọc (`ViewReport`, `ViewReportByAppointment`, `ViewPatientMedicalHistory`, `ViewMyMedicalHistory`) và ghi (`SaveDraft`, `UpdateDraft`, `FinalizeReport`, `CreateAmendment`) đều được ghi nhận tự động vào bảng `MedicalAccessAudits`.
+   - **Bảo vệ dữ liệu PHI (No PHI in Audits):** Bản ghi audit chỉ lưu trữ các thông tin meta (`ActorUserId`, `ActorRole`, `ActorDoctorId`, `ActorPatientId`, `AppointmentId`, `PatientId`, `MedicalReportId`, `Action`, `Outcome`, `IpAddress`, `Timestamp`, `CorrelationId`), tuyệt đối không lưu triệu chứng, chẩn đoán hay đơn thuốc.
+   - Bổ sung endpoint cho Quản trị viên tra cứu nhật ký kiểm toán theo ca khám:
+     - `GET /medical-records/appointments/{appointmentId}/audits` (yêu cầu quyền `AdminOnly`).
+
+3. **Kiểm thử tự động (TDD):**
+   - Bổ sung bộ kiểm thử `MedicalRecordsAccessControlAndAuditTests`:
+     - `Receptionist_CannotViewClinicalMedicalReport_ReturnsForbidden`: PASS (HTTP 403)
+     - `Receptionist_CannotViewPatientMedicalHistory_ReturnsForbidden`: PASS (HTTP 403)
+     - `Receptionist_CanAccessPatientAdministrativeData_ReturnsOk`: PASS (HTTP 200)
+     - `Patient_CannotViewOtherPatientReport_ReturnsForbidden_AndLogsDeniedAudit`: PASS (HTTP 403 & Denied Audit Log)
+     - `Patient_CanViewOwnReport_ReturnsOk_AndLogsSuccessAudit`: PASS (HTTP 200 & Success Audit Log)
+   - Kết quả: **40/40 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
+

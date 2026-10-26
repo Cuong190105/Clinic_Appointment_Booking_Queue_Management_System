@@ -31,6 +31,22 @@ public interface IMedicalRecordsManager
     // Queue / Encounter event handlers
     Task HandleExamStartedAsync(ExamStarted evt, CancellationToken ct = default);
     Task HandleExamCompletedAsync(ExamCompleted evt, CancellationToken ct = default);
+
+    // Audit operations
+    Task RecordAccessAuditAsync(
+        Guid actorUserId,
+        string actorRole,
+        Guid? actorDoctorId,
+        Guid? actorPatientId,
+        Guid? appointmentId,
+        Guid? patientId,
+        Guid? medicalReportId,
+        string action,
+        string outcome = "Success",
+        string? ipAddress = null,
+        Guid? correlationId = null,
+        CancellationToken ct = default);
+    Task<List<MedicalAccessAuditDto>> GetAuditsByAppointmentAsync(Guid appointmentId, CancellationToken ct = default);
 }
 
 public class MedicalRecordsManager : IMedicalRecordsManager
@@ -578,6 +594,64 @@ public class MedicalRecordsManager : IMedicalRecordsManager
             report.CreatedAt,
             amendments
         );
+    }
+
+    public async Task RecordAccessAuditAsync(
+        Guid actorUserId,
+        string actorRole,
+        Guid? actorDoctorId,
+        Guid? actorPatientId,
+        Guid? appointmentId,
+        Guid? patientId,
+        Guid? medicalReportId,
+        string action,
+        string outcome = "Success",
+        string? ipAddress = null,
+        Guid? correlationId = null,
+        CancellationToken ct = default)
+    {
+        var audit = new MedicalAccessAudit(
+            actorUserId,
+            actorRole,
+            actorDoctorId,
+            actorPatientId,
+            appointmentId,
+            patientId,
+            medicalReportId,
+            action,
+            outcome,
+            ipAddress,
+            correlationId
+        );
+
+        _db.MedicalAccessAudits.Add(audit);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<List<MedicalAccessAuditDto>> GetAuditsByAppointmentAsync(Guid appointmentId, CancellationToken ct = default)
+    {
+        var audits = await _db.MedicalAccessAudits
+            .AsNoTracking()
+            .Where(a => a.AppointmentId == appointmentId)
+            .OrderByDescending(a => a.Timestamp)
+            .Select(a => new MedicalAccessAuditDto(
+                a.Id,
+                a.ActorUserId,
+                a.ActorRole,
+                a.ActorDoctorId,
+                a.ActorPatientId,
+                a.AppointmentId,
+                a.PatientId,
+                a.MedicalReportId,
+                a.Action,
+                a.Outcome,
+                a.IpAddress,
+                a.Timestamp,
+                a.CorrelationId
+            ))
+            .ToListAsync(ct);
+
+        return audits;
     }
 
     #endregion

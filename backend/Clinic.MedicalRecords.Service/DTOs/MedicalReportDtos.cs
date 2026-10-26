@@ -64,3 +64,19 @@ public record MedicalReportDto(
     DateTimeOffset CreatedAt,
     IReadOnlyList<MedicalReportAmendmentDto> Amendments
 );
+
+public record MedicalAccessAuditDto(
+    Guid Id,
+    Guid ActorUserId,
+    string ActorRole,
+    Guid? ActorDoctorId,
+    Guid? ActorPatientId,
+    Guid? AppointmentId,
+    Guid? PatientId,
+    Guid? MedicalReportId,
+    string Action,
+    string Outcome,
+    string? IpAddress,
+    DateTimeOffset Timestamp,
+    Guid? CorrelationId
+);
