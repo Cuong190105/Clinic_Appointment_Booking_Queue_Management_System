@@ -403,9 +403,9 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 - Mỗi lần lễ tân check-in một appointment riêng; frontend chờ Queue lưu ticket thật, hiển thị và in vé đó rồi mới cho tiếp nhận/check-in người tiếp theo. Khi còn pending không hiển thị số 0, không cho in hoặc chuyển lượt; retry/in lại dùng cùng AppointmentId/ticket và không cấp số lần hai. Không gom check-in thành batch.
 - **Quyền thao tác sau check-in:** lễ tân chỉ gọi số, bỏ qua ticket `Waiting`, chỉnh ưu tiên khi `Waiting`, và retry ticket `Skipped`; không bắt đầu/hoàn tất khám. Bác sĩ được gọi ticket tiếp theo khi ticket trước chưa hoàn tất; chỉ bỏ qua ticket `Called` chưa bắt đầu khám. Ticket `Skipped` hiển thị cho lễ tân để retry thủ công về `Waiting`, không tự gọi.
 
-### Cập nhật thiết kế sau nghiệm thu (2026-10-25)
+### Cập nhật thiết kế sau nghiệm thu (2026-10-26)
 
-Các quy tắc quyền và vòng đời thao tác trên đã được chốt bổ sung sau lần nghiệm thu Queue. Code API/domain/frontend và test manager đã được cập nhật trong working tree/staging, nhưng chưa được chạy lại kiểm thử/build/runtime acceptance sau commit `c13a7ef`. Vì vậy phần thiết kế đã chốt; trạng thái triển khai cần được đánh dấu hoàn tất sau khi các kiểm tra đó pass. Chi tiết và checklist xác minh: [`PHASE_4_QUEUE_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_4_QUEUE_SERVICE_EXECUTION_PLAN_MEMBER_A.md), mục 9.5.
+Các quy tắc quyền và vòng đời thao tác trên đã được triển khai trong commit `3338c0c`, sau đó merge vào `main` qua `bbed7fb`. Chưa có bằng chứng kiểm thử/build/runtime acceptance sau merge; giữ phần nghiệm thu mở cho tới khi xác minh. Chi tiết và checklist: [`PHASE_4_QUEUE_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_4_QUEUE_SERVICE_EXECUTION_PLAN_MEMBER_A.md), mục 9.5.
 
 ### Lưu ý
 

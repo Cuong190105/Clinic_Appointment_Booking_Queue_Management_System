@@ -232,9 +232,11 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`TASK_MEMBER_
 
 Queue core đã tách khỏi Clinic và có API, DB riêng, cấp số/idempotency/outbox. Hủy sau check-in đã được xử lý trong source, migration đã áp dụng và RabbitMQ consumer khởi động mà không có lỗi topology trong logs. Kiểm thử manager bao phủ cancellation và event đến lệch thứ tự; chưa phát event hủy end-to-end bằng token/Appointment thật. Reconciliation read-only chạy thành công; kết quả mismatch cần diễn giải thủ công vì dữ liệu hiện là mock. Không tự replay hoặc chỉnh dữ liệu lệch.
 
-**Bổ sung thiết kế và trạng thái sau nghiệm thu (2026-10-25):** ma trận quyền lễ tân/bác sĩ và thao tác retry `Skipped` được cập nhật theo mục 2.2–2.3 ở trên. Phần code tương ứng hiện được staged, gồm endpoint/domain/frontend và điều chỉnh QueueManager tests; chưa chạy lại test/build/smoke trong lượt tài liệu này, do đó đây là trạng thái implement chờ xác minh, chưa phải kết quả nghiệm thu mới.
+**Bổ sung thiết kế và trạng thái sau nghiệm thu (2026-10-26):** ma trận quyền lễ tân/bác sĩ và thao tác retry `Skipped` đã được cập nhật trong source commit `3338c0c`, sau đó merge vào `main` qua `bbed7fb`. Chưa chạy lại test/build/smoke cho các thay đổi này; trạng thái là đã triển khai, chờ xác minh.
 
-Source diff cùng đợt còn bổ sung `GET /receptionist/queue-doctors` để lễ tân tải queue theo các bác sĩ có ca trong ngày; sửa màn bác sĩ cho phép nhiều ticket được gọi/đang khám song song và mở/tạo Draft report từ lượt `InProgress`; sửa hiển thị trạng thái queue. Các thay đổi này chưa được smoke test sau commit `c13a7ef`. `queue-doctors.activeAppointmentsCount` hiện là placeholder `0`, không phải thống kê đã tính từ Appointment Service.
+Commit `3338c0c` còn bổ sung `GET /receptionist/queue-doctors` để lễ tân tải queue theo các bác sĩ có ca trong ngày; sửa màn bác sĩ cho phép nhiều ticket được gọi/đang khám song song và mở/tạo Draft report từ lượt `InProgress`; sửa hiển thị trạng thái queue. Chưa có bằng chứng smoke test các luồng này sau commit. `queue-doctors.activeAppointmentsCount` hiện là placeholder `0`, không phải thống kê đã tính từ Appointment Service.
+
+**Tương thích Identity sau merge:** merge `5e5edcf` tích hợp thay đổi Identity/Gateway của Member B; Queue và Gateway dựa trên role/permission claims trong JWT. Sau khi Identity khởi động và seed permission mapping, cần đăng nhập lại để nhận token mới rồi kiểm tra endpoint với từng vai trò. Chưa ghi nhận kiểm thử chấp nhận sau merge.
 
 ---
 
@@ -326,7 +328,7 @@ Source diff cùng đợt còn bổ sung `GET /receptionist/queue-doctors` để 
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Phase 2** | `Clinic.Scheduling.Service` | `ClinicSchedulingDB` | ✅ **Sạch 100%** (Đã drop 6 bảng) | ✅ Đạt (Dual-Constraint capacity, 10m lease) | ✅ Đạt (`SchedulingOutboxPublisher`, 122/122 sent) | 37/37 tests pass | **HOÀN TẤT & ĐẠT 100%** |
 | **Phase 3** | `Clinic.Appointment.Service` | `ClinicAppointmentDB` | ✅ Appointment schema/runtime đã gỡ khỏi ClinicDB; MedicalReports vẫn là module Clinic và dùng snapshot/API | ✅ Booking/Reschedule Saga, compensation | ✅ Appointment outbox/consumer | 33/33 Appointment tests ở mốc sau cutover | **HOÀN TẤT**; MedicalReports Service riêng là giai đoạn sau |
-| **Phase 4** | `Clinic.Queue.Service` | `ClinicQueueDB` | ✅ Queue tables/runtime đã gỡ khỏi ClinicDB; migration lịch sử được giữ | ✅ Atomic counter, Inbox/idempotency, cancellation event | ✅ Queue Outbox/Appointment consumer | 50/50 Queue tests ở mốc commit trước working diff hiện tại | **Queue core đã tách**; cập nhật phân quyền/UX mới đang chờ xác minh; P1 alert/replay vẫn mở |
+| **Phase 4** | `Clinic.Queue.Service` | `ClinicQueueDB` | ✅ Queue tables/runtime đã gỡ khỏi ClinicDB; migration lịch sử được giữ | ✅ Atomic counter, Inbox/idempotency, cancellation event | ✅ Queue Outbox/Appointment consumer | 50/50 Queue tests trước commit workflow vai trò | **Queue core đã tách**; workflow quyền/UX đã merge, chờ xác minh; P1 alert/replay vẫn mở |
 
-**Mốc kiểm thử gần nhất được ghi nhận trước working diff hiện tại:** Queue Service **50/50 passed**, Appointment Service **33/33 passed**. Đây không phải bằng chứng cho các thay đổi đang staged sau commit `c13a7ef`. Reconciliation script chỉ đọc, không tự sửa dữ liệu mock. Chưa chạy thao tác cancel/check-in bằng account đã xác thực trên live API.
+**Mốc kiểm thử gần nhất trước commit workflow vai trò `3338c0c`:** Queue Service **50/50 passed**, Appointment Service **33/33 passed**. Các kết quả này không xác minh thay đổi trong commit `3338c0c` hoặc tương thích Identity sau merge. Reconciliation script chỉ đọc, không tự sửa dữ liệu mock. Chưa chạy thao tác cancel/check-in bằng account đã xác thực trên live API.
 

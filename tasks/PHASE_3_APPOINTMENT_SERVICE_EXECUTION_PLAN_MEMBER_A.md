@@ -597,4 +597,4 @@ Trong quá trình triển khai, kiểm thử thực tế từ cổng Frontend v�
 
 - Khi lượt khám đã `InProgress`, nút tạo/mở hồ sơ gọi `GET /medical-reports/appointment/{appointmentId}` trước; nếu chưa có hồ sơ (404), frontend tạo Draft qua `POST /medical-reports` rồi mở trang chi tiết. Không yêu cầu report trắng tách khỏi Appointment.
 - Thông báo lưu nháp/finalize thành công dùng `BaseAlert` với đúng prop `type="success"`; lỗi dùng `type="error"`. Trước đây view truyền `variant`, khiến alert success rơi về kiểu mặc định màu đỏ.
-- Source hiện có các thay đổi này trong working tree/staging. Chưa chạy lại frontend type-check/build hoặc xác nhận UI sau chuỗi commit mới; vì vậy đây là sửa đổi đã implement, chờ xác minh trước khi đánh dấu nghiệm thu.
+- Các thay đổi đã có trong commit `3338c0c` và merge vào `main` qua `bbed7fb`. Chưa chạy lại frontend type-check/build hoặc xác nhận UI sau merge; giữ trạng thái chờ xác minh trước khi đánh dấu nghiệm thu.

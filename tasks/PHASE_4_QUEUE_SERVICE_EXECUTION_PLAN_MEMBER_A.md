@@ -330,7 +330,7 @@ Các quyết định dưới đây là baseline chung cho triển khai và phố
 - [x] Gateway/frontend đã chuyển; không còn Queue write path vào ClinicDB.
 - [ ] Reconciliation có thể phát hiện queue ticket thiếu/trùng và trạng thái appointment lệch; có runbook xử lý.
 - [ ] Consumer cũ và đường ghi Queue cũ được tắt trước khi gỡ bảng; rollback có thứ tự rõ ràng và không cấp trùng queue number.
-- [ ] **Bổ sung 2026-10-25 — quyền thao tác theo vai trò:** Receptionist không thể start/complete; chỉ skip `Waiting`, đổi priority `Waiting`, retry `Skipped`. Doctor có thể gọi nhiều số khi lượt trước chưa hoàn tất; chỉ skip `Called`. Ticket `Skipped` hiển thị để Receptionist retry thủ công. Source/tests đã sửa; chờ chạy lại kiểm thử/build/runtime acceptance.
+- [ ] **Bổ sung 2026-10-26 — quyền thao tác theo vai trò:** Receptionist không thể start/complete; chỉ gọi số, skip `Waiting`, đổi priority `Waiting`, retry `Skipped`. Doctor có thể gọi số tiếp theo khi lượt trước chưa hoàn tất; chỉ skip ticket `Called`. Ticket `Skipped` hiển thị để Receptionist retry thủ công. Source đã merge trong `bbed7fb`; kiểm thử/build/runtime acceptance sau merge còn mở.
 
 ## 8. Tài liệu tham chiếu
 
@@ -364,8 +364,8 @@ Các quyết định dưới đây là baseline chung cho triển khai và phố
 - **Import:** queue importer chạy kèm `verify-queue-import.sql`, thoát 0 khi không thiếu source AppointmentId, không duplicate AppointmentId/QueueNumber, counter không thấp và snapshot tên đủ. Appointment importer đã sửa đọc DateOfBirth từ Persons và thoát 0; toàn bộ importer đã chạy trên Compose.
 - **Auth và observability (mốc kiểm tra trước thay đổi quyền mới):** GET Queue không có token trả 401; Receptionist token truy vấn ticket qua Gateway và Queue Service thành công. Các phép thử service token cho `sync-walkin` thuộc luồng cũ đã gỡ ở mục 9.4, không còn là endpoint hiện hành. `/metrics` trả metrics Queue; Prometheus target `http://queue-service:8080/metrics` trạng thái up. Health/readiness của backend, Appointment Service, Queue Service và frontend đều trả 200.
 - **Nghiệm thu luồng tại thời điểm trước khi chuyển hẳn walk-in (lịch sử):** một walk-in urgent tạo ticket #7 với `Priority=true` và snapshot bệnh nhân/bác sĩ; retry endpoint sync cũ trả cùng TicketId/QueueNumber. Luồng sync này đã bị gỡ ở mục 9.4; acceptance hiện hành cần dựa trên Appointment outbox + Queue consumer, không gọi lại endpoint cũ.
-- **Quyền và thao tác Queue (bổ sung 2026-10-25):** quyết định mới giới hạn lễ tân ở gọi số, bỏ qua ticket chưa gọi, đặt ưu tiên cho `Waiting`, và retry `Skipped`; chỉ bác sĩ mới bắt đầu/hoàn tất khám. Bác sĩ có thể gọi ticket tiếp theo khi ticket đã gọi/đang khám khác chưa hoàn tất; chỉ có thể bỏ qua ticket đang `Called`. Code API/domain/frontend và test manager đã được cập nhật trong working tree/staging, nhưng lượt cập nhật tài liệu này chưa chạy lại test, build hoặc smoke test, nên chưa đánh dấu nghiệm thu.
-- **Kiểm thử/build tại các mốc commit:** lần chạy full solution 411/411 là baseline cũ (Queue 44, Appointment 30), không đại diện cho source sau các commit fix. Báo cáo audit sau đó ghi nhận Queue 50/50 và Appointment 33/33. Các thay đổi đang staged sau `c13a7ef` tiếp tục sửa tests và workflow vai trò, chưa được chạy lại; xem mục 9.5 trước khi dùng các số này làm bằng chứng cho source hiện tại.
+- **Quyền và thao tác Queue (bổ sung 2026-10-26):** quyết định đã được triển khai trong commit `3338c0c` và merge vào `main` (`bbed7fb`): lễ tân chỉ gọi số, bỏ qua ticket chưa gọi, đặt ưu tiên `Waiting`, retry `Skipped`; bác sĩ có thể gọi ticket tiếp theo khi ticket khác đã gọi/đang khám chưa hoàn tất và chỉ bỏ qua ticket `Called`. Chưa chạy lại test, build hoặc smoke test sau merge; nghiệm thu còn mở.
+- **Kiểm thử/build tại các mốc commit:** lần chạy full solution 411/411 là baseline cũ (Queue 44, Appointment 30), không đại diện cho source sau các commit fix. Báo cáo audit sau đó ghi nhận Queue 50/50 và Appointment 33/33 trước workflow vai trò. Commit `3338c0c` cập nhật tests và workflow vai trò; chưa có kết quả chạy lại sau commit/merge, nên các số baseline không phải bằng chứng cho thay đổi mới.
 
 ### 9.3. Sai khác và việc còn mở
 
@@ -415,14 +415,14 @@ Ngày 2026-10-25, chủ dự án chốt lại quyền và trình tự thao tác 
 - **Retry bị bỏ qua:** các ticket `Skipped` vẫn xuất hiện ở màn hình lễ tân; nút retry chuyển ticket về `Waiting` và không tự gọi số. Lễ tân thực hiện retry thủ công.
 - **Bất biến quyền:** quyền được thực thi ở API/service, không chỉ ẩn nút frontend; quyền complete/start vẫn thuộc bác sĩ theo hàng đợi của họ (Admin theo policy hiện hành).
 
-**Trạng thái source:** các thay đổi API, Queue domain/manager, role-permission mapping, frontend bác sĩ/lễ tân và QueueManager tests hiện có trong working tree/staging. Phần implement đã có, nhưng cần chạy Queue Service tests, frontend type-check/build, Docker Compose build/recreate và smoke test các role trước khi đánh dấu hoàn tất. Tiêu chí nghiệm thu được ghi tại mục 7 và sẽ được đánh dấu sau khi các kiểm tra này pass.
+**Trạng thái source:** các thay đổi API, Queue domain/manager, role-permission mapping, frontend bác sĩ/lễ tân và QueueManager tests đã merge vào `main` qua `bbed7fb`. Cần chạy Queue Service tests, frontend type-check/build, Docker Compose build/recreate và smoke test từng role trước khi đánh dấu hoàn tất. Tiêu chí nghiệm thu được ghi tại mục 7.
 
 **Các sửa đổi liên quan cùng đợt source:**
 
 - Màn hàng đợi lễ tân lấy danh sách bác sĩ đang có ca qua `GET /receptionist/queue-doctors`, rồi tải queue của các bác sĩ đó; trạng thái `Called`, `InProgress`, `Skipped`, `Cancelled` được hiển thị riêng. Đây xử lý đường tải dữ liệu cũ vốn suy đoán một doctor ID từ `/doctors`.
 - Lễ tân có nút gọi ticket, skip `Waiting`, đổi ưu tiên `Waiting`, retry `Skipped`; không còn nút complete. Backend queue-doctors/queue actions yêu cầu authorization.
 - Bác sĩ có thể tiếp tục gọi các lượt đang chờ khi lượt đã gọi/đang khám khác chưa hoàn tất; mỗi hàng `Called` có thao tác bắt đầu/skip, mỗi hàng `InProgress` có thao tác mở hồ sơ/hoàn tất.
-- Các mục trên mới được xác nhận bằng việc đọc source/staged diff, chưa xác minh response runtime, token permissions sau khi seed Identity hoặc hành vi nhiều doctor queues trên DB hiện chạy. `activeAppointmentsCount` trong response `queue-doctors` hiện là giá trị placeholder `0`; queue UI không nên dùng trường này như số liệu tải thực.
+- Các mục trên được xác nhận qua source đã merge; chưa xác minh response runtime, token permissions sau khi seed Identity hoặc hành vi nhiều doctor queues trên DB hiện chạy. Sau khi Identity seed permission mapping, cần đăng nhập lại lấy JWT mới để kiểm tra quyền. `activeAppointmentsCount` trong response `queue-doctors` hiện là giá trị placeholder `0`; queue UI không nên dùng trường này như số liệu tải thực.
 
 ## 10. Kế hoạch hoàn tất các tồn đọng Queue sau rà soát 2026-10-25
 
