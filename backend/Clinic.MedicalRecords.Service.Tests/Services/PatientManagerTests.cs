@@ -128,6 +128,7 @@ public class PatientManagerTests
 
         var patientId = Guid.NewGuid();
         var identityUserId = Guid.NewGuid();
+        var personId = Guid.NewGuid();
 
         var patient = new Entities.Patient(
             id: patientId,
@@ -140,18 +141,20 @@ public class PatientManagerTests
             address: "Old Address",
             insuranceNumber: "INS001",
             emergencyContact: null
-        );
+        ) { PersonId = personId };
         db.Patients.Add(patient);
         await db.SaveChangesAsync();
 
         var evt = new UserProfileUpdated(
-            PersonId: patientId,
+            PersonId: personId,
             FullName: "New Synchronized Name",
             PhoneNumber: "0987654321",
             Email: "new@test.com",
             Gender: "Male",
             DateOfBirth: new DateOnly(1990, 1, 1),
-            Address: "New Synchronized Address"
+            Address: "New Synchronized Address",
+            PatientId: patientId,
+            IdentityUserId: identityUserId
         );
 
         var result = await manager.HandleUserProfileUpdatedAsync(evt);

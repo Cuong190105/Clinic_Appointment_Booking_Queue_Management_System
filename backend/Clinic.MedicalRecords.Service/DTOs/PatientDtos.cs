@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Clinic.Contracts.Serialization;
+
 namespace Clinic.MedicalRecords.Service.DTOs;
 
 public record CreatePatientRequest(
@@ -5,16 +8,30 @@ public record CreatePatientRequest(
     string? PhoneNumber,
     string? Email,
     DateOnly DateOfBirth,
-    string Gender,
+    [property: JsonConverter(typeof(GenderStringJsonConverter))] string Gender,
     string Address,
     string? InsuranceNumber = null,
     string? EmergencyContact = null,
     Guid? IdentityUserId = null
 );
 
+public record ProvisionIdentityPatientRequest(
+    Guid PatientId,
+    Guid PersonId,
+    Guid IdentityUserId,
+    string FullName,
+    string? PhoneNumber,
+    string? Email,
+    DateOnly DateOfBirth,
+    string Gender,
+    string Address
+);
+
+public record IdentityRegistrationPatientIds(Guid PersonId, Guid PatientId);
+
 public record UpdatePatientRequest(
     string? Email,
-    string Gender,
+    [property: JsonConverter(typeof(GenderStringJsonConverter))] string Gender,
     string Address,
     string? InsuranceNumber = null,
     string? EmergencyContact = null

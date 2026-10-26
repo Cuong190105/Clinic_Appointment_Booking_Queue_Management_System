@@ -366,6 +366,9 @@ namespace Clinic.MedicalRecords.Service.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("PersonId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -381,9 +384,47 @@ namespace Clinic.MedicalRecords.Service.Migrations
                         .IsUnique()
                         .HasFilter("[IdentityUserId] IS NOT NULL");
 
+                    b.HasIndex("PersonId")
+                        .IsUnique()
+                        .HasFilter("[PersonId] IS NOT NULL");
+
                     b.HasIndex("PhoneNumber");
 
                     b.ToTable("Patients", (string)null);
+                });
+
+            modelBuilder.Entity("Clinic.MedicalRecords.Service.Entities.PatientProjectionOutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LastAttemptAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("ProcessedAt", "CreatedAt");
+
+                    b.ToTable("PatientProjectionOutbox", (string)null);
                 });
 
             modelBuilder.Entity("Clinic.MedicalRecords.Service.Entities.MedicalReport", b =>

@@ -1,6 +1,7 @@
 /*
   Post-import Medical Records reconciliation report.
-  Compares row counts and validates relational integrity between ClinicDB and ClinicMedicalRecordsDB.
+  Compares source coverage and validates relational integrity between ClinicDB and ClinicMedicalRecordsDB.
+  Target-owned mutable fields (such as report Status) are not compared with the legacy source after cutover.
   All MismatchCount values should be 0.
 */
 SET NOCOUNT ON;
@@ -22,10 +23,22 @@ FROM
 ORDER BY Entity;
 
 -- 2. Data integrity, relational checks, and mismatch validations
-SELECT CheckName, MismatchCount
-FROM
+DECLARE @Checks TABLE (CheckName nvarchar(200) NOT NULL, MismatchCount bigint NOT NULL);
+INSERT INTO @Checks (CheckName, MismatchCount)
+SELECT CheckName, MismatchCount FROM
 (
-    SELECT N'Patients missing FullName' AS CheckName, COUNT_BIG(*) AS MismatchCount
+    SELECT N'Source Patients missing from target' AS CheckName, COUNT_BIG(*) AS MismatchCount
+    FROM ClinicDB.dbo.Patients AS src
+    WHERE NOT EXISTS (SELECT 1 FROM ClinicMedicalRecordsDB.dbo.Patients AS tgt WHERE tgt.Id = src.Id)
+    UNION ALL SELECT N'Source MedicalReports missing from target', COUNT_BIG(*)
+    FROM ClinicDB.dbo.MedicalReports AS src
+    WHERE NOT EXISTS (SELECT 1 FROM ClinicMedicalRecordsDB.dbo.MedicalReports AS tgt WHERE tgt.Id = src.Id)
+    UNION ALL SELECT N'Patient identity link mismatch', COUNT_BIG(*)
+    FROM ClinicDB.dbo.Patients AS src
+    INNER JOIN ClinicMedicalRecordsDB.dbo.Patients AS tgt ON tgt.Id = src.Id
+    WHERE ISNULL(CONVERT(nvarchar(36), tgt.PersonId), N'') <> CONVERT(nvarchar(36), src.PersonId)
+       OR ISNULL(CONVERT(nvarchar(36), tgt.IdentityUserId), N'') <> ISNULL(CONVERT(nvarchar(36), (SELECT p.IdentityUserId FROM ClinicDB.dbo.Persons p WHERE p.Id = src.PersonId)), N'')
+    UNION ALL SELECT N'Patients missing FullName', COUNT_BIG(*)
     FROM ClinicMedicalRecordsDB.dbo.Patients AS p
     WHERE p.FullName IS NULL OR p.FullName = ''
 
@@ -49,9 +62,8 @@ FROM
     FROM ClinicMedicalRecordsDB.dbo.MedicalReports AS mr
     WHERE mr.Status NOT IN (N'Draft', N'Finalized')
 
-    UNION ALL SELECT N'Status mismatch between ClinicDB and MedicalRecordsDB', COUNT_BIG(*)
-    FROM ClinicDB.dbo.MedicalReports AS src
-    INNER JOIN ClinicMedicalRecordsDB.dbo.MedicalReports AS tgt ON src.Id = tgt.Id
-    WHERE (tgt.Status = N'Finalized' AND src.Status NOT IN (N'Finalized', N'1'))
-       OR (tgt.Status = N'Draft' AND src.Status IN (N'Finalized', N'1'))
 ) AS integrityChecks;
+
+SELECT CheckName, MismatchCount FROM @Checks ORDER BY CheckName;
+IF EXISTS (SELECT 1 FROM @Checks WHERE MismatchCount <> 0)
+    THROW 51002, 'Medical Records import verification failed. Review mismatch counts above.', 1;

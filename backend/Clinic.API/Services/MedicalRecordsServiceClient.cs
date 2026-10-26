@@ -118,6 +118,21 @@ public sealed class MedicalRecordsServiceClient
         return false;
     }
 
+    public async Task<T?> GetInternalAsync<T>(string targetPath, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(_serviceToken)) return default;
+        using var request = new HttpRequestMessage(HttpMethod.Get, targetPath);
+        request.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", _serviceToken);
+        try
+        {
+            using var response = await _client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode) return default;
+            return await response.Content.ReadFromJsonAsync<T>(cancellationToken: ct);
+        }
+        catch (HttpRequestException) when (!ct.IsCancellationRequested) { return default; }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return default; }
+    }
+
     public async Task<ServiceReadResult<T>> GetResultAsync<T>(HttpContext httpContext, string targetPath, CancellationToken ct = default)
     {
         try

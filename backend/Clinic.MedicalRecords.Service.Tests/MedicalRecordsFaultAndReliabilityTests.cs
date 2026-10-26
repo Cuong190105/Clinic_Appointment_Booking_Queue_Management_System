@@ -72,6 +72,9 @@ public class MedicalRecordsFaultAndReliabilityTests
         db.Patients.Add(new Patient(patientId, null, "Patient One", "0901234567", null, new DateOnly(1995, 1, 1), "Female", null, null, null));
         await db.SaveChangesAsync();
 
+        await manager.HandleExamStartedAsync(new ExamStarted(Guid.NewGuid(), appointmentId, patientId, doctorId,
+            "Dr. Doctor", new DateOnly(2026, 10, 26), DateTimeOffset.UtcNow));
+
         // Doctor saves Draft report
         var draft = await manager.SaveReportAsync(
             new SaveMedicalReportRequest(
@@ -108,7 +111,7 @@ public class MedicalRecordsFaultAndReliabilityTests
         Assert.Equal("Draft", reportAfterExamCompleted.Status);
 
         // Only explicit doctor finalize transitions to Finalized
-        var finalized = await manager.FinalizeReportAsync(draft.Id, currentUserId: doctorId, currentRole: "Doctor");
+        var finalized = await manager.FinalizeReportAsync(draft.Id, currentUserId: doctorId, currentRole: "Doctor", currentDoctorId: doctorId);
         Assert.Equal("Finalized", finalized.Status);
     }
 
@@ -136,9 +139,16 @@ public class MedicalRecordsFaultAndReliabilityTests
         var exception = await Record.ExceptionAsync(() => manager.HandleExamCompletedAsync(completedEvent));
         Assert.Null(exception);
 
-        // Encounter context was not previously created, so it remains null without corrupting state
+        // A completion arriving first creates a terminal tombstone, so a later start cannot regress it.
         var context = await db.EncounterContexts.FindAsync(appointmentId);
-        Assert.Null(context);
+        Assert.NotNull(context);
+        Assert.Equal("Completed", context.Status);
+
+        await manager.HandleExamStartedAsync(new ExamStarted(Guid.NewGuid(), appointmentId, Guid.NewGuid(), doctorId,
+            "Dr. Late", DateOnly.FromDateTime(DateTime.UtcNow), DateTimeOffset.UtcNow));
+        context = await db.EncounterContexts.FindAsync(appointmentId);
+        Assert.Equal("Completed", context!.Status);
+        Assert.Equal(doctorId, context.DoctorId);
     }
 
     [Fact]

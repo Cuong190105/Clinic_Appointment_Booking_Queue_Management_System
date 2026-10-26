@@ -460,6 +460,15 @@ Execution plan theo từng bước và phân công phối hợp A/B: [`PHASE_5_M
 
 ---
 
+### Kết quả nghiệm thu Phase 5 (2026-10-26)
+
+- **Hoàn tất:** Medical Records sở hữu Patient và MedicalReport; Gateway proxy, Identity linkage, Appointment projection/outbox, authorization/audit, import/reconciliation và các luồng Docker E2E đã được nghiệm thu.
+- Kiểm thử chính: Medical Records **51/51**, Appointment **34/34**, Contracts **6/6**, API proxy **1/1**, Application **24/24**, Infrastructure **17/17**; các build liên quan thành công.
+- Người dùng xác nhận kiểm tra thực tế thành công các luồng Patient self-registration, receptionist add-patient và retry outbox khi Appointment Service phục hồi.
+- ClinicDB legacy được giữ làm nguồn đã đối soát trên dữ liệu mock. Xóa vật lý bảng legacy cần backup và được ghi nhận là cleanup schema riêng, không phải acceptance blocker của Phase 5.
+- Chi tiết nghiệm thu: [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md), Mục 13.
+
+---
 ## Giai đoạn 6: Tách Notification Service và hoàn thiện Gateway
 
 ### Nhiệm vụ

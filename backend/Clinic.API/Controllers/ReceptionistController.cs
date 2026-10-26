@@ -1,10 +1,6 @@
 using Clinic.API.Models;
 using Clinic.API.Services;
 using Clinic.Application.Contracts;
-using Clinic.Application.Features.Patients.Commands;
-using Clinic.Application.Interfaces;
-using MapsterMapper;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,20 +14,11 @@ namespace Clinic.API.Controllers
     [Route("/receptionist")]
     public class ReceptionistController : ControllerBase
     {
-        private readonly ISender _sender;
-        private readonly IMapper _mapper;
-        private readonly ICurrentUser _currentUser;
         private readonly AppointmentServiceClient _appointmentClient;
 
         public ReceptionistController(
-            ISender sender,
-            IMapper mapper,
-            ICurrentUser currentUser,
             AppointmentServiceClient appointmentClient)
         {
-            _sender = sender;
-            _mapper = mapper;
-            _currentUser = currentUser;
             _appointmentClient = appointmentClient;
         }
 

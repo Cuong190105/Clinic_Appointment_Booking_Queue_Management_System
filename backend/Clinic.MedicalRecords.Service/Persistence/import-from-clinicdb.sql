@@ -31,9 +31,18 @@ BEGIN TRY
         THROW 51002, 'Pre-import validation failed: Found MedicalReports referencing missing Patients in ClinicDB.', 1;
 
     -- 1. Import Patients (denormalizing Person data)
+    UPDATE target
+    SET target.PersonId = COALESCE(target.PersonId, pat.PersonId),
+        target.IdentityUserId = COALESCE(target.IdentityUserId, per.IdentityUserId)
+    FROM ClinicMedicalRecordsDB.dbo.Patients AS target
+    INNER JOIN ClinicDB.dbo.Patients AS pat ON pat.Id = target.Id
+    INNER JOIN ClinicDB.dbo.Persons AS per ON per.Id = pat.PersonId
+    WHERE target.PersonId IS NULL OR target.IdentityUserId IS NULL;
+
     INSERT INTO ClinicMedicalRecordsDB.dbo.Patients (
         Id,
         IdentityUserId,
+        PersonId,
         FullName,
         PhoneNumber,
         Email,
@@ -49,6 +58,7 @@ BEGIN TRY
     SELECT 
         pat.Id,
         per.IdentityUserId,
+        pat.PersonId,
         COALESCE(per.FullName, N'Unknown Patient'),
         per.PhoneNumber,
         per.Email,

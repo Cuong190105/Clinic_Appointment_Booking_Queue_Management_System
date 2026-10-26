@@ -38,6 +38,11 @@ public class MedicalRecordsImportVerificationTests
         Assert.Contains("MedicalReports missing Patient reference", verifySql);
         Assert.Contains("duplicate AppointmentId", verifySql);
         Assert.Contains("invalid Status", verifySql);
+        Assert.Contains("Patient identity link mismatch", verifySql);
+        Assert.Contains("THROW 51002", verifySql);
+        Assert.DoesNotContain("Status mismatch between ClinicDB and MedicalRecordsDB", verifySql);
+        Assert.Contains("PersonId", importSql);
+        Assert.Contains("IdentityUserId", importSql);
     }
 
     [Fact]

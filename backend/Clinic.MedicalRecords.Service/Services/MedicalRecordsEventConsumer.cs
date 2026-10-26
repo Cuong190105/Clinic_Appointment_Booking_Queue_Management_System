@@ -3,6 +3,9 @@ using System.Text.Json;
 using Clinic.Contracts.Events;
 using Clinic.Contracts.Serialization;
 using Clinic.MedicalRecords.Service.Services;
+using Clinic.MedicalRecords.Service.Entities;
+using Clinic.MedicalRecords.Service.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -88,7 +91,13 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
         _channel = await _connection.CreateChannelAsync(cancellationToken: ct);
 
         const string exchangeName = "clinic.events";
-        const string queueName = "clinic.medical-records.events";
+        const string queueName = "clinic.medical-records.events.v2";
+        const string deadLetterExchange = "clinic.events.dlx";
+        const string deadLetterQueue = "clinic.medical-records.events.dead";
+
+        await _channel.ExchangeDeclareAsync(deadLetterExchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: ct);
+        await _channel.QueueDeclareAsync(deadLetterQueue, durable: true, exclusive: false, autoDelete: false, cancellationToken: ct);
+        await _channel.QueueBindAsync(deadLetterQueue, deadLetterExchange, queueName, cancellationToken: ct);
 
         await _channel.ExchangeDeclareAsync(
             exchange: exchangeName,
@@ -102,6 +111,11 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
             durable: true,
             exclusive: false,
             autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-dead-letter-exchange"] = deadLetterExchange,
+                ["x-dead-letter-routing-key"] = queueName
+            },
             cancellationToken: ct);
 
         await _channel.QueueBindAsync(
@@ -130,6 +144,14 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
                 var json = Encoding.UTF8.GetString(args.Body.Span);
                 await using var scope = _serviceProvider.CreateAsyncScope();
                 var manager = scope.ServiceProvider.GetRequiredService<IMedicalRecordsManager>();
+                var db = scope.ServiceProvider.GetRequiredService<MedicalRecordsDbContext>();
+                Guid? eventId = Guid.TryParse(args.BasicProperties.MessageId, out var messageId) ? messageId : null;
+                string eventType = "Unknown";
+                int schemaVersion = 1;
+                Guid? correlationId = null;
+                EventEnvelope<UserProfileUpdated>? userEnvelope = null;
+                EventEnvelope<ExamStarted>? startedEnvelope = null;
+                EventEnvelope<ExamCompleted>? completedEnvelope = null;
 
                 if (args.RoutingKey == "identity.user-profile-updated" || json.Contains(EventTypes.UserProfileUpdated))
                 {
@@ -139,6 +161,8 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
                         var envelope = JsonSerializer.Deserialize<EventEnvelope<UserProfileUpdated>>(
                             json,
                             EventJsonSerializerOptions.Default);
+                        userEnvelope = envelope;
+                        if (envelope is not null) eventId = envelope.EventId;
                         payload = envelope?.Payload;
                     }
                     catch { }
@@ -147,6 +171,10 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
 
                     if (payload != null)
                     {
+                        if (payload.PersonId == Guid.Empty || string.IsNullOrWhiteSpace(payload.FullName))
+                            throw new FormatException("UserProfileUpdated event is missing identity fields.");
+                        eventType = EventTypes.UserProfileUpdated;
+                        await EnsureNotProcessedAsync(db, eventId, ct);
                         await manager.HandleUserProfileUpdatedAsync(payload, ct);
                         _logger.LogInformation("Processed UserProfileUpdated event for PersonId={PersonId}", payload.PersonId);
                     }
@@ -159,6 +187,8 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
                         var envelope = JsonSerializer.Deserialize<EventEnvelope<ExamStarted>>(
                             json,
                             EventJsonSerializerOptions.Default);
+                        startedEnvelope = envelope;
+                        if (envelope is not null) eventId = envelope.EventId;
                         payload = envelope?.Payload;
                     }
                     catch { }
@@ -167,6 +197,10 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
 
                     if (payload != null)
                     {
+                        if (payload.AppointmentId == Guid.Empty || payload.PatientId == Guid.Empty || payload.DoctorId == Guid.Empty)
+                            throw new FormatException("ExamStarted event is missing required encounter identifiers.");
+                        eventType = EventTypes.ExamStarted;
+                        await EnsureNotProcessedAsync(db, eventId, ct);
                         await manager.HandleExamStartedAsync(payload, ct);
                         _logger.LogInformation("Processed ExamStarted event for AppointmentId={AppointmentId}", payload.AppointmentId);
                     }
@@ -179,6 +213,8 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
                         var envelope = JsonSerializer.Deserialize<EventEnvelope<ExamCompleted>>(
                             json,
                             EventJsonSerializerOptions.Default);
+                        completedEnvelope = envelope;
+                        if (envelope is not null) eventId = envelope.EventId;
                         payload = envelope?.Payload;
                     }
                     catch { }
@@ -187,11 +223,49 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
 
                     if (payload != null)
                     {
+                        if (payload.AppointmentId == Guid.Empty || payload.DoctorId == Guid.Empty)
+                            throw new FormatException("ExamCompleted event is missing required identifiers.");
+                        eventType = EventTypes.ExamCompleted;
+                        await EnsureNotProcessedAsync(db, eventId, ct);
                         await manager.HandleExamCompletedAsync(payload, ct);
                         _logger.LogInformation("Processed ExamCompleted event for AppointmentId={AppointmentId}", payload.AppointmentId);
                     }
                 }
 
+                if (eventId.HasValue)
+                {
+                    object? envelope = userEnvelope ?? (object?)startedEnvelope ?? completedEnvelope;
+                    if (envelope is not null)
+                    {
+                        var metadata = envelope switch
+                        {
+                            EventEnvelope<UserProfileUpdated> e => (e.EventId, e.EventType, e.SchemaVersion, (Guid?)e.CorrelationId),
+                            EventEnvelope<ExamStarted> e => (e.EventId, e.EventType, e.SchemaVersion, (Guid?)e.CorrelationId),
+                            EventEnvelope<ExamCompleted> e => (e.EventId, e.EventType, e.SchemaVersion, (Guid?)e.CorrelationId),
+                            _ => (eventId.Value, eventType, schemaVersion, correlationId)
+                        };
+                        db.InboxMessages.Add(new InboxMessage
+                        {
+                            ConsumerName = "medical-records",
+                            EventId = metadata.Item1,
+                            EventType = metadata.Item2,
+                            SchemaVersion = metadata.Item3,
+                            CorrelationId = metadata.Item4,
+                            Status = InboxMessageStatus.Processed,
+                            ProcessedAt = DateTimeOffset.UtcNow
+                        });
+                        await db.SaveChangesAsync(ct);
+                    }
+                }
+                else if (eventType == "Unknown")
+                {
+                    throw new FormatException("Unsupported or malformed integration event payload.");
+                }
+
+                await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, ct);
+            }
+            catch (DuplicateIntegrationEventException)
+            {
                 await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, ct);
             }
             catch (Exception ex)
@@ -220,6 +294,13 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
         }
     }
 
+    private static async Task EnsureNotProcessedAsync(MedicalRecordsDbContext db, Guid? eventId, CancellationToken ct)
+    {
+        if (eventId.HasValue && await db.InboxMessages.AnyAsync(
+                m => m.ConsumerName == "medical-records" && m.EventId == eventId.Value && m.Status == InboxMessageStatus.Processed, ct))
+            throw new DuplicateIntegrationEventException();
+    }
+
     private async Task DisconnectAsync()
     {
         try
@@ -243,3 +324,5 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
         }
     }
 }
+
+internal sealed class DuplicateIntegrationEventException : Exception { }

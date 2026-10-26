@@ -367,6 +367,7 @@ services:
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
+            - Appointment__Authority=http://appointment-service:8080
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - RabbitMq__Host=rabbitmq

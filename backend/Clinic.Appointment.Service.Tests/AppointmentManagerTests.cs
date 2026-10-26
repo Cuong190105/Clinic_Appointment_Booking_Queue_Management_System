@@ -590,4 +590,22 @@ public class AppointmentManagerTests
         Assert.Equal("0988776655", projection.PhoneNumber);
         Assert.Equal("Female", projection.Gender);
     }
+
+    [Fact]
+    public async Task ProcessUserProfileUpdatedAsync_UsesPatientIdAndIdentityIdInsteadOfPersonIdAsPatientKey()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var personId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var identityUserId = Guid.NewGuid();
+        var evt = new UserProfileUpdated(personId, "Patient Name", "0900000000", null, "Other",
+            DateOnly.FromDateTime(DateTime.UtcNow), "Address", patientId, identityUserId);
+
+        Assert.True(await manager.ProcessUserProfileUpdatedAsync(evt));
+        var projection = await db.PatientProjections.FindAsync(patientId);
+        Assert.NotNull(projection);
+        Assert.Equal(personId, projection.PersonId);
+        Assert.Equal(identityUserId, projection.IdentityUserId);
+        Assert.Equal("Patient Name", projection.FullName);
+    }
 }

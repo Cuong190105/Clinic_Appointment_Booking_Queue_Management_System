@@ -4,6 +4,7 @@ public class Patient
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid? IdentityUserId { get; set; }
+    public Guid? PersonId { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
     public string? Email { get; set; }
@@ -65,6 +66,13 @@ public class Patient
         IdentityUserId = identityUserId;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    public void LinkPerson(Guid personId)
+    {
+        PersonId = personId;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
 
     public void UpdateProjectionFromIdentity(
         string fullName,

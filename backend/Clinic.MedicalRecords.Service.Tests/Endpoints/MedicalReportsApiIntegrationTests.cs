@@ -1,17 +1,23 @@
 using System.Net;
 using System.Net.Http.Json;
 using Clinic.MedicalRecords.Service.DTOs;
+using Clinic.MedicalRecords.Service.Persistence;
+using Clinic.MedicalRecords.Service.Services;
 using Clinic.MedicalRecords.Service.Tests.Fixtures;
 using Xunit;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Clinic.MedicalRecords.Service.Tests.Endpoints;
 
 public class MedicalReportsApiIntegrationTests : IClassFixture<MedicalRecordsServiceFactory>
 {
     private readonly HttpClient _client;
+    private readonly MedicalRecordsServiceFactory _factory;
 
     public MedicalReportsApiIntegrationTests(MedicalRecordsServiceFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient();
     }
 
@@ -25,6 +31,7 @@ public class MedicalReportsApiIntegrationTests : IClassFixture<MedicalRecordsSer
 
         var appointmentId = Guid.NewGuid();
         var doctorId = Guid.NewGuid();
+        await SeedEncounterAsync(appointmentId, patient.Id, doctorId);
 
         var reportReq = new SaveMedicalReportRequest(
             AppointmentId: appointmentId,
@@ -59,10 +66,12 @@ public class MedicalReportsApiIntegrationTests : IClassFixture<MedicalRecordsSer
         Assert.NotNull(patient);
 
         var appointmentId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+        await SeedEncounterAsync(appointmentId, patient.Id, doctorId);
         var reportReq = new SaveMedicalReportRequest(
             AppointmentId: appointmentId,
             PatientId: patient.Id,
-            DoctorId: Guid.NewGuid(),
+            DoctorId: doctorId,
             DoctorName: "Dr. James Wilson",
             SpecialtyName: "Oncology",
             ScheduleDate: new DateOnly(2026, 10, 26),
@@ -98,10 +107,12 @@ public class MedicalReportsApiIntegrationTests : IClassFixture<MedicalRecordsSer
         Assert.NotNull(patient);
 
         var appointmentId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+        await SeedEncounterAsync(appointmentId, patient.Id, doctorId);
         var reportReq = new SaveMedicalReportRequest(
             AppointmentId: appointmentId,
             PatientId: patient.Id,
-            DoctorId: Guid.NewGuid(),
+            DoctorId: doctorId,
             DoctorName: "Dr. Allison Cameron",
             SpecialtyName: "Immunology",
             ScheduleDate: new DateOnly(2026, 10, 26),
@@ -150,8 +161,12 @@ public class MedicalReportsApiIntegrationTests : IClassFixture<MedicalRecordsSer
         var patient = await patientResp.Content.ReadFromJsonAsync<PatientDto>();
         Assert.NotNull(patient);
 
-        var rep1 = new SaveMedicalReportRequest(Guid.NewGuid(), patient.Id, Guid.NewGuid(), "Dr. A", "General", new DateOnly(2026, 8, 1), "s1", "d1", "rx1", "n1", true);
-        var rep2 = new SaveMedicalReportRequest(Guid.NewGuid(), patient.Id, Guid.NewGuid(), "Dr. B", "Dental", new DateOnly(2026, 9, 1), "s2", "d2", "rx2", "n2", true);
+        var appointment1 = Guid.NewGuid(); var appointment2 = Guid.NewGuid();
+        var doctor1 = Guid.NewGuid(); var doctor2 = Guid.NewGuid();
+        await SeedEncounterAsync(appointment1, patient.Id, doctor1);
+        await SeedEncounterAsync(appointment2, patient.Id, doctor2);
+        var rep1 = new SaveMedicalReportRequest(appointment1, patient.Id, doctor1, "Dr. A", "General", new DateOnly(2026, 8, 1), "s1", "d1", "rx1", "n1", true);
+        var rep2 = new SaveMedicalReportRequest(appointment2, patient.Id, doctor2, "Dr. B", "Dental", new DateOnly(2026, 9, 1), "s2", "d2", "rx2", "n2", true);
         await _client.PostAsJsonAsync("/medical-records", rep1);
         await _client.PostAsJsonAsync("/medical-records", rep2);
 
@@ -171,5 +186,14 @@ public class MedicalReportsApiIntegrationTests : IClassFixture<MedicalRecordsSer
 
         var response = await _client.SendAsync(req);
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    private async Task SeedEncounterAsync(Guid appointmentId, Guid patientId, Guid doctorId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MedicalRecordsDbContext>();
+        var manager = new MedicalRecordsManager(db, NullLogger<MedicalRecordsManager>.Instance);
+        await manager.HandleExamStartedAsync(new Clinic.Contracts.Events.ExamStarted(Guid.NewGuid(), appointmentId,
+            patientId, doctorId, "Dr. Test", new DateOnly(2026, 10, 26), DateTimeOffset.UtcNow));
     }
 }

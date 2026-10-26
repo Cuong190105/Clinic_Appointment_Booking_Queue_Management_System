@@ -1,3 +1,5 @@
+using Clinic.Contracts.Events;
+
 namespace Clinic.MedicalRecords.Service.Entities;
 
 public class EncounterContext
@@ -39,8 +41,33 @@ public class EncounterContext
 
     public void MarkCompleted(DateTimeOffset completedAt)
     {
+        if (Status == "Completed") return;
         Status = "Completed";
         CompletedAt = completedAt;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkStarted(ExamStarted evt)
+    {
+        if (Status == "Completed")
+        {
+            // Keep the terminal state, but fill fields omitted by an earlier ExamCompleted event.
+            QueueTicketId = evt.QueueTicketId;
+            PatientId = evt.PatientId;
+            DoctorId = evt.DoctorId;
+            DoctorName = evt.DoctorName;
+            QueueDate = evt.QueueDate;
+            StartedAt = evt.StartedAt;
+            UpdatedAt = DateTimeOffset.UtcNow;
+            return;
+        }
+        QueueTicketId = evt.QueueTicketId;
+        PatientId = evt.PatientId;
+        DoctorId = evt.DoctorId;
+        DoctorName = evt.DoctorName;
+        QueueDate = evt.QueueDate;
+        StartedAt = evt.StartedAt;
+        Status = "Started";
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

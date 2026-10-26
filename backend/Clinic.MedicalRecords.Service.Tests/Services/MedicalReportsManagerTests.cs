@@ -31,6 +31,8 @@ public class MedicalReportsManagerTests
 
         var appointmentId = Guid.NewGuid();
         var doctorId = Guid.NewGuid();
+        await manager.HandleExamStartedAsync(new ExamStarted(Guid.NewGuid(), appointmentId, patient.Id, doctorId,
+            "Dr. Strange", new DateOnly(2026, 10, 26), DateTimeOffset.UtcNow));
 
         var request = new SaveMedicalReportRequest(
             AppointmentId: appointmentId,
@@ -91,7 +93,7 @@ public class MedicalReportsManagerTests
             IsFinalize: false
         );
 
-        var updated = await manager.UpdateReportDraftAsync(report.Id, updateReq, Guid.NewGuid(), "Doctor");
+        var updated = await manager.UpdateReportDraftAsync(report.Id, updateReq, Guid.NewGuid(), "Doctor", report.DoctorId);
 
         Assert.Equal("Severe headache and nausea", updated.Symptoms);
         Assert.Equal("Acute migraine", updated.Diagnosis);
@@ -126,7 +128,7 @@ public class MedicalReportsManagerTests
         var updateReq = new UpdateMedicalReportRequest("New symptoms", "New diag", "New rx", "New note", false);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            manager.UpdateReportDraftAsync(report.Id, updateReq, Guid.NewGuid(), "Doctor"));
+            manager.UpdateReportDraftAsync(report.Id, updateReq, Guid.NewGuid(), "Doctor", report.DoctorId));
     }
 
     [Fact]
@@ -152,11 +154,11 @@ public class MedicalReportsManagerTests
         db.MedicalReports.Add(report);
         await db.SaveChangesAsync();
 
-        var finalized1 = await manager.FinalizeReportAsync(report.Id, Guid.NewGuid(), "Doctor");
+        var finalized1 = await manager.FinalizeReportAsync(report.Id, Guid.NewGuid(), "Doctor", report.DoctorId);
         Assert.Equal("Finalized", finalized1.Status);
         Assert.NotNull(finalized1.ExamEndTime);
 
-        var finalized2 = await manager.FinalizeReportAsync(report.Id, Guid.NewGuid(), "Doctor");
+        var finalized2 = await manager.FinalizeReportAsync(report.Id, Guid.NewGuid(), "Doctor", report.DoctorId);
         Assert.Equal("Finalized", finalized2.Status);
         Assert.Equal(finalized1.ExamEndTime, finalized2.ExamEndTime);
     }
@@ -224,10 +226,11 @@ public class MedicalReportsManagerTests
         var manager = new MedicalRecordsManager(db, NullLogger<MedicalRecordsManager>.Instance);
 
         var appointmentId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
         var report = new MedicalReport(
             appointmentId: appointmentId,
             patientId: Guid.NewGuid(),
-            doctorId: Guid.NewGuid(),
+            doctorId: doctorId,
             doctorName: "Dr. Jekyll",
             specialtyName: "Psychiatry",
             scheduleDate: new DateOnly(2026, 10, 26),
@@ -242,7 +245,7 @@ public class MedicalReportsManagerTests
         var amendmentReq = new CreateAmendmentRequest("Reason", null, null, null, null);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            manager.CreateAmendmentAsync(appointmentId, amendmentReq, Guid.NewGuid(), "Doctor", Guid.NewGuid(), "Dr. Jekyll"));
+            manager.CreateAmendmentAsync(appointmentId, amendmentReq, Guid.NewGuid(), "Doctor", doctorId, "Dr. Jekyll"));
     }
 
     [Fact]

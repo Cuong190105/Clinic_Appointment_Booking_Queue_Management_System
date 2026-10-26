@@ -69,6 +69,12 @@ public static class MedicalRecordsEndpoints
         // Internal synchronization endpoint
         app.MapPost("/internal/events/user-profile-updated", HandleUserProfileUpdatedHandler)
            .AllowAnonymous();
+        app.MapPost("/internal/patients/provision-identity", ProvisionIdentityPatientHandler)
+           .AllowAnonymous();
+        app.MapGet("/internal/patients/resolve-registration", ResolveRegistrationPatientHandler)
+           .AllowAnonymous();
+        app.MapGet("/internal/patients/count", GetPatientCountHandler)
+           .AllowAnonymous();
 
         return app;
     }
@@ -77,15 +83,22 @@ public static class MedicalRecordsEndpoints
 
     private static async Task<IResult> CreatePatientHandler(
         [FromBody] CreatePatientRequest request,
+        ClaimsPrincipal user,
+        HttpContext httpContext,
         IMedicalRecordsManager manager,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.FullName))
+        if (string.IsNullOrWhiteSpace(request.FullName) || request.DateOfBirth == default ||
+            string.IsNullOrWhiteSpace(request.Gender) || string.IsNullOrWhiteSpace(request.Address))
         {
-            return Results.BadRequest(new { message = "FullName is required." });
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["request"] = ["FullName, DateOfBirth, Gender, and Address are required."]
+            });
         }
 
-        var result = await manager.CreatePatientAsync(request, ct);
+        var result = await manager.CreatePatientAsync(request, GetUserId(user), GetActorRole(user),
+            httpContext.Connection.RemoteIpAddress?.ToString(), ct);
         return Results.Created($"/patients/{result.Id}", result);
     }
 
@@ -93,20 +106,25 @@ public static class MedicalRecordsEndpoints
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? orderBy,
-        [FromQuery] int pageNumber,
-        [FromQuery] int pageSize,
+        [FromQuery] int? pageNumber,
+        [FromQuery] int? pageSize,
+        ClaimsPrincipal user,
+        HttpContext httpContext,
         IMedicalRecordsManager manager,
         CancellationToken ct)
     {
-        pageNumber = pageNumber <= 0 ? 1 : pageNumber;
-        pageSize = pageSize <= 0 ? 10 : pageSize;
-        var result = await manager.GetPagedPatientsAsync(search, sortBy, orderBy, pageNumber, pageSize, ct);
+        var page = !pageNumber.HasValue || pageNumber.Value <= 0 ? 1 : pageNumber.Value;
+        var size = !pageSize.HasValue || pageSize.Value <= 0 ? 10 : pageSize.Value;
+        var result = await manager.GetPagedPatientsAsync(search, sortBy, orderBy, page, size, ct);
+        await manager.RecordAccessAuditAsync(GetUserId(user), GetActorRole(user), GetDoctorId(user), GetPatientId(user),
+            null, null, null, "ViewPagedPatients", "Success", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
         return Results.Ok(result);
     }
 
     private static async Task<IResult> GetPatientByIdHandler(
         Guid id,
         ClaimsPrincipal user,
+        HttpContext httpContext,
         IMedicalRecordsManager manager,
         CancellationToken ct)
     {
@@ -121,24 +139,28 @@ public static class MedicalRecordsEndpoints
         if (!isStaff)
         {
             var userPatientId = user.FindFirstValue("patientId");
-            var userPersonId = user.FindFirstValue("personId");
             var userSub = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
 
             var matches = (userPatientId != null && Guid.TryParse(userPatientId, out var pid) && pid == id) ||
-                          (userPersonId != null && Guid.TryParse(userPersonId, out var personId) && personId == id) ||
                           (patient.IdentityUserId != null && userSub != null && Guid.TryParse(userSub, out var subGuid) && subGuid == patient.IdentityUserId);
 
             if (!matches)
             {
+                await manager.RecordAccessAuditAsync(GetUserId(user), GetActorRole(user), GetDoctorId(user), GetPatientId(user),
+                    null, id, null, "ViewPatient", "Denied", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
                 return Results.Forbid();
             }
         }
+
+        await manager.RecordAccessAuditAsync(GetUserId(user), GetActorRole(user), GetDoctorId(user), GetPatientId(user),
+            null, id, null, "ViewPatient", "Success", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
 
         return Results.Ok(patient);
     }
 
     private static async Task<IResult> GetMyPatientHandler(
         ClaimsPrincipal user,
+        HttpContext httpContext,
         IMedicalRecordsManager manager,
         CancellationToken ct)
     {
@@ -146,21 +168,24 @@ public static class MedicalRecordsEndpoints
         if (patientIdClaim != null && Guid.TryParse(patientIdClaim, out var patientId))
         {
             var patient = await manager.GetPatientByIdAsync(patientId, ct);
-            if (patient != null) return Results.Ok(patient);
-        }
-
-        var personIdClaim = user.FindFirstValue("personId");
-        if (personIdClaim != null && Guid.TryParse(personIdClaim, out var personId))
-        {
-            var patient = await manager.GetPatientByIdAsync(personId, ct);
-            if (patient != null) return Results.Ok(patient);
+            if (patient != null)
+            {
+                await manager.RecordAccessAuditAsync(GetUserId(user), GetActorRole(user), GetDoctorId(user), patient.Id,
+                    null, patient.Id, null, "ViewOwnPatient", "Success", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+                return Results.Ok(patient);
+            }
         }
 
         var subClaim = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
         if (subClaim != null && Guid.TryParse(subClaim, out var identityUserId))
         {
             var patient = await manager.GetPatientByIdentityUserIdAsync(identityUserId, ct);
-            if (patient != null) return Results.Ok(patient);
+            if (patient != null)
+            {
+                await manager.RecordAccessAuditAsync(GetUserId(user), GetActorRole(user), GetDoctorId(user), patient.Id,
+                    null, patient.Id, null, "ViewOwnPatient", "Success", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+                return Results.Ok(patient);
+            }
         }
 
         return Results.NotFound(new { message = "Patient profile not found for current user." });
@@ -169,6 +194,7 @@ public static class MedicalRecordsEndpoints
     private static async Task<IResult> UpdateMyPatientHandler(
         ClaimsPrincipal user,
         [FromBody] UpdatePatientRequest request,
+        HttpContext httpContext,
         IMedicalRecordsManager manager,
         CancellationToken ct)
     {
@@ -179,16 +205,6 @@ public static class MedicalRecordsEndpoints
         {
             targetPatientId = pid;
         }
-        else
-        {
-            var personIdClaim = user.FindFirstValue("personId");
-            if (personIdClaim != null && Guid.TryParse(personIdClaim, out var personId))
-            {
-                var patient = await manager.GetPatientByIdAsync(personId, ct);
-                if (patient != null) targetPatientId = patient.Id;
-            }
-        }
-
         if (targetPatientId == null)
         {
             var subClaim = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -204,17 +220,21 @@ public static class MedicalRecordsEndpoints
             return Results.NotFound(new { message = "Patient profile not found for current user." });
         }
 
-        var updated = await manager.UpdatePatientAsync(targetPatientId.Value, request, ct);
+        var updated = await manager.UpdatePatientAsync(targetPatientId.Value, request, GetUserId(user),
+            GetActorRole(user), httpContext.Connection.RemoteIpAddress?.ToString(), ct);
         return updated ? Results.NoContent() : Results.NotFound();
     }
 
     private static async Task<IResult> UpdatePatientByIdHandler(
         Guid id,
         [FromBody] UpdatePatientRequest request,
+        ClaimsPrincipal user,
+        HttpContext httpContext,
         IMedicalRecordsManager manager,
         CancellationToken ct)
     {
-        var updated = await manager.UpdatePatientAsync(id, request, ct);
+        var updated = await manager.UpdatePatientAsync(id, request, GetUserId(user), GetActorRole(user),
+            httpContext.Connection.RemoteIpAddress?.ToString(), ct);
         return updated ? Results.NoContent() : Results.NotFound(new { message = $"Patient with Id={id} was not found." });
     }
 
@@ -230,24 +250,27 @@ public static class MedicalRecordsEndpoints
         CancellationToken ct)
     {
         var currentUserId = GetUserId(user);
-        var currentRole = user.FindFirstValue(ClaimTypes.Role) ?? "Doctor";
+        var currentRole = GetActorRole(user);
         var currentDoctorId = GetDoctorId(user);
         var currentDoctorName = user.FindFirstValue(ClaimTypes.Name) ?? user.FindFirstValue("name");
 
         try
         {
-            var result = await manager.SaveReportAsync(request, currentUserId, currentRole, currentDoctorId, currentDoctorName, ct);
-            await manager.RecordAccessAuditAsync(
-                currentUserId, currentRole, currentDoctorId, null,
-                result.AppointmentId, result.PatientId, result.Id,
-                request.IsFinalize ? "FinalizeReport" : "SaveDraft",
-                "Success", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            var result = await manager.SaveReportAsync(request, currentUserId, currentRole, currentDoctorId,
+                currentDoctorName, httpContext.Connection.RemoteIpAddress?.ToString(), ct);
 
             return Results.Ok(result);
         }
         catch (InvalidOperationException ex)
         {
             return Results.BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await manager.RecordAccessAuditAsync(currentUserId, currentRole, currentDoctorId, GetPatientId(user),
+                request.AppointmentId, request.PatientId, null, request.IsFinalize ? "FinalizeReport" : "SaveDraft",
+                "Denied", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            return Results.Forbid();
         }
         catch (ArgumentException ex)
         {
@@ -264,16 +287,12 @@ public static class MedicalRecordsEndpoints
         CancellationToken ct)
     {
         var currentUserId = GetUserId(user);
-        var currentRole = user.FindFirstValue(ClaimTypes.Role) ?? "Doctor";
+        var currentRole = GetActorRole(user);
 
         try
         {
-            var result = await manager.UpdateReportDraftAsync(id, request, currentUserId, currentRole, ct);
-            await manager.RecordAccessAuditAsync(
-                currentUserId, currentRole, GetDoctorId(user), null,
-                result.AppointmentId, result.PatientId, result.Id,
-                request.IsFinalize ? "FinalizeReport" : "UpdateDraft",
-                "Success", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            var result = await manager.UpdateReportDraftAsync(id, request, currentUserId, currentRole, GetDoctorId(user),
+                httpContext.Connection.RemoteIpAddress?.ToString(), ct);
 
             return Results.Ok(result);
         }
@@ -285,6 +304,13 @@ public static class MedicalRecordsEndpoints
         {
             return Results.BadRequest(new { message = ex.Message });
         }
+        catch (UnauthorizedAccessException)
+        {
+            await manager.RecordAccessAuditAsync(currentUserId, currentRole, GetDoctorId(user), GetPatientId(user),
+                null, null, id, request.IsFinalize ? "FinalizeReport" : "UpdateDraft", "Denied",
+                httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            return Results.Forbid();
+        }
     }
 
     private static async Task<IResult> FinalizeReportHandler(
@@ -295,21 +321,24 @@ public static class MedicalRecordsEndpoints
         CancellationToken ct)
     {
         var currentUserId = GetUserId(user);
-        var currentRole = user.FindFirstValue(ClaimTypes.Role) ?? "Doctor";
+        var currentRole = GetActorRole(user);
 
         try
         {
-            var result = await manager.FinalizeReportAsync(id, currentUserId, currentRole, ct);
-            await manager.RecordAccessAuditAsync(
-                currentUserId, currentRole, GetDoctorId(user), null,
-                result.AppointmentId, result.PatientId, result.Id,
-                "FinalizeReport", "Success", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            var result = await manager.FinalizeReportAsync(id, currentUserId, currentRole, GetDoctorId(user),
+                httpContext.Connection.RemoteIpAddress?.ToString(), ct);
 
             return Results.Ok(result);
         }
         catch (KeyNotFoundException)
         {
             return Results.NotFound(new { message = $"Medical report with Id={id} was not found." });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await manager.RecordAccessAuditAsync(currentUserId, currentRole, GetDoctorId(user), GetPatientId(user),
+                null, null, id, "FinalizeReport", "Denied", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            return Results.Forbid();
         }
     }
 
@@ -327,17 +356,15 @@ public static class MedicalRecordsEndpoints
         }
 
         var currentUserId = GetUserId(user);
-        var currentRole = user.FindFirstValue(ClaimTypes.Role) ?? "Doctor";
+        var currentRole = GetActorRole(user);
         var currentDoctorId = GetDoctorId(user) ?? Guid.Empty;
         var currentDoctorName = user.FindFirstValue(ClaimTypes.Name) ?? user.FindFirstValue("name") ?? "Attending Doctor";
 
         try
         {
-            var result = await manager.CreateAmendmentAsync(appointmentId, request, currentUserId, currentRole, currentDoctorId, currentDoctorName, ct);
-            await manager.RecordAccessAuditAsync(
-                currentUserId, currentRole, currentDoctorId, null,
-                appointmentId, null, result.MedicalReportId,
-                "CreateAmendment", "Success", httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            if (user.IsInRole("Doctor") && !user.IsInRole("Admin") && currentDoctorId == Guid.Empty) return Results.Forbid();
+            var result = await manager.CreateAmendmentAsync(appointmentId, request, currentUserId, currentRole,
+                currentDoctorId, currentDoctorName, httpContext.Connection.RemoteIpAddress?.ToString(), ct);
 
             return Results.Created($"/medical-records/appointments/{appointmentId}/amendments/{result.Id}", result);
         }
@@ -349,6 +376,13 @@ public static class MedicalRecordsEndpoints
         {
             return Results.BadRequest(new { message = ex.Message });
         }
+        catch (UnauthorizedAccessException)
+        {
+            await manager.RecordAccessAuditAsync(currentUserId, currentRole, currentDoctorId, GetPatientId(user),
+                appointmentId, null, null, "CreateAmendment", "Denied",
+                httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            return Results.Forbid();
+        }
     }
 
     private static async Task<IResult> GetPagedReportsHandler(
@@ -356,8 +390,8 @@ public static class MedicalRecordsEndpoints
         [FromQuery] string? status,
         [FromQuery] DateOnly? fromDate,
         [FromQuery] DateOnly? toDate,
-        [FromQuery] int pageNumber,
-        [FromQuery] int pageSize,
+        [FromQuery] int? pageNumber,
+        [FromQuery] int? pageSize,
         ClaimsPrincipal user,
         HttpContext httpContext,
         IMedicalRecordsManager manager,
@@ -373,10 +407,14 @@ public static class MedicalRecordsEndpoints
             return Results.Forbid();
         }
 
-        pageNumber = pageNumber <= 0 ? 1 : pageNumber;
-        pageSize = pageSize <= 0 ? 10 : pageSize;
-
-        var result = await manager.GetPagedReportsAsync(search, status, fromDate, toDate, pageNumber, pageSize, ct);
+        var page = !pageNumber.HasValue || pageNumber.Value <= 0 ? 1 : pageNumber.Value;
+        var size = !pageSize.HasValue || pageSize.Value <= 0 ? 10 : pageSize.Value;
+        var doctorId = user.IsInRole("Doctor") ? GetDoctorId(user) : null;
+        if (user.IsInRole("Doctor") && !doctorId.HasValue) return Results.Forbid();
+        var result = await manager.GetPagedReportsAsync(search, status, fromDate, toDate, page, size, doctorId, ct);
+        await manager.RecordAccessAuditAsync(GetUserId(user), user.FindFirstValue(ClaimTypes.Role) ?? "User",
+            doctorId, GetPatientId(user), null, null, null, "ViewPagedReports", "Success",
+            httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
         return Results.Ok(result);
     }
 
@@ -388,7 +426,7 @@ public static class MedicalRecordsEndpoints
         CancellationToken ct)
     {
         var currentUserId = GetUserId(user);
-        var currentRole = user.FindFirstValue(ClaimTypes.Role) ?? "User";
+        var currentRole = GetActorRole(user);
 
         // Receptionist is strictly forbidden from clinical records
         if (IsReceptionistOnly(user))
@@ -407,15 +445,10 @@ public static class MedicalRecordsEndpoints
         }
 
         // Patient IDOR protection
-        var isPrivilegedStaff = user.IsInRole("Doctor") || user.IsInRole("Admin") ||
-                                user.HasClaim("permission", "medical-report.view.any");
-        if (!isPrivilegedStaff)
+        if (!CanViewReport(user, result))
         {
             var userPatientId = GetPatientId(user);
-            var userPersonId = GetPersonId(user);
-
-            var matches = (userPatientId.HasValue && userPatientId.Value == result.PatientId) ||
-                          (userPersonId.HasValue && userPersonId.Value == result.PatientId);
+            var matches = userPatientId.HasValue && userPatientId.Value == result.PatientId;
 
             if (!matches)
             {
@@ -443,7 +476,7 @@ public static class MedicalRecordsEndpoints
         CancellationToken ct)
     {
         var currentUserId = GetUserId(user);
-        var currentRole = user.FindFirstValue(ClaimTypes.Role) ?? "User";
+        var currentRole = GetActorRole(user);
 
         // Receptionist is strictly forbidden from clinical records
         if (IsReceptionistOnly(user))
@@ -462,15 +495,10 @@ public static class MedicalRecordsEndpoints
         }
 
         // Patient IDOR protection
-        var isPrivilegedStaff = user.IsInRole("Doctor") || user.IsInRole("Admin") ||
-                                user.HasClaim("permission", "medical-report.view.any");
-        if (!isPrivilegedStaff)
+        if (!CanViewReport(user, result))
         {
             var userPatientId = GetPatientId(user);
-            var userPersonId = GetPersonId(user);
-
-            var matches = (userPatientId.HasValue && userPatientId.Value == result.PatientId) ||
-                          (userPersonId.HasValue && userPersonId.Value == result.PatientId);
+            var matches = userPatientId.HasValue && userPatientId.Value == result.PatientId;
 
             if (!matches)
             {
@@ -498,7 +526,7 @@ public static class MedicalRecordsEndpoints
         CancellationToken ct)
     {
         var currentUserId = GetUserId(user);
-        var currentRole = user.FindFirstValue(ClaimTypes.Role) ?? "User";
+        var currentRole = GetActorRole(user);
 
         // Receptionist is strictly forbidden from clinical records
         if (IsReceptionistOnly(user))
@@ -511,15 +539,27 @@ public static class MedicalRecordsEndpoints
         }
 
         // Patient IDOR protection
-        var isPrivilegedStaff = user.IsInRole("Doctor") || user.IsInRole("Admin") ||
-                                user.HasClaim("permission", "patient-history.view.any");
+        var isPrivilegedStaff = user.IsInRole("Admin") || user.HasClaim("permission", "patient-history.view.any");
+        if (user.IsInRole("Doctor") && !isPrivilegedStaff)
+        {
+            var doctorId = GetDoctorId(user);
+            if (!doctorId.HasValue)
+            {
+                await manager.RecordAccessAuditAsync(currentUserId, currentRole, doctorId, null,
+                    null, patientId, null, "ViewPatientMedicalHistory", "Denied",
+                    httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+                return Results.Forbid();
+            }
+            var history = await manager.GetPatientMedicalHistoryAsync(patientId, doctorId, ct);
+            await manager.RecordAccessAuditAsync(currentUserId, currentRole, doctorId, null,
+                null, patientId, null, "ViewPatientMedicalHistory", "Success",
+                httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
+            return Results.Ok(history);
+        }
         if (!isPrivilegedStaff)
         {
             var userPatientId = GetPatientId(user);
-            var userPersonId = GetPersonId(user);
-
-            var matches = (userPatientId.HasValue && userPatientId.Value == patientId) ||
-                          (userPersonId.HasValue && userPersonId.Value == patientId);
+            var matches = userPatientId.HasValue && userPatientId.Value == patientId;
 
             if (!matches)
             {
@@ -531,7 +571,7 @@ public static class MedicalRecordsEndpoints
             }
         }
 
-        var result = await manager.GetPatientMedicalHistoryAsync(patientId, ct);
+        var result = await manager.GetPatientMedicalHistoryAsync(patientId, null, ct);
         await manager.RecordAccessAuditAsync(
             currentUserId, currentRole, GetDoctorId(user), GetPatientId(user),
             null, patientId, null, "ViewPatientMedicalHistory", "Success",
@@ -547,7 +587,7 @@ public static class MedicalRecordsEndpoints
         CancellationToken ct)
     {
         var currentUserId = GetUserId(user);
-        var currentRole = user.FindFirstValue(ClaimTypes.Role) ?? "Patient";
+        var currentRole = GetActorRole(user);
 
         var patientIdClaim = user.FindFirstValue("patientId");
         if (patientIdClaim != null && Guid.TryParse(patientIdClaim, out var patientId))
@@ -556,17 +596,6 @@ public static class MedicalRecordsEndpoints
             await manager.RecordAccessAuditAsync(
                 currentUserId, currentRole, null, patientId,
                 null, patientId, null, "ViewMyMedicalHistory", "Success",
-                httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
-            return Results.Ok(result);
-        }
-
-        var personIdClaim = user.FindFirstValue("personId");
-        if (personIdClaim != null && Guid.TryParse(personIdClaim, out var personId))
-        {
-            var result = await manager.GetMyMedicalHistoryAsync(personId, ct);
-            await manager.RecordAccessAuditAsync(
-                currentUserId, currentRole, null, personId,
-                null, personId, null, "ViewMyMedicalHistory", "Success",
                 httpContext.Connection.RemoteIpAddress?.ToString(), ct: ct);
             return Results.Ok(result);
         }
@@ -604,17 +633,78 @@ public static class MedicalRecordsEndpoints
 
     private static async Task<IResult> HandleUserProfileUpdatedHandler(
         [FromBody] UserProfileUpdated evt,
+        HttpRequest request,
+        IConfiguration configuration,
         IMedicalRecordsManager manager,
         CancellationToken ct)
     {
+        if (!HasValidServiceToken(request, configuration)) return Results.Unauthorized();
         var updated = await manager.HandleUserProfileUpdatedAsync(evt, ct);
         return Results.Ok(new { handled = true, updated });
+    }
+
+    private static async Task<IResult> ProvisionIdentityPatientHandler(
+        [FromBody] ProvisionIdentityPatientRequest request,
+        HttpRequest httpRequest,
+        IConfiguration configuration,
+        IMedicalRecordsManager manager,
+        CancellationToken ct)
+    {
+        if (!HasValidServiceToken(httpRequest, configuration)) return Results.Unauthorized();
+        if (request.PatientId == Guid.Empty || request.PersonId == Guid.Empty || request.IdentityUserId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(request.FullName)) return Results.BadRequest();
+        var patient = await manager.ProvisionIdentityPatientAsync(request, ct);
+        return Results.Ok(patient);
+    }
+
+    private static async Task<IResult> ResolveRegistrationPatientHandler(
+        [FromQuery] string phoneNumber,
+        HttpRequest httpRequest,
+        IConfiguration configuration,
+        IMedicalRecordsManager manager,
+        CancellationToken ct)
+    {
+        if (!HasValidServiceToken(httpRequest, configuration)) return Results.Unauthorized();
+        if (string.IsNullOrWhiteSpace(phoneNumber)) return Results.BadRequest();
+        var ids = await manager.ResolveRegistrationPatientAsync(phoneNumber, ct);
+        return Results.Ok(ids);
+    }
+
+    private static async Task<IResult> GetPatientCountHandler(
+        HttpRequest httpRequest,
+        IConfiguration configuration,
+        IMedicalRecordsManager manager,
+        CancellationToken ct)
+    {
+        if (!HasValidServiceToken(httpRequest, configuration)) return Results.Unauthorized();
+        return Results.Ok(new PatientCountResponse(await manager.GetPatientCountAsync(ct)));
     }
 
     #endregion
 
     private static bool IsReceptionistOnly(ClaimsPrincipal user) =>
         user.IsInRole("Receptionist") && !user.IsInRole("Doctor") && !user.IsInRole("Admin");
+
+    private static string GetActorRole(ClaimsPrincipal user) =>
+        user.IsInRole("Admin") ? "Admin" : user.IsInRole("Doctor") ? "Doctor" :
+        user.IsInRole("Receptionist") ? "Receptionist" : user.IsInRole("Patient") ? "Patient" : "User";
+
+    private static bool CanViewReport(ClaimsPrincipal user, MedicalReportDto report)
+    {
+        if (user.IsInRole("Admin") || user.HasClaim("permission", "medical-report.view.any")) return true;
+        if (user.IsInRole("Doctor"))
+            return GetDoctorId(user) is Guid doctorId && doctorId != Guid.Empty && report.DoctorId == doctorId;
+        return GetPatientId(user) is Guid patientId && patientId == report.PatientId;
+    }
+
+    private static bool HasValidServiceToken(HttpRequest request, IConfiguration configuration)
+    {
+        var expected = configuration["Identity:ServiceToken"];
+        var supplied = request.Headers["X-Clinic-Service-Token"].ToString();
+        return !string.IsNullOrWhiteSpace(expected) &&
+               System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                   System.Text.Encoding.UTF8.GetBytes(expected), System.Text.Encoding.UTF8.GetBytes(supplied));
+    }
 
     private static Guid GetUserId(ClaimsPrincipal user)
     {
@@ -640,3 +730,5 @@ public static class MedicalRecordsEndpoints
         return Guid.TryParse(perId, out var guid) ? guid : null;
     }
 }
+
+public sealed record PatientCountResponse(int Count);

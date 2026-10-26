@@ -5,9 +5,6 @@ using MediatR;
 
 namespace Clinic.Application.Features.Auth.Commands;
 
-public sealed record ResolveIdentityRegistrationProfileQuery(string PhoneNumber)
-    : IRequest<IdentityRegistrationProfileIds>;
-
 public sealed record IdentityRegistrationProfileIds(Guid PersonId, Guid PatientId, Guid? EmployeeId = null, Guid? DoctorId = null);
 
 public sealed record EnsureIdentityRegistrationProfileCommand(
@@ -29,21 +26,6 @@ public sealed class EnsureIdentityRegistrationProfileHandler(IPersonService peop
             request.Email, request.DateOfBirth, request.Gender, request.Address);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return new IdentityRegistrationProfileIds(person.Id, person.Patient?.Id ?? Guid.NewGuid(), null, null);
-    }
-}
-
-public sealed class ResolveIdentityRegistrationProfileHandler(IPersonRepository people)
-    : IRequestHandler<ResolveIdentityRegistrationProfileQuery, IdentityRegistrationProfileIds>
-{
-    public async Task<IdentityRegistrationProfileIds> Handle(
-        ResolveIdentityRegistrationProfileQuery request, CancellationToken cancellationToken)
-    {
-        var person = await people.GetByPhoneNumberAsync(request.PhoneNumber.Trim());
-        if (person?.IdentityUserId is not null)
-            throw new ArgumentException("A user account already exists for this phone number.");
-
-        return new IdentityRegistrationProfileIds(
-            person?.Id ?? Guid.NewGuid(), person?.Patient?.Id ?? Guid.NewGuid());
     }
 }
 

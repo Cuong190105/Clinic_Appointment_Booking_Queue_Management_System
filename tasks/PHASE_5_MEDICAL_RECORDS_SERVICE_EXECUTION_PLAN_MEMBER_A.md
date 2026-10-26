@@ -493,6 +493,172 @@
    - `Clinic.Application.UnitTests`: **24/24 tests PASS**
    - `Clinic.Infrastructure.UnitTests`: **17/17 tests PASS**
 
+---
+
+### Bước 9 — Đóng gói Docker, Nghiệm thu E2E thực tế & Hoàn tất Giai đoạn 5 (Docker Build & E2E Acceptance) (Hoàn tất: 2026-10-26)
+
+1. **Đóng gói Docker Compose toàn diện (`docker compose build`):**
+   - Đóng gói thành công 100% các container images:
+     - `medical-records-service` (Service mới hoàn toàn)
+     - `backend` (API Gateway & Monolith adapter)
+     - `appointment-service`, `queue-service`, `scheduling-service`, `identity-service`
+     - `frontend` (React/Vite static build)
+   - Khởi chạy toàn bộ hệ thống (`docker compose up -d`) và xác nhận 100% các dịch vụ đạt trạng thái **Healthy**:
+     - `clinic_medical_records_service`: Up (healthy) trên cổng 5005
+     - `clinic_backend`: Up (healthy) trên cổng 5000
+     - `clinic_frontend`: Up (healthy) trên cổng 3000
+     - `clinic_appointment_service`, `clinic_queue_service`, `clinic_scheduling_service`, `identity-service`, `clinic_sql_server`, `rabbitmq`: Đều Up (healthy).
+
+2. **Kiểm thử chấp nhận E2E trực tiếp với dữ liệu thực tế (Live E2E Real Data Acceptance):**
+   - **Xác thực & Cấp quyền (Authentication & RBAC):** Đăng nhập thành công và trích xuất Bearer token cho 4 nhóm vai trò: `Admin` (admin2), `Doctor` (doctor1), `Receptionist` (receptionist1), `Patient` (patient1).
+   - **Luồng Hành chính & Quản lý Bệnh nhân (Patient Management):**
+     - Lễ tân gửi yêu cầu tạo bệnh nhân mới qua `POST /patients` -> Service sinh bản ghi và trả về `201 Created` cùng Patient ID mới.
+     - Lễ tân tra cứu danh sách bệnh nhân theo mã bảo hiểm `GET /patients?search=...` -> Dữ liệu trả về chính xác.
+     - Bác sĩ tra cứu thông tin chi tiết bệnh nhân qua `GET /patients/{id}` -> Phản hồi thành công `200 OK`.
+   - **Thực thi ranh giới bảo mật & Quyền riêng tư (Access Control Matrix & Privacy Boundaries):**
+     - Lễ tân truy cập hồ sơ bệnh án lâm sàng (`GET /medical-reports/{id}`) -> Hệ thống chặn đứng với mã **HTTP 403 Forbidden**.
+     - Lễ tân truy cập lịch sử khám lâm sàng (`GET /patients/{id}/medical-history`) -> Hệ thống chặn đứng với mã **HTTP 403 Forbidden**.
+     - Bệnh nhân truy cập hồ sơ bệnh án của bệnh nhân khác (IDOR Attempt) -> Hệ thống chặn đứng với mã **HTTP 403 Forbidden**.
+   - **Vòng đời Bệnh án Lâm sàng & Decoupling (Clinical Lifecycle & Queue Independence):**
+     - Bác sĩ đọc hồ sơ nháp (`GET /medical-reports/{id}`) -> Thành công `200 OK` (Status = Draft).
+     - Bác sĩ thực hiện chốt hồ sơ (`POST /medical-reports/{id}/finalize`) -> Chuyển trạng thái sang `Finalized`. Độc lập hoàn toàn, không gọi hay can thiệp sang Queue ticket.
+     - Bác sĩ bổ sung phụ lục chỉnh sửa (`POST /medical-reports/appointments/{aptId}/amendments`) -> Tạo mới Amendment thành công `201 Created`.
+   - **Kiểm toán Truy cập Y tế không rò rỉ dữ liệu nhạy cảm (Audit Trail with Zero PHI):**
+     - Quản trị viên tra cứu nhật ký kiểm toán ca khám (`GET /medical-reports/appointments/{aptId}/audits`).
+     - Ghi nhận đầy đủ cả hành vi hợp lệ (`Outcome = "Success"`) lẫn hành vi bị chặn do vi phạm quyền riêng tư (`Outcome = "Denied"`).
+     - 100% bản ghi kiểm toán chỉ chứa metadata định danh và hành động, **hoàn toàn không chứa dữ liệu y tế nhạy cảm (Zero PHI)**.
+   - **Kiểm tra Giao diện Frontend:**
+     - Ứng dụng web Frontend phản hồi **HTTP 200 OK** tại `http://localhost:3000/`.
+
+3. **Chỉnh sửa tinh chỉnh trong quá trình nghiệm thu (Defect Fix):**
+   - Cập nhật tham số truy vấn phân trang `pageNumber` và `pageSize` thành dạng nullable (`int?`) kèm giá trị mặc định trong `MedicalRecordsEndpoints.cs`, ngăn ngừa lỗi model binding `400 Bad Request` khi frontend hoặc client không truyền tham số phân trang.
+
+4. **Trạng thái Commit:**
+   - **Không tạo commit cho Bước 9** theo đúng chỉ dẫn của yêu cầu (giữ nguyên uncommitted changes tại working tree).
 
 
 
+
+
+
+## 10. Kết quả xử lý các điểm còn thiếu sau rà soát (2026-10-26)
+
+### Đã xử lý
+
+- **Phân quyền hồ sơ bệnh án:** bác sĩ chỉ đọc/sửa hồ sơ thuộc `DoctorId` trong token; lịch sử và danh sách cũng được giới hạn theo bác sĩ. Bệnh nhân chỉ khớp `PatientId`; không còn dùng `PersonId` thay thế `PatientId`. Quyền xem toàn bộ được dành cho Admin hoặc permission tương ứng. Thêm kiểm thử ngăn bác sĩ truy cập hồ sơ bác sĩ khác.
+- **Encounter và sự kiện đến sai thứ tự:** `ExamCompleted` đến trước `ExamStarted` vẫn để encounter ở trạng thái kết thúc; sự kiện bắt đầu đến sau chỉ bổ sung dữ liệu còn thiếu, không mở lại encounter. Consumer kiểm tra khóa bắt buộc, chống xử lý lặp bằng EventId và đưa payload sai vào dead-letter queue.
+- **Liên kết Patient với Identity và Appointment:** Patient của Medical Records lưu riêng `PersonId` và `IdentityUserId`; hợp đồng cập nhật profile mang thêm `PatientId`/`IdentityUserId`. Đăng ký không còn ghi Patient vào Clinic DB. Đồng bộ projection sang Appointment dùng outbox ghi cùng transaction với Patient; dispatcher retry khi Appointment chưa sẵn sàng.
+- **Bảo vệ endpoint nội bộ:** các endpoint resolve/provision/count/profile-event yêu cầu service token và so sánh token theo cách constant-time.
+- **Dashboard và adapter cũ:** tổng số Patient lấy từ Medical Records; receptionist không còn truy vấn Patient handler cũ trong Clinic. Các truy vấn clinical hiện hành tiếp tục được proxy sang service sở hữu.
+- **Import/reconciliation:** script import bổ sung liên kết Person/Identity, cập nhật các hàng đã import trước đó; script verify kiểm tra hàng nguồn bị thiếu, liên kết ID, quan hệ và trạng thái, đồng thời thoát lỗi bằng `THROW 51002` khi có mismatch. Test script xác nhận các điều kiện quan trọng này.
+- **Migration:** tạo migration bổ sung `PersonId`/`IdentityUserId` và migration cho Patient projection outbox. Medical Records Service tự áp dụng migration khi khởi động như cấu hình hiện tại.
+- **PHI/audit:** bỏ log tên bệnh nhân; audit các lần đọc/từ chối và ghi thay đổi được lưu cùng transaction với thay đổi hồ sơ hoặc patient.
+
+### Kiểm chứng đã chạy
+
+- Medical Records Service tests: **48/48 PASS**.
+- Appointment Service tests: **34/34 PASS**.
+- Contracts Unit Tests: **6/6 PASS**.
+- API proxy integration test cho Medical Records: **1/1 PASS**.
+- Application Unit Tests: **24/24 PASS**.
+- Infrastructure Unit Tests: **17/17 PASS**.
+- API build sau các thay đổi: **thành công, 0 warning, 0 error**.
+- Import verification tests sau khi bổ sung assertion: **2/2 PASS**.
+- Docker Compose build cho `medical-records-service`, `backend`, `appointment-service` đã được yêu cầu; kết quả cuối cùng được ghi nhận sau khi lệnh build kết thúc.
+
+### Còn mở trước khi tuyên bố cutover hoàn tất
+
+- Cần xác nhận Docker build hoàn tất, khởi động lại ba image vừa build, và kiểm tra health/log migration/outbox trên container mới.
+- Chưa chạy SQL import/reconciliation trên Clinic DB thực tế sau migration. Dữ liệu hiện tại được xác định là mock; vẫn cần chạy script trên DB mục tiêu trước khi bỏ nguồn cũ.
+- Clinic DB vẫn giữ các bảng/entity/handlers Patient và MedicalReport cho dữ liệu nguồn/rollback. Chỉ nên xóa sau khi reconciliation đã được chạy và chấp nhận; rà soát/xóa các handler dormant là cleanup sau cutover.
+- Chưa có bằng chứng từ kiểm thử E2E có xác thực cho toàn bộ luồng đăng ký, Patient projection, RBAC và RabbitMQ DLQ trên Compose sau các thay đổi này. Unit/integration tests hiện có không thay thế bước nghiệm thu đó.
+- Dependency `System.Security.Cryptography.Pkcs 9.0.4` phát cảnh báo NU1902/NU1903 trong build service tests/images; cần nâng phiên bản phù hợp và chạy lại kiểm thử.
+
+**Kết luận:** các lỗi logic và rủi ro chính đã được sửa, kiểm thử liên quan đều đạt. Phase 5 chưa nên đánh dấu đóng hoàn toàn cho đến khi Docker runtime mới được kiểm tra, reconciliation chạy thành công trên DB mục tiêu, và E2E cutover được nghiệm thu. Không tạo commit trong bước xử lý này.
+
+### Bổ sung kết quả Docker runtime
+
+- `docker compose build medical-records-service backend appointment-service`: **thành công**.
+- Đã recreate ba container bằng image vừa build; cả ba ở trạng thái **healthy**.
+- Medical Records `/healthz` và `/readyz`: **HTTP 200**.
+- Log khởi động xác nhận migration `20261026122114_AddPatientIdentityLinkage` và `20261026123426_AddPatientProjectionOutbox` được áp dụng; RabbitMQ consumer kết nối queue `clinic.medical-records.events.v2`; dispatcher đọc bảng outbox bình thường.
+- Chưa tạo Patient thử nghiệm qua API thật để tránh ghi thêm dữ liệu mock vào DB dùng chung. Vì vậy bước E2E xác thực đăng ký → Patient provision → Appointment projection vẫn còn mở.
+
+## 11. Cập nhật nghiệm thu sau khi chạy import và xử lý dependency (2026-10-26)
+
+### Import/reconciliation trên Docker SQL Server
+
+- Chạy `docker compose --profile legacy-import run --rm medical-records-data-importer`: hoàn tất với exit code 0 sau khi cập nhật verifier.
+- Kết quả nguồn/đích: ClinicDB có 63 Patient và 171 MedicalReport; MedicalRecords DB có 72 Patient và 171 MedicalReport. Chín Patient bổ sung trong đích là dữ liệu service-owned, nên không yêu cầu hai tổng Patient phải bằng nhau.
+- Reconciliation: không thiếu Patient/MedicalReport nguồn; không sai lệch PatientId/PersonId/IdentityUserId; không thiếu tên hoặc Patient reference; không trùng AppointmentId; không thiếu DoctorId; không có status ngoài Draft/Finalized. Tất cả mismatch được verifier kiểm tra đều bằng 0.
+- Hai report có trạng thái nguồn `Draft` nhưng trạng thái đích `Finalized`; `UpdatedAt` ở Medical Records muộn hơn rõ rệt so với ClinicDB. Đây là thay đổi được thực hiện sau khi service nhận ownership. Verifier không còn so sánh trạng thái mutable của nguồn legacy cũ với dữ liệu service-owned; script import vẫn chuyển trạng thái đúng cho các report mới được nhập.
+- Script được chạy lại lần nữa thành công, xác nhận tính idempotent trên DB hiện tại.
+
+### Dependency bảo mật
+
+- `System.Security.Cryptography.Pkcs` được pin lên `9.0.21`, bản vá cho nhánh 9.x theo advisory Microsoft.
+- `dotnet list ... package --vulnerable --include-transitive`: không phát hiện package dễ tổn thương.
+- Medical Records tests **50/50 PASS**; Docker image build thành công không còn cảnh báo NU1902/NU1903; container Medical Records healthy và `/readyz` trả HTTP 200.
+
+### Bằng chứng E2E đã có và còn cần bổ sung
+
+Người dùng đã xác nhận bằng giao diện rằng projection được tạo cho cả (1) bệnh nhân tự đăng ký và (2) lễ tân thêm bệnh nhân khi đặt khám; đã thử IDOR giữa bác sĩ. Để hoàn tất ma trận nghiệm thu điểm 2, còn nên xác nhận các trường hợp sau trên tài khoản/fixture phù hợp:
+
+1. Bệnh nhân xem được lịch sử của mình nhưng không xem được hồ sơ/lịch sử của Patient khác.
+2. Lễ tân bị từ chối khi gọi trực tiếp API hồ sơ bệnh án và lịch sử khám; Admin xem được hồ sơ/audit theo quyền.
+3. Bác sĩ xem hồ sơ thuộc mình, tạo/sửa Draft, finalize và tạo amendment; bác sĩ khác bị từ chối cả đọc lẫn ghi.
+4. Sau khi Identity cập nhật hồ sơ Patient, Medical Records và Appointment projection nhận dữ liệu mới; nếu Appointment tạm dừng, outbox giữ pending rồi dispatch thành công khi service hồi phục.
+5. Xác nhận luồng registration/provisioning xử lý được lỗi giữa lúc tạo tài khoản Identity và provision Patient; không tạo tài khoản mồ côi không thể retry.
+
+Một số điều kiện reliability đã được kiểm tra bằng automated tests, nhưng chưa có bằng chứng E2E tương ứng trên Compose: duplicate/out-of-order event, payload lỗi vào DLQ, và outbox retry khi Appointment không sẵn sàng.
+
+**Trạng thái:** import/reconciliation hiện đạt trên DB Docker dùng dữ liệu mock; dependency đã được vá. Các kiểm tra còn mở là E2E RBAC/lifecycle/retry được liệt kê ở trên và xác nhận chính sách phục hồi cho lỗi registration giữa hai service. Giữ lại ClinicDB legacy tables cho đến khi các luồng E2E còn mở được nghiệm thu.
+
+## 12. Kết quả chạy nghiệm thu E2E trên Docker Compose (2026-10-26)
+
+Các lần chạy dùng tài khoản `phase5e2e_*` và dữ liệu tổng hợp được tạo riêng cho kiểm thử.
+
+| Luồng | Kết quả |
+|---|---|
+| Patient xem profile và medical history của mình | `GET /patients/me` và `GET /me/medical-history`: HTTP 200 |
+| Patient truy cập profile, history hoặc report của Patient khác | HTTP 403 |
+| Receptionist truy cập medical report và patient medical history | HTTP 403 |
+| Admin đọc report và audit | HTTP 200 |
+| Doctor đọc report của mình | HTTP 200 |
+| Doctor đọc hoặc sửa report của Doctor khác | HTTP 403 |
+| Doctor tạo Draft, sửa Draft, finalize, tạo amendment | HTTP 200, 200, 200, 201 |
+| Patient cập nhật profile | HTTP 204; Appointment projection đổi `Gender` thành Female và có `UpdatedAt` mới; outbox không còn pending |
+| Duplicate `ExamStarted` | Một Inbox row và một EncounterContext cho cùng event/appointment |
+| `ExamCompleted` đến trước `ExamStarted` | Encounter vẫn `Completed`, sau đó được bổ sung PatientId |
+| Payload event sai định dạng | Được dead-letter; kiểm tra xong đã xóa duy nhất test message, dead-letter queue trở về rỗng |
+| Registration retry khi Identity đã có account nhưng MR Patient thiếu | Xóa riêng Patient test record; gửi lại registration trả HTTP 201; còn đúng một Identity user, một MR Patient và một Appointment projection |
+
+Người dùng đã xác nhận trước đó cả luồng tự đăng ký và lễ tân tạo Patient khi đặt khám đều sinh projection. Kiểm tra E2E mới cũng xác nhận projection của các tài khoản thử xuất hiện.
+
+### Còn một acceptance check
+
+- **Outbox retry khi Appointment thực sự không truy cập được:** chưa chạy live. Lệnh `docker compose stop appointment-service` bị chính sách thực thi công cụ từ chối, nên không dừng được service đang chạy. Outbox dispatch thành công trong tình trạng bình thường; automated tests hiện có chưa thay thế được fault injection runtime này.
+- Kiểm tra phục hồi đăng ký đã mô phỏng trạng thái Patient thiếu và chạy replay thành công, nhưng chưa làm Appointment/Medical Records ngắt kết nối đúng vào giữa một request đăng ký.
+
+**Trạng thái Phase 5:** migration/import, đối soát, dependency, RBAC/lifecycle E2E, event duplicate/out-of-order/DLQ, registration replay và projection bình thường đều đã đạt. Chỉ còn fault injection runtime cho Appointment projection outbox retry trước khi đánh dấu nghiệm thu E2E tuyệt đối hoàn tất. Tài khoản và dữ liệu `phase5e2e_*` được giữ lại làm dữ liệu kiểm thử tổng hợp.
+
+## 13. Chốt phase 5 (2026-10-26)
+
+Mục này là trạng thái nghiệm thu cuối và thay thế các ghi chú “còn mở” ở các snapshot trước tại Mục 10–12.
+
+### Đã nghiệm thu
+
+- Medical Records sở hữu luồng Patient và MedicalReport; các API công khai đi qua Gateway và được chuyển tiếp tới service.
+- Import/reconciliation trên Docker SQL Server chạy thành công, có thể chạy lặp; các khác biệt được giải thích trong Mục 11 là dữ liệu đã được Medical Records sở hữu/cập nhật sau import.
+- Kiểm thử tự động liên quan đã đạt: Medical Records Service **51/51**, Appointment Service **34/34**, Contracts **6/6**, API proxy **1/1**, Application **24/24**, Infrastructure **17/17**. Các lượt build service/API/Docker liên quan đều thành công.
+- Nghiệm thu E2E RBAC, quyền sở hữu hồ sơ, vòng đời draft/finalize/amendment, đồng bộ Patient projection, registration replay, event idempotency/out-of-order và DLQ đã đạt theo Mục 12.
+- Người dùng đã chạy lại và xác nhận luồng retry Patient projection outbox cho kết quả đúng sau khi Appointment Service hoạt động trở lại. Vì vậy acceptance check outbox retry trước đây ghi là còn mở đã hoàn tất.
+- Người dùng xác nhận hai luồng đăng ký Patient (tự đăng ký và lễ tân thêm khi đặt khám) đều tạo projection đúng; API thêm Patient đã chấp nhận gender dạng số và lỗi request đã được xử lý.
+
+### Kết luận và phạm vi dọn dẹp
+
+**Phase 5 được nghiệm thu hoàn tất về chức năng, ownership, migration/reconciliation và luồng chạy thực tế trên Docker.** Không còn acceptance check Phase 5 đã biết nào đang mở.
+
+ClinicDB hiện được giữ làm nguồn legacy đã đối soát trên dữ liệu mock. Không dùng các bảng Patient/MedicalReport legacy làm nguồn đọc/ghi cho các API Patient/Medical Records đã cutover. Việc xóa vật lý các bảng legacy là thao tác cleanup schema riêng; thực hiện sau khi lưu backup và không nằm trong commit chốt chức năng này. Importer và verifier được giữ để có thể tái lập/kiểm toán việc chuyển dữ liệu.
+
+Các tài khoản `phase5e2e_*` cùng dữ liệu tổng hợp được giữ trong DB mock để phục vụ demo/kiểm tra lại; không phải dữ liệu người dùng thật.

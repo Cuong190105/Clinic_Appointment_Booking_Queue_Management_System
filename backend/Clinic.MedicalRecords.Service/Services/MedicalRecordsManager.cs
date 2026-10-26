@@ -10,22 +10,25 @@ namespace Clinic.MedicalRecords.Service.Services;
 public interface IMedicalRecordsManager
 {
     // Patient operations
-    Task<PatientDto> CreatePatientAsync(CreatePatientRequest request, CancellationToken ct = default);
+    Task<PatientDto> CreatePatientAsync(CreatePatientRequest request, Guid actorUserId = default, string actorRole = "System", string? ipAddress = null, CancellationToken ct = default);
+    Task<PatientDto> ProvisionIdentityPatientAsync(ProvisionIdentityPatientRequest request, CancellationToken ct = default);
+    Task<IdentityRegistrationPatientIds> ResolveRegistrationPatientAsync(string phoneNumber, CancellationToken ct = default);
+    Task<int> GetPatientCountAsync(CancellationToken ct = default);
     Task<PagedResult<PatientDto>> GetPagedPatientsAsync(string? search, string? sortBy, string? orderBy, int pageNumber, int pageSize, CancellationToken ct = default);
     Task<PatientDto?> GetPatientByIdAsync(Guid patientId, CancellationToken ct = default);
     Task<PatientDto?> GetPatientByIdentityUserIdAsync(Guid identityUserId, CancellationToken ct = default);
-    Task<bool> UpdatePatientAsync(Guid patientId, UpdatePatientRequest request, CancellationToken ct = default);
+    Task<bool> UpdatePatientAsync(Guid patientId, UpdatePatientRequest request, Guid actorUserId = default, string actorRole = "System", string? ipAddress = null, CancellationToken ct = default);
     Task<bool> HandleUserProfileUpdatedAsync(UserProfileUpdated evt, CancellationToken ct = default);
 
     // Medical Records operations
-    Task<MedicalReportDto> SaveReportAsync(SaveMedicalReportRequest request, Guid currentUserId, string currentRole, Guid? currentDoctorId, string? currentDoctorName, CancellationToken ct = default);
-    Task<MedicalReportDto> UpdateReportDraftAsync(Guid reportId, UpdateMedicalReportRequest request, Guid currentUserId, string currentRole, CancellationToken ct = default);
-    Task<MedicalReportDto> FinalizeReportAsync(Guid reportId, Guid currentUserId, string currentRole, CancellationToken ct = default);
-    Task<MedicalReportAmendmentDto> CreateAmendmentAsync(Guid appointmentId, CreateAmendmentRequest request, Guid currentUserId, string currentRole, Guid currentDoctorId, string currentDoctorName, CancellationToken ct = default);
+    Task<MedicalReportDto> SaveReportAsync(SaveMedicalReportRequest request, Guid currentUserId, string currentRole, Guid? currentDoctorId, string? currentDoctorName, string? ipAddress = null, CancellationToken ct = default);
+    Task<MedicalReportDto> UpdateReportDraftAsync(Guid reportId, UpdateMedicalReportRequest request, Guid currentUserId, string currentRole, Guid? currentDoctorId = null, string? ipAddress = null, CancellationToken ct = default);
+    Task<MedicalReportDto> FinalizeReportAsync(Guid reportId, Guid currentUserId, string currentRole, Guid? currentDoctorId = null, string? ipAddress = null, CancellationToken ct = default);
+    Task<MedicalReportAmendmentDto> CreateAmendmentAsync(Guid appointmentId, CreateAmendmentRequest request, Guid currentUserId, string currentRole, Guid currentDoctorId, string currentDoctorName, string? ipAddress = null, CancellationToken ct = default);
     Task<MedicalReportDto?> GetReportByIdAsync(Guid reportId, CancellationToken ct = default);
     Task<MedicalReportDto?> GetReportByAppointmentIdAsync(Guid appointmentId, CancellationToken ct = default);
-    Task<PagedResult<MedicalReportDto>> GetPagedReportsAsync(string? search, string? status, DateOnly? fromDate, DateOnly? toDate, int pageNumber, int pageSize, CancellationToken ct = default);
-    Task<List<MedicalReportDto>> GetPatientMedicalHistoryAsync(Guid patientId, CancellationToken ct = default);
+    Task<PagedResult<MedicalReportDto>> GetPagedReportsAsync(string? search, string? status, DateOnly? fromDate, DateOnly? toDate, int pageNumber, int pageSize, Guid? doctorId = null, CancellationToken ct = default);
+    Task<List<MedicalReportDto>> GetPatientMedicalHistoryAsync(Guid patientId, Guid? doctorId = null, CancellationToken ct = default);
     Task<List<MedicalReportDto>> GetMyMedicalHistoryAsync(Guid patientId, CancellationToken ct = default);
 
     // Queue / Encounter event handlers
@@ -62,7 +65,7 @@ public class MedicalRecordsManager : IMedicalRecordsManager
 
     #region Patient Operations
 
-    public async Task<PatientDto> CreatePatientAsync(CreatePatientRequest request, CancellationToken ct = default)
+    public async Task<PatientDto> CreatePatientAsync(CreatePatientRequest request, Guid actorUserId = default, string actorRole = "System", string? ipAddress = null, CancellationToken ct = default)
     {
         var patientId = Guid.NewGuid();
         var patient = new Patient(
@@ -79,11 +82,63 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         );
 
         _db.Patients.Add(patient);
+        QueuePatientProjection(patient);
+        AddAudit(actorUserId, actorRole, null, null, null, patient.Id, null, "CreatePatient", "Success", ipAddress);
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Patient created successfully with Id={PatientId}, FullName={FullName}", patient.Id, patient.FullName);
+        _logger.LogInformation("Patient created successfully with Id={PatientId}", patient.Id);
         return MapPatientToDto(patient);
     }
+
+    public async Task<PatientDto> ProvisionIdentityPatientAsync(ProvisionIdentityPatientRequest request, CancellationToken ct = default)
+    {
+        var existing = await _db.Patients.FirstOrDefaultAsync(p =>
+            p.Id == request.PatientId || p.IdentityUserId == request.IdentityUserId || p.PersonId == request.PersonId, ct);
+        if (existing is not null)
+        {
+            if (existing.Id != request.PatientId ||
+                (existing.IdentityUserId.HasValue && existing.IdentityUserId != request.IdentityUserId) ||
+                (existing.PersonId.HasValue && existing.PersonId != request.PersonId))
+                throw new InvalidOperationException("Identity registration conflicts with an existing patient profile.");
+            existing.LinkIdentityUser(request.IdentityUserId);
+            existing.LinkPerson(request.PersonId);
+            existing.UpdateProjectionFromIdentity(request.FullName, request.PhoneNumber, request.Email,
+                request.Gender, request.DateOfBirth, request.Address);
+            QueuePatientProjection(existing);
+            AddAudit(request.IdentityUserId, "Identity", null, null, null, existing.Id, null, "ProvisionIdentityPatient", "Success", null);
+            await _db.SaveChangesAsync(ct);
+            return MapPatientToDto(existing);
+        }
+
+        var patient = new Patient(request.PatientId, request.IdentityUserId, request.FullName,
+            request.PhoneNumber, request.Email, request.DateOfBirth, request.Gender, request.Address,
+            null, null) { PersonId = request.PersonId };
+        _db.Patients.Add(patient);
+        QueuePatientProjection(patient);
+        AddAudit(request.IdentityUserId, "Identity", null, null, null, patient.Id, null, "ProvisionIdentityPatient", "Success", null);
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Provisioned patient profile for IdentityUserId={IdentityUserId}", request.IdentityUserId);
+        return MapPatientToDto(patient);
+    }
+
+    public async Task<IdentityRegistrationPatientIds> ResolveRegistrationPatientAsync(string phoneNumber, CancellationToken ct = default)
+    {
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => !p.IsDeleted && p.PhoneNumber == phoneNumber.Trim(), ct);
+        if (patient is null)
+            return new IdentityRegistrationPatientIds(Guid.NewGuid(), Guid.NewGuid());
+
+        if (!patient.PersonId.HasValue)
+        {
+            patient.PersonId = Guid.NewGuid();
+            patient.UpdatedAt = DateTimeOffset.UtcNow;
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return new IdentityRegistrationPatientIds(patient.PersonId.Value, patient.Id);
+    }
+
+    public Task<int> GetPatientCountAsync(CancellationToken ct = default) =>
+        _db.Patients.CountAsync(p => !p.IsDeleted, ct);
 
     public async Task<PagedResult<PatientDto>> GetPagedPatientsAsync(
         string? search,
@@ -152,7 +207,7 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         return patient is null ? null : MapPatientToDto(patient);
     }
 
-    public async Task<bool> UpdatePatientAsync(Guid patientId, UpdatePatientRequest request, CancellationToken ct = default)
+    public async Task<bool> UpdatePatientAsync(Guid patientId, UpdatePatientRequest request, Guid actorUserId = default, string actorRole = "System", string? ipAddress = null, CancellationToken ct = default)
     {
         var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId, ct);
         if (patient is null)
@@ -168,6 +223,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
             gender: request.Gender
         );
 
+        QueuePatientProjection(patient);
+        AddAudit(actorUserId, actorRole, null, patientId, null, patient.Id, null, "UpdatePatient", "Success", ipAddress);
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Patient updated successfully with Id={PatientId}", patient.Id);
         return true;
@@ -175,7 +232,9 @@ public class MedicalRecordsManager : IMedicalRecordsManager
 
     public async Task<bool> HandleUserProfileUpdatedAsync(UserProfileUpdated evt, CancellationToken ct = default)
     {
-        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == evt.PersonId || (p.IdentityUserId != null && p.IdentityUserId == evt.PersonId), ct);
+        var patient = await _db.Patients.FirstOrDefaultAsync(p =>
+            (evt.PatientId.HasValue && p.Id == evt.PatientId.Value) ||
+            (evt.IdentityUserId.HasValue && p.IdentityUserId == evt.IdentityUserId.Value) || p.PersonId == evt.PersonId, ct);
         if (patient is null)
         {
             _logger.LogInformation("No matching patient found for UserProfileUpdated PersonId={PersonId}", evt.PersonId);
@@ -191,6 +250,9 @@ public class MedicalRecordsManager : IMedicalRecordsManager
             address: evt.Address
         );
 
+        QueuePatientProjection(patient);
+        AddAudit(evt.IdentityUserId ?? Guid.Empty, "Identity", null, null, null, patient.Id, null,
+            "SyncPatientProfile", "Success", null);
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Synchronized patient projection for PatientId={PatientId} from UserProfileUpdated", patient.Id);
         return true;
@@ -220,6 +282,7 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         string currentRole,
         Guid? currentDoctorId,
         string? currentDoctorName,
+        string? ipAddress = null,
         CancellationToken ct = default)
     {
         var existing = await _db.MedicalReports
@@ -229,6 +292,7 @@ public class MedicalRecordsManager : IMedicalRecordsManager
 
         if (existing != null)
         {
+            EnsureDoctorOwnsReport(existing, currentRole, currentDoctorId);
             if (existing.Status.Equals("Finalized", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("Cannot overwrite a finalized medical report. Use amendments instead.");
@@ -240,6 +304,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
                 existing.FinalizeReport();
             }
 
+            AddAudit(currentUserId, currentRole, currentDoctorId, null, request.AppointmentId, existing.PatientId,
+                existing.Id, request.IsFinalize ? "FinalizeReport" : "SaveDraft", "Success", ipAddress);
             await _db.SaveChangesAsync(ct);
             _logger.LogInformation("Updated draft report Id={ReportId} for AppointmentId={AppointmentId}, Finalized={IsFinalize}",
                 existing.Id, request.AppointmentId, request.IsFinalize);
@@ -251,9 +317,33 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         var doctorName = request.DoctorName ?? currentDoctorName;
         DateOnly? scheduleDate = request.ScheduleDate;
 
+        if (currentRole.Equals("Doctor", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!currentDoctorId.HasValue || currentDoctorId.Value == Guid.Empty)
+                throw new UnauthorizedAccessException("DoctorId claim is required to create a medical report.");
+            if (request.DoctorId.HasValue && request.DoctorId.Value != currentDoctorId.Value)
+                throw new UnauthorizedAccessException("A doctor can only create reports under their own DoctorId.");
+            doctorId = currentDoctorId.Value;
+        }
+
+        var encounter = await _db.EncounterContexts.FirstOrDefaultAsync(e => e.AppointmentId == request.AppointmentId, ct);
+        if (encounter is null)
+            throw new InvalidOperationException("The appointment has no ExamStarted encounter context yet.");
+        if (patientId.HasValue && patientId.Value != encounter.PatientId)
+            throw new ArgumentException("PatientId does not match the appointment encounter.", nameof(request.PatientId));
+        if (currentRole.Equals("Doctor", StringComparison.OrdinalIgnoreCase) && encounter.DoctorId != currentDoctorId)
+            throw new UnauthorizedAccessException("This appointment belongs to another doctor.");
+        patientId = encounter.PatientId;
+        if (doctorId == Guid.Empty) doctorId = encounter.DoctorId;
+        doctorName ??= encounter.DoctorName;
+        scheduleDate ??= encounter.QueueDate;
+        if (doctorId != encounter.DoctorId)
+        {
+            throw new ArgumentException("DoctorId does not match the appointment encounter.", nameof(request.DoctorId));
+        }
+
         if (!patientId.HasValue || patientId.Value == Guid.Empty)
         {
-            var encounter = await _db.EncounterContexts.FirstOrDefaultAsync(e => e.AppointmentId == request.AppointmentId, ct);
             if (encounter != null)
             {
                 patientId = encounter.PatientId;
@@ -287,6 +377,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         }
 
         _db.MedicalReports.Add(report);
+        AddAudit(currentUserId, currentRole, currentDoctorId, null, report.AppointmentId, report.PatientId,
+            report.Id, request.IsFinalize ? "FinalizeReport" : "SaveDraft", "Success", ipAddress);
         await _db.SaveChangesAsync(ct);
 
         // Reload with patient info
@@ -303,6 +395,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         UpdateMedicalReportRequest request,
         Guid currentUserId,
         string currentRole,
+        Guid? currentDoctorId = null,
+        string? ipAddress = null,
         CancellationToken ct = default)
     {
         var report = await _db.MedicalReports
@@ -315,12 +409,16 @@ public class MedicalRecordsManager : IMedicalRecordsManager
             throw new KeyNotFoundException($"Medical report with Id={reportId} was not found.");
         }
 
+        EnsureDoctorOwnsReport(report, currentRole, currentDoctorId);
+
         report.UpdateDraft(request.Symptoms, request.Diagnosis, request.Prescription, request.Notes);
         if (request.IsFinalize)
         {
             report.FinalizeReport();
         }
 
+        AddAudit(currentUserId, currentRole, currentDoctorId, null, report.AppointmentId, report.PatientId,
+            report.Id, request.IsFinalize ? "FinalizeReport" : "UpdateDraft", "Success", ipAddress);
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Updated draft report Id={ReportId}, Finalized={IsFinalize}", reportId, request.IsFinalize);
         return MapReportToDto(report);
@@ -330,6 +428,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         Guid reportId,
         Guid currentUserId,
         string currentRole,
+        Guid? currentDoctorId = null,
+        string? ipAddress = null,
         CancellationToken ct = default)
     {
         var report = await _db.MedicalReports
@@ -342,7 +442,11 @@ public class MedicalRecordsManager : IMedicalRecordsManager
             throw new KeyNotFoundException($"Medical report with Id={reportId} was not found.");
         }
 
+        EnsureDoctorOwnsReport(report, currentRole, currentDoctorId);
+
         report.FinalizeReport();
+        AddAudit(currentUserId, currentRole, currentDoctorId, null, report.AppointmentId, report.PatientId,
+            report.Id, "FinalizeReport", "Success", ipAddress);
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Medical report Id={ReportId} finalized successfully without calling queue service.", reportId);
@@ -356,6 +460,7 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         string currentRole,
         Guid currentDoctorId,
         string currentDoctorName,
+        string? ipAddress = null,
         CancellationToken ct = default)
     {
         var report = await _db.MedicalReports
@@ -366,6 +471,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         {
             throw new KeyNotFoundException($"Medical report for AppointmentId={appointmentId} was not found.");
         }
+
+        EnsureDoctorOwnsReport(report, currentRole, currentDoctorId);
 
         if (!report.Status.Equals("Finalized", StringComparison.OrdinalIgnoreCase))
         {
@@ -388,6 +495,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         );
 
         _db.MedicalReportAmendments.Add(amendment);
+        AddAudit(currentUserId, currentRole, currentDoctorId, null, appointmentId, report.PatientId,
+            report.Id, "CreateAmendment", "Success", ipAddress);
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Amendment #{Number} added to MedicalReportId={ReportId} by Doctor={DoctorName}",
@@ -438,6 +547,7 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         DateOnly? toDate,
         int pageNumber,
         int pageSize,
+        Guid? doctorId = null,
         CancellationToken ct = default)
     {
         pageNumber = Math.Max(1, pageNumber);
@@ -448,6 +558,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
             .Include(r => r.Patient)
             .Include(r => r.Amendments)
             .AsQueryable();
+
+        if (doctorId.HasValue) query = query.Where(r => r.DoctorId == doctorId.Value);
 
         if (!string.IsNullOrWhiteSpace(status))
         {
@@ -487,13 +599,13 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         return new PagedResult<MedicalReportDto>(dtos, pageNumber, pageSize, totalCount, totalPages);
     }
 
-    public async Task<List<MedicalReportDto>> GetPatientMedicalHistoryAsync(Guid patientId, CancellationToken ct = default)
+    public async Task<List<MedicalReportDto>> GetPatientMedicalHistoryAsync(Guid patientId, Guid? doctorId = null, CancellationToken ct = default)
     {
         var reports = await _db.MedicalReports
             .AsNoTracking()
             .Include(r => r.Patient)
             .Include(r => r.Amendments)
-            .Where(r => r.PatientId == patientId)
+            .Where(r => r.PatientId == patientId && (!doctorId.HasValue || r.DoctorId == doctorId.Value))
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
 
@@ -516,6 +628,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
 
     public async Task HandleExamStartedAsync(ExamStarted evt, CancellationToken ct = default)
     {
+        if (evt.AppointmentId == Guid.Empty || evt.PatientId == Guid.Empty || evt.DoctorId == Guid.Empty)
+            throw new ArgumentException("ExamStarted requires AppointmentId, PatientId, and DoctorId.", nameof(evt));
         var existing = await _db.EncounterContexts.FirstOrDefaultAsync(e => e.AppointmentId == evt.AppointmentId, ct);
         if (existing == null)
         {
@@ -532,12 +646,7 @@ public class MedicalRecordsManager : IMedicalRecordsManager
         }
         else
         {
-            existing.QueueTicketId = evt.QueueTicketId;
-            existing.DoctorId = evt.DoctorId;
-            existing.DoctorName = evt.DoctorName;
-            existing.QueueDate = evt.QueueDate;
-            existing.StartedAt = evt.StartedAt;
-            existing.Status = "Started";
+            existing.MarkStarted(evt);
         }
 
         await _db.SaveChangesAsync(ct);
@@ -547,6 +656,8 @@ public class MedicalRecordsManager : IMedicalRecordsManager
 
     public async Task HandleExamCompletedAsync(ExamCompleted evt, CancellationToken ct = default)
     {
+        if (evt.AppointmentId == Guid.Empty || evt.DoctorId == Guid.Empty)
+            throw new ArgumentException("ExamCompleted requires AppointmentId and DoctorId.", nameof(evt));
         var existing = await _db.EncounterContexts.FirstOrDefaultAsync(e => e.AppointmentId == evt.AppointmentId, ct);
         if (existing != null)
         {
@@ -554,7 +665,36 @@ public class MedicalRecordsManager : IMedicalRecordsManager
             await _db.SaveChangesAsync(ct);
             _logger.LogInformation("Handled ExamCompleted for AppointmentId={AppointmentId}", evt.AppointmentId);
         }
+        else
+        {
+            _db.EncounterContexts.Add(new EncounterContext
+            {
+                AppointmentId = evt.AppointmentId,
+                Status = "Completed",
+                CompletedAt = evt.CompletedAt,
+                StartedAt = evt.CompletedAt,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await _db.SaveChangesAsync(ct);
+        }
     }
+
+    private static void EnsureDoctorOwnsReport(MedicalReport report, string currentRole, Guid? currentDoctorId)
+    {
+        if (!currentRole.Equals("Doctor", StringComparison.OrdinalIgnoreCase)) return;
+        if (!currentDoctorId.HasValue || currentDoctorId.Value == Guid.Empty || report.DoctorId != currentDoctorId.Value)
+            throw new UnauthorizedAccessException("A doctor can only access or modify their own medical reports.");
+    }
+
+    private void AddAudit(Guid actorUserId, string actorRole, Guid? actorDoctorId, Guid? actorPatientId,
+        Guid? appointmentId, Guid? patientId, Guid? reportId, string action, string outcome, string? ipAddress)
+    {
+        _db.MedicalAccessAudits.Add(new MedicalAccessAudit(actorUserId, actorRole, actorDoctorId,
+            actorPatientId, appointmentId, patientId, reportId, action, outcome, ipAddress, null));
+    }
+
+    private void QueuePatientProjection(Patient patient) =>
+        _db.PatientProjectionOutbox.Add(new PatientProjectionOutboxMessage { PatientId = patient.Id });
 
     private static MedicalReportDto MapReportToDto(MedicalReport report)
     {

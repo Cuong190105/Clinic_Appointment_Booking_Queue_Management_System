@@ -140,7 +140,8 @@ namespace Clinic.API.Controllers
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Identity profile update failed." });
             var profile = await _identityAccounts.GetUserProfileAsync(userId, HttpContext.RequestAborted);
             if (profile is null || !await _profileSync.SyncAsync(new Clinic.Contracts.Events.UserProfileUpdated(profile.PersonId,
-                    profile.FullName, profile.PhoneNumber, profile.Email, profile.Gender, profile.DateOfBirth, profile.Address), HttpContext.RequestAborted))
+                    profile.FullName, profile.PhoneNumber, profile.Email, profile.Gender, profile.DateOfBirth, profile.Address,
+                    profile.PatientId, profile.UserId), HttpContext.RequestAborted))
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Identity was updated, but profile projections are still pending." });
             var schedulingResponse = await _scheduling.SendAsync(HttpContext, HttpMethod.Put, $"doctors/{doctorId}", request, HttpContext.RequestAborted);
             return schedulingResponse.ToActionResult();
@@ -158,7 +159,8 @@ namespace Clinic.API.Controllers
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Identity profile update failed." });
             var profile = await _identityAccounts.GetUserProfileAsync(userId.Value, HttpContext.RequestAborted);
             if (profile is null || !await _profileSync.SyncAsync(new Clinic.Contracts.Events.UserProfileUpdated(profile.PersonId,
-                    profile.FullName, profile.PhoneNumber, profile.Email, profile.Gender, profile.DateOfBirth, profile.Address), HttpContext.RequestAborted))
+                    profile.FullName, profile.PhoneNumber, profile.Email, profile.Gender, profile.DateOfBirth, profile.Address,
+                    profile.PatientId, profile.UserId), HttpContext.RequestAborted))
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Identity was updated, but profile projections are still pending." });
             var schedulingResponse = await _scheduling.SendAsync(HttpContext, HttpMethod.Put, "doctors/me", request, HttpContext.RequestAborted);
             return schedulingResponse.ToActionResult();

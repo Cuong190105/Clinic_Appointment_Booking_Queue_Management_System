@@ -26,8 +26,9 @@ namespace Clinic.API.Controllers
         private readonly AppointmentServiceClient _appointmentClient;
         private readonly SchedulingManagementClient _scheduling;
         private readonly QueueServiceClient _queueClient;
+        private readonly MedicalRecordsServiceClient _medicalRecordsClient;
 
-        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient)
+        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient)
         {
             _sender = sender;
             _mapper = mapper;
@@ -37,6 +38,7 @@ namespace Clinic.API.Controllers
             _appointmentClient = appointmentClient;
             _scheduling = scheduling;
             _queueClient = queueClient;
+            _medicalRecordsClient = medicalRecordsClient;
         }
 
         [HttpGet("ping")]
@@ -156,14 +158,15 @@ namespace Clinic.API.Controllers
                 "admin/dashboard-metrics",
                 ct);
             var queueMetrics = await _queueClient.GetDashboardMetricsAsync(HttpContext, ct);
-            if (appointmentMetrics is null || queueMetrics is null)
+            var patientCount = await _medicalRecordsClient.GetInternalAsync<PatientCountResponse>("internal/patients/count", ct);
+            if (appointmentMetrics is null || queueMetrics is null || patientCount is null)
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
                 {
                     Title = "Dashboard metrics unavailable",
-                    Detail = "Appointment or Queue service did not return dashboard metrics."
+                    Detail = "Appointment, Queue, or Medical Records service did not return dashboard metrics."
                 });
 
-            var result = await _sender.Send(new GetDashboardDataQuery(appointmentMetrics, queueMetrics), ct);
+            var result = await _sender.Send(new GetDashboardDataQuery(appointmentMetrics, queueMetrics, patientCount.Count), ct);
             return Ok(result);
         }
 
@@ -211,3 +214,5 @@ namespace Clinic.API.Controllers
         }
     }
 }
+
+internal sealed record PatientCountResponse(int Count);

@@ -36,7 +36,15 @@ builder.Services.AddScoped<IMedicalRecordsManager, MedicalRecordsManager>();
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddHostedService<MedicalRecordsEventConsumer>();
+    builder.Services.AddHostedService<PatientProjectionOutboxDispatcher>();
 }
+
+builder.Services.AddHttpClient("AppointmentProjection", client =>
+{
+    var authority = builder.Configuration["Appointment:Authority"] ?? "http://localhost:5003";
+    client.BaseAddress = new Uri(authority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
 
 // Authentication via Identity Service JWKS
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

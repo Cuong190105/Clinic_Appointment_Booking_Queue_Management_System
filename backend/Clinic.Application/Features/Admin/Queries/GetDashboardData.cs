@@ -10,22 +10,19 @@ namespace Clinic.Application.Features.Admin.Queries
 {
     public record GetDashboardDataQuery(
         AppointmentDashboardMetrics AppointmentMetrics,
-        QueueDashboardMetrics QueueMetrics) : IRequest<DashboardDataDto>;
+        QueueDashboardMetrics QueueMetrics,
+        int TotalPatients) : IRequest<DashboardDataDto>;
     public class GetDashboardDataHandler : IRequestHandler<GetDashboardDataQuery, DashboardDataDto>
     {
         private readonly ISchedulingServiceClient _schedulingClient;
-        private readonly IPatientRepository _patientRepository;
-
-        public GetDashboardDataHandler(ISchedulingServiceClient schedulingClient, IPatientRepository patientRepository)
+        public GetDashboardDataHandler(ISchedulingServiceClient schedulingClient)
         {
             _schedulingClient = schedulingClient;
-            _patientRepository = patientRepository;
         }
 
         public async Task<DashboardDataDto> Handle(GetDashboardDataQuery request, CancellationToken cancellationToken)
         {
             var doctorStats = await _schedulingClient.GetDoctorDashboardStatsAsync(cancellationToken);
-            var patientData = await _patientRepository.GetDashboardData();
 
             return new DashboardDataDto
             {
@@ -34,7 +31,7 @@ namespace Clinic.Application.Features.Admin.Queries
                     Value = request.AppointmentMetrics.TotalAppointments,
                     Change = request.AppointmentMetrics.TotalAppointmentsChange
                 },
-                TotalPatients = patientData["TotalPatients"],
+                TotalPatients = new ValueWithChange<int> { Value = request.TotalPatients },
                 TotalDoctors = new ValueWithChange<int>
                 {
                     Value = doctorStats?.TotalDoctors ?? 0,

@@ -932,24 +932,32 @@ public class AppointmentManager : IAppointmentManager
         }
 
         var patient = await _db.PatientProjections
-            .FirstOrDefaultAsync(p => p.PersonId == evt.PersonId || p.Id == evt.PersonId, ct);
+            .FirstOrDefaultAsync(p =>
+                (evt.PatientId.HasValue && p.Id == evt.PatientId.Value) ||
+                (evt.IdentityUserId.HasValue && p.IdentityUserId == evt.IdentityUserId.Value) ||
+                p.PersonId == evt.PersonId || p.Id == evt.PersonId, ct);
 
         if (patient != null)
         {
+            if (evt.IdentityUserId.HasValue) patient.IdentityUserId = evt.IdentityUserId.Value;
+            patient.PersonId = evt.PersonId;
             patient.FullName = evt.FullName;
             if (!string.IsNullOrWhiteSpace(evt.PhoneNumber)) patient.PhoneNumber = evt.PhoneNumber;
             if (!string.IsNullOrWhiteSpace(evt.Gender)) patient.Gender = evt.Gender;
+            if (evt.DateOfBirth.HasValue) patient.DateOfBirth = evt.DateOfBirth;
             patient.UpdatedAt = DateTimeOffset.UtcNow;
         }
         else
         {
             patient = new PatientProjection
             {
-                Id = evt.PersonId,
+                Id = evt.PatientId ?? evt.PersonId,
+                IdentityUserId = evt.IdentityUserId,
                 PersonId = evt.PersonId,
                 FullName = evt.FullName,
                 PhoneNumber = evt.PhoneNumber,
                 Gender = evt.Gender,
+                DateOfBirth = evt.DateOfBirth,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
             _db.PatientProjections.Add(patient);

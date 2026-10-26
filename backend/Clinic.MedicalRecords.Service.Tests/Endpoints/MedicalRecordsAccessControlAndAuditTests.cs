@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using Clinic.MedicalRecords.Service.DTOs;
+using Clinic.MedicalRecords.Service.Entities;
 using Clinic.MedicalRecords.Service.Persistence;
+using Clinic.MedicalRecords.Service.Services;
 using Clinic.MedicalRecords.Service.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,10 +32,12 @@ public class MedicalRecordsAccessControlAndAuditTests : IClassFixture<MedicalRec
         Assert.NotNull(patient);
 
         var apptId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+        await SeedEncounterAsync(apptId, patient.Id, doctorId);
         var reportReq = new SaveMedicalReportRequest(
             AppointmentId: apptId,
             PatientId: patient.Id,
-            DoctorId: Guid.NewGuid(),
+            DoctorId: doctorId,
             DoctorName: "Dr. Audit",
             SpecialtyName: "Cardiology",
             ScheduleDate: new DateOnly(2026, 10, 26),
@@ -101,7 +105,9 @@ public class MedicalRecordsAccessControlAndAuditTests : IClassFixture<MedicalRec
         Assert.NotNull(victim);
 
         var apptId = Guid.NewGuid();
-        var reportReq = new SaveMedicalReportRequest(apptId, victim.Id, Guid.NewGuid(), "Dr. Evil", "Oncology", new DateOnly(2026, 10, 26), "s", "d", "rx", "confidential", true);
+        var doctorId = Guid.NewGuid();
+        await SeedEncounterAsync(apptId, victim.Id, doctorId);
+        var reportReq = new SaveMedicalReportRequest(apptId, victim.Id, doctorId, "Dr. Evil", "Oncology", new DateOnly(2026, 10, 26), "s", "d", "rx", "confidential", true);
         var reportResp = await _client.PostAsJsonAsync("/medical-records", reportReq);
         var report = await reportResp.Content.ReadFromJsonAsync<MedicalReportDto>();
         Assert.NotNull(report);
@@ -138,7 +144,9 @@ public class MedicalRecordsAccessControlAndAuditTests : IClassFixture<MedicalRec
         Assert.NotNull(ownPatient);
 
         var apptId = Guid.NewGuid();
-        var reportReq = new SaveMedicalReportRequest(apptId, ownPatient.Id, Guid.NewGuid(), "Dr. Good", "General", new DateOnly(2026, 10, 26), "Cold", "Flu", "Flu meds", "Rest", true);
+        var doctorId = Guid.NewGuid();
+        await SeedEncounterAsync(apptId, ownPatient.Id, doctorId);
+        var reportReq = new SaveMedicalReportRequest(apptId, ownPatient.Id, doctorId, "Dr. Good", "General", new DateOnly(2026, 10, 26), "Cold", "Flu", "Flu meds", "Rest", true);
         var reportResp = await _client.PostAsJsonAsync("/medical-records", reportReq);
         var report = await reportResp.Content.ReadFromJsonAsync<MedicalReportDto>();
         Assert.NotNull(report);
@@ -160,5 +168,42 @@ public class MedicalRecordsAccessControlAndAuditTests : IClassFixture<MedicalRec
 
         Assert.NotNull(audit);
         Assert.Equal("Success", audit.Outcome);
+    }
+
+    [Fact]
+    public async Task Doctor_CannotReadOrModifyAnotherDoctorsReport()
+    {
+        var patientId = Guid.NewGuid();
+        var ownerDoctorId = Guid.NewGuid();
+        var otherDoctorId = Guid.NewGuid();
+        var report = new MedicalReport(Guid.NewGuid(), patientId, ownerDoctorId, "Owner", "General",
+            new DateOnly(2026, 10, 26), "Symptoms", "Diagnosis", null, null);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MedicalRecordsDbContext>();
+            db.Patients.Add(new Patient(patientId, null, "Patient", null, null,
+                new DateOnly(1980, 1, 1), "Other", null, null, null));
+            db.MedicalReports.Add(report);
+            await db.SaveChangesAsync();
+        }
+
+        using var outsider = _factory.CreateClient();
+        outsider.DefaultRequestHeaders.Add("X-Test-Role", "Doctor");
+        outsider.DefaultRequestHeaders.Add("X-Test-DoctorId", otherDoctorId.ToString());
+        outsider.DefaultRequestHeaders.Add("X-Test-Permissions", "medical-report.view.related,medical-report.create");
+        var read = await outsider.GetAsync($"/medical-records/{report.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, read.StatusCode);
+        var update = await outsider.PutAsJsonAsync($"/medical-records/{report.Id}",
+            new UpdateMedicalReportRequest("Changed", "Changed", null, null));
+        Assert.Equal(HttpStatusCode.Forbidden, update.StatusCode);
+    }
+
+    private async Task SeedEncounterAsync(Guid appointmentId, Guid patientId, Guid doctorId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MedicalRecordsDbContext>();
+        var manager = new MedicalRecordsManager(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<MedicalRecordsManager>.Instance);
+        await manager.HandleExamStartedAsync(new Clinic.Contracts.Events.ExamStarted(Guid.NewGuid(), appointmentId,
+            patientId, doctorId, "Dr. Test", new DateOnly(2026, 10, 26), DateTimeOffset.UtcNow));
     }
 }

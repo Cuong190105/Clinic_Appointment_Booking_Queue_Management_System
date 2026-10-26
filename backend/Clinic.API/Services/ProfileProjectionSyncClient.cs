@@ -16,6 +16,29 @@ public sealed class ProfileProjectionSyncClient(IHttpClientFactory clients, ICon
         if (!string.IsNullOrWhiteSpace(serviceToken))
             request.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", serviceToken);
         using var response = await clients.CreateClient("Scheduling").SendAsync(request, ct);
-        return response.IsSuccessStatusCode;
+        if (!response.IsSuccessStatusCode) return false;
+
+        using var appointmentRequest = new HttpRequestMessage(HttpMethod.Post, "internal/events/user-profile-updated")
+        {
+            Content = JsonContent.Create(evt)
+        };
+        if (!string.IsNullOrWhiteSpace(serviceToken))
+            appointmentRequest.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", serviceToken);
+        using var appointmentResponse = await clients.CreateClient("Appointment").SendAsync(appointmentRequest, ct);
+        if (!appointmentResponse.IsSuccessStatusCode) return false;
+
+        if (evt.PatientId.HasValue && evt.IdentityUserId.HasValue)
+        {
+            using var medicalRecordsRequest = new HttpRequestMessage(HttpMethod.Post, "internal/events/user-profile-updated")
+            {
+                Content = JsonContent.Create(evt)
+            };
+            if (!string.IsNullOrWhiteSpace(serviceToken))
+                medicalRecordsRequest.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", serviceToken);
+            using var medicalRecordsResponse = await clients.CreateClient("MedicalRecords").SendAsync(medicalRecordsRequest, ct);
+            if (!medicalRecordsResponse.IsSuccessStatusCode) return false;
+        }
+
+        return true;
     }
 }

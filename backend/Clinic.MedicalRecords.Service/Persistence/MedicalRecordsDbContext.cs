@@ -16,6 +16,7 @@ public class MedicalRecordsDbContext : DbContext
     public DbSet<MedicalAccessAudit> MedicalAccessAudits => Set<MedicalAccessAudit>();
     public DbSet<EncounterContext> EncounterContexts => Set<EncounterContext>();
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+    public DbSet<PatientProjectionOutboxMessage> PatientProjectionOutbox => Set<PatientProjectionOutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +32,7 @@ public class MedicalRecordsDbContext : DbContext
             b.Property(p => p.PhoneNumber).HasMaxLength(20);
             b.Property(p => p.Email).HasMaxLength(200);
             b.Property(p => p.Gender).HasMaxLength(20).IsRequired();
+            b.HasIndex(p => p.PersonId).IsUnique().HasFilter("[PersonId] IS NOT NULL");
             b.Property(p => p.Address).HasMaxLength(500);
             b.Property(p => p.InsuranceNumber).HasMaxLength(50);
             b.Property(p => p.EmergencyContact).HasMaxLength(50);
@@ -135,6 +137,15 @@ public class MedicalRecordsDbContext : DbContext
 
             b.HasIndex(m => new { m.ConsumerName, m.EventId }).IsUnique();
             b.HasIndex(m => m.ReceivedAt);
+        });
+
+        modelBuilder.Entity<PatientProjectionOutboxMessage>(b =>
+        {
+            b.ToTable("PatientProjectionOutbox");
+            b.HasKey(m => m.Id);
+            b.Property(m => m.LastError).HasMaxLength(1000);
+            b.HasIndex(m => new { m.ProcessedAt, m.CreatedAt });
+            b.HasIndex(m => m.PatientId);
         });
     }
 }
