@@ -114,7 +114,16 @@ builder.Services.AddTransient<IdentityAccountClient>();
 builder.Services.AddTransient<SchedulingManagementClient>();
 builder.Services.AddTransient<ProfileProjectionSyncClient>();
 builder.Services.AddTransient<Clinic.API.Services.AppointmentServiceClient>();
+builder.Services.AddHttpClient("MedicalRecords", client =>
+{
+    var medicalRecordsAuthority = builder.Configuration["MedicalRecords:Authority"]
+        ?? builder.Configuration["Services:MedicalRecords:BaseUrl"]
+        ?? "http://localhost:5005";
+    client.BaseAddress = new Uri(medicalRecordsAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddTransient<Clinic.API.Services.QueueServiceClient>();
+builder.Services.AddTransient<Clinic.API.Services.MedicalRecordsServiceClient>();
 
 builder.Services
     .AddAuthentication(options =>

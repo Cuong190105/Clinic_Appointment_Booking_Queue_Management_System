@@ -101,45 +101,6 @@ namespace Clinic.API.Controllers
             return await _appointmentClient.ProxyAsync(HttpContext, $"receptionist/appointments/{appointmentId}", new HttpMethod("PATCH"), request);
         }
 
-        [HttpPost("/patients/add")]
-        [Authorize(Policy = "Permission:patient.create.any")]
-        [ProducesResponseType(StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> CreatePatient([FromBody] ReceptionistCreatePatientRequest request)
-        {
-            var command = _mapper.Map<CreatePatientCommand>(request);
-            var result = await _sender.Send(command);
 
-            // Sync newly created patient profile into Clinic.Appointment.Service PatientProjections
-            _ = await _appointmentClient.PostInternalAsync("internal/events/user-profile-updated", new
-            {
-                userId = result.Id,
-                personId = result.Id,
-                fullName = result.FullName ?? string.Empty,
-                phoneNumber = result.PhoneNumber,
-                email = result.Email,
-                gender = result.Gender.ToString(),
-                updatedAt = DateTimeOffset.UtcNow
-            }, HttpContext.RequestAborted);
-
-            return Created($"/patients/{result.Id}", result);
-        }
-
-        [HttpPut("/patients/{patientId}")]
-        [Authorize(Policy = "Permission:patient.edit.any")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdatePatient([FromRoute] Guid patientId, [FromBody] ReceptionistUpdatePatientRequest request)
-        {
-            var userId = _currentUser.UserId ?? throw new UnauthorizedAccessException("User not found.");
-            var command = new UpdatePatientCommand((Guid)userId, request.Email, request.Gender, request.Address, request.InsuranceNumber, request.EmergencyContact, patientId);
-            await _sender.Send(command);
-            return NoContent();
-        }
     }
 }

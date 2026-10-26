@@ -440,4 +440,31 @@
      - Kiểm thử mô phỏng import lặp lại nhiều lần (idempotency simulation) trên In-Memory context, xác nhận không sinh bản ghi trùng.
    - Kết quả: **42/42 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
 
+---
+
+### Bước 7 — Chuyển đổi định tuyến Gateway & Giao diện Frontend (Gateway & Frontend Cutover) (Hoàn tất: 2026-10-26)
+
+1. **Khởi tạo và cấu hình `MedicalRecordsServiceClient`:**
+   - Xây dựng `MedicalRecordsServiceClient.cs` trong `Clinic.API/Services`, cung cấp phương thức `ProxyAsync` chuyển tiếp trọn vẹn HTTP headers (`Authorization`, `Idempotency-Key`), QueryString, và body JSON.
+   - Cấu hình `HttpClient("MedicalRecords")` trong `Clinic.API/Program.cs` kết nối trực tiếp đến Service đích qua `MedicalRecords:Authority` (`http://localhost:5005` hoặc `http://medical-records-service:8080`).
+
+2. **Chuyển giao 100% nghiệp vụ Medical Records & Patient sang Service mới:**
+   - **`MedicalReportsController`:** Cắt toàn bộ phụ thuộc vào MediatR handlers nội bộ và cơ sở dữ liệu `ClinicDB`. 100% requests (`GET /medical-reports`, `POST /medical-reports`, `PUT /medical-reports/{id}`, `GET /medical-reports/{id}`, `GET /medical-reports/appointment/{appointmentId}`, `POST /medical-reports/{id}/finalize`, `POST /medical-reports/appointments/{appointmentId}/amendments`, `GET /medical-records/appointments/{appointmentId}/audits`, `GET /patients/{patientId}/medical-history`) được proxy sang `Clinic.MedicalRecords.Service`.
+   - **Decouple hoàn toàn quy trình Finalize khỏi Queue:** Loại bỏ lệnh ngầm `CompleteQueueExamIfInProgress` trong lệnh chốt hồ sơ bệnh án; bảo đảm Medical Report Lifecycle độc lập tuyệt đối với Queue.
+   - **`PatientsController`:** 100% CRUD bệnh nhân (`GET /patients`, `GET /patients/{id}`, `GET /patients/me`, `PUT /patients/me`, `POST /patients`, `POST /patients/add`, `PUT /patients/{id}`) được proxy sang `Clinic.MedicalRecords.Service`. Các truy vấn lịch hẹn (`/patients/{id}/appointments`) tiếp tục proxy sang `Clinic.Appointment.Service`.
+   - **`MeController`:** `GET /me/medical-history` được chuyển hướng qua `MedicalRecordsServiceClient`.
+   - **`MedicalRecordsContractController`:** Các route draft, finalized và amendment được chuyển hướng qua `MedicalRecordsServiceClient`.
+
+3. **Bảo đảm chuẩn chính sách phân quyền (Authorization Policies):**
+   - Đảm bảo đầy đủ các policy trên từng route:
+     - `Permission:medical-report.view.related,medical-report.view.any,medical-report.view.own`
+     - `Permission:medical-report.create`
+     - `Roles = "Admin"` (cho Audit logs)
+     - `Permission:patient.view.any`, `Permission:patient.view.own`, `Permission:patient.edit.own`, `Permission:patient.create.any`, `Permission:patient.edit.any`.
+
+4. **Kiểm tra tương thích Frontend:**
+   - Frontend `medicalRecordsApi`, `patientApi`, `receptionistApi` hoạt động liền mạch qua Gateway mà không cần thay đổi client contract.
+   - Kiểm tra biên dịch frontend (`npm run build`): Thành công 100% không phát sinh lỗi (`✓ built in 1.88s`).
+
+
 

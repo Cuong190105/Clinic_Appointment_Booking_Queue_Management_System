@@ -19,11 +19,13 @@ namespace Clinic.API.Controllers
     {
         private readonly ISender _sender;
         private readonly QueueServiceClient _queueClient;
+        private readonly MedicalRecordsServiceClient _medicalRecordsClient;
 
-        public MeController(ISender sender, QueueServiceClient queueClient)
+        public MeController(ISender sender, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient)
         {
             _sender = sender;
             _queueClient = queueClient;
+            _medicalRecordsClient = medicalRecordsClient;
         }
 
         /// <summary>
@@ -45,8 +47,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetMyMedicalHistory()
         {
-            var result = await _sender.Send(new GetMyMedicalHistoryQuery());
-            return Ok(result);
+            return await _medicalRecordsClient.ProxyAsync(HttpContext, "me/medical-history", HttpMethod.Get);
         }
 
         [Authorize]
