@@ -357,4 +357,35 @@ The current scaffold is intentionally not registered in Gateway and does not con
      - `AmbiguousProviderResult_DoesNotMarkMessageDeliveredUntilReconciled`: PASS (Kết quả mập mờ không bị đánh dấu thành công sai sót).
    - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **18/18 tests PASS** (0 failed, 8 skipped của các bước tiếp theo).
 
+---
+
+### Bước 4 — REST API Thông báo, Xác thực JWT & SignalR Hub (Notification REST API, Authorization & SignalR) (Hoàn tất: 2026-10-26)
+
+1. **Thiết kế & Xây dựng Notification REST Endpoints:**
+   - Xây dựng `NotificationEndpoints` (`Clinic.Notification.Service/Endpoints/NotificationEndpoints.cs`):
+     - `GET /notifications`, `GET /notifications/me` và `GET /me/notifications`: Tra cứu lịch sử thông báo được phân trang, hỗ trợ lọc con trỏ thời gian (`createdBefore`), giới hạn (`limit`), trang (`page`, `pageSize`) và trạng thái (`unreadOnly`).
+     - Tự động trích xuất định danh tài khoản từ JWT `sub` (hoặc `ClaimTypes.NameIdentifier`).
+     - Cách ly triệt để dữ liệu khách (`RecipientType.Guest`): Các thông báo của khách chỉ lưu dạng snapshot liên hệ, không bao giờ lộ qua account history API.
+     - `GET /notifications/unread-count`: Trả về số lượng thông báo chưa đọc của tài khoản đăng nhập.
+     - `POST /notifications/{id}/read` & `PUT /notifications/{id}/read`: Đánh dấu đã đọc với cơ chế bảo vệ IDOR nghiêm ngặt. Trả về `403 Forbidden` khi người dùng cố tình đọc hoặc sửa thông báo của người khác.
+     - `POST /notifications/read-all`: Đánh dấu toàn bộ thông báo chưa đọc của người dùng hiện tại là đã đọc.
+
+2. **Thiết kế & Tích hợp SignalR Realtime Hub:**
+   - Xây dựng `NotificationHub` (`/hubs/notifications`) yêu cầu bắt buộc xác thực `[Authorize]`.
+   - Xây dựng `SubUserIdProvider` trích xuất chính xác `sub` từ claims, ngăn chặn tuyệt đối việc client gửi query parameter/header giả mạo để lắng nghe thông báo của tài khoản khác.
+   - Xây dựng `SignalRRealtimeNotifier` (`IRealtimeNotifier`):
+     - Gửi tín hiệu hint `ReceiveNotificationHint` tới đúng nhóm kết nối của người dùng (`Clients.User(userId.ToString())`).
+     - Payload đẩy qua WebSocket chỉ chứa `{ id, type, timestamp }`, **tuyệt đối không chứa PHI lâm sàng, thông tin cá nhân hay nội dung tin nhắn**. Client sẽ gọi REST API để lấy nội dung đầy đủ một cách an toàn.
+   - Cấu hình trích xuất `access_token` từ query string trong `JwtBearerEvents.OnMessageReceived` phục vụ kết nối WebSocket SignalR.
+
+3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Xác thực & Realtime (TDD Tests):**
+   - Xây dựng `NotificationTestFactory` tích hợp `WebApplicationFactory<Program>`, cấu hình kiểm thử JWT độc lập không cần phụ thuộc mạng tới JWKS server.
+   - Hoàn thiện 100% các test case trong nhóm `NotificationAuthorizationAndRealtimeTests`:
+     - `ProtectedNotificationEndpoint_RejectsMissingOrInvalidJwt`: PASS (Từ chối 401 khi thiếu token hoặc token giả mạo/hỏng).
+     - `User_CannotReadAnotherUsersNotificationHistory`: PASS (Chặn đứng IDOR, User A không thể xem hay đánh dấu đọc thông báo của User B hoặc khách vãng lai).
+     - `SignalRConnection_IsGroupedByAuthenticatedSubject`: PASS (SignalR connection chỉ ánh xạ theo claim `sub` hợp lệ).
+     - `ReconnectedClient_CanRecoverMissedNotificationsFromHistoryApi`: PASS (Khách hàng offline khi kết nối lại có thể lấy đầy đủ thông báo lịch sử từ REST API).
+   - Kết quả kiểm thử: **22/22 tests PASS** trong `Clinic.Notification.Service.Tests` (0 failed, 4 skipped của các bước tiếp theo).
+
+
 

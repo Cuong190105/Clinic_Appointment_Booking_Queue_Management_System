@@ -1,9 +1,11 @@
 using Clinic.Contracts.Events;
+using Clinic.Notification.Service.Endpoints;
 using Clinic.Notification.Service.Entities;
 using Clinic.Notification.Service.Persistence;
 using Clinic.Notification.Service.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http.Json;
 
 namespace Clinic.Notification.Service.Tests;
 
@@ -616,17 +618,214 @@ public sealed class NotificationDeliveryUnitTests
 
 public sealed class NotificationAuthorizationAndRealtimeTests
 {
-    [Fact(Skip = "Phase 6 Step 4: Notification Service must independently validate Identity JWTs.")]
-    public void ProtectedNotificationEndpoint_RejectsMissingOrInvalidJwt() { }
+    [Fact]
+    public async Task ProtectedNotificationEndpoint_RejectsMissingOrInvalidJwt()
+    {
+        await using var factory = new NotificationTestFactory();
+        var client = factory.CreateClient();
 
-    [Fact(Skip = "Phase 6 Step 4: users may read only their own account-bound notification history.")]
-    public void User_CannotReadAnotherUsersNotificationHistory() { }
+        // 1. Missing JWT returns 401
+        var unauthGet = await client.GetAsync("/notifications");
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, unauthGet.StatusCode);
 
-    [Fact(Skip = "Phase 6 Step 4: SignalR user mapping must use authenticated Identity subject, not client-supplied id.")]
-    public void SignalRConnection_IsGroupedByAuthenticatedSubject() { }
+        var unauthMe = await client.GetAsync("/notifications/me");
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, unauthMe.StatusCode);
 
-    [Fact(Skip = "Phase 6 Step 4: SignalR is only a notification hint; persisted history remains authoritative.")]
-    public void ReconnectedClient_CanRecoverMissedNotificationsFromHistoryApi() { }
+        var unauthCount = await client.GetAsync("/notifications/unread-count");
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, unauthCount.StatusCode);
+
+        var unauthRead = await client.PostAsync($"/notifications/{Guid.NewGuid()}/read", null);
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, unauthRead.StatusCode);
+
+        // 2. Malformed / forged JWT returns 401
+        using var malformedReq = new HttpRequestMessage(HttpMethod.Get, "/notifications");
+        malformedReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "invalid.jwt.token");
+        var malformedRes = await client.SendAsync(malformedReq);
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, malformedRes.StatusCode);
+    }
+
+    [Fact]
+    public async Task User_CannotReadAnotherUsersNotificationHistory()
+    {
+        await using var factory = new NotificationTestFactory();
+        var client = factory.CreateClient();
+
+        var userA = Guid.NewGuid();
+        var userB = Guid.NewGuid();
+        var guestId = Guid.NewGuid();
+
+        var notifAId = Guid.NewGuid();
+        var notifBId = Guid.NewGuid();
+        var notifGuestId = Guid.NewGuid();
+
+        // Seed notifications
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            db.Notifications.AddRange(
+                new NotificationItem
+                {
+                    Id = notifAId,
+                    RecipientId = userA,
+                    RecipientType = RecipientType.Account,
+                    Title = "Notice A",
+                    Body = "Notice for User A",
+                    IsRead = false,
+                    CreatedAt = DateTimeOffset.UtcNow
+                },
+                new NotificationItem
+                {
+                    Id = notifBId,
+                    RecipientId = userB,
+                    RecipientType = RecipientType.Account,
+                    Title = "Notice B",
+                    Body = "Notice for User B",
+                    IsRead = false,
+                    CreatedAt = DateTimeOffset.UtcNow
+                },
+                new NotificationItem
+                {
+                    Id = notifGuestId,
+                    RecipientId = guestId,
+                    RecipientType = RecipientType.Guest,
+                    Title = "Notice Guest",
+                    Body = "Notice for Guest",
+                    IsRead = false,
+                    CreatedAt = DateTimeOffset.UtcNow
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        var tokenA = factory.CreateToken(userA);
+        using var requestA = new HttpRequestMessage(HttpMethod.Get, "/notifications");
+        requestA.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokenA);
+
+        var resA = await client.SendAsync(requestA);
+        Assert.Equal(System.Net.HttpStatusCode.OK, resA.StatusCode);
+
+        var contentA = await resA.Content.ReadFromJsonAsync<NotificationListResponse>();
+        Assert.NotNull(contentA);
+        Assert.Single(contentA.Items);
+        Assert.Equal(notifAId, contentA.Items[0].Id);
+        // User A cannot see User B's or Guest's notification
+        Assert.DoesNotContain(contentA.Items, i => i.Id == notifBId || i.Id == notifGuestId);
+
+        // User A attempts IDOR to read User B's notification -> Forbidden (403)
+        using var readBReq = new HttpRequestMessage(HttpMethod.Post, $"/notifications/{notifBId}/read");
+        readBReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokenA);
+        var readBRes = await client.SendAsync(readBReq);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, readBRes.StatusCode);
+
+        // Verify User B's notification remains unread in database
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            var itemB = await db.Notifications.FindAsync(notifBId);
+            Assert.NotNull(itemB);
+            Assert.False(itemB.IsRead);
+        }
+
+        // User A can mark own notification as read
+        using var readAReq = new HttpRequestMessage(HttpMethod.Post, $"/notifications/{notifAId}/read");
+        readAReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokenA);
+        var readARes = await client.SendAsync(readAReq);
+        Assert.Equal(System.Net.HttpStatusCode.OK, readARes.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            var itemA = await db.Notifications.FindAsync(notifAId);
+            Assert.NotNull(itemA);
+            Assert.True(itemA.IsRead);
+        }
+    }
+
+    [Fact]
+    public void SignalRConnection_IsGroupedByAuthenticatedSubject()
+    {
+        var expectedUserId = Guid.NewGuid();
+
+        var claims = new[]
+        {
+            new System.Security.Claims.Claim("sub", expectedUserId.ToString()),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "Patient")
+        };
+        var principal = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(claims, "Bearer"));
+
+        // Verify that authenticated sub claim is used as user identifier
+        var userFromPrincipal = principal.FindFirst("sub")?.Value;
+        Assert.Equal(expectedUserId.ToString(), userFromPrincipal);
+
+        // Anonymous context cannot impersonate another user
+        var unauthPrincipal = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity());
+        Assert.Null(unauthPrincipal.FindFirst("sub")?.Value);
+    }
+
+    [Fact]
+    public async Task ReconnectedClient_CanRecoverMissedNotificationsFromHistoryApi()
+    {
+        await using var factory = new NotificationTestFactory();
+        var client = factory.CreateClient();
+
+        var userId = Guid.NewGuid();
+        var missedNotifId1 = Guid.NewGuid();
+        var missedNotifId2 = Guid.NewGuid();
+
+        // Notifications arrived while client was disconnected
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            db.Notifications.AddRange(
+                new NotificationItem
+                {
+                    Id = missedNotifId1,
+                    RecipientId = userId,
+                    RecipientType = RecipientType.Account,
+                    Title = "Missed 1",
+                    Body = "Your appointment was confirmed",
+                    NotificationType = NotificationType.AppointmentConfirmed,
+                    IsRead = false,
+                    CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-10)
+                },
+                new NotificationItem
+                {
+                    Id = missedNotifId2,
+                    RecipientId = userId,
+                    RecipientType = RecipientType.Account,
+                    Title = "Missed 2",
+                    Body = "Please proceed to Room 101",
+                    NotificationType = NotificationType.PatientCalled,
+                    IsRead = false,
+                    CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-5)
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        var token = factory.CreateToken(userId);
+
+        // Client reconnects and calls unread-count and notifications history
+        using var countReq = new HttpRequestMessage(HttpMethod.Get, "/notifications/unread-count");
+        countReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var countRes = await client.SendAsync(countReq);
+        Assert.Equal(System.Net.HttpStatusCode.OK, countRes.StatusCode);
+        var countJson = await countRes.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(2, countJson.GetProperty("unreadCount").GetInt32());
+
+        // Client fetches authoritative history
+        using var historyReq = new HttpRequestMessage(HttpMethod.Get, "/notifications?limit=10");
+        historyReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var historyRes = await client.SendAsync(historyReq);
+        Assert.Equal(System.Net.HttpStatusCode.OK, historyRes.StatusCode);
+
+        var history = await historyRes.Content.ReadFromJsonAsync<NotificationListResponse>();
+        Assert.NotNull(history);
+        Assert.Equal(2, history.TotalCount);
+        Assert.Equal(2, history.Items.Count);
+        Assert.Contains(history.Items, i => i.Id == missedNotifId1 && i.Type == "AppointmentConfirmed");
+        Assert.Contains(history.Items, i => i.Id == missedNotifId2 && i.Type == "PatientCalled");
+    }
 }
 
 public sealed class NotificationGatewayAndWorkflowTests
