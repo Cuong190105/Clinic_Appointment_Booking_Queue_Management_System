@@ -45,3 +45,4 @@ public sealed class DeliveryOutboxMessage
 
     public ICollection<DeliveryAttempt> Attempts { get; set; } = new List<DeliveryAttempt>();
 }
+

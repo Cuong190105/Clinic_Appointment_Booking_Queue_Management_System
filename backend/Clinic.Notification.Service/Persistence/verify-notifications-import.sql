@@ -22,3 +22,4 @@ IF (@SourceCount = @TargetCount AND @MissingRecipientCount = 0 AND @DuplicateIdC
     PRINT 'VERIFICATION PASSED: Notification migration is 100% consistent with zero unexplained mismatches.';
 ELSE
     PRINT 'VERIFICATION WARNING: Inconsistencies detected during reconciliation.';
+

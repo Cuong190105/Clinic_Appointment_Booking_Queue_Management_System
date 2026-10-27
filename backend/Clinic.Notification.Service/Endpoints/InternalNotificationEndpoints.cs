@@ -86,3 +86,4 @@ public sealed record PasswordResetNotificationRequest(
     string? PhoneNumber,
     string ResetToken
 );
+

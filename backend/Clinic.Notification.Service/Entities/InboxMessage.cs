@@ -14,3 +14,4 @@ public sealed class InboxMessage
 
     public string? Error { get; set; }
 }
+

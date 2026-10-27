@@ -9,3 +9,4 @@ public sealed class NotificationHub : Hub
     // Realtime notifications are pushed server-to-client as hints.
     // SignalR groups connections automatically by authenticated Identity subject via IUserIdProvider.
 }
+

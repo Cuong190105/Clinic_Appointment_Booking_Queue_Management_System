@@ -78,8 +78,8 @@ builder.Services.AddSignalR();
 // and broker dependencies are outside the HTTP contract test boundary.
 if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
 {
-    builder.Services.AddHostedService<NotificationWorker>();
-    builder.Services.AddHostedService<ScheduledNotificationWorker>();
+    // NotificationWorker retired: moved to Notification Service
+    // ScheduledNotificationWorker retired: moved to Notification Service
     builder.Services.AddHostedService<OutboxPublisher>();
     // AppointmentCheckedInConsumer removed: Queue Service is the sole consumer of AppointmentCheckedIn
 }

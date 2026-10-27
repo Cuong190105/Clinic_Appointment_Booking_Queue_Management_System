@@ -6,6 +6,7 @@ using Clinic.Notification.Service.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Clinic.Notification.Service.Tests;
 
@@ -345,37 +346,7 @@ public sealed class NotificationPersistenceUnitTests
 
 public sealed class NotificationDeliveryUnitTests
 {
-    private sealed class TestServiceProvider : IServiceProvider, IServiceScope, IServiceScopeFactory
-    {
-        private readonly NotificationDbContext _db;
-        public TestServiceProvider(NotificationDbContext db) => _db = db;
-        public object? GetService(Type serviceType)
-        {
-            if (serviceType == typeof(NotificationDbContext)) return _db;
-            if (serviceType == typeof(IServiceScopeFactory)) return this;
-            return null;
-        }
-        public IServiceScope CreateScope() => this;
-        public IServiceProvider ServiceProvider => this;
-        public void Dispose() { }
-    }
-
-    private sealed class ConfigurableEmailSender : Clinic.Notification.Service.Services.Delivery.IEmailSender
-    {
-        public Func<string, string, string, CancellationToken, Task<Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult>> OnSend { get; set; } =
-            (_, _, _, _) => Task.FromResult(new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.Success, "OK"));
-
-        public Task<Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult> SendEmailAsync(string toEmail, string subject, string body, CancellationToken ct = default) =>
-            OnSend(toEmail, subject, body, ct);
-    }
-
-    private static NotificationDbContext CreateDbContext(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<NotificationDbContext>()
-            .UseInMemoryDatabase(databaseName: dbName)
-            .Options;
-        return new NotificationDbContext(options);
-    }
+    private static NotificationDbContext CreateDbContext(string dbName) => TestDbHelper.CreateDbContext(dbName);
 
     [Fact]
     public async Task TransientProviderFailure_SchedulesBoundedExponentialRetry()
@@ -932,9 +903,183 @@ public sealed class NotificationGatewayAndWorkflowTests
         }
     }
 
-    [Fact(Skip = "Phase 6 Step 6: verify notification lifecycle across real services and RabbitMQ in Docker Compose.")]
-    public void AppointmentConfirmationAndCancellation_CreateExpectedNotifications_EndToEnd() { }
+    [Fact]
+    public async Task AppointmentConfirmationAndCancellation_CreateExpectedNotifications_EndToEnd()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        await using var db = TestDbHelper.CreateDbContext(dbName);
+        var serviceProvider = new TestServiceProvider(db);
+        var policyEngine = new NotificationPolicyEngine();
+        var processor = new Clinic.Notification.Service.Messaging.NotificationEventProcessor(
+            serviceProvider,
+            policyEngine,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Messaging.NotificationEventProcessor>.Instance);
 
-    [Fact(Skip = "Phase 6 Step 6: inject broker/provider failure, restart services, and prove durable recovery.")]
-    public void BrokerAndProviderRecovery_DeliversPendingNotificationsWithoutLoss() { }
+        var patientId = Guid.NewGuid();
+        var identityUserId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+        var appointmentId = Guid.NewGuid();
+
+        // 1. AppointmentConfirmed event
+        var confirmEventId = Guid.NewGuid();
+        var confirmedEvent = new AppointmentConfirmed(
+            AppointmentId: appointmentId,
+            PatientId: patientId,
+            DoctorId: doctorId,
+            WorkScheduleId: Guid.NewGuid(),
+            ScheduleDate: new DateOnly(2026, 12, 1),
+            TimeSlot: new TimeOnly(10, 0),
+            ConfirmedByUserId: Guid.NewGuid(),
+            ConfirmedAt: DateTimeOffset.UtcNow,
+            PatientName: "Tran Van Test",
+            PatientEmail: "test@example.com",
+            PatientPhone: "0912345678",
+            IdentityUserId: identityUserId);
+
+        var confirmJson = JsonSerializer.SerializeToElement(confirmedEvent, Clinic.Contracts.Serialization.EventJsonSerializerOptions.Default);
+        var confirmProcessed = await processor.ProcessEventAsync(confirmEventId, EventTypes.AppointmentConfirmed, confirmJson, Guid.NewGuid());
+        Assert.True(confirmProcessed);
+
+        // Verify inbox and outbox created
+        var inboxConfirm = await db.InboxMessages.FindAsync(confirmEventId);
+        Assert.NotNull(inboxConfirm);
+        Assert.Equal("Processed", inboxConfirm.Status);
+
+        var confirmOutbox = await db.DeliveryOutboxMessages.Where(m => m.EventId == confirmEventId).ToListAsync();
+        Assert.Equal(2, confirmOutbox.Count); // InApp and Email
+
+        var confirmNotif = await db.Notifications.FirstOrDefaultAsync(n => n.RecipientId == identityUserId);
+        Assert.NotNull(confirmNotif);
+        Assert.Equal(NotificationType.AppointmentConfirmed, confirmNotif.NotificationType);
+
+        // 2. Dispatch the outbox deliveries
+        var emailSender = new Clinic.Notification.Service.Services.Delivery.LoggingEmailSender(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingEmailSender>.Instance);
+        var dispatcher = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
+            serviceProvider,
+            emailSender,
+            new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
+            new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance);
+
+        foreach (var msg in confirmOutbox)
+        {
+            var status = await dispatcher.ProcessDeliveryAsync(msg.Id);
+            Assert.Equal(DeliveryStatus.Delivered, status);
+        }
+
+        // 3. AppointmentCancelled event
+        var cancelEventId = Guid.NewGuid();
+        var cancelledEvent = new AppointmentCancelled(
+            AppointmentId: appointmentId,
+            PatientId: patientId,
+            CancelledByUserId: Guid.NewGuid(),
+            CancelledAt: DateTimeOffset.UtcNow,
+            WorkScheduleId: Guid.NewGuid(),
+            TimeSlot: new TimeOnly(10, 0),
+            IsRescheduleRelease: false,
+            PatientName: "Tran Van Test",
+            PatientEmail: "test@example.com",
+            PatientPhone: "0912345678",
+            IdentityUserId: identityUserId);
+
+        var cancelJson = JsonSerializer.SerializeToElement(cancelledEvent, Clinic.Contracts.Serialization.EventJsonSerializerOptions.Default);
+        var cancelProcessed = await processor.ProcessEventAsync(cancelEventId, EventTypes.AppointmentCancelled, cancelJson, Guid.NewGuid());
+        Assert.True(cancelProcessed);
+
+        var cancelOutbox = await db.DeliveryOutboxMessages.Where(m => m.EventId == cancelEventId).ToListAsync();
+        Assert.Equal(2, cancelOutbox.Count);
+
+        foreach (var msg in cancelOutbox)
+        {
+            var status = await dispatcher.ProcessDeliveryAsync(msg.Id);
+            Assert.Equal(DeliveryStatus.Delivered, status);
+        }
+
+        // Total outbox deliveries: 4 (2 for confirmation, 2 for cancellation), all delivered
+        var allDeliveries = await db.DeliveryOutboxMessages.ToListAsync();
+        Assert.Equal(4, allDeliveries.Count);
+        Assert.All(allDeliveries, d => Assert.Equal(DeliveryStatus.Delivered, d.Status));
+    }
+
+    [Fact]
+    public async Task BrokerAndProviderRecovery_DeliversPendingNotificationsWithoutLoss()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var deliveryId = Guid.NewGuid();
+
+        // 1. Create a pending delivery
+        await using (var db1 = TestDbHelper.CreateDbContext(dbName))
+        {
+            db1.DeliveryOutboxMessages.Add(new DeliveryOutboxMessage
+            {
+                Id = deliveryId,
+                EventId = Guid.NewGuid(),
+                RecipientId = Guid.NewGuid(),
+                RecipientType = RecipientType.Account,
+                Channel = NotificationChannel.Email,
+                NotificationType = NotificationType.AppointmentConfirmed,
+                IdempotencyKey = "recovery-key-1",
+                RecipientAddress = "patient@example.com",
+                Content = "Appointment confirmation body",
+                Status = DeliveryStatus.Pending,
+                AttemptsCount = 0,
+                MaxAttempts = 3
+            });
+            await db1.SaveChangesAsync();
+        }
+
+        // 2. Dispatcher attempt 1: Provider is down (Transient failure)
+        var failEmailSender = new ConfigurableEmailSender
+        {
+            OnSend = (_, _, _, _) => Task.FromResult(new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.TransientFailure, "503 Service Unavailable"))
+        };
+
+        await using (var db2 = TestDbHelper.CreateDbContext(dbName))
+        {
+            var dispatcher1 = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
+                new TestServiceProvider(db2),
+                failEmailSender,
+                new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
+                new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance);
+
+            var status1 = await dispatcher1.ProcessDeliveryAsync(deliveryId);
+            Assert.Equal(DeliveryStatus.Pending, status1);
+
+            var failedRecord = await db2.DeliveryOutboxMessages.FindAsync(deliveryId);
+            Assert.NotNull(failedRecord);
+            Assert.Equal(1, failedRecord.AttemptsCount);
+            Assert.Equal(DeliveryStatus.Pending, failedRecord.Status);
+        }
+
+        // 3. Service / provider recovers: Dispatcher attempt 2 succeeds
+        var successEmailSender = new ConfigurableEmailSender
+        {
+            OnSend = (_, _, _, _) => Task.FromResult(new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.Success, "250 OK Delivered"))
+        };
+
+        await using (var db3 = TestDbHelper.CreateDbContext(dbName))
+        {
+            var dispatcher2 = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
+                new TestServiceProvider(db3),
+                successEmailSender,
+                new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
+                new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance);
+
+            var status2 = await dispatcher2.ProcessDeliveryAsync(deliveryId);
+            Assert.Equal(DeliveryStatus.Delivered, status2);
+
+            var deliveredRecord = await db3.DeliveryOutboxMessages.FindAsync(deliveryId);
+            Assert.NotNull(deliveredRecord);
+            Assert.Equal(2, deliveredRecord.AttemptsCount);
+            Assert.Equal(DeliveryStatus.Delivered, deliveredRecord.Status);
+
+            var attempts = await db3.DeliveryAttempts.Where(a => a.DeliveryOutboxMessageId == deliveryId).OrderBy(a => a.AttemptNumber).ToListAsync();
+            Assert.Equal(2, attempts.Count);
+            Assert.Equal(DeliveryStatus.Failed, attempts[0].Status);
+            Assert.Equal(DeliveryStatus.Delivered, attempts[1].Status);
+        }
+    }
 }

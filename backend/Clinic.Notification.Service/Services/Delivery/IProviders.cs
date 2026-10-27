@@ -52,3 +52,4 @@ public sealed class NullRealtimeNotifier : IRealtimeNotifier
     public Task SendNotificationHintAsync(Guid userId, Guid notificationId, string notificationType, CancellationToken ct = default) =>
         Task.CompletedTask;
 }
+

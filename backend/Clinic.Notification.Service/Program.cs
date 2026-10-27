@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Clinic.Notification.Service.Endpoints;
+using Clinic.Notification.Service.Messaging;
 using Clinic.Notification.Service.Persistence;
 using Clinic.Notification.Service.Realtime;
 using Clinic.Notification.Service.Services;
@@ -38,6 +39,14 @@ builder.Services.AddDbContext<NotificationDbContext>((sp, options) =>
 
 // Domain services
 builder.Services.AddSingleton<INotificationPolicyEngine, NotificationPolicyEngine>();
+builder.Services.AddSingleton<INotificationEventProcessor, NotificationEventProcessor>();
+
+// Background messaging consumers and dispatchers
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<NotificationEventHostedConsumer>();
+    builder.Services.AddHostedService<NotificationOutboxDeliveryHostedService>();
+}
 
 // Delivery & Provider abstractions
 builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();

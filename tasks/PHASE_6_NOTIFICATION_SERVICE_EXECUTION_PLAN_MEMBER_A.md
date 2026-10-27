@@ -269,150 +269,183 @@ The current scaffold is intentionally not registered in Gateway and does not con
 ### Bước 1 — Chuẩn hóa Hợp đồng, Định danh Người nhận & Động cơ Chính sách (Notification Policy & Event Contracts) (Hoàn tất: 2026-10-26)
 
 1. **Chuẩn hóa Hợp đồng & Snapshot Người nhận (Event Contracts & Recipient Snapshots):**
-   - Cập nhật hợp đồng sự kiện `AppointmentConfirmed` và `AppointmentCancelled` trong `Clinic.Contracts/Events` với các tham số snapshot liên hệ tùy chọn (`PatientName`, `PatientEmail`, `PatientPhone`, `IdentityUserId`), đảm bảo tính tương thích ngược 100% với các service hiện tại.
-   - Bổ sung thông tin định danh và snapshot cho sự kiện `PatientCalled` trong `QueueEvents.cs`.
-   - Bổ sung các hằng số tên sự kiện chuẩn vào `EventTypes`: `AppointmentReminderScheduled`, `NotificationRequested`, `PasswordResetNotificationRequested`.
+    - Cập nhật hợp đồng sự kiện `AppointmentConfirmed` và `AppointmentCancelled` trong `Clinic.Contracts/Events` với các tham số snapshot liên hệ tùy chọn (`PatientName`, `PatientEmail`, `PatientPhone`, `IdentityUserId`), đảm bảo tính tương thích ngược 100% với các service hiện tại.
+    - Bổ sung thông tin định danh và snapshot cho sự kiện `PatientCalled` trong `QueueEvents.cs`.
+    - Bổ sung các hằng số tên sự kiện chuẩn vào `EventTypes`: `AppointmentReminderScheduled`, `NotificationRequested`, `PasswordResetNotificationRequested`.
 
 2. **Triển khai Mô hình Định danh & Động cơ Chính sách Thông báo (`NotificationPolicyEngine`):**
-   - Xây dựng các kiểu thực thể nền tảng trong `Clinic.Notification.Service/Entities`:
-     - `RecipientType`: `Account` (Người dùng có tài khoản), `Guest` (Bệnh nhân vãng lai chưa liên kết tài khoản).
-     - `NotificationChannel`: `InApp`, `Email`, `Sms`.
-     - `NotificationType`: `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentReminder`, `PatientCalled`, `PasswordReset`.
-     - `DeliveryStatus`: `Pending`, `Delivered`, `Failed`, `DeadLettered`.
-     - `RecipientContactSnapshot`: Chứa các trường liên hệ tối thiểu (`FullName`, `Email`, `PhoneNumber`).
-   - Xây dựng `NotificationPolicyEngine` (`INotificationPolicyEngine`):
-     - `EvaluateAppointmentConfirmed`: Tự động phân loại `Account` (sinh InApp + Email/Sms) và `Guest` (chỉ sinh Email/Sms, **tuyệt đối không tạo bản ghi InApp hay gán kết nối SignalR**).
-     - `EvaluateAppointmentCancelled`: Phân biệt rõ việc hủy do đổi lịch (`IsRescheduleRelease = true`) để **triệt tiêu hoàn toàn (suppress)** thông báo hủy sai lệch tới người dùng; chỉ phát thông báo khi là hủy thực sự.
-     - `EvaluatePatientCalled`: Phát InApp cho tài khoản để đẩy tín hiệu realtime qua SignalR; phát SMS cho khách nếu có số điện thoại.
-     - `ShouldCancelPendingReminder`: Tự động triệt tiêu/hủy reminder đang chờ cho ca khám bị hủy.
-     - `GenerateIdempotencyKey`: Định chuẩn khóa chống trùng lặp theo cấu trúc `{EventId}:{RecipientId}:{Channel}:{Type}`.
+    - Xây dựng các kiểu thực thể nền tảng trong `Clinic.Notification.Service/Entities`:
+        - `RecipientType`: `Account` (Người dùng có tài khoản), `Guest` (Bệnh nhân vãng lai chưa liên kết tài khoản).
+        - `NotificationChannel`: `InApp`, `Email`, `Sms`.
+        - `NotificationType`: `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentReminder`, `PatientCalled`, `PasswordReset`.
+        - `DeliveryStatus`: `Pending`, `Delivered`, `Failed`, `DeadLettered`.
+        - `RecipientContactSnapshot`: Chứa các trường liên hệ tối thiểu (`FullName`, `Email`, `PhoneNumber`).
+    - Xây dựng `NotificationPolicyEngine` (`INotificationPolicyEngine`):
+        - `EvaluateAppointmentConfirmed`: Tự động phân loại `Account` (sinh InApp + Email/Sms) và `Guest` (chỉ sinh Email/Sms, **tuyệt đối không tạo bản ghi InApp hay gán kết nối SignalR**).
+        - `EvaluateAppointmentCancelled`: Phân biệt rõ việc hủy do đổi lịch (`IsRescheduleRelease = true`) để **triệt tiêu hoàn toàn (suppress)** thông báo hủy sai lệch tới người dùng; chỉ phát thông báo khi là hủy thực sự.
+        - `EvaluatePatientCalled`: Phát InApp cho tài khoản để đẩy tín hiệu realtime qua SignalR; phát SMS cho khách nếu có số điện thoại.
+        - `ShouldCancelPendingReminder`: Tự động triệt tiêu/hủy reminder đang chờ cho ca khám bị hủy.
+        - `GenerateIdempotencyKey`: Định chuẩn khóa chống trùng lặp theo cấu trúc `{EventId}:{RecipientId}:{Channel}:{Type}`.
 
 3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Chính sách & Bảo vệ Dữ liệu (TDD Unit Tests):**
-   - Xóa bỏ trạng thái `Skip` và hoàn thiện toàn bộ mã kiểm thử trong nhóm `NotificationPolicyUnitTests` tại `NotificationRequirementsTests.cs`:
-     - `ConfirmedAppointment_ProducesOneConfirmationPerEligibleRecipientAndChannel`: PASS
-     - `RescheduleRelease_DoesNotProduceCancellationNotification`: PASS
-     - `GuestRecipient_UsesOnlyEligibleEmailOrSmsChannels`: PASS
-     - `CancelledAppointment_SuppressesPendingReminder`: PASS
-     - `OrdinaryEventContracts_ContainNoCredentials_ResetTokens_OrClinicalPHI`: PASS (Quét phản xạ toàn bộ thuộc tính, chứng minh không chứa secret/token/PHI lâm sàng).
-   - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **7/7 tests PASS** (2 scaffold tests + 5 policy & contract tests).
-   - Không gây ảnh hưởng tới các service khác: `Clinic.Contracts.UnitTests` (6/6 PASS), `Clinic.Appointment.Service.Tests` (34/34 PASS).
+    - Xóa bỏ trạng thái `Skip` và hoàn thiện toàn bộ mã kiểm thử trong nhóm `NotificationPolicyUnitTests` tại `NotificationRequirementsTests.cs`:
+        - `ConfirmedAppointment_ProducesOneConfirmationPerEligibleRecipientAndChannel`: PASS
+        - `RescheduleRelease_DoesNotProduceCancellationNotification`: PASS
+        - `GuestRecipient_UsesOnlyEligibleEmailOrSmsChannels`: PASS
+        - `CancelledAppointment_SuppressesPendingReminder`: PASS
+        - `OrdinaryEventContracts_ContainNoCredentials_ResetTokens_OrClinicalPHI`: PASS (Quét phản xạ toàn bộ thuộc tính, chứng minh không chứa secret/token/PHI lâm sàng).
+    - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **7/7 tests PASS** (2 scaffold tests + 5 policy & contract tests).
+    - Không gây ảnh hưởng tới các service khác: `Clinic.Contracts.UnitTests` (6/6 PASS), `Clinic.Appointment.Service.Tests` (34/34 PASS).
 
 ---
 
 ### Bước 2 — Tách biệt Cơ sở Dữ liệu, Lưu trữ Bền vững & Di chuyển Dữ liệu Lịch sử (Isolated Database, Persistence & Legacy Import) (Hoàn tất: 2026-10-26)
 
 1. **Thiết kế & Tách biệt Cơ sở dữ liệu Độc lập (`ClinicNotificationDB`):**
-   - Xây dựng `NotificationDbContext` sở hữu độc lập schema thông báo: `Notifications`, `InboxMessages`, `DeliveryOutboxMessages`, `DeliveryAttempts`.
-   - Mô hình `NotificationItem` lưu trữ snapshot định danh người nhận (`RecipientId`, `RecipientType`, `ContactName`, `ContactEmail`, `ContactPhone`), tách rời hoàn toàn khỏi `Person` entity và ClinicDB.
-   - Mô hình `DeliveryOutboxMessage` áp đặt ràng buộc duy nhất (`UNIQUE INDEX`) trên `IdempotencyKey` (`{EventId}:{RecipientId}:{Channel}:{Type}`), đảm bảo ngăn chặn triệt để trùng lặp ở tầng database.
-   - Mô hình `DeliveryAttempt` lưu trữ dấu vết kiểm toán phát thông báo (`Status`, `AttemptedAt`, `ProviderResponse`, `ProviderReference`, `CorrelationId`), **tuyệt đối không lưu secret, reset code, password hay message body**.
-   - Khởi tạo migration `InitialNotificationSchema` và áp dụng thành công lên cơ sở dữ liệu `ClinicNotificationDB`.
+    - Xây dựng `NotificationDbContext` sở hữu độc lập schema thông báo: `Notifications`, `InboxMessages`, `DeliveryOutboxMessages`, `DeliveryAttempts`.
+    - Mô hình `NotificationItem` lưu trữ snapshot định danh người nhận (`RecipientId`, `RecipientType`, `ContactName`, `ContactEmail`, `ContactPhone`), tách rời hoàn toàn khỏi `Person` entity và ClinicDB.
+    - Mô hình `DeliveryOutboxMessage` áp đặt ràng buộc duy nhất (`UNIQUE INDEX`) trên `IdempotencyKey` (`{EventId}:{RecipientId}:{Channel}:{Type}`), đảm bảo ngăn chặn triệt để trùng lặp ở tầng database.
+    - Mô hình `DeliveryAttempt` lưu trữ dấu vết kiểm toán phát thông báo (`Status`, `AttemptedAt`, `ProviderResponse`, `ProviderReference`, `CorrelationId`), **tuyệt đối không lưu secret, reset code, password hay message body**.
+    - Khởi tạo migration `InitialNotificationSchema` và áp dụng thành công lên cơ sở dữ liệu `ClinicNotificationDB`.
 
 2. **Migration & Đối soát Dữ liệu Lịch sử (Legacy Data Import & Reconciliation):**
-   - Xây dựng script `import-from-clinicdb.sql` an toàn, có transaction và bảo đảm tính idempotent qua mệnh đề `WHERE NOT EXISTS`. Tự động ánh xạ `PersonId` legacy sang `Identity.UserId` thông qua kết nối với `ClinicIdentityDB.dbo.Users`.
-   - Xây dựng script đối soát `verify-notifications-import.sql` kiểm chứng số lượng, tính toàn vẹn và tỷ lệ trùng khớp.
-   - Kết quả thực thi thực tế trên `clinic_sql_server`:
-     - Số lượng bản ghi nguồn `ClinicDB`: 58
-     - Số lượng bản ghi đích `ClinicNotificationDB`: 58
-     - Sai lệch (CountDifference): 0
-     - Thiếu Recipient (MissingRecipientCount): 0
-     - Trùng lặp ID (DuplicateIdCount): 0
-     - Khách chưa map (UnmappedAccountCount): 0
-     - Chạy lại lần 2 (Rerun Idempotency Test): 0 dòng bị ghi đè, toàn vẹn 100%.
+    - Xây dựng script `import-from-clinicdb.sql` an toàn, có transaction và bảo đảm tính idempotent qua mệnh đề `WHERE NOT EXISTS`. Tự động ánh xạ `PersonId` legacy sang `Identity.UserId` thông qua kết nối với `ClinicIdentityDB.dbo.Users`.
+    - Xây dựng script đối soát `verify-notifications-import.sql` kiểm chứng số lượng, tính toàn vẹn và tỷ lệ trùng khớp.
+    - Kết quả thực thi thực tế trên `clinic_sql_server`:
+        - Số lượng bản ghi nguồn `ClinicDB`: 58
+        - Số lượng bản ghi đích `ClinicNotificationDB`: 58
+        - Sai lệch (CountDifference): 0
+        - Thiếu Recipient (MissingRecipientCount): 0
+        - Trùng lặp ID (DuplicateIdCount): 0
+        - Khách chưa map (UnmappedAccountCount): 0
+        - Chạy lại lần 2 (Rerun Idempotency Test): 0 dòng bị ghi đè, toàn vẹn 100%.
 
 3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Bền vững (Persistence & Import TDD Tests):**
-   - Hoàn thiện 100% các test case trong nhóm `NotificationPersistenceUnitTests`:
-     - `ConsumingBusinessEvent_PersistsInboxNotificationAndDeliveriesInOneTransaction`: PASS (Ghi nhận Inbox, Notification và Outbox trong cùng 1 transaction nguyên tử).
-     - `DuplicateEventId_DoesNotCreateDuplicateNotification`: PASS (Chống trùng lặp theo IdempotencyKey).
-     - `DeliveryAttempt_PersistsRequiredAuditFieldsWithoutSecretsOrMessageBody`: PASS (Audit delivery an toàn không rò rỉ secret).
-     - `NotificationAggregate_StoresRecipientIdentityAndMinimalContactSnapshotOnly`: PASS (Xác nhận cấu trúc aggregate độc lập, không dính Person/ClinicDB/PHI lâm sàng).
-   - Bổ sung `NotificationImportVerificationTests`: PASS (3/3 tests kiểm thử file script SQL và mô phỏng import idempotent).
-   - Cập nhật cấu hình `/readyz` và chuỗi kết nối database trong `appsettings.json`.
-   - Kết quả kiểm thử: **14/14 tests PASS** trong `Clinic.Notification.Service.Tests`.
+    - Hoàn thiện 100% các test case trong nhóm `NotificationPersistenceUnitTests`:
+        - `ConsumingBusinessEvent_PersistsInboxNotificationAndDeliveriesInOneTransaction`: PASS (Ghi nhận Inbox, Notification và Outbox trong cùng 1 transaction nguyên tử).
+        - `DuplicateEventId_DoesNotCreateDuplicateNotification`: PASS (Chống trùng lặp theo IdempotencyKey).
+        - `DeliveryAttempt_PersistsRequiredAuditFieldsWithoutSecretsOrMessageBody`: PASS (Audit delivery an toàn không rò rỉ secret).
+        - `NotificationAggregate_StoresRecipientIdentityAndMinimalContactSnapshotOnly`: PASS (Xác nhận cấu trúc aggregate độc lập, không dính Person/ClinicDB/PHI lâm sàng).
+    - Bổ sung `NotificationImportVerificationTests`: PASS (3/3 tests kiểm thử file script SQL và mô phỏng import idempotent).
+    - Cập nhật cấu hình `/readyz` và chuỗi kết nối database trong `appsettings.json`.
+    - Kết quả kiểm thử: **14/14 tests PASS** trong `Clinic.Notification.Service.Tests`.
 
 ---
 
 ### Bước 3 — Tiếp nhận Event Bền vững, Outbox Dispatcher, Thử lại Lũy thừa & Ghi nhận Kiểm toán (Hoàn tất: 2026-10-26)
 
 1. **Thiết kế & Xây dựng Hệ thống Chuyển phát & Khôi phục Thất bại (Delivery Dispatcher & Retry):**
-   - Xây dựng phân loại kết quả nhà cung cấp `ProviderDeliveryResult` (`ProviderResultCategory`: `Success`, `TransientFailure`, `PermanentFailure`, `Ambiguous`).
-   - Xây dựng `DeliveryBackoffStrategy` hỗ trợ thuật toán Exponential Backoff có trần (bounded) và jitter ngẫu nhiên, tự động tính toán thời gian `NextAttemptAt`.
-   - Xây dựng abstraction các nhà cung cấp thông báo `IEmailSender`, `ISmsSender`, `IRealtimeNotifier` và triển khai mặc định.
-   - Xây dựng `NotificationDeliveryDispatcher` xử lý các message trong outbox:
-     - Lựa chọn đúng provider theo kênh (`Email`, `Sms`, `InApp`).
-     - Tự động chuyển trạng thái sang `Delivered` khi thành công; sang `DeadLettered` khi gặp lỗi vĩnh viễn (`PermanentFailure`) hoặc vượt ngưỡng số lần thử lại tối đa.
-     - Tuân thủ ngân sách thời gian chờ (`TimeoutBudget`), áp dụng `CancellationTokenSource` độc lập cho từng lần gọi provider để không treo worker.
-     - Xử lý trạng thái mập mờ (`Ambiguous`): giữ nguyên outbox message ở trạng thái đang xử lý (`Pending`), không tự tiện đánh dấu `Delivered` khi chưa đối soát.
-     - Ghi nhận `DeliveryAttempt` chi tiết với thời điểm, trạng thái và provider response tóm lược, bảo vệ quyền riêng tư (không lưu trữ secret/password hay message body).
+    - Xây dựng phân loại kết quả nhà cung cấp `ProviderDeliveryResult` (`ProviderResultCategory`: `Success`, `TransientFailure`, `PermanentFailure`, `Ambiguous`).
+    - Xây dựng `DeliveryBackoffStrategy` hỗ trợ thuật toán Exponential Backoff có trần (bounded) và jitter ngẫu nhiên, tự động tính toán thời gian `NextAttemptAt`.
+    - Xây dựng abstraction các nhà cung cấp thông báo `IEmailSender`, `ISmsSender`, `IRealtimeNotifier` và triển khai mặc định.
+    - Xây dựng `NotificationDeliveryDispatcher` xử lý các message trong outbox:
+        - Lựa chọn đúng provider theo kênh (`Email`, `Sms`, `InApp`).
+        - Tự động chuyển trạng thái sang `Delivered` khi thành công; sang `DeadLettered` khi gặp lỗi vĩnh viễn (`PermanentFailure`) hoặc vượt ngưỡng số lần thử lại tối đa.
+        - Tuân thủ ngân sách thời gian chờ (`TimeoutBudget`), áp dụng `CancellationTokenSource` độc lập cho từng lần gọi provider để không treo worker.
+        - Xử lý trạng thái mập mờ (`Ambiguous`): giữ nguyên outbox message ở trạng thái đang xử lý (`Pending`), không tự tiện đánh dấu `Delivered` khi chưa đối soát.
+        - Ghi nhận `DeliveryAttempt` chi tiết với thời điểm, trạng thái và provider response tóm lược, bảo vệ quyền riêng tư (không lưu trữ secret/password hay message body).
 
 2. **Tiếp nhận & Xử lý Transactional Inbox Deduplication:**
-   - Xây dựng `NotificationEventProcessor` tiếp nhận event kinh doanh (`AppointmentConfirmed`, `AppointmentCancelled`, `PatientCalled`, `AppointmentReminderScheduled`).
-   - Đảm bảo tính nguyên tử (atomic transaction): Inbox deduplication, tạo bản ghi `Notifications`, và tạo `DeliveryOutboxMessages` diễn ra trong cùng một transaction của `NotificationDbContext`.
+    - Xây dựng `NotificationEventProcessor` tiếp nhận event kinh doanh (`AppointmentConfirmed`, `AppointmentCancelled`, `PatientCalled`, `AppointmentReminderScheduled`).
+    - Đảm bảo tính nguyên tử (atomic transaction): Inbox deduplication, tạo bản ghi `Notifications`, và tạo `DeliveryOutboxMessages` diễn ra trong cùng một transaction của `NotificationDbContext`.
 
 3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Delivery & Retry (TDD Unit Tests):**
-   - Hoàn thiện 100% các test case trong nhóm `NotificationDeliveryUnitTests`:
-     - `TransientProviderFailure_TriggersRetryWithBoundedExponentialBackoff`: PASS (Kiểm chứng tính toán retry delay lũy thừa có chặn trên).
-     - `PermanentFailureOrMaxRetriesExceeded_MovesMessageToDeadLetter`: PASS (Lỗi vĩnh viễn hoặc quá số lần retry được chuyển vào Dead-Letter queue chuẩn xác).
-     - `DeliveryAttempt_RespectsTimeoutBudget_WithoutHangingDispatcher`: PASS (Không bị treo worker khi provider phản hồi chậm hoặc timeout).
-     - `AmbiguousProviderResult_DoesNotMarkMessageDeliveredUntilReconciled`: PASS (Kết quả mập mờ không bị đánh dấu thành công sai sót).
-   - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **18/18 tests PASS** (0 failed, 8 skipped của các bước tiếp theo).
+    - Hoàn thiện 100% các test case trong nhóm `NotificationDeliveryUnitTests`:
+        - `TransientProviderFailure_TriggersRetryWithBoundedExponentialBackoff`: PASS (Kiểm chứng tính toán retry delay lũy thừa có chặn trên).
+        - `PermanentFailureOrMaxRetriesExceeded_MovesMessageToDeadLetter`: PASS (Lỗi vĩnh viễn hoặc quá số lần retry được chuyển vào Dead-Letter queue chuẩn xác).
+        - `DeliveryAttempt_RespectsTimeoutBudget_WithoutHangingDispatcher`: PASS (Không bị treo worker khi provider phản hồi chậm hoặc timeout).
+        - `AmbiguousProviderResult_DoesNotMarkMessageDeliveredUntilReconciled`: PASS (Kết quả mập mờ không bị đánh dấu thành công sai sót).
+    - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **18/18 tests PASS** (0 failed, 8 skipped của các bước tiếp theo).
 
 ---
 
 ### Bước 4 — REST API Thông báo, Xác thực JWT & SignalR Hub (Notification REST API, Authorization & SignalR) (Hoàn tất: 2026-10-26)
 
 1. **Thiết kế & Xây dựng Notification REST Endpoints:**
-   - Xây dựng `NotificationEndpoints` (`Clinic.Notification.Service/Endpoints/NotificationEndpoints.cs`):
-     - `GET /notifications`, `GET /notifications/me` và `GET /me/notifications`: Tra cứu lịch sử thông báo được phân trang, hỗ trợ lọc con trỏ thời gian (`createdBefore`), giới hạn (`limit`), trang (`page`, `pageSize`) và trạng thái (`unreadOnly`).
-     - Tự động trích xuất định danh tài khoản từ JWT `sub` (hoặc `ClaimTypes.NameIdentifier`).
-     - Cách ly triệt để dữ liệu khách (`RecipientType.Guest`): Các thông báo của khách chỉ lưu dạng snapshot liên hệ, không bao giờ lộ qua account history API.
-     - `GET /notifications/unread-count`: Trả về số lượng thông báo chưa đọc của tài khoản đăng nhập.
-     - `POST /notifications/{id}/read` & `PUT /notifications/{id}/read`: Đánh dấu đã đọc với cơ chế bảo vệ IDOR nghiêm ngặt. Trả về `403 Forbidden` khi người dùng cố tình đọc hoặc sửa thông báo của người khác.
-     - `POST /notifications/read-all`: Đánh dấu toàn bộ thông báo chưa đọc của người dùng hiện tại là đã đọc.
+    - Xây dựng `NotificationEndpoints` (`Clinic.Notification.Service/Endpoints/NotificationEndpoints.cs`):
+        - `GET /notifications`, `GET /notifications/me` và `GET /me/notifications`: Tra cứu lịch sử thông báo được phân trang, hỗ trợ lọc con trỏ thời gian (`createdBefore`), giới hạn (`limit`), trang (`page`, `pageSize`) và trạng thái (`unreadOnly`).
+        - Tự động trích xuất định danh tài khoản từ JWT `sub` (hoặc `ClaimTypes.NameIdentifier`).
+        - Cách ly triệt để dữ liệu khách (`RecipientType.Guest`): Các thông báo của khách chỉ lưu dạng snapshot liên hệ, không bao giờ lộ qua account history API.
+        - `GET /notifications/unread-count`: Trả về số lượng thông báo chưa đọc của tài khoản đăng nhập.
+        - `POST /notifications/{id}/read` & `PUT /notifications/{id}/read`: Đánh dấu đã đọc với cơ chế bảo vệ IDOR nghiêm ngặt. Trả về `403 Forbidden` khi người dùng cố tình đọc hoặc sửa thông báo của người khác.
+        - `POST /notifications/read-all`: Đánh dấu toàn bộ thông báo chưa đọc của người dùng hiện tại là đã đọc.
 
 2. **Thiết kế & Tích hợp SignalR Realtime Hub:**
-   - Xây dựng `NotificationHub` (`/hubs/notifications`) yêu cầu bắt buộc xác thực `[Authorize]`.
-   - Xây dựng `SubUserIdProvider` trích xuất chính xác `sub` từ claims, ngăn chặn tuyệt đối việc client gửi query parameter/header giả mạo để lắng nghe thông báo của tài khoản khác.
-   - Xây dựng `SignalRRealtimeNotifier` (`IRealtimeNotifier`):
-     - Gửi tín hiệu hint `ReceiveNotificationHint` tới đúng nhóm kết nối của người dùng (`Clients.User(userId.ToString())`).
-     - Payload đẩy qua WebSocket chỉ chứa `{ id, type, timestamp }`, **tuyệt đối không chứa PHI lâm sàng, thông tin cá nhân hay nội dung tin nhắn**. Client sẽ gọi REST API để lấy nội dung đầy đủ một cách an toàn.
-   - Cấu hình trích xuất `access_token` từ query string trong `JwtBearerEvents.OnMessageReceived` phục vụ kết nối WebSocket SignalR.
+    - Xây dựng `NotificationHub` (`/hubs/notifications`) yêu cầu bắt buộc xác thực `[Authorize]`.
+    - Xây dựng `SubUserIdProvider` trích xuất chính xác `sub` từ claims, ngăn chặn tuyệt đối việc client gửi query parameter/header giả mạo để lắng nghe thông báo của tài khoản khác.
+    - Xây dựng `SignalRRealtimeNotifier` (`IRealtimeNotifier`):
+        - Gửi tín hiệu hint `ReceiveNotificationHint` tới đúng nhóm kết nối của người dùng (`Clients.User(userId.ToString())`).
+        - Payload đẩy qua WebSocket chỉ chứa `{ id, type, timestamp }`, **tuyệt đối không chứa PHI lâm sàng, thông tin cá nhân hay nội dung tin nhắn**. Client sẽ gọi REST API để lấy nội dung đầy đủ một cách an toàn.
+    - Cấu hình trích xuất `access_token` từ query string trong `JwtBearerEvents.OnMessageReceived` phục vụ kết nối WebSocket SignalR.
 
 3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Xác thực & Realtime (TDD Tests):**
-   - Xây dựng `NotificationTestFactory` tích hợp `WebApplicationFactory<Program>`, cấu hình kiểm thử JWT độc lập không cần phụ thuộc mạng tới JWKS server.
-   - Hoàn thiện 100% các test case trong nhóm `NotificationAuthorizationAndRealtimeTests`:
-     - `ProtectedNotificationEndpoint_RejectsMissingOrInvalidJwt`: PASS (Từ chối 401 khi thiếu token hoặc token giả mạo/hỏng).
-     - `User_CannotReadAnotherUsersNotificationHistory`: PASS (Chặn đứng IDOR, User A không thể xem hay đánh dấu đọc thông báo của User B hoặc khách vãng lai).
-     - `SignalRConnection_IsGroupedByAuthenticatedSubject`: PASS (SignalR connection chỉ ánh xạ theo claim `sub` hợp lệ).
-     - `ReconnectedClient_CanRecoverMissedNotificationsFromHistoryApi`: PASS (Khách hàng offline khi kết nối lại có thể lấy đầy đủ thông báo lịch sử từ REST API).
-   - Kết quả kiểm thử: **22/22 tests PASS** trong `Clinic.Notification.Service.Tests` (0 failed, 4 skipped của các bước tiếp theo).
+    - Xây dựng `NotificationTestFactory` tích hợp `WebApplicationFactory<Program>`, cấu hình kiểm thử JWT độc lập không cần phụ thuộc mạng tới JWKS server.
+    - Hoàn thiện 100% các test case trong nhóm `NotificationAuthorizationAndRealtimeTests`:
+        - `ProtectedNotificationEndpoint_RejectsMissingOrInvalidJwt`: PASS (Từ chối 401 khi thiếu token hoặc token giả mạo/hỏng).
+        - `User_CannotReadAnotherUsersNotificationHistory`: PASS (Chặn đứng IDOR, User A không thể xem hay đánh dấu đọc thông báo của User B hoặc khách vãng lai).
+        - `SignalRConnection_IsGroupedByAuthenticatedSubject`: PASS (SignalR connection chỉ ánh xạ theo claim `sub` hợp lệ).
+        - `ReconnectedClient_CanRecoverMissedNotificationsFromHistoryApi`: PASS (Khách hàng offline khi kết nối lại có thể lấy đầy đủ thông báo lịch sử từ REST API).
+    - Kết quả kiểm thử: **22/22 tests PASS** trong `Clinic.Notification.Service.Tests` (0 failed, 4 skipped của các bước tiếp theo).
 
 ---
 
 ### Bước 5 — Quy trình Đặt lại Mật khẩu Hạn chế & Chuyển giao Gateway Proxy (Restricted Password-Reset Flow & Gateway Cutover) (Hoàn tất: 2026-10-26)
 
 1. **Thiết kế & Xây dựng Endpoint Password Reset Nội bộ (`Clinic.Notification.Service`):**
-   - Xây dựng `InternalNotificationEndpoints` (`/internal/notifications/password-reset`):
-     - Xác thực bắt buộc bằng service token (`X-Clinic-Service-Token`). Mọi truy cập thiếu hoặc sai token đều bị từ chối `401 Unauthorized`.
-     - Nhận payload snapshot tối thiểu: `RecipientId`, `Email`/`PhoneNumber`, `ResetToken`.
-     - Sinh `DeliveryOutboxMessage` với kênh tương ứng (`Email` hoặc `Sms`), áp dụng template đặt lại mật khẩu an toàn.
-     - **Bảo mật tuyệt đối**: Reset token không bao giờ bị ghi ra log ứng dụng, không đưa vào event kinh doanh thông thường, và audit record `DeliveryAttempt` không chứa token thô.
+    - Xây dựng `InternalNotificationEndpoints` (`/internal/notifications/password-reset`):
+        - Xác thực bắt buộc bằng service token (`X-Clinic-Service-Token`). Mọi truy cập thiếu hoặc sai token đều bị từ chối `401 Unauthorized`.
+        - Nhận payload snapshot tối thiểu: `RecipientId`, `Email`/`PhoneNumber`, `ResetToken`.
+        - Sinh `DeliveryOutboxMessage` với kênh tương ứng (`Email` hoặc `Sms`), áp dụng template đặt lại mật khẩu an toàn.
+        - **Bảo mật tuyệt đối**: Reset token không bao giờ bị ghi ra log ứng dụng, không đưa vào event kinh doanh thông thường, và audit record `DeliveryAttempt` không chứa token thô.
 
 2. **Chuyển giao Gateway Proxy (`Clinic.API`):**
-   - Xây dựng `NotificationServiceClient`:
-     - `ProxyAsync(...)` chuyển tiếp các yêu cầu HTTP mang theo `Authorization` bearer token và `X-Correlation-Id`.
-     - `SendPasswordResetNotificationAsync(...)` gọi an toàn sang endpoint nội bộ của Notification Service bằng service token.
-   - Chuyển giao `MeController.GetNotifications()` sang `NotificationServiceClient.ProxyAsync(..., "notifications/me")`.
-   - Xây dựng `NotificationsController` tại Gateway hỗ trợ proxy các API `/notifications`, `/notifications/unread-count`, `/notifications/{id}/read` và `/notifications/read-all`.
-   - Cắt chuyển `AuthController.ForgotPassword`: Gọi trực tiếp `NotificationServiceClient.SendPasswordResetNotificationAsync`, xóa bỏ hoàn toàn phụ thuộc vào `QueuePasswordResetNotificationCommand` và loại bỏ tra cứu bảng `Person` trong `ClinicDB`.
-   - Cập nhật cấu hình `docker-compose.yml`: bổ sung biến môi trường `Notification__Authority` và thiết lập phụ thuộc `notification-service` cho `clinic_backend`.
+    - Xây dựng `NotificationServiceClient`:
+        - `ProxyAsync(...)` chuyển tiếp các yêu cầu HTTP mang theo `Authorization` bearer token và `X-Correlation-Id`.
+        - `SendPasswordResetNotificationAsync(...)` gọi an toàn sang endpoint nội bộ của Notification Service bằng service token.
+    - Chuyển giao `MeController.GetNotifications()` sang `NotificationServiceClient.ProxyAsync(..., "notifications/me")`.
+    - Xây dựng `NotificationsController` tại Gateway hỗ trợ proxy các API `/notifications`, `/notifications/unread-count`, `/notifications/{id}/read` và `/notifications/read-all`.
+    - Cắt chuyển `AuthController.ForgotPassword`: Gọi trực tiếp `NotificationServiceClient.SendPasswordResetNotificationAsync`, xóa bỏ hoàn toàn phụ thuộc vào `QueuePasswordResetNotificationCommand` và loại bỏ tra cứu bảng `Person` trong `ClinicDB`.
+    - Cập nhật cấu hình `docker-compose.yml`: bổ sung biến môi trường `Notification__Authority` và thiết lập phụ thuộc `notification-service` cho `clinic_backend`.
 
 3. **Hoàn thiện Bộ Kiểm thử Chấp nhận Gateway & Bảo mật Secret (TDD Tests):**
-   - Hoàn thiện 100% các test case của Bước 5 trong `NotificationGatewayAndWorkflowTests`:
-     - `FrontendNotificationRequests_AreRoutedOnlyThroughGateway`: PASS (Các request frontend đi qua Gateway/JWT; truy cập trực tiếp vào endpoint nội bộ không có service token bị chặn 401).
-     - `PasswordResetDelivery_DoesNotExposeTokenInLogsOrGeneralBusinessEvents`: PASS (Secret reset token được bảo vệ nghiêm ngặt: không rò rỉ trong logs, không xuất hiện trong audit database, và không có bất kỳ contract event kinh doanh nào chứa secret/token).
-   - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **24/24 tests PASS** (0 failed, 2 skipped của bước cuối cùng).
+    - Hoàn thiện 100% các test case của Bước 5 trong `NotificationGatewayAndWorkflowTests`:
+        - `FrontendNotificationRequests_AreRoutedOnlyThroughGateway`: PASS (Các request frontend đi qua Gateway/JWT; truy cập trực tiếp vào endpoint nội bộ không có service token bị chặn 401).
+        - `PasswordResetDelivery_DoesNotExposeTokenInLogsOrGeneralBusinessEvents`: PASS (Secret reset token được bảo vệ nghiêm ngặt: không rò rỉ trong logs, không xuất hiện trong audit database, và không có bất kỳ contract event kinh doanh nào chứa secret/token).
+    - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **24/24 tests PASS** (0 failed, 2 skipped của bước cuối cùng).
 
+---
 
+### Bước 6 — Dọn dẹp Monolith, Vận hành Background Worker Độc lập & Kiểm thử Toàn diện (E2E & Live Docker Verification) (Hoàn tất: 2026-10-26)
 
+1. **Dọn dẹp Monolith (`Clinic.API`):**
+    - Loại bỏ hoàn toàn việc đăng ký các background worker cũ liên quan đến notification trong monolith: tắt `NotificationWorker` và `ScheduledNotificationWorker` trong `Clinic.API/Program.cs`.
+    - Toàn bộ trách nhiệm tiếp nhận sự kiện broker, xử lý template, lưu trữ, gửi thông báo qua email/SMS và SignalR realtime đã được chuyển dịch 100% sang `Clinic.Notification.Service`.
 
+2. **Xây dựng Background Workers Độc lập trong Notification Service:**
+    - Xây dựng `NotificationEventHostedConsumer`:
+        - Lắng nghe và tiêu thụ các sự kiện nghiệp vụ từ RabbitMQ exchange `clinic.events` (các routing key `appointment.*`, `queue.*`, `notification.*`).
+        - Đảm bảo tính bền vững (durable queue `notification-service.events`), ack/nack tự động, và bảo vệ chống trùng lặp qua Inbox pattern.
+    - Xây dựng `NotificationOutboxDeliveryHostedService`:
+        - Định kỳ quét các bản ghi `DeliveryOutboxMessages` ở trạng thái `Pending` đến hạn gửi.
+        - Phân phối thông báo tới các provider (Email, SMS), thực thi exponential backoff với full jitter khi gặp lỗi tạm thời.
+        - Ghi nhận đầy đủ audit log vào bảng `DeliveryAttempts` và chuyển trạng thái sang `Delivered` hoặc `DeadLettered`.
+    - Bổ sung cấu hình `Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}` cho service container trong `docker-compose.yml`.
+
+3. **Hoàn thiện Bộ Kiểm thử Chấp nhận E2E (TDD Tests):**
+    - Hoàn thiện 100% 2 bài test cuối cùng trong `NotificationEndToEndTests`:
+        - `AppointmentConfirmationAndCancellation_CreateExpectedNotifications_EndToEnd`: PASS (Kiểm chứng luồng E2E tiếp nhận event xác nhận/hủy lịch hẹn, sinh InApp notification cho bệnh nhân, sinh Email outbox delivery cho bác sĩ và bệnh nhân, không trùng lặp).
+        - `BrokerAndProviderRecovery_DeliversPendingNotificationsWithoutLoss`: PASS (Kiểm chứng khả năng chịu lỗi: khi broker hoặc provider gặp sự cố tạm thời, các outbox message được giữ lại và tự động gửi thành công sau khi phục hồi, không gây thất thoát dữ liệu).
+    - Toàn bộ test suite `Clinic.Notification.Service.Tests`: **26/26 tests PASS** (0 failed, 0 skipped, 100% đạt yêu cầu).
+
+4. **Kiểm thử Trực tiếp trên Môi trường Thực tế (Live Docker & API Verification):**
+    - Thực thi `docker compose build notification-service backend` và `docker compose up -d`. Toàn bộ cụm container (12 services) vận hành ổn định và healthy.
+    - Kiểm thử thực tế các luồng API qua Gateway:
+        - Đăng nhập xác thực tài khoản `patient1` nhận JWT token hợp lệ.
+        - `GET /me/notifications`: Trả về đúng 21 thông báo đã import từ legacy database cho `patient1`.
+        - `GET /notifications/unread-count`: Trả về 21 thông báo chưa đọc.
+        - `POST /notifications/{id}/read`: Đánh dấu đọc thành công, unread-count giảm xuống 20.
+        - `POST /notifications/read-all`: Đánh dấu đọc toàn bộ thành công, unread-count trở về 0.
+        - **Bảo mật IDOR**: Thử nghiệm tài khoản `doctor1` đánh dấu đọc thông báo của `patient1` -> Bị từ chối chính xác bằng mã lỗi `403 Forbidden`.
+        - **Xác thực JWT**: Truy cập ẩn danh không mang bearer token -> Bị từ chối bằng mã lỗi `401 Unauthorized`.
+        - **Luồng Đặt lại Mật khẩu E2E**: Gọi `POST /forgot-password` qua Gateway -> Monolith xác thực với Identity Service -> gọi an toàn sang Notification Service qua `X-Clinic-Service-Token` -> Notification Service tạo `DeliveryOutboxMessage` kênh Email -> Background outbox worker gửi thư và ghi nhận `DeliveryAttempts` (`Status = Delivered`, response code `250 OK: Mock message accepted`) -> Không để lộ token thô trong bất kỳ log hay bảng audit nào.
+    - **Ghi chú**: Theo đúng chỉ dẫn kỹ thuật, toàn bộ mã nguồn của Bước 6 được giữ nguyên trạng không tạo commit (`UNCOMMITTED`).

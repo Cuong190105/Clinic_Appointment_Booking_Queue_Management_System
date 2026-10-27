@@ -76,6 +76,8 @@ services:
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
             - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
         depends_on:
+            notification-service:
+                condition: service_healthy
             identity-service:
                 condition: service_healthy
             scheduling-service:
@@ -164,6 +166,8 @@ services:
                 condition: service_healthy
             rabbitmq:
                 condition: service_healthy
+            notification-service:
+                condition: service_healthy
             identity-service:
                 condition: service_healthy
         healthcheck:
@@ -197,6 +201,8 @@ services:
             backend:
                 condition: service_healthy
             queue-service:
+                condition: service_healthy
+            notification-service:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy
@@ -242,6 +248,8 @@ services:
             - Services__Queue__BaseUrl=http://queue-service:8080
             - MedicalRecords__Authority=http://medical-records-service:8080
             - Services__MedicalRecords__BaseUrl=http://medical-records-service:8080
+            - Notification__Authority=http://notification-service:8080
+            - Services__Notification__BaseUrl=http://notification-service:8080
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - RabbitMq__Host=rabbitmq
@@ -254,6 +262,8 @@ services:
             db:
                 condition: service_healthy
             rabbitmq:
+                condition: service_healthy
+            notification-service:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy
@@ -320,6 +330,8 @@ services:
                 condition: service_healthy
             rabbitmq:
                 condition: service_healthy
+            notification-service:
+                condition: service_healthy
             identity-service:
                 condition: service_healthy
         healthcheck:
@@ -385,6 +397,8 @@ services:
                 condition: service_healthy
             rabbitmq:
                 condition: service_healthy
+            notification-service:
+                condition: service_healthy
             identity-service:
                 condition: service_healthy
         healthcheck:
@@ -433,6 +447,7 @@ services:
             - ConnectionStrings__NotificationConnection=Server=db,1433;Database=ClinicNotificationDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
+            - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - RabbitMq__Host=rabbitmq
@@ -447,6 +462,8 @@ services:
             db:
                 condition: service_healthy
             rabbitmq:
+                condition: service_healthy
+            notification-service:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy

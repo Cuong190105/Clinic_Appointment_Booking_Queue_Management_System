@@ -46,3 +46,4 @@ public sealed class NotificationsController : ControllerBase
         return await _notificationClient.ProxyAsync(HttpContext, "notifications/read-all", HttpMethod.Post);
     }
 }
+
