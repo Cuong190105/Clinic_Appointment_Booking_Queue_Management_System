@@ -35,7 +35,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
     - Queue Service
 
-    - Medical Service
+    - Medical Records Service
 
     - Notification Service
 
@@ -266,13 +266,13 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 1. **Vai trò `AppointmentSnapshot` & Denormalized Read Model**: `AppointmentSnapshot` giữ đúng vai trò lưu nhật ký chỉnh sửa (1-N) để traceback khi người khám có vấn đề về đặt/đổi lịch (lưu kèm `OldDoctorId`, `OldDoctorName`, `OldSpecialtyName`, `OldScheduleDate`, `UpdatedByUserName` để không cần join xuyên service). Thông tin hiển thị chính thức đọc trực tiếp từ các cột denormalized trên bảng `Appointments`.
 
-2. **Bản chiếu `PatientProjections`**: Khi chưa tách Patient Service (GĐ 5), `ClinicAppointmentDB` lưu bản chiếu nhẹ `PatientProjections` được nạp từ script import và đồng bộ qua sự kiện `UserProfileUpdated` từ Identity Service.
+2. **Bản chiếu `PatientProjections`**: Appointment Service lưu bản chiếu nhẹ `PatientProjections` được nạp từ script import và đồng bộ qua sự kiện `UserProfileUpdated` từ Identity Service. Bản chiếu này phục vụ booking; hồ sơ Patient nguồn và MedicalReport cùng thuộc Medical Records Service từ Phase 5.
 
 3. **Event-Driven Check-in**: `POST /appointments/{id}/check-in` tại Appointment Service chuyển trạng thái sang `CheckedIn` và ghi Outbox phát `AppointmentCheckedIn`. Monolith tiêu thụ sự kiện này để cấp `QueueNumber` và tạo `QueueTicket` trong `ClinicDB`.
 
 4. **Gỡ bỏ Foreign Key trên `ClinicDB`**: Tạo migration xóa `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId` trên `ClinicDB`, chuyển `AppointmentId` thành loose UUID reference.
 
-5. **Đồng bộ `ExamCompleted`**: Appointment Service lắng nghe sự kiện `ExamCompleted` từ Queue/MedicalReports để tự động chuyển `Appointment.Status = Completed` (Eventual Consistency).
+5. **Đồng bộ `ExamCompleted`**: Appointment Service lắng nghe `ExamCompleted` do Queue Service phát để chuyển `Appointment.Status = Completed` (Eventual Consistency). Finalize bệnh án không tự hoàn tất queue/appointment; hai trạng thái khám và hồ sơ là độc lập.
 
 6. **Hủy lịch & Đổi lịch với Scheduling Service**: Khi hủy lịch hoặc đổi lịch, giải phóng `SlotReservation` cũ qua cả internal API (`POST /internal/slots/release-by-appointment`) và sự kiện `AppointmentCancelled` trên RabbitMQ; khi đổi lịch, thực hiện Reschedule Saga 2 pha (giữ slot mới $\r\nightarrow$ lưu snapshot & cập nhật $\r\nightarrow$ confirm slot mới & giải phóng slot cũ).
 
@@ -305,7 +305,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
     - Phía Monolith (`Clinic.API` & `ClinicDB`): Áp dụng migration `20261023013218_DecoupleAppointmentForeignKeys.cs` gỡ bỏ hoàn toàn `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId`; triển khai `AppointmentServiceClient` cắt chuyển toàn bộ định tuyến lịch hẹn (`/appointments/**`, `/me/appointments/**`, `/receptionist/appointments/**`, `/admin/appointments/**`) sang `Clinic.Appointment.Service`.
 
 - **Hoàn thiện tính năng Bác sĩ & Lễ tân trên Frontend và Backend**:
-    - **Bác sĩ (`/doctor/medical-records` & `/doctor/medical-records/:id`)**: Bổ sung API `GET /medical-reports` (hỗ trợ tìm kiếm từ khóa, lọc trạng thái `Draft`/`Finalized`, khoảng ngày khám, phân trang) và `PUT /medical-reports/{id}` (lưu bản nháp hoặc chốt hồ sơ kèm phát sự kiện `ExamCompleted`); xây dựng giao diện danh sách và chi tiết hồ sơ (cho phép sửa/lưu nháp/finalize đối với `Draft`, khóa chỉnh sửa và hỗ trợ in ấn `window.print()` đối với `Finalized`).
+    - **Bác sĩ (`/doctor/medical-records` & `/doctor/medical-records/:id`)**: API tra cứu, lưu Draft và finalize report. Theo ownership đã chốt, thao tác Queue phát `ExamCompleted`; finalize report không phát event hoàn tất khám và không gọi Queue. Frontend hiển thị hai lifecycle riêng.
 
     - **Lễ tân (`/reception/booking`)**: Xây dựng quy trình đặt khám 4 bước (chọn bệnh nhân có sẵn hoặc tạo mới qua `POST /patients/add` $\r\nightarrow$ đối chiếu xác nhận thông tin $\r\nightarrow$ chọn Đặt lịch trước hoặc Đăng ký khám ngay Walk-in với API `GET /receptionist/working-doctors` và `POST /receptionist/appointments/walk-in` tự động phân bổ bác sĩ đang trực có ít ca khám nhất, tự động check-in cấp số thứ tự và gán cờ ưu tiên khẩn cấp `Priority = true`, đồng bộ tức thời sang `ClinicAppointmentDB` $\r\nightarrow$ màn hình xác nhận & in phiếu).
 
@@ -417,17 +417,19 @@ Các quy tắc quyền và vòng đời thao tác trên đã được triển kh
 
 ---
 
-## Giai đoạn 5: Tách Medical Records Service
+## Giai đoạn 5: Tách Medical Records Service (bao gồm Patient)
+
+Execution plan theo từng bước và phân công phối hợp A/B: [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md).
 
 ### Nhiệm vụ
 
-1. Chuẩn hóa `visitId` hoặc `encounterId`.
+1. Dùng `AppointmentId` làm định danh lượt khám và khóa liên kết duy nhất cho hồ sơ; không tạo `VisitId`/`EncounterId` riêng trong phạm vi hiện tại hay tương lai.
 
 2. Tạo Medical Records Service.
 
-3. Di chuyển `MedicalReport` và version history sang Medical Records DB.
+3. Chuyển `Patient`, `MedicalReport`, lịch sử amendment và audit records vào cùng Medical Records DB. Không tạo Patient Service riêng.
 
-4. Xây trạng thái `Draft`, `Finalized` và cơ chế amendment nếu cần.
+4. Xây trạng thái `Draft`, `Finalized`; report Finalized bất biến, mọi sửa đổi tiếp theo phải được ghi thành amendment append-only.
 
 5. Tách authorization và audit log của hồ sơ bệnh án.
 
@@ -437,11 +439,14 @@ Các quy tắc quyền và vòng đời thao tác trên đã được triển kh
 
 - Medical Records không phụ thuộc Queue repository.
 
-- Report sử dụng `visitId`/`encounterId` ổn định.
+- `AppointmentId` là định danh ổn định của lượt khám; Medical Records lưu loose reference, không FK tới Appointment DB.
+- Patient và MedicalReport cùng được sở hữu trong Medical Records Service/DB.
 
 - Hồ sơ bệnh án có permission và audit log riêng.
 
-- Report Finalized không thể sửa trực tiếp nếu không có quy trình amendment.
+- Report Finalized không thể sửa trực tiếp; mọi thay đổi sau finalize phải có amendment append-only, ghi tác giả, thời điểm, lý do và liên kết phiên bản gốc.
+
+- `ExamStarted` mở encounter context idempotent theo `AppointmentId`; Draft nội dung được tạo khi bác sĩ bắt đầu ghi. `ExamCompleted` chỉ đánh dấu lượt khám đã kết thúc, không finalize hồ sơ.
 
 - Không chứa dữ liệu bệnh án không cần thiết trong event.
 
@@ -455,7 +460,20 @@ Các quy tắc quyền và vòng đời thao tác trên đã được triển kh
 
 ---
 
+### Kết quả nghiệm thu Phase 5 (2026-10-26)
+
+- **Hoàn tất:** Medical Records sở hữu Patient và MedicalReport; Gateway proxy, Identity linkage, Appointment projection/outbox, authorization/audit, import/reconciliation và các luồng Docker E2E đã được nghiệm thu.
+- Kiểm thử chính: Medical Records **51/51**, Appointment **34/34**, Contracts **6/6**, API proxy **1/1**, Application **24/24**, Infrastructure **17/17**; các build liên quan thành công.
+- Người dùng xác nhận kiểm tra thực tế thành công các luồng Patient self-registration, receptionist add-patient và retry outbox khi Appointment Service phục hồi.
+- ClinicDB legacy được giữ làm nguồn đã đối soát trên dữ liệu mock. Xóa vật lý bảng legacy cần backup và được ghi nhận là cleanup schema riêng, không phải acceptance blocker của Phase 5.
+- Chi tiết nghiệm thu: [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md), Mục 13.
+
+---
+- Cleanup sau cutover (2026-10-26): Patient/MedicalReport entity, handler, repository và EF mapping đã được gỡ khỏi Clinic; Clinic runtime không còn đọc/ghi các bảng này. Migration model-only không xóa `dbo.Patients`/`dbo.MedicalReports`; các bảng legacy được giữ làm archive/import source. Chi tiết: mục dọn dẹp cuối [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md).
+
 ## Giai đoạn 6: Tách Notification Service và hoàn thiện Gateway
+
+Kế hoạch chi tiết, quyết định thiết kế, ma trận kiểm thử và các kịch bản nghiệm thu runtime: [`PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md).
 
 ### Nhiệm vụ
 
@@ -477,9 +495,27 @@ Các quy tắc quyền và vòng đời thao tác trên đã được triển kh
 
 - Frontend chỉ truy cập hệ thống qua API Gateway.
 
-- SignalR hoạt động đúng khi chạy một hoặc nhiều instance.
+- SignalR hoạt động trên một instance trong Compose hiện tại; khi chạy nhiều instance phải bật Redis backplane.
 
 - Không còn dependency vào notification entity hoặc `Person` từ service khác.
+
+### Quyết định đã chốt
+
+- `Clinic.API` tiếp tục là API Gateway/BFF; không tạo Gateway service mới trong Phase 6. Mọi REST và SignalR client của frontend đi qua Gateway; Notification Service vẫn tự validate JWT.
+- Notification DB là nguồn lịch sử in-app bền vững. SignalR chỉ gửi thông báo có bản ghi mới/cập nhật; client tải nội dung qua Gateway và khôi phục sau reconnect.
+- Recipient dùng `RecipientId` và `RecipientType`, không dùng `Person` entity. Người có tài khoản có inbox; khách chưa có tài khoản chỉ nhận email/SMS theo policy và contact snapshot tối thiểu, không có in-app/SignalR.
+- Với account, tạo bản ghi in-app theo policy; email/SMS chỉ gửi khi event policy cho phép và có contact hợp lệ. Không query đồng bộ service khác để dựng recipient.
+- Event ban đầu: appointment confirmed, appointment cancelled (bỏ qua reschedule-release), reminder và `PatientCalled`. Password reset dùng contract/template riêng, không đi chung event business và không log mã reset.
+- Retry hữu hạn với exponential backoff; idempotency theo `EventId + RecipientId + Channel + NotificationType`; từng attempt được audit. SignalR chạy một instance ở cấu hình hiện tại; Redis backplane chỉ thêm khi triển khai nhiều instance.
+- Phase 2–5 của B không phải điều kiện chặn để A dựng service. B phối hợp contract/outbox/inbox, failure tests, telemetry và E2E cho consumer.
+
+### Trạng thái triển khai & rà soát (2026-11-01)
+
+- **Phase 6 đã hoàn tất acceptance** trong phạm vi demo Docker; trạng thái và bằng chứng ở Mục 10.5 của [`PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md).
+- Test pass: Appointment **35/35**, Queue **51/51**, Notification **30/30**, Gateway operator integration **2/2**, frontend full suite **176/176**.
+- Runtime acceptance pass: SQL Server reminder/suppression; RabbitMQ retry, restart recovery và quarantine; delivery replay qua Gateway với role Admin và audit actor; authenticated SignalR qua Gateway với user isolation, reconnect và REST history recovery; Data Protection key persisted sau restart.
+- Docker build `backend` + `notification-service`, Compose config, migration `20261101155904_AddDeliveryReplayOperatorAudit` và health checks đều pass. Email/SMS acceptance dùng provider MOCK, không gửi tin thật. RabbitMQ poison-event DLQ chỉ lưu metadata đã làm sạch; event được phát lại từ source outbox sau khi xử lý producer.
+- Thay đổi code và tài liệu đang ở staged và unstaged working-tree diff; chưa commit.
 
 ### Lưu ý
 

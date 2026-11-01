@@ -1,12 +1,14 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Clinic.API.Services;
 
 namespace Clinic.API.Middlewares;
 
 /// <summary>Routes legacy Staff/Scheduling HTTP contracts to Scheduling while Clinic keeps the external auth policy.</summary>
-public sealed class SchedulingProxyMiddleware(RequestDelegate next, IHttpClientFactory clients, IdentityAccountClient identityAccounts, ILogger<SchedulingProxyMiddleware> logger)
+public sealed class SchedulingProxyMiddleware(RequestDelegate next, IHttpClientFactory clients, IdentityAccountClient identityAccounts, IAuthorizationService authorizationService, ILogger<SchedulingProxyMiddleware> logger)
 {
     private readonly HttpClient _client = clients.CreateClient("Scheduling");
 
@@ -35,6 +37,23 @@ public sealed class SchedulingProxyMiddleware(RequestDelegate next, IHttpClientF
         {
             await next(context);
             return;
+        }
+
+        var requiredPermission = GetRequiredPermission(normalized, method);
+        if (requiredPermission is not null)
+        {
+            var authorizationResult = await authorizationService.AuthorizeAsync(
+                context.User,
+                resource: null,
+                policyName: $"Permission:{requiredPermission}");
+            if (!authorizationResult.Succeeded)
+            {
+                if (context.User.Identity?.IsAuthenticated == true)
+                    await context.ForbidAsync();
+                else
+                    await context.ChallengeAsync();
+                return;
+            }
         }
 
         using var request = new HttpRequestMessage(new HttpMethod(method), path + context.Request.QueryString);
@@ -78,6 +97,24 @@ public sealed class SchedulingProxyMiddleware(RequestDelegate next, IHttpClientF
             context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
             await context.Response.WriteAsJsonAsync(new { message = "Scheduling Service is unavailable." }, context.RequestAborted);
         }
+    }
+
+    private static string? GetRequiredPermission(string path, string method)
+    {
+        if (path.Equals("/specialties", StringComparison.OrdinalIgnoreCase) && method == HttpMethods.Post)
+            return "specialty.manage";
+
+        if (path.StartsWith("/specialties/", StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = path["/specialties/".Length..];
+            if (method == HttpMethods.Put && Guid.TryParse(suffix, out _))
+                return "specialty.manage";
+            if (method == HttpMethods.Patch && suffix.EndsWith("/status", StringComparison.OrdinalIgnoreCase) &&
+                Guid.TryParse(suffix[..^"/status".Length], out _))
+                return "specialty.manage";
+        }
+
+        return null;
     }
 
     private async Task<string> EnrichEmployeeRolesAsync(string path, string payload, CancellationToken ct)

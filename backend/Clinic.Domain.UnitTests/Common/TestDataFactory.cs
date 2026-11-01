@@ -16,17 +16,4 @@ internal static class TestDataFactory
             "Test address");
     }
 
-    internal static Patient CreatePatient(Guid? patientId = null)
-    {
-        var person = CreatePerson();
-        return new Patient(
-            patientId ?? Guid.NewGuid(),
-            person.Id,
-            "TEST-INSURANCE",
-            "0900000000",
-            DateTime.UtcNow,
-            null,
-            false);
-    }
-
 }

@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using Clinic.API.Middlewares;
 using Clinic.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -20,6 +21,7 @@ public sealed class SchedulingProxyMiddlewareTests
             _ => Task.CompletedTask,
             clientFactory,
             identityClient,
+            new AllowAllAuthorizationService(),
             NullLogger<SchedulingProxyMiddleware>.Instance);
         var payload = "{\"date\":\"2026-11-12\",\"startTime\":\"09:00:00\",\"endTime\":\"12:00:00\",\"recommendedCapacity\":20}";
         var context = new DefaultHttpContext();
@@ -36,6 +38,15 @@ public sealed class SchedulingProxyMiddlewareTests
         Assert.Equal("utf-8", handler.ContentType?.CharSet);
         Assert.Equal(payload, handler.Body);
         Assert.Equal((int)HttpStatusCode.OK, context.Response.StatusCode);
+    }
+
+    private sealed class AllowAllAuthorizationService : IAuthorizationService
+    {
+        public Task<AuthorizationResult> AuthorizeAsync(System.Security.Claims.ClaimsPrincipal user, object? resource, IEnumerable<IAuthorizationRequirement> requirements)
+            => Task.FromResult(AuthorizationResult.Success());
+
+        public Task<AuthorizationResult> AuthorizeAsync(System.Security.Claims.ClaimsPrincipal user, object? resource, string policyName)
+            => Task.FromResult(AuthorizationResult.Success());
     }
 
     private sealed class CapturingHandler : HttpMessageHandler

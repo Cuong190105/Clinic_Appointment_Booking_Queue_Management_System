@@ -139,6 +139,7 @@ describe('auth complete flow', () => {
   })
 
   it('register success stores auth state and tokens', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue({ data: [] } as any)
     vi.spyOn(authApi, 'register').mockResolvedValue({
       accessToken: 'register-access-token',
       refreshToken: 'register-refresh-token',

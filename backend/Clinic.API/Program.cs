@@ -1,11 +1,8 @@
 using Clinic.API;
-using Clinic.API.Hubs;
 using Clinic.API.Middlewares;
-using Clinic.API.Workers;
 using Clinic.API.Services;
 using Clinic.Application;
 using Clinic.Infrastructure.Sqlserver;
-using Clinic.Infrastructure.Sqlserver.Notifications;
 using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Clinic.Infrastructure.Sqlserver.Outbox;
@@ -69,19 +66,11 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 });
 
-// Configure notification services
-builder.Services.Configure<EmailOptions>(
-    builder.Configuration.GetSection("Email"));
-builder.Services.AddSignalR();
-
 // Add workers. Test hosts can disable background consumers because their database
 // and broker dependencies are outside the HTTP contract test boundary.
 if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
 {
-    builder.Services.AddHostedService<NotificationWorker>();
-    builder.Services.AddHostedService<ScheduledNotificationWorker>();
     builder.Services.AddHostedService<OutboxPublisher>();
-    // AppointmentCheckedInConsumer removed: Queue Service is the sole consumer of AppointmentCheckedIn
 }
 
 // Add Authentication and Authorization services
@@ -114,7 +103,25 @@ builder.Services.AddTransient<IdentityAccountClient>();
 builder.Services.AddTransient<SchedulingManagementClient>();
 builder.Services.AddTransient<ProfileProjectionSyncClient>();
 builder.Services.AddTransient<Clinic.API.Services.AppointmentServiceClient>();
+builder.Services.AddHttpClient("MedicalRecords", client =>
+{
+    var medicalRecordsAuthority = builder.Configuration["MedicalRecords:Authority"]
+        ?? builder.Configuration["Services:MedicalRecords:BaseUrl"]
+        ?? "http://localhost:5005";
+    client.BaseAddress = new Uri(medicalRecordsAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddTransient<Clinic.API.Services.QueueServiceClient>();
+builder.Services.AddTransient<Clinic.API.Services.MedicalRecordsServiceClient>();
+builder.Services.AddHttpClient("Notification", client =>
+{
+    var notificationAuthority = builder.Configuration["Notification:Authority"]
+        ?? builder.Configuration["Services:Notification:BaseUrl"]
+        ?? "http://localhost:5006";
+    client.BaseAddress = new Uri(notificationAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddTransient<Clinic.API.Services.NotificationServiceClient>();
 
 builder.Services
     .AddAuthentication(options =>
@@ -126,12 +133,26 @@ builder.Services
     {
         options.ForwardDefaultSelector = context =>
         {
+            string? rawToken = null;
             var header = context.Request.Headers.Authorization.ToString();
-            if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return IdentityJwtScheme;
+            if (header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                rawToken = header["Bearer ".Length..].Trim();
+            }
+            else if (context.Request.Path.StartsWithSegments("/hubs/notifications"))
+            {
+                var queryToken = context.Request.Query["access_token"].ToString();
+                if (!string.IsNullOrWhiteSpace(queryToken))
+                {
+                    rawToken = queryToken.Trim();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(rawToken)) return IdentityJwtScheme;
             try
             {
                 var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler()
-                    .ReadJwtToken(header["Bearer ".Length..].Trim());
+                    .ReadJwtToken(rawToken);
                 return string.IsNullOrWhiteSpace(token.Header.Kid) ? LegacyJwtScheme : IdentityJwtScheme;
             }
             catch
@@ -160,6 +181,19 @@ builder.Services
             RoleClaimType = ClaimTypes.Role,
             ClockSkew = TimeSpan.FromSeconds(30)
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/notifications"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     })
     .AddJwtBearer(LegacyJwtScheme, options =>
     {
@@ -175,6 +209,19 @@ builder.Services
             IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
                 System.Text.Encoding.UTF8.GetBytes(legacyKey)),
             RoleClaimType = ClaimTypes.Role
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/notifications"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 // Register permission policy provider and handler for dynamic permission policies
@@ -256,7 +303,10 @@ app.MapGet("/schedules/{id:guid}", async (Guid id, IHttpClientFactory clients) =
     return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
 }).AllowAnonymous();
 
-app.MapHub<NotificationHub>("/hubs/notifications");
+app.Map("/hubs/notifications", (HttpContext ctx, NotificationServiceClient client, CancellationToken ct) =>
+    client.ProxySignalRAsync(ctx, null, ct)).RequireAuthorization();
+app.Map("/hubs/notifications/{**subPath}", (HttpContext ctx, string? subPath, NotificationServiceClient client, CancellationToken ct) =>
+    client.ProxySignalRAsync(ctx, subPath, ct)).RequireAuthorization();
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 app.MapGet("/readyz", async (IServiceScopeFactory scopeFactory, IHttpClientFactory clients, CancellationToken ct) =>
 {
@@ -305,6 +355,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseCors("FrontendCors");
+app.UseWebSockets();
 
 app.UseRouting();
 app.UseAuthentication();

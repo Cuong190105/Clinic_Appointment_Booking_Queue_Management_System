@@ -16,6 +16,9 @@ public class QueueTicketConfiguration : IEntityTypeConfiguration<QueueTicket>
         builder.Property(t => t.PatientName)
             .HasMaxLength(200);
 
+        builder.Property(t => t.PatientPhone)
+            .HasMaxLength(30);
+
         builder.Property(t => t.DoctorName)
             .HasMaxLength(200);
 

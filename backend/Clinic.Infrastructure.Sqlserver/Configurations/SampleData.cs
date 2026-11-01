@@ -15,18 +15,16 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
         internal const int DoctorCount = 15;
         internal const int AdminCount = 2;
         internal const int ReceptionistCount = 5;
-        internal const int DedicatedPatientCount = 30;
-        internal const int PersonCount = DoctorCount + AdminCount + ReceptionistCount + DedicatedPatientCount;
+        internal const int PatientAccountCount = 30;
+        internal const int PersonCount = DoctorCount + AdminCount + ReceptionistCount + PatientAccountCount;
 
         internal static Guid PersonId(int n) => Guid.Parse($"a0000001-0000-0000-0000-{n:D12}");
         internal static Guid UserId(int n) => Guid.Parse($"a0000002-0000-0000-0000-{n:D12}");
         internal static Guid EmployeeId(int n) => Guid.Parse($"a0000003-0000-0000-0000-{n:D12}");
         internal static Guid DoctorRecordId(int n) => Guid.Parse($"a0000004-0000-0000-0000-{n:D12}");
-        internal static Guid PatientRecordId(int n) => Guid.Parse($"a0000005-0000-0000-0000-{n:D12}");
         internal static Guid WorkScheduleId(int n) => Guid.Parse($"a0000008-0000-0000-0000-{n:D12}");
         internal static Guid AppointmentId(int n) => Guid.Parse($"a0000009-0000-0000-0000-{n:D12}");
         internal static Guid QueueTicketId(int n) => Guid.Parse($"a0000010-0000-0000-0000-{n:D12}");
-        internal static Guid MedicalReportId(int n) => Guid.Parse($"a0000011-0000-0000-0000-{n:D12}");
 
         private static readonly (string FullName, Gender Gender, DateOnly Dob)[] People =
         [
@@ -86,93 +84,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
         internal static Person[] Persons => Enumerable.Range(1, PersonCount).Select(CreatePerson).ToArray();
 
-        internal static Patient[] Patients => Enumerable.Range(1, DedicatedPatientCount).Select(CreatePatient).ToArray();
-
-        private static readonly DateOnly BaseDate = new(2026, 8, 20);
-        private static readonly (TimeOnly Start, TimeOnly End) MorningShift = (new TimeOnly(7, 30), new TimeOnly(11, 30));
-        private static readonly (TimeOnly Start, TimeOnly End) AfternoonShift = (new TimeOnly(13, 30), new TimeOnly(17, 30));
-        private static readonly string[] SpecialtyNames = ["Cardiology", "Dermatology", "Pediatrics", "Orthopedics", "General Practice"];
-        private static readonly AppointmentStatus[] PastStatuses = [AppointmentStatus.Cancelled, AppointmentStatus.NoShow, AppointmentStatus.Completed];
-        private static readonly string[] SampleReasons =
-        [
-            "General health checkup", "Follow-up consultation", "Chest pain and shortness of breath",
-            "Skin rash and itching", "Persistent cough and sore throat", "Severe migraine and dizziness",
-            "Joint stiffness and knee pain", "High blood pressure monitoring", "Diabetes routine management",
-            "Digestive disorder and stomach pain", "Annual wellness physical exam", "Post-treatment review"
-        ];
-        private static readonly (string Symptoms, string Diagnosis, string Prescription, string Notes)[] SampleMedicalCases =
-        [
-            ("Mild fever, dry cough, and fatigue for 2 days.", "Acute viral upper respiratory infection", "Paracetamol 500mg as needed", "Rest and drink warm fluids."),
-            ("Intermittent chest tightness during physical exertion.", "Non-cardiac chest discomfort", "Aspirin 81mg daily", "Follow up in 2 weeks."),
-            ("Erythematous papules and intense itching.", "Acute contact dermatitis", "Hydrocortisone cream 1%", "Avoid suspected contact allergens."),
-            ("Bilateral knee pain and morning stiffness.", "Early primary osteoarthritis", "Meloxicam 7.5mg daily", "Low-impact exercise recommended."),
-            ("Throbbing headache, mild nausea, photophobia.", "Tension-type headache with migraine features", "Ibuprofen 400mg as needed", "Maintain sleep and hydration."),
-            ("Epigastric burning pain after meals.", "Gastroesophageal reflux disease", "Esomeprazole 40mg daily", "Avoid spicy foods and follow up.")
-        ];
-
-        internal static readonly MedicalReport[] MedicalReports = GenerateMedicalReports();
-
-        private static MedicalReport[] GenerateMedicalReports()
-        {
-            var reports = new List<MedicalReport>();
-            var rng = new Random(20260820);
-            int[] offsets = [-28, -24, -20, -16, -12, -8, -4, 2, 6, 11];
-            var reportNumber = 1;
-
-            for (var doctorIndex = 1; doctorIndex <= DoctorCount; doctorIndex++)
-            {
-                var doctorId = DoctorRecordId(doctorIndex);
-                var doctorName = People[doctorIndex - 1].FullName;
-                var specialtyName = SpecialtyNames[(doctorIndex - 1) % SpecialtyNames.Length];
-
-                for (var scheduleIndex = 0; scheduleIndex < offsets.Length; scheduleIndex++)
-                {
-                    var scheduleDate = BaseDate.AddDays(offsets[scheduleIndex] + ((doctorIndex - 1) % 3));
-                    var (shiftStart, shiftEnd) = (doctorIndex + scheduleIndex) % 2 == 0 ? MorningShift : AfternoonShift;
-                    var appointmentCount = rng.Next(0, 11);
-                    if (appointmentCount == 0 || scheduleDate >= BaseDate) continue;
-
-                    var slots = new List<TimeOnly>();
-                    for (var time = shiftStart; time < shiftEnd; time = time.AddMinutes(15)) slots.Add(time);
-                    var chosenSlots = slots.OrderBy(_ => rng.Next()).Take(appointmentCount).OrderBy(time => time);
-
-                    foreach (var slot in chosenSlots)
-                    {
-                        var appointmentStatus = PastStatuses[rng.Next(PastStatuses.Length)];
-                        if (appointmentStatus != AppointmentStatus.Completed || rng.Next(100) >= 93) continue;
-
-                        var patientIndex = rng.Next(1, DedicatedPatientCount + 1);
-                        var patientId = PatientRecordId(patientIndex);
-                        var appointmentId = AppointmentId(reportNumber);
-                        var scheduledAt = scheduleDate.ToDateTime(slot);
-                        var checkInAt = scheduledAt.AddMinutes(rng.Next(-60, 61));
-                        var shiftStartAt = scheduleDate.ToDateTime(shiftStart);
-                        var shiftEndAt = scheduleDate.ToDateTime(shiftEnd);
-                        checkInAt = checkInAt < shiftStartAt ? shiftStartAt : checkInAt > shiftEndAt ? shiftEndAt : checkInAt;
-                        var calledAt = checkInAt.AddMinutes(rng.Next(3, 16));
-                        var examStart = calledAt.AddMinutes(rng.Next(0, 6));
-                        var duration = rng.Next(100) < 80 ? rng.Next(15, 31) : rng.Next(5, 51);
-                        var examEnd = examStart.AddMinutes(duration);
-                        if (examEnd > shiftEndAt) examEnd = shiftEndAt;
-                        if (examEnd <= examStart) examEnd = examStart.AddMinutes(5);
-                        var sample = SampleMedicalCases[rng.Next(SampleMedicalCases.Length)];
-
-                        reports.Add(new MedicalReport(
-                            MedicalReportId(reportNumber++), appointmentId, patientId,
-                            sample.Symptoms, sample.Diagnosis, sample.Prescription, sample.Notes,
-                            examStart, examEnd, MedicalReportStatus.Finalized, CreatedAt, null, false)
-                        {
-                            DoctorId = doctorId,
-                            DoctorName = doctorName,
-                            SpecialtyName = specialtyName,
-                            ScheduleDate = scheduleDate
-                        });
-                    }
-                }
-            }
-
-            return reports.ToArray();
-        }
         private static Person CreatePerson(int n)
         {
             var info = People[n - 1];
@@ -190,19 +101,6 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 null);
             person.LinkIdentityUser(UserId(n));
             return person;
-        }
-
-        private static Patient CreatePatient(int n)
-        {
-            var personNumber = DoctorCount + AdminCount + ReceptionistCount + n;
-            return new Patient(
-                PatientRecordId(n),
-                PersonId(personNumber),
-                $"BHXH-{n:D6}",
-                $"0908{n:D6}",
-                CreatedAt,
-                null,
-                false);
         }
 
         private static string Username(int n)

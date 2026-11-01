@@ -22,11 +22,4 @@ public static class TestDataFactory
             address);
     }
 
-    internal static Patient CreatePatient(Person? person = null)
-    {
-        person ??= CreatePerson();
-        var patient = new Patient(person, "ABC123", "0111111111");
-        person.Patient = patient;
-        return patient;
-    }
 }

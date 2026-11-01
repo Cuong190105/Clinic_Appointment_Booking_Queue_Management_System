@@ -29,6 +29,7 @@ public class QueueManagerTests
 
         var doctorId = Guid.NewGuid();
         var patientId = Guid.NewGuid();
+        var identityUserId = Guid.NewGuid();
         var appointmentId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
 
@@ -40,7 +41,7 @@ public class QueueManagerTests
             Producer = "Clinic.Appointment.Service",
             OccurredAt = DateTimeOffset.UtcNow,
             CorrelationId = Guid.NewGuid(),
-            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran")
+            Payload = new AppointmentCheckedIn(appointmentId, patientId, doctorId, DateTimeOffset.UtcNow, false, "Nguyen Van A", "Dr. Tran", identityUserId, "0900111222")
         };
 
         var ticketDto = await manager.ProcessAppointmentCheckedInAsync(envelope);
@@ -54,6 +55,9 @@ public class QueueManagerTests
         Assert.Equal("Nguyen Van A", ticketDto.PatientName);
         Assert.Equal("Dr. Tran", ticketDto.DoctorName);
         Assert.False(ticketDto.Priority);
+        var persistedTicket = await db.QueueTickets.SingleAsync();
+        Assert.Equal(identityUserId, persistedTicket.IdentityUserId);
+        Assert.Equal("0900111222", persistedTicket.PatientPhone);
 
         var inbox = await db.InboxMessages.FirstOrDefaultAsync(m => m.EventId == eventId);
         Assert.NotNull(inbox);
@@ -72,6 +76,7 @@ public class QueueManagerTests
 
         var doctorId = Guid.NewGuid();
         var patientId = Guid.NewGuid();
+        var identityUserId = Guid.NewGuid();
         var appointmentId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
 
@@ -600,5 +605,48 @@ public class QueueManagerTests
 
         Assert.Equal(status, (await db.QueueTickets.SingleAsync()).Status);
         Assert.Single(await db.InboxMessages.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CallNext_EmitsPatientCalledEnvelopeWithPatientSnapshot()
+    {
+        using var db = CreateInMemoryDbContext();
+        var manager = new QueueManager(db, NullLogger<QueueManager>.Instance);
+        var doctorId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var identityUserId = Guid.NewGuid();
+        var appointmentId = Guid.NewGuid();
+        var today = Common.ClinicTime.GetTodayQueueDate();
+
+        db.QueueTickets.Add(new QueueTicket
+        {
+            Id = Guid.NewGuid(),
+            AppointmentId = appointmentId,
+            PatientId = patientId,
+            IdentityUserId = identityUserId,
+            PatientPhone = "0900222333",
+            PatientName = "Le Thi Queue",
+            DoctorId = doctorId,
+            QueueDate = today,
+            QueueNumber = 5,
+            Priority = false,
+            Status = QueueStatus.Waiting
+        });
+        await db.SaveChangesAsync();
+
+        var called = await manager.CallNextAsync(doctorId, today);
+        Assert.Equal(5, called.QueueNumber);
+
+        var outbox = await db.OutboxMessages.FirstOrDefaultAsync(m => m.EventType == EventTypes.PatientCalled);
+        Assert.NotNull(outbox);
+        var envelope = System.Text.Json.JsonSerializer.Deserialize<EventEnvelope<PatientCalled>>(
+            outbox.Payload,
+            EventJsonSerializerOptions.Default);
+        Assert.NotNull(envelope);
+        Assert.Equal(patientId, envelope.Payload.PatientId);
+        Assert.Equal(identityUserId, envelope.Payload.IdentityUserId);
+        Assert.Equal("0900222333", envelope.Payload.PatientPhone);
+        Assert.Equal("Le Thi Queue", envelope.Payload.PatientName);
+        Assert.Equal(appointmentId, envelope.Payload.AppointmentId);
     }
 }

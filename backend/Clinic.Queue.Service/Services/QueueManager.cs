@@ -175,6 +175,8 @@ public class QueueManager : IQueueManager
                 QueueDate = queueDate,
                 QueueNumber = queueNumber,
                 PatientName = payload.PatientName,
+                IdentityUserId = payload.IdentityUserId,
+                PatientPhone = payload.PatientPhone,
                 DoctorName = payload.DoctorName,
                 Priority = payload.Priority,
                 Status = QueueStatus.Waiting,
@@ -364,6 +366,16 @@ public class QueueManager : IQueueManager
 
         if (nextTicket == null)
         {
+            var hasActive = await _dbContext.QueueTickets
+                .AnyAsync(t => t.DoctorId == doctorId
+                               && t.QueueDate == queueDate
+                               && !t.IsDeleted
+                               && (t.Status == QueueStatus.Called || t.Status == QueueStatus.InProgress), ct);
+            if (hasActive)
+            {
+                throw new QueueConflictException("Doctor already has an active called patient and there are no other waiting patients.");
+            }
+
             throw new QueueNotFoundException("There are no patients waiting in the queue for this doctor.");
         }
 
@@ -372,7 +384,16 @@ public class QueueManager : IQueueManager
         nextTicket.Call();
 
         AddOutboxMessage(
-            new PatientCalled(nextTicket.Id, nextTicket.AppointmentId, nextTicket.DoctorId, nextTicket.QueueNumber, DateTimeOffset.UtcNow),
+            new PatientCalled(
+                nextTicket.Id,
+                nextTicket.AppointmentId,
+                nextTicket.DoctorId,
+                nextTicket.QueueNumber,
+                DateTimeOffset.UtcNow,
+                PatientId: nextTicket.PatientId,
+                IdentityUserId: nextTicket.IdentityUserId,
+                PatientName: nextTicket.PatientName,
+                PatientPhone: nextTicket.PatientPhone),
             EventTypes.PatientCalled,
             "queue.patient-called",
             Guid.NewGuid());
@@ -390,7 +411,16 @@ public class QueueManager : IQueueManager
 
         ticket.Call();
         AddOutboxMessage(
-            new PatientCalled(ticket.Id, ticket.AppointmentId, ticket.DoctorId, ticket.QueueNumber, DateTimeOffset.UtcNow),
+            new PatientCalled(
+                ticket.Id,
+                ticket.AppointmentId,
+                ticket.DoctorId,
+                ticket.QueueNumber,
+                DateTimeOffset.UtcNow,
+                PatientId: ticket.PatientId,
+                IdentityUserId: ticket.IdentityUserId,
+                PatientName: ticket.PatientName,
+                PatientPhone: ticket.PatientPhone),
             EventTypes.PatientCalled,
             "queue.patient-called",
             Guid.NewGuid());
@@ -411,7 +441,7 @@ public class QueueManager : IQueueManager
         ticket.StartExam();
 
         AddOutboxMessage(
-            new ExamStarted(ticket.Id, ticket.AppointmentId, ticket.DoctorId, DateTimeOffset.UtcNow),
+            new ExamStarted(ticket.Id, ticket.AppointmentId, ticket.PatientId, ticket.DoctorId, ticket.DoctorName, ticket.QueueDate, DateTimeOffset.UtcNow),
             EventTypes.ExamStarted,
             "queue.exam-started",
             Guid.NewGuid());
