@@ -37,7 +37,9 @@ builder.Services.AddDbContext<NotificationDbContext>((sp, options) =>
     }
 });
 
-// Domain services
+// Domain services & secret protection
+builder.Services.AddNotificationDataProtection(builder.Configuration);
+builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 builder.Services.AddSingleton<INotificationPolicyEngine, NotificationPolicyEngine>();
 builder.Services.AddSingleton<INotificationEventProcessor, NotificationEventProcessor>();
 

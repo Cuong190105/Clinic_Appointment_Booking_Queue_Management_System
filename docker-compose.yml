@@ -86,8 +86,6 @@ services:
                 condition: service_healthy
             db:
                 condition: service_healthy
-            notification-service:
-                condition: service_healthy
             jaeger:
                 condition: service_started
         healthcheck:
@@ -165,8 +163,6 @@ services:
             db:
                 condition: service_healthy
             rabbitmq:
-                condition: service_healthy
-            notification-service:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy
@@ -263,8 +259,6 @@ services:
                 condition: service_healthy
             rabbitmq:
                 condition: service_healthy
-            notification-service:
-                condition: service_healthy
             identity-service:
                 condition: service_healthy
             scheduling-service:
@@ -329,8 +323,6 @@ services:
             db:
                 condition: service_healthy
             rabbitmq:
-                condition: service_healthy
-            notification-service:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy
@@ -397,8 +389,6 @@ services:
                 condition: service_healthy
             rabbitmq:
                 condition: service_healthy
-            notification-service:
-                condition: service_healthy
             identity-service:
                 condition: service_healthy
         healthcheck:
@@ -448,6 +438,7 @@ services:
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
+            - DataProtection__KeyDirectory=/var/lib/clinic/notification-protection-keys
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - RabbitMq__Host=rabbitmq
@@ -458,12 +449,12 @@ services:
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
             - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
             - ASPNETCORE_HTTP_PORTS=8080
+        volumes:
+            - notification_protection_keys:/var/lib/clinic/notification-protection-keys
         depends_on:
             db:
                 condition: service_healthy
             rabbitmq:
-                condition: service_healthy
-            notification-service:
                 condition: service_healthy
             identity-service:
                 condition: service_healthy
@@ -546,3 +537,4 @@ volumes:
     rabbitmq_data:
     prometheus_data:
     identity_signing_keys:
+    notification_protection_keys:

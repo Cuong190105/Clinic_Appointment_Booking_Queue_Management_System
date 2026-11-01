@@ -509,10 +509,13 @@ Kế hoạch chi tiết, quyết định thiết kế, ma trận kiểm thử v�
 - Retry hữu hạn với exponential backoff; idempotency theo `EventId + RecipientId + Channel + NotificationType`; từng attempt được audit. SignalR chạy một instance ở cấu hình hiện tại; Redis backplane chỉ thêm khi triển khai nhiều instance.
 - Phase 2–5 của B không phải điều kiện chặn để A dựng service. B phối hợp contract/outbox/inbox, failure tests, telemetry và E2E cho consumer.
 
-### Trạng thái khởi tạo
+### Trạng thái triển khai & rà soát (2026-11-01)
 
-- Đã thêm project/service test project, solution entry, Dockerfile, Compose service và health/readiness scaffold.
-- Đã thêm test specifications cho yêu cầu Phase 6; các ca nghiệp vụ được skip có chủ đích tới khi implementation tương ứng được viết. Chưa chuyển traffic hay xử lý notification production.
+- **Phase 6 đã hoàn tất acceptance** trong phạm vi demo Docker; trạng thái và bằng chứng ở Mục 10.5 của [`PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_6_NOTIFICATION_SERVICE_EXECUTION_PLAN_MEMBER_A.md).
+- Test pass: Appointment **35/35**, Queue **51/51**, Notification **30/30**, Gateway operator integration **2/2**, frontend full suite **176/176**.
+- Runtime acceptance pass: SQL Server reminder/suppression; RabbitMQ retry, restart recovery và quarantine; delivery replay qua Gateway với role Admin và audit actor; authenticated SignalR qua Gateway với user isolation, reconnect và REST history recovery; Data Protection key persisted sau restart.
+- Docker build `backend` + `notification-service`, Compose config, migration `20261101155904_AddDeliveryReplayOperatorAudit` và health checks đều pass. Email/SMS acceptance dùng provider MOCK, không gửi tin thật. RabbitMQ poison-event DLQ chỉ lưu metadata đã làm sạch; event được phát lại từ source outbox sau khi xử lý producer.
+- Thay đổi code và tài liệu đang ở staged và unstaged working-tree diff; chưa commit.
 
 ### Lưu ý
 

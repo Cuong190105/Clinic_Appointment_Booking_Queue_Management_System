@@ -52,8 +52,10 @@ public static class NotificationEndpoints
 
         // History API is strictly scoped to the authenticated user account.
         // Guest contact-only records have RecipientType.Guest and are never exposed here.
+        var now = DateTimeOffset.UtcNow;
         var query = db.Notifications.AsNoTracking()
-            .Where(n => n.RecipientId == userId && n.RecipientType == RecipientType.Account);
+            .Where(n => n.RecipientId == userId && n.RecipientType == RecipientType.Account
+                        && n.SuppressedAt == null && (n.ScheduledFor == null || n.ScheduledFor <= now));
 
         if (unreadOnly == true)
         {
@@ -104,8 +106,10 @@ public static class NotificationEndpoints
             return Results.Unauthorized();
         }
 
+        var visibleNow = DateTimeOffset.UtcNow;
         var count = await db.Notifications.AsNoTracking()
-            .CountAsync(n => n.RecipientId == userId && n.RecipientType == RecipientType.Account && !n.IsRead, ct);
+            .CountAsync(n => n.RecipientId == userId && n.RecipientType == RecipientType.Account && !n.IsRead
+                             && n.SuppressedAt == null && (n.ScheduledFor == null || n.ScheduledFor <= visibleNow), ct);
 
         return Results.Ok(new { unreadCount = count });
     }
@@ -153,8 +157,10 @@ public static class NotificationEndpoints
             return Results.Unauthorized();
         }
 
+        var visibleNow = DateTimeOffset.UtcNow;
         var unreadNotifications = await db.Notifications
-            .Where(n => n.RecipientId == userId && n.RecipientType == RecipientType.Account && !n.IsRead)
+            .Where(n => n.RecipientId == userId && n.RecipientType == RecipientType.Account && !n.IsRead
+                        && n.SuppressedAt == null && (n.ScheduledFor == null || n.ScheduledFor <= visibleNow))
             .ToListAsync(ct);
 
         var now = DateTimeOffset.UtcNow;

@@ -4,8 +4,6 @@ using Mapster;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
-using Clinic.Application.Interfaces;
-using Clinic.API.Services;
 
 namespace Clinic.API
 {
@@ -32,7 +30,6 @@ namespace Clinic.API
             var config = TypeAdapterConfig.GlobalSettings;
             config.Scan(Assembly.GetExecutingAssembly());
 
-            services.AddScoped<IInAppSender, InAppSender>();
             return services;
         }
     }

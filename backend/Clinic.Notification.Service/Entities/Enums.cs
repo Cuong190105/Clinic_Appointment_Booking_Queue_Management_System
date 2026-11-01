@@ -27,6 +27,8 @@ public enum DeliveryStatus
     Pending = 0,
     Delivered = 1,
     Failed = 2,
-    DeadLettered = 3
+    DeadLettered = 3,
+    /// <summary>Delivery withheld permanently (e.g. reminder for a cancelled/rescheduled appointment).</summary>
+    Suppressed = 4
 }
 

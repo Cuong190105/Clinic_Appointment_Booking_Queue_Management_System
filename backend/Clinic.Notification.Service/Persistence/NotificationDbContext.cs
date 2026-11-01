@@ -14,10 +14,19 @@ public class NotificationDbContext : DbContext
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
     public DbSet<DeliveryOutboxMessage> DeliveryOutboxMessages => Set<DeliveryOutboxMessage>();
     public DbSet<DeliveryAttempt> DeliveryAttempts => Set<DeliveryAttempt>();
+    public DbSet<ReminderSuppression> ReminderSuppressions => Set<ReminderSuppression>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<ReminderSuppression>(entity =>
+        {
+            entity.ToTable("ReminderSuppressions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SlotKey).HasMaxLength(100).IsRequired();
+            entity.HasIndex(e => new { e.AppointmentId, e.SlotKey }).IsUnique();
+        });
 
         modelBuilder.Entity<NotificationItem>(entity =>
         {
@@ -57,6 +66,8 @@ public class NotificationDbContext : DbContext
             entity.Property(e => e.Content).HasMaxLength(4000).IsRequired();
 
             entity.HasIndex(e => new { e.Status, e.NextAttemptAt });
+            entity.Property(e => e.SlotKey).HasMaxLength(100);
+            entity.HasIndex(e => new { e.AppointmentId, e.Status });
 
             entity.HasOne(e => e.Notification)
                   .WithMany(n => n.Deliveries)

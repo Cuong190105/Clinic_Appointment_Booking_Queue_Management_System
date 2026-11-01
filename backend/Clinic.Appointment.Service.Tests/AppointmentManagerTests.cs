@@ -6,9 +6,11 @@ using AppointmentEntity = Clinic.Appointment.Service.Entities.Appointment;
 using Clinic.Appointment.Service.Persistence;
 using Clinic.Appointment.Service.Services;
 using Clinic.Contracts.Events;
+using Clinic.Contracts.Serialization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 using Xunit;
 
 namespace Clinic.Appointment.Service.Tests;
@@ -349,7 +351,8 @@ public class AppointmentManagerTests
         var patientId = Guid.NewGuid();
         var scheduleId = Guid.NewGuid();
         var doctorId = Guid.NewGuid();
-        db.PatientProjections.Add(new PatientProjection { Id = patientId, FullName = "Patient Snapshot", Gender = "Female" });
+        var identityUserId = Guid.NewGuid();
+        db.PatientProjections.Add(new PatientProjection { Id = patientId, IdentityUserId = identityUserId, FullName = "Patient Snapshot", PhoneNumber = "0900111222", Gender = "Female" });
         client.WalkInCandidates = new[] { new WalkInScheduleCandidate(scheduleId, doctorId, "Dr. Lin", "General", DateOnly.FromDateTime(DateTime.Now), TimeOnly.MinValue, TimeOnly.MaxValue, "Active") };
         await db.SaveChangesAsync();
 
@@ -366,6 +369,10 @@ public class AppointmentManagerTests
         var envelope = Assert.Single(db.OutboxMessages);
         Assert.Equal(EventTypes.AppointmentCheckedIn, envelope.EventType);
         Assert.Contains("\"priority\":true", envelope.Payload);
+        var checkedIn = JsonSerializer.Deserialize<AppointmentCheckedIn>(envelope.Payload, EventJsonSerializerOptions.Default);
+        Assert.NotNull(checkedIn);
+        Assert.Equal(identityUserId, checkedIn.IdentityUserId);
+        Assert.Equal("0900111222", checkedIn.PatientPhone);
     }
 
     [Fact]
@@ -607,5 +614,55 @@ public class AppointmentManagerTests
         Assert.Equal(personId, projection.PersonId);
         Assert.Equal(identityUserId, projection.IdentityUserId);
         Assert.Equal("Patient Name", projection.FullName);
+    }
+
+    [Fact]
+    public async Task ConfirmAndCancelAppointment_EmitsRecipientSnapshotInOutbox()
+    {
+        var (db, _, manager) = CreateTestSetup();
+        var patientId = Guid.NewGuid();
+        var identityUserId = Guid.NewGuid();
+        var personId = Guid.NewGuid();
+        var staffUserId = Guid.NewGuid();
+
+        await manager.ProcessUserProfileUpdatedAsync(new UserProfileUpdated(
+            personId, "Nguyen Snapshot", "0911223344", "snapshot@example.com", "Male",
+            new DateOnly(1995, 5, 10), "Hanoi", patientId, identityUserId));
+
+        var app = new AppointmentEntity(
+            patientId, "Nguyen Snapshot", "0911223344", "Male", new DateOnly(1995, 5, 10),
+            Guid.NewGuid(), Guid.NewGuid(), "Dr. Snapshot", "General",
+            new DateOnly(2026, 12, 10), new TimeOnly(9, 30), "Checkup",
+            Guid.NewGuid(), isWalkIn: false);
+        db.Appointments.Add(app);
+        await db.SaveChangesAsync();
+
+        var confirmRes = await manager.ConfirmAppointmentAsync(app.Id, staffUserId, "Receptionist");
+        Assert.True(confirmRes.Success);
+
+        var confirmOutbox = await db.OutboxMessages
+            .FirstOrDefaultAsync(m => m.EventType == EventTypes.AppointmentConfirmed);
+        Assert.NotNull(confirmOutbox);
+        var confirmedPayload = System.Text.Json.JsonSerializer.Deserialize<AppointmentConfirmed>(
+            confirmOutbox.Payload,
+            Clinic.Contracts.Serialization.EventJsonSerializerOptions.Default);
+        Assert.NotNull(confirmedPayload);
+        Assert.Equal(identityUserId, confirmedPayload.IdentityUserId);
+        Assert.Equal("Nguyen Snapshot", confirmedPayload.PatientName);
+        Assert.Equal("0911223344", confirmedPayload.PatientPhone);
+
+        var cancelRes = await manager.CancelAppointmentAsync(app.Id, staffUserId, true, "Receptionist");
+        Assert.True(cancelRes.Success);
+
+        var cancelOutbox = await db.OutboxMessages
+            .FirstOrDefaultAsync(m => m.EventType == EventTypes.AppointmentCancelled);
+        Assert.NotNull(cancelOutbox);
+        var cancelledPayload = System.Text.Json.JsonSerializer.Deserialize<AppointmentCancelled>(
+            cancelOutbox.Payload,
+            Clinic.Contracts.Serialization.EventJsonSerializerOptions.Default);
+        Assert.NotNull(cancelledPayload);
+        Assert.Equal(identityUserId, cancelledPayload.IdentityUserId);
+        Assert.Equal("Nguyen Snapshot", cancelledPayload.PatientName);
+        Assert.Equal("0911223344", cancelledPayload.PatientPhone);
     }
 }

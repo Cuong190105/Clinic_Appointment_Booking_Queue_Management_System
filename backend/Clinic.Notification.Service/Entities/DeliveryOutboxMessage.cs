@@ -40,6 +40,12 @@ public sealed class DeliveryOutboxMessage
 
     public Guid? CorrelationId { get; set; }
 
+    /// <summary>Appointment this delivery relates to (reminders are suppressed by appointment + slot).</summary>
+    public Guid? AppointmentId { get; set; }
+
+    /// <summary>"{workScheduleId}:{timeSlot}" identifying the booked slot a reminder refers to.</summary>
+    public string? SlotKey { get; set; }
+
     // Navigation
     public NotificationItem? Notification { get; set; }
 

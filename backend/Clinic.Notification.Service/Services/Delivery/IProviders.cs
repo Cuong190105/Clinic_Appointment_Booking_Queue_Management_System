@@ -15,6 +15,10 @@ public interface IRealtimeNotifier
     Task SendNotificationHintAsync(Guid userId, Guid notificationId, string notificationType, CancellationToken ct = default);
 }
 
+/// <summary>
+/// MOCK provider (course/demo scope): records the attempt but sends nothing to a real mailbox.
+/// Attempt audit is labelled MOCK so it is never mistaken for real delivery.
+/// </summary>
 public sealed class LoggingEmailSender : IEmailSender
 {
     private readonly ILogger<LoggingEmailSender> _logger;
@@ -23,14 +27,22 @@ public sealed class LoggingEmailSender : IEmailSender
 
     public Task<ProviderDeliveryResult> SendEmailAsync(string toEmail, string subject, string body, CancellationToken ct = default)
     {
-        _logger.LogInformation("EMAIL_SENT: to={Email}, subject={Subject}", toEmail, subject);
+        _logger.LogInformation("MOCK_EMAIL: not sent to a real mailbox. to={Email}, subject={Subject}", Mask(toEmail), subject);
         return Task.FromResult(new ProviderDeliveryResult(
             ProviderResultCategory.Success,
-            "250 OK: Mock message accepted",
-            Guid.NewGuid().ToString("N")));
+            "MOCK: email accepted by mock provider (not sent to a real recipient)",
+            "mock-" + Guid.NewGuid().ToString("N")));
+    }
+
+    internal static string Mask(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return "***";
+        var at = value.IndexOf('@');
+        return at > 1 ? value[0] + "***" + value[at..] : value.Length > 4 ? "***" + value[^2..] : "***";
     }
 }
 
+/// <summary>MOCK provider (course/demo scope): no real SMS is sent.</summary>
 public sealed class LoggingSmsSender : ISmsSender
 {
     private readonly ILogger<LoggingSmsSender> _logger;
@@ -39,13 +51,14 @@ public sealed class LoggingSmsSender : ISmsSender
 
     public Task<ProviderDeliveryResult> SendSmsAsync(string toPhone, string message, CancellationToken ct = default)
     {
-        _logger.LogInformation("SMS_SENT: to={Phone}", toPhone);
+        _logger.LogInformation("MOCK_SMS: not sent to a real phone. to={Phone}", LoggingEmailSender.Mask(toPhone));
         return Task.FromResult(new ProviderDeliveryResult(
             ProviderResultCategory.Success,
-            "200 OK: Mock SMS sent",
-            Guid.NewGuid().ToString("N")));
+            "MOCK: sms accepted by mock provider (not sent to a real recipient)",
+            "mock-" + Guid.NewGuid().ToString("N")));
     }
 }
+
 
 public sealed class NullRealtimeNotifier : IRealtimeNotifier
 {

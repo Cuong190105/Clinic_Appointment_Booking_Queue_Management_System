@@ -1,6 +1,5 @@
 using Clinic.API.Services;
 using Clinic.Application.Contracts;
-using Clinic.Application.Features.Users.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -53,11 +52,10 @@ namespace Clinic.API.Controllers
 
         [Authorize]
         [HttpGet("notifications")]
-        [ProducesResponseType(typeof(PaginationResponse<NotificationDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetNotifications()
         {
             return await _notificationClient.ProxyAsync(HttpContext, "notifications/me");
-
         }
     }
 }

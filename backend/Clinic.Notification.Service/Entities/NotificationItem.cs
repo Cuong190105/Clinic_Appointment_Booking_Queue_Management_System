@@ -34,6 +34,9 @@ public sealed class NotificationItem
 
     public DateTimeOffset? ScheduledFor { get; set; }
 
+    /// <summary>When set, the notification is withheld from history (cancelled/rescheduled reminder).</summary>
+    public DateTimeOffset? SuppressedAt { get; set; }
+
     // Navigation
     public ICollection<DeliveryOutboxMessage> Deliveries { get; set; } = new List<DeliveryOutboxMessage>();
 }

@@ -3,7 +3,6 @@ using Clinic.API.Services;
 using Clinic.Contracts.Analytics;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.Admin.Queries;
-using Clinic.Application.Features.Users.Queries;
 using MapsterMapper;
 using MediatR;
 using Clinic.Application.Features;
@@ -27,8 +26,9 @@ namespace Clinic.API.Controllers
         private readonly SchedulingManagementClient _scheduling;
         private readonly QueueServiceClient _queueClient;
         private readonly MedicalRecordsServiceClient _medicalRecordsClient;
+        private readonly NotificationServiceClient _notificationClient;
 
-        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient)
+        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient, NotificationServiceClient notificationClient)
         {
             _sender = sender;
             _mapper = mapper;
@@ -39,7 +39,18 @@ namespace Clinic.API.Controllers
             _scheduling = scheduling;
             _queueClient = queueClient;
             _medicalRecordsClient = medicalRecordsClient;
+            _notificationClient = notificationClient;
         }
+
+        [HttpGet("notifications/dead-lettered")]
+        [Authorize(Roles = "Admin")]
+        public Task<IActionResult> GetDeadLetteredNotifications(CancellationToken ct) =>
+            _notificationClient.ProxyOperatorAsync(HttpContext, "internal/notifications/deliveries/dead-lettered", HttpMethod.Get, ct);
+
+        [HttpPost("notifications/deliveries/{deliveryId:guid}/replay")]
+        [Authorize(Roles = "Admin")]
+        public Task<IActionResult> ReplayDeadLetteredNotification(Guid deliveryId, CancellationToken ct) =>
+            _notificationClient.ProxyOperatorAsync(HttpContext, $"internal/notifications/deliveries/{deliveryId:D}/replay", HttpMethod.Post, ct);
 
         [HttpGet("ping")]
         [Authorize(Roles = "Admin")]

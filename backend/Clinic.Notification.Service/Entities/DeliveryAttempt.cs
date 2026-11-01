@@ -18,6 +18,9 @@ public sealed class DeliveryAttempt
 
     public Guid? CorrelationId { get; set; }
 
+    /// <summary>Identity subject of the administrator who explicitly requested a replay.</summary>
+    public Guid? OperatorId { get; set; }
+
     // Navigation
     public DeliveryOutboxMessage? DeliveryOutboxMessage { get; set; }
 }

@@ -140,6 +140,7 @@ public class AppointmentManager : IAppointmentManager
 
         // 1. Resolve Patient
         Guid patientId;
+        Guid? patientIdentityUserId = null;
         string patientName = request.PatientName ?? string.Empty;
         string? patientPhone = request.PatientPhone;
         string? patientGender = request.PatientGender;
@@ -151,6 +152,7 @@ public class AppointmentManager : IAppointmentManager
             var proj = await _db.PatientProjections.FirstOrDefaultAsync(p => p.Id == patientId, ct);
             if (proj != null)
             {
+                patientIdentityUserId = proj.IdentityUserId;
                 patientName = string.IsNullOrEmpty(patientName) ? proj.FullName : patientName;
                 patientPhone = patientPhone ?? proj.PhoneNumber;
                 patientGender = patientGender ?? proj.Gender;
@@ -159,6 +161,7 @@ public class AppointmentManager : IAppointmentManager
         }
         else
         {
+            patientIdentityUserId = currentUserId != Guid.Empty ? currentUserId : null;
             if (tokenPatientId.HasValue && tokenPatientId.Value != Guid.Empty)
             {
                 patientId = tokenPatientId.Value;
@@ -171,6 +174,7 @@ public class AppointmentManager : IAppointmentManager
                     return (false, "Patient profile not found for the current user.", null, StatusCodes.Status404NotFound);
                 }
                 patientId = proj.Id;
+                patientIdentityUserId = proj.IdentityUserId ?? patientIdentityUserId;
                 patientName = proj.FullName;
                 patientPhone = proj.PhoneNumber;
                 patientGender = proj.Gender;
@@ -182,6 +186,7 @@ public class AppointmentManager : IAppointmentManager
                 var proj = await _db.PatientProjections.FirstOrDefaultAsync(p => p.Id == patientId, ct);
                 if (proj != null)
                 {
+                    patientIdentityUserId = proj.IdentityUserId ?? patientIdentityUserId;
                     patientName = proj.FullName;
                     patientPhone = proj.PhoneNumber;
                     patientGender = proj.Gender;
@@ -286,7 +291,11 @@ public class AppointmentManager : IAppointmentManager
                         appointment.ScheduleDate,
                         appointment.TimeSlot,
                         currentUserId,
-                        DateTimeOffset.UtcNow)
+                        DateTimeOffset.UtcNow,
+                        PatientName: appointment.PatientName,
+                        PatientEmail: null,
+                        PatientPhone: appointment.PatientPhone,
+                        IdentityUserId: patientIdentityUserId)
                 }, "appointment.confirmed");
 
                 await _db.SaveChangesAsync(ct);
@@ -492,6 +501,7 @@ public class AppointmentManager : IAppointmentManager
         try
         {
             app.Confirm(currentUserId, updaterName);
+            var proj = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.Id == app.PatientId, ct);
 
             _outbox.Add(new EventEnvelope<AppointmentConfirmed>
             {
@@ -509,7 +519,11 @@ public class AppointmentManager : IAppointmentManager
                     app.ScheduleDate,
                     app.TimeSlot,
                     currentUserId,
-                    DateTimeOffset.UtcNow)
+                    DateTimeOffset.UtcNow,
+                    PatientName: string.IsNullOrWhiteSpace(app.PatientName) ? proj?.FullName : app.PatientName,
+                    PatientEmail: null,
+                    PatientPhone: app.PatientPhone ?? proj?.PhoneNumber,
+                    IdentityUserId: proj?.IdentityUserId)
             }, "appointment.confirmed");
 
             await _db.SaveChangesAsync(ct);
@@ -534,6 +548,8 @@ public class AppointmentManager : IAppointmentManager
         try
         {
             app.Cancel(currentUserId, isAdminOrReceptionist, updaterName);
+            var proj = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.Id == app.PatientId, ct);
+            var identityUserId = proj?.IdentityUserId ?? (!isAdminOrReceptionist && currentUserId != Guid.Empty ? currentUserId : null);
 
             _outbox.Add(new EventEnvelope<AppointmentCancelled>
             {
@@ -549,7 +565,12 @@ public class AppointmentManager : IAppointmentManager
                     currentUserId,
                     DateTimeOffset.UtcNow,
                     app.WorkScheduleId,
-                    app.TimeSlot)
+                    app.TimeSlot,
+                    IsRescheduleRelease: false,
+                    PatientName: string.IsNullOrWhiteSpace(app.PatientName) ? proj?.FullName : app.PatientName,
+                    PatientEmail: null,
+                    PatientPhone: app.PatientPhone ?? proj?.PhoneNumber,
+                    IdentityUserId: identityUserId)
             }, "appointment.cancelled");
 
             await _db.SaveChangesAsync(ct);
@@ -632,6 +653,7 @@ public class AppointmentManager : IAppointmentManager
             }
 
             // Release old slot via event
+            var proj = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.Id == app.PatientId, ct);
             _outbox.Add(new EventEnvelope<AppointmentCancelled>
             {
                 EventId = Guid.NewGuid(),
@@ -647,7 +669,11 @@ public class AppointmentManager : IAppointmentManager
                     DateTimeOffset.UtcNow,
                     oldScheduleId,
                     oldTimeSlot,
-                    IsRescheduleRelease: true)
+                    IsRescheduleRelease: true,
+                    PatientName: string.IsNullOrWhiteSpace(app.PatientName) ? proj?.FullName : app.PatientName,
+                    PatientEmail: null,
+                    PatientPhone: app.PatientPhone ?? proj?.PhoneNumber,
+                    IdentityUserId: proj?.IdentityUserId)
             }, "appointment.cancelled");
 
             await _db.SaveChangesAsync(ct);
@@ -686,6 +712,7 @@ public class AppointmentManager : IAppointmentManager
         try
         {
             app.CheckIn(DateTime.UtcNow);
+            var proj = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.Id == app.PatientId, ct);
 
             _outbox.Add(new EventEnvelope<AppointmentCheckedIn>
             {
@@ -702,7 +729,9 @@ public class AppointmentManager : IAppointmentManager
                     DateTimeOffset.UtcNow,
                     isUrgent,
                     app.PatientName,
-                    app.DoctorName)
+                    app.DoctorName,
+                    proj?.IdentityUserId,
+                    app.PatientPhone ?? proj?.PhoneNumber)
             }, "appointment.checked-in");
 
             await _db.SaveChangesAsync(ct);
@@ -892,7 +921,7 @@ public class AppointmentManager : IAppointmentManager
         var checkedInAt = DateTimeOffset.UtcNow;
         await using var tx = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
         _db.Appointments.Add(appointment);
-        _outbox.Add(new EventEnvelope<AppointmentCheckedIn> { EventId = Guid.NewGuid(), EventType = EventTypes.AppointmentCheckedIn, SchemaVersion = 1, OccurredAt = checkedInAt, CorrelationId = Guid.NewGuid(), Producer = "Clinic.Appointment.Service", Payload = new AppointmentCheckedIn(appointment.Id, appointment.PatientId, appointment.DoctorId, checkedInAt, request.IsUrgent, appointment.PatientName, appointment.DoctorName) }, "appointment.checked-in");
+        _outbox.Add(new EventEnvelope<AppointmentCheckedIn> { EventId = Guid.NewGuid(), EventType = EventTypes.AppointmentCheckedIn, SchemaVersion = 1, OccurredAt = checkedInAt, CorrelationId = Guid.NewGuid(), Producer = "Clinic.Appointment.Service", Payload = new AppointmentCheckedIn(appointment.Id, appointment.PatientId, appointment.DoctorId, checkedInAt, request.IsUrgent, appointment.PatientName, appointment.DoctorName, patient.IdentityUserId, appointment.PatientPhone ?? patient.PhoneNumber) }, "appointment.checked-in");
         await _db.SaveChangesAsync(ct);
         if (tx != null) await tx.CommitAsync(ct);
         return (true, null, new ReceptionistWalkInResult(appointment.Id, appointment.PatientId, appointment.PatientName, appointment.DoctorId, appointment.DoctorName, appointment.SpecialtyName ?? string.Empty, request.IsUrgent, checkedInAt, appointment.Status.ToString(), appointment.WorkScheduleId, appointment.ScheduleDate, appointment.TimeSlot, appointment.Reason), StatusCodes.Status201Created);

@@ -53,30 +53,89 @@ public sealed class NotificationEventProcessor : INotificationEventProcessor
         };
         db.InboxMessages.Add(inbox);
 
-        // 2. Policy Evaluation
+        // 2. Policy Evaluation (unwrap EventEnvelope<T> if the producer serialized the full envelope)
+        var bodyElement = UnwrapPayload(payloadElement);
         IReadOnlyList<NotificationIntent> intents = Array.Empty<NotificationIntent>();
+        Guid? appointmentId = null;
+        Guid? queueTicketId = null;
+        var now = DateTimeOffset.UtcNow;
 
         if (eventType == EventTypes.AppointmentConfirmed)
         {
-            var payload = payloadElement.Deserialize<AppointmentConfirmed>(EventJsonSerializerOptions.Default);
+            var payload = bodyElement.Deserialize<AppointmentConfirmed>(EventJsonSerializerOptions.Default);
             if (payload != null)
             {
-                intents = _policyEngine.EvaluateAppointmentConfirmed(eventId, payload);
+                appointmentId = payload.AppointmentId;
+                var all = new List<NotificationIntent>(_policyEngine.EvaluateAppointmentConfirmed(eventId, payload));
+
+                // Reminder is skipped when the slot was already cancelled / rescheduled away
+                // (late or re-ordered delivery must not resurrect it).
+                var slotKey = NotificationPolicyEngine.BuildSlotKey(payload.WorkScheduleId, payload.TimeSlot);
+                var tombstoned = await db.ReminderSuppressions.AnyAsync(s =>
+                    s.AppointmentId == payload.AppointmentId &&
+                    (s.SlotKey == slotKey || s.SlotKey == NotificationPolicyEngine.AnySlot), ct);
+                if (!tombstoned)
+                {
+                    all.AddRange(_policyEngine.EvaluateAppointmentReminder(eventId, payload, now));
+                }
+
+                intents = all;
             }
         }
         else if (eventType == EventTypes.AppointmentCancelled)
         {
-            var payload = payloadElement.Deserialize<AppointmentCancelled>(EventJsonSerializerOptions.Default);
+            var payload = bodyElement.Deserialize<AppointmentCancelled>(EventJsonSerializerOptions.Default);
             if (payload != null)
             {
+                appointmentId = payload.AppointmentId;
                 intents = _policyEngine.EvaluateAppointmentCancelled(eventId, payload);
+
+                if (_policyEngine.ShouldCancelPendingReminder(payload))
+                {
+                    await SuppressRemindersAsync(db, eventId, payload, now, ct);
+                }
             }
         }
         else if (eventType == EventTypes.PatientCalled)
         {
-            var payload = payloadElement.Deserialize<PatientCalled>(EventJsonSerializerOptions.Default);
+            var payload = bodyElement.Deserialize<PatientCalled>(EventJsonSerializerOptions.Default);
             if (payload != null)
             {
+                appointmentId = payload.AppointmentId != Guid.Empty ? payload.AppointmentId : null;
+                queueTicketId = payload.QueueTicketId != Guid.Empty ? payload.QueueTicketId : null;
+
+                // Enrich linkage/contact snapshot from prior local notification for the same appointment if Queue only carried PatientId/AppointmentId.
+                if ((payload.IdentityUserId == null || string.IsNullOrWhiteSpace(payload.PatientPhone)) && payload.AppointmentId != Guid.Empty)
+                {
+                    var prior = await db.Notifications.AsNoTracking()
+                        .Where(n => n.AppointmentId == payload.AppointmentId)
+                        .OrderByDescending(n => n.CreatedAt)
+                        .FirstOrDefaultAsync(ct);
+
+                    if (prior != null)
+                    {
+                        var resolvedIdentity = payload.IdentityUserId
+                            ?? (prior.RecipientType == RecipientType.Account ? prior.RecipientId : null);
+                        payload = payload with
+                        {
+                            IdentityUserId = resolvedIdentity,
+                            PatientName = string.IsNullOrWhiteSpace(payload.PatientName) ? prior.ContactName : payload.PatientName,
+                            PatientPhone = string.IsNullOrWhiteSpace(payload.PatientPhone) ? prior.ContactPhone : payload.PatientPhone
+                        };
+                    }
+                    else
+                    {
+                        var priorSms = await db.DeliveryOutboxMessages.AsNoTracking()
+                            .Where(o => o.AppointmentId == payload.AppointmentId && o.Channel == NotificationChannel.Sms)
+                            .OrderByDescending(o => o.CreatedAt)
+                            .FirstOrDefaultAsync(ct);
+                        if (priorSms != null && string.IsNullOrWhiteSpace(payload.PatientPhone))
+                        {
+                            payload = payload with { PatientPhone = priorSms.RecipientAddress };
+                        }
+                    }
+                }
+
                 intents = _policyEngine.EvaluatePatientCalled(eventId, payload);
             }
         }
@@ -105,6 +164,8 @@ public sealed class NotificationEventProcessor : INotificationEventProcessor
                     ContactName = intent.ContactSnapshot?.FullName,
                     ContactEmail = intent.ContactSnapshot?.Email,
                     ContactPhone = intent.ContactSnapshot?.PhoneNumber,
+                    AppointmentId = intent.AppointmentId ?? appointmentId,
+                    QueueTicketId = queueTicketId,
                     CorrelationId = correlationId,
                     ScheduledFor = intent.ScheduledFor
                 };
@@ -134,6 +195,9 @@ public sealed class NotificationEventProcessor : INotificationEventProcessor
                 Content = intent.Body,
                 Status = DeliveryStatus.Pending,
                 ScheduledFor = intent.ScheduledFor,
+                NextAttemptAt = intent.ScheduledFor ?? now,
+                AppointmentId = intent.AppointmentId ?? appointmentId,
+                SlotKey = intent.SlotKey,
                 CorrelationId = correlationId
             };
             db.DeliveryOutboxMessages.Add(outbox);
@@ -146,5 +210,58 @@ public sealed class NotificationEventProcessor : INotificationEventProcessor
         _logger.LogInformation("Successfully processed event ID={EventId}, generated {Count} outbox deliveries.", eventId, intents.Count);
         return true;
     }
-}
 
+    private static JsonElement UnwrapPayload(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (element.TryGetProperty("payload", out var camel) && camel.ValueKind == JsonValueKind.Object)
+                return camel;
+            if (element.TryGetProperty("Payload", out var pascal) && pascal.ValueKind == JsonValueKind.Object)
+                return pascal;
+        }
+        return element;
+    }
+
+    private static async Task SuppressRemindersAsync(
+        NotificationDbContext db,
+        Guid eventId,
+        AppointmentCancelled payload,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        var slotKey = NotificationPolicyEngine.BuildSlotKey(payload.WorkScheduleId, payload.TimeSlot);
+
+        if (!await db.ReminderSuppressions.AnyAsync(s => s.AppointmentId == payload.AppointmentId && s.SlotKey == slotKey, ct))
+        {
+            db.ReminderSuppressions.Add(new ReminderSuppression
+            {
+                AppointmentId = payload.AppointmentId,
+                SlotKey = slotKey,
+                EventId = eventId,
+                SuppressedAt = now
+            });
+        }
+
+        var pending = await db.DeliveryOutboxMessages
+            .Where(o => o.AppointmentId == payload.AppointmentId
+                        && o.NotificationType == NotificationType.AppointmentReminder
+                        && o.Status == DeliveryStatus.Pending
+                        && (slotKey == NotificationPolicyEngine.AnySlot || o.SlotKey == slotKey))
+            .ToListAsync(ct);
+
+        if (pending.Count == 0) return;
+
+        var notificationIds = pending.Where(p => p.NotificationId.HasValue).Select(p => p.NotificationId!.Value).ToList();
+        var notifications = await db.Notifications.Where(n => notificationIds.Contains(n.Id)).ToListAsync(ct);
+
+        foreach (var delivery in pending)
+        {
+            delivery.Status = DeliveryStatus.Suppressed;
+        }
+        foreach (var notification in notifications)
+        {
+            notification.SuppressedAt = now;
+        }
+    }
+}

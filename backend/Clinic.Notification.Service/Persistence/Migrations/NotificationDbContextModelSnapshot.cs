@@ -40,6 +40,9 @@ namespace Clinic.Notification.Service.Persistence.Migrations
                     b.Property<Guid>("DeliveryOutboxMessageId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("OperatorId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ProviderReference")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -62,6 +65,9 @@ namespace Clinic.Notification.Service.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AppointmentId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("AttemptsCount")
@@ -118,6 +124,10 @@ namespace Clinic.Notification.Service.Persistence.Migrations
                     b.Property<DateTimeOffset?>("ScheduledFor")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("SlotKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -131,6 +141,8 @@ namespace Clinic.Notification.Service.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("NotificationId");
+
+                    b.HasIndex("AppointmentId", "Status");
 
                     b.HasIndex("Status", "NextAttemptAt");
 
@@ -220,6 +232,9 @@ namespace Clinic.Notification.Service.Persistence.Migrations
                     b.Property<DateTimeOffset?>("ScheduledFor")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("SuppressedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -234,6 +249,34 @@ namespace Clinic.Notification.Service.Persistence.Migrations
                     b.HasIndex("RecipientId", "IsRead");
 
                     b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Clinic.Notification.Service.Entities.ReminderSuppression", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SlotKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("SuppressedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId", "SlotKey")
+                        .IsUnique();
+
+                    b.ToTable("ReminderSuppressions", (string)null);
                 });
 
             modelBuilder.Entity("Clinic.Notification.Service.Entities.DeliveryAttempt", b =>

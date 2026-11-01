@@ -838,6 +838,19 @@ public sealed class NotificationGatewayAndWorkflowTests
         var secretToken = "super-secret-one-time-reset-code-xyz987";
         var recipientId = Guid.NewGuid();
 
+        // 0. Missing Identity:ServiceToken configuration fails closed with 503 ServiceUnavailable
+        await using (var unconfiguredFactory = new NotificationTestFactory { ServiceToken = null })
+        {
+            var unconfiguredClient = unconfiguredFactory.CreateClient();
+            using var reqNoCfg = new HttpRequestMessage(HttpMethod.Post, "/internal/notifications/password-reset")
+            {
+                Content = JsonContent.Create(new { recipientId, email = "user@example.com", resetToken = secretToken })
+            };
+            reqNoCfg.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+            var resNoCfg = await unconfiguredClient.SendAsync(reqNoCfg);
+            Assert.Equal(System.Net.HttpStatusCode.ServiceUnavailable, resNoCfg.StatusCode);
+        }
+
         // 1. Call internal endpoint without service token -> 401
         var unauthRes = await client.PostAsJsonAsync("/internal/notifications/password-reset", new
         {
@@ -864,26 +877,61 @@ public sealed class NotificationGatewayAndWorkflowTests
         var resultJson = await authorizedRes.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         var deliveryId = resultJson.GetProperty("deliveryId").GetGuid();
 
-        // 3. Verify delivery outbox was created
+        // 2b. Replay the exact same password reset request -> idempotent, returns same deliveryId and duplicate=true
+        using var replayReq = new HttpRequestMessage(HttpMethod.Post, "/internal/notifications/password-reset")
+        {
+            Content = JsonContent.Create(new
+            {
+                recipientId,
+                email = "user@example.com",
+                resetToken = secretToken
+            })
+        };
+        replayReq.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var replayRes = await client.SendAsync(replayReq);
+        Assert.Equal(System.Net.HttpStatusCode.OK, replayRes.StatusCode);
+        var replayJson = await replayRes.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(deliveryId, replayJson.GetProperty("deliveryId").GetGuid());
+        Assert.True(replayJson.GetProperty("duplicate").GetBoolean());
+
+        // 3. Verify delivery outbox was created and secret is encrypted at rest (starts with dp1:, no raw token)
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var outboxMsg = await db.DeliveryOutboxMessages.FindAsync(deliveryId);
         Assert.NotNull(outboxMsg);
         Assert.Equal(NotificationType.PasswordReset, outboxMsg.NotificationType);
         Assert.Equal(DeliveryStatus.Pending, outboxMsg.Status);
+        Assert.StartsWith("dp1:", outboxMsg.Content);
+        Assert.DoesNotContain(secretToken, outboxMsg.Content);
 
-        // 4. Dispatch the delivery message and verify audit trail does NOT leak secretToken
-        var emailSender = new Clinic.Notification.Service.Services.Delivery.LoggingEmailSender(
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingEmailSender>.Instance);
+        // 4. Dispatch the delivery message and verify secret is decrypted only in memory, scrubbed in DB after delivery, and not leaked in audit
+        string? capturedBodySentToProvider = null;
+        var capturingEmailSender = new ConfigurableEmailSender
+        {
+            OnSend = (_, _, body, _) =>
+            {
+                capturedBodySentToProvider = body;
+                return Task.FromResult(new Clinic.Notification.Service.Services.Delivery.ProviderDeliveryResult(
+                    Clinic.Notification.Service.Services.Delivery.ProviderResultCategory.Success,
+                    "MOCK: email accepted by mock provider (not sent to a real recipient)",
+                    "mock-email-1"));
+            }
+        };
         var dispatcher = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
             scope.ServiceProvider,
-            emailSender,
+            capturingEmailSender,
             new Clinic.Notification.Service.Services.Delivery.LoggingSmsSender(Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingSmsSender>.Instance),
             new Clinic.Notification.Service.Services.Delivery.NullRealtimeNotifier(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher>.Instance);
 
         var dispatchStatus = await dispatcher.ProcessDeliveryAsync(deliveryId);
         Assert.Equal(DeliveryStatus.Delivered, dispatchStatus);
+        Assert.NotNull(capturedBodySentToProvider);
+        Assert.Contains(secretToken, capturedBodySentToProvider);
+
+        var scrubbedMsg = await db.DeliveryOutboxMessages.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deliveryId);
+        Assert.NotNull(scrubbedMsg);
+        Assert.Equal("[REDACTED]", scrubbedMsg.Content);
 
         var attempts = await db.DeliveryAttempts.Where(a => a.DeliveryOutboxMessageId == deliveryId).ToListAsync();
         Assert.Single(attempts);
@@ -919,15 +967,16 @@ public sealed class NotificationGatewayAndWorkflowTests
         var identityUserId = Guid.NewGuid();
         var doctorId = Guid.NewGuid();
         var appointmentId = Guid.NewGuid();
+        var futureDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5));
 
-        // 1. AppointmentConfirmed event
+        // 1. AppointmentConfirmed event (>24h in future creates 2 confirmation + 2 scheduled reminder deliveries)
         var confirmEventId = Guid.NewGuid();
         var confirmedEvent = new AppointmentConfirmed(
             AppointmentId: appointmentId,
             PatientId: patientId,
             DoctorId: doctorId,
             WorkScheduleId: Guid.NewGuid(),
-            ScheduleDate: new DateOnly(2026, 12, 1),
+            ScheduleDate: futureDate,
             TimeSlot: new TimeOnly(10, 0),
             ConfirmedByUserId: Guid.NewGuid(),
             ConfirmedAt: DateTimeOffset.UtcNow,
@@ -945,14 +994,22 @@ public sealed class NotificationGatewayAndWorkflowTests
         Assert.NotNull(inboxConfirm);
         Assert.Equal("Processed", inboxConfirm.Status);
 
-        var confirmOutbox = await db.DeliveryOutboxMessages.Where(m => m.EventId == confirmEventId).ToListAsync();
+        var confirmOutbox = await db.DeliveryOutboxMessages
+            .Where(m => m.EventId == confirmEventId && m.NotificationType == NotificationType.AppointmentConfirmed)
+            .ToListAsync();
         Assert.Equal(2, confirmOutbox.Count); // InApp and Email
 
-        var confirmNotif = await db.Notifications.FirstOrDefaultAsync(n => n.RecipientId == identityUserId);
-        Assert.NotNull(confirmNotif);
-        Assert.Equal(NotificationType.AppointmentConfirmed, confirmNotif.NotificationType);
+        var reminderOutbox = await db.DeliveryOutboxMessages
+            .Where(m => m.EventId == confirmEventId && m.NotificationType == NotificationType.AppointmentReminder)
+            .ToListAsync();
+        Assert.Equal(2, reminderOutbox.Count);
+        Assert.All(reminderOutbox, r => Assert.NotNull(r.ScheduledFor));
 
-        // 2. Dispatch the outbox deliveries
+        var confirmNotif = await db.Notifications.FirstOrDefaultAsync(n =>
+            n.RecipientId == identityUserId && n.NotificationType == NotificationType.AppointmentConfirmed);
+        Assert.NotNull(confirmNotif);
+
+        // 2. Dispatch the immediate confirmation outbox deliveries
         var emailSender = new Clinic.Notification.Service.Services.Delivery.LoggingEmailSender(
             Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Services.Delivery.LoggingEmailSender>.Instance);
         var dispatcher = new Clinic.Notification.Service.Services.Delivery.NotificationDeliveryDispatcher(
@@ -968,14 +1025,14 @@ public sealed class NotificationGatewayAndWorkflowTests
             Assert.Equal(DeliveryStatus.Delivered, status);
         }
 
-        // 3. AppointmentCancelled event
+        // 3. AppointmentCancelled event -> suppresses pending reminders and creates 2 cancellation deliveries
         var cancelEventId = Guid.NewGuid();
         var cancelledEvent = new AppointmentCancelled(
             AppointmentId: appointmentId,
             PatientId: patientId,
             CancelledByUserId: Guid.NewGuid(),
             CancelledAt: DateTimeOffset.UtcNow,
-            WorkScheduleId: Guid.NewGuid(),
+            WorkScheduleId: confirmedEvent.WorkScheduleId,
             TimeSlot: new TimeOnly(10, 0),
             IsRescheduleRelease: false,
             PatientName: "Tran Van Test",
@@ -996,10 +1053,108 @@ public sealed class NotificationGatewayAndWorkflowTests
             Assert.Equal(DeliveryStatus.Delivered, status);
         }
 
-        // Total outbox deliveries: 4 (2 for confirmation, 2 for cancellation), all delivered
-        var allDeliveries = await db.DeliveryOutboxMessages.ToListAsync();
-        Assert.Equal(4, allDeliveries.Count);
-        Assert.All(allDeliveries, d => Assert.Equal(DeliveryStatus.Delivered, d.Status));
+        // Verify reminders were durably suppressed and tombstone prevents late/out-of-order AppointmentConfirmed from recreating reminder
+        var suppressedReminders = await db.DeliveryOutboxMessages
+            .Where(m => m.NotificationType == NotificationType.AppointmentReminder)
+            .ToListAsync();
+        Assert.Equal(2, suppressedReminders.Count);
+        Assert.All(suppressedReminders, d => Assert.Equal(DeliveryStatus.Suppressed, d.Status));
+
+        // 4. Out-of-order late AppointmentConfirmed for the same cancelled slot must NOT create a new reminder
+        var lateConfirmEventId = Guid.NewGuid();
+        await processor.ProcessEventAsync(lateConfirmEventId, EventTypes.AppointmentConfirmed, confirmJson, Guid.NewGuid());
+        var lateReminders = await db.DeliveryOutboxMessages
+            .Where(m => m.EventId == lateConfirmEventId && m.NotificationType == NotificationType.AppointmentReminder)
+            .ToListAsync();
+        Assert.Empty(lateReminders);
+    }
+
+    [Fact]
+    public async Task OperatorDeadLetterEndpoints_InspectAndReplayWithoutExposingSecrets()
+    {
+        await using var factory = new NotificationTestFactory();
+        var client = factory.CreateClient();
+
+        var normalDeadLetterId = Guid.NewGuid();
+        var resetDeadLetterId = Guid.NewGuid();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            db.DeliveryOutboxMessages.AddRange(
+                new DeliveryOutboxMessage
+                {
+                    Id = normalDeadLetterId,
+                    EventId = Guid.NewGuid(),
+                    RecipientId = Guid.NewGuid(),
+                    RecipientType = RecipientType.Account,
+                    Channel = NotificationChannel.Email,
+                    NotificationType = NotificationType.AppointmentConfirmed,
+                    IdempotencyKey = "dlq-normal-1",
+                    RecipientAddress = "patient@example.com",
+                    Content = "Appointment confirmation content",
+                    Status = DeliveryStatus.DeadLettered,
+                    AttemptsCount = 3,
+                    MaxAttempts = 3
+                },
+                new DeliveryOutboxMessage
+                {
+                    Id = resetDeadLetterId,
+                    EventId = Guid.NewGuid(),
+                    RecipientId = Guid.NewGuid(),
+                    RecipientType = RecipientType.Account,
+                    Channel = NotificationChannel.Email,
+                    NotificationType = NotificationType.PasswordReset,
+                    IdempotencyKey = "dlq-reset-1",
+                    RecipientAddress = "patient@example.com",
+                    Content = "[REDACTED]",
+                    Status = DeliveryStatus.DeadLettered,
+                    AttemptsCount = 1,
+                    MaxAttempts = 3
+                });
+            await db.SaveChangesAsync();
+        }
+
+        // 1. Inspect dead-lettered deliveries via internal operator endpoint
+        using var missingOperatorReq = new HttpRequestMessage(HttpMethod.Get, "/internal/notifications/deliveries/dead-lettered");
+        missingOperatorReq.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var missingOperatorRes = await client.SendAsync(missingOperatorReq);
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, missingOperatorRes.StatusCode);
+
+        using var listReq = new HttpRequestMessage(HttpMethod.Get, "/internal/notifications/deliveries/dead-lettered");
+        listReq.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var operatorId = Guid.NewGuid();
+        listReq.Headers.Add("X-Clinic-Operator-Id", operatorId.ToString());
+        var listRes = await client.SendAsync(listReq);
+        Assert.Equal(System.Net.HttpStatusCode.OK, listRes.StatusCode);
+        var listRaw = await listRes.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Appointment confirmation content", listRaw);
+        Assert.DoesNotContain("patient@example.com", listRaw);
+
+        // 2. Replay normal dead-lettered delivery succeeds and resets status to Pending
+        using var replayNormalReq = new HttpRequestMessage(HttpMethod.Post, $"/internal/notifications/deliveries/{normalDeadLetterId}/replay");
+        replayNormalReq.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        replayNormalReq.Headers.Add("X-Clinic-Operator-Id", operatorId.ToString());
+        var replayNormalRes = await client.SendAsync(replayNormalReq);
+        Assert.Equal(System.Net.HttpStatusCode.OK, replayNormalRes.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+            var replayed = await db.DeliveryOutboxMessages.FindAsync(normalDeadLetterId);
+            Assert.NotNull(replayed);
+            Assert.Equal(DeliveryStatus.Pending, replayed.Status);
+            Assert.Equal(0, replayed.AttemptsCount);
+            var replayAudit = await db.DeliveryAttempts.SingleAsync(a => a.DeliveryOutboxMessageId == normalDeadLetterId);
+            Assert.Equal(operatorId, replayAudit.OperatorId);
+        }
+
+        // 3. Replaying password-reset delivery is rejected with 409 Conflict
+        using var replayResetReq = new HttpRequestMessage(HttpMethod.Post, $"/internal/notifications/deliveries/{resetDeadLetterId}/replay");
+        replayResetReq.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        replayResetReq.Headers.Add("X-Clinic-Operator-Id", operatorId.ToString());
+        var replayResetRes = await client.SendAsync(replayResetReq);
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, replayResetRes.StatusCode);
     }
 
     [Fact]
@@ -1081,5 +1236,60 @@ public sealed class NotificationGatewayAndWorkflowTests
             Assert.Equal(DeliveryStatus.Failed, attempts[0].Status);
             Assert.Equal(DeliveryStatus.Delivered, attempts[1].Status);
         }
+    }
+
+    [Fact]
+    public async Task QueueEnvelopeSnapshot_CreatesPatientCalledNotificationWithoutPriorAppointmentEvent()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        await using var db = TestDbHelper.CreateDbContext(dbName);
+        var serviceProvider = new TestServiceProvider(db);
+        var policyEngine = new NotificationPolicyEngine();
+        var processor = new Clinic.Notification.Service.Messaging.NotificationEventProcessor(
+            serviceProvider,
+            policyEngine,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Clinic.Notification.Service.Messaging.NotificationEventProcessor>.Instance);
+
+        var appointmentId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var identityUserId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+
+        // Queue carries the recipient snapshot from AppointmentCheckedIn; it does not depend on a prior appointment notification.
+        var queueEnvelope = new EventEnvelope<PatientCalled>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.PatientCalled,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Queue.Service",
+            Payload = new PatientCalled(
+                QueueTicketId: Guid.NewGuid(),
+                AppointmentId: appointmentId,
+                DoctorId: doctorId,
+                QueueNumber: 7,
+                CalledAt: DateTimeOffset.UtcNow,
+                PatientId: patientId,
+                IdentityUserId: identityUserId,
+                PatientName: "Pham Queue Account",
+                PatientPhone: "0988112233")
+        };
+
+        var queueElement = JsonSerializer.SerializeToElement(
+            queueEnvelope,
+            Clinic.Contracts.Serialization.EventJsonSerializerOptions.Default);
+        Assert.True(await processor.ProcessEventAsync(queueEnvelope.EventId, EventTypes.PatientCalled, queueElement, queueEnvelope.CorrelationId));
+
+        // Verify Notification Service unwrapped the envelope and used its own recipient snapshot.
+        var patientCalledNotif = await db.Notifications.FirstOrDefaultAsync(n =>
+            n.RecipientId == identityUserId && n.NotificationType == NotificationType.PatientCalled);
+        Assert.NotNull(patientCalledNotif);
+
+        var calledDeliveries = await db.DeliveryOutboxMessages
+            .Where(d => d.EventId == queueEnvelope.EventId)
+            .ToListAsync();
+        Assert.Contains(calledDeliveries, d => d.Channel == NotificationChannel.InApp && d.RecipientId == identityUserId);
+        Assert.Contains(calledDeliveries, d => d.Channel == NotificationChannel.Sms && d.RecipientAddress == "0988112233");
     }
 }

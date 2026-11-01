@@ -175,6 +175,8 @@ public class QueueManager : IQueueManager
                 QueueDate = queueDate,
                 QueueNumber = queueNumber,
                 PatientName = payload.PatientName,
+                IdentityUserId = payload.IdentityUserId,
+                PatientPhone = payload.PatientPhone,
                 DoctorName = payload.DoctorName,
                 Priority = payload.Priority,
                 Status = QueueStatus.Waiting,
@@ -382,7 +384,16 @@ public class QueueManager : IQueueManager
         nextTicket.Call();
 
         AddOutboxMessage(
-            new PatientCalled(nextTicket.Id, nextTicket.AppointmentId, nextTicket.DoctorId, nextTicket.QueueNumber, DateTimeOffset.UtcNow),
+            new PatientCalled(
+                nextTicket.Id,
+                nextTicket.AppointmentId,
+                nextTicket.DoctorId,
+                nextTicket.QueueNumber,
+                DateTimeOffset.UtcNow,
+                PatientId: nextTicket.PatientId,
+                IdentityUserId: nextTicket.IdentityUserId,
+                PatientName: nextTicket.PatientName,
+                PatientPhone: nextTicket.PatientPhone),
             EventTypes.PatientCalled,
             "queue.patient-called",
             Guid.NewGuid());
@@ -400,7 +411,16 @@ public class QueueManager : IQueueManager
 
         ticket.Call();
         AddOutboxMessage(
-            new PatientCalled(ticket.Id, ticket.AppointmentId, ticket.DoctorId, ticket.QueueNumber, DateTimeOffset.UtcNow),
+            new PatientCalled(
+                ticket.Id,
+                ticket.AppointmentId,
+                ticket.DoctorId,
+                ticket.QueueNumber,
+                DateTimeOffset.UtcNow,
+                PatientId: ticket.PatientId,
+                IdentityUserId: ticket.IdentityUserId,
+                PatientName: ticket.PatientName,
+                PatientPhone: ticket.PatientPhone),
             EventTypes.PatientCalled,
             "queue.patient-called",
             Guid.NewGuid());

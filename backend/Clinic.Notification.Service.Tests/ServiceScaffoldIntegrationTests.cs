@@ -1,12 +1,10 @@
-using Microsoft.AspNetCore.Mvc.Testing;
-
 namespace Clinic.Notification.Service.Tests;
 
-public sealed class ServiceScaffoldIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ServiceScaffoldIntegrationTests : IClassFixture<NotificationTestFactory>
 {
     private readonly HttpClient _client;
 
-    public ServiceScaffoldIntegrationTests(WebApplicationFactory<Program> factory) =>
+    public ServiceScaffoldIntegrationTests(NotificationTestFactory factory) =>
         _client = factory.CreateClient();
 
     [Fact]

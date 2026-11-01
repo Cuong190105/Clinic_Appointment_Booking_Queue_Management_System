@@ -12,5 +12,7 @@ WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 COPY --from=build /app/publish .
+RUN mkdir -p /var/lib/clinic/notification-protection-keys \
+    && chown -R $APP_UID:$APP_UID /var/lib/clinic/notification-protection-keys
 USER $APP_UID
 ENTRYPOINT ["dotnet", "Clinic.Notification.Service.dll"]

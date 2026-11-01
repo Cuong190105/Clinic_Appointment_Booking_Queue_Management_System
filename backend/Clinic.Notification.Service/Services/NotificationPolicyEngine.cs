@@ -13,7 +13,9 @@ public sealed record NotificationIntent(
     string Title,
     string Body,
     RecipientContactSnapshot? ContactSnapshot,
-    DateTimeOffset? ScheduledFor = null
+    DateTimeOffset? ScheduledFor = null,
+    Guid? AppointmentId = null,
+    string? SlotKey = null
 );
 
 public interface INotificationPolicyEngine
@@ -21,6 +23,7 @@ public interface INotificationPolicyEngine
     IReadOnlyList<NotificationIntent> EvaluateAppointmentConfirmed(Guid eventId, AppointmentConfirmed payload);
     IReadOnlyList<NotificationIntent> EvaluateAppointmentCancelled(Guid eventId, AppointmentCancelled payload);
     IReadOnlyList<NotificationIntent> EvaluatePatientCalled(Guid eventId, PatientCalled payload);
+    IReadOnlyList<NotificationIntent> EvaluateAppointmentReminder(Guid eventId, AppointmentConfirmed payload, DateTimeOffset now);
     bool ShouldSuppressCancellation(AppointmentCancelled payload);
     bool ShouldCancelPendingReminder(AppointmentCancelled payload);
     string GenerateIdempotencyKey(Guid eventId, Guid recipientId, NotificationChannel channel, NotificationType type);
@@ -28,8 +31,62 @@ public interface INotificationPolicyEngine
 
 public sealed class NotificationPolicyEngine : INotificationPolicyEngine
 {
+    /// <summary>Reminders are sent this long before the booked slot.</summary>
+    public static readonly TimeSpan ReminderLeadTime = TimeSpan.FromHours(24);
+
+    /// <summary>Clinic-local UTC offset used to interpret ScheduleDate/TimeSlot (Vietnam, UTC+7, no DST).</summary>
+    public static readonly TimeSpan ClinicUtcOffset = TimeSpan.FromHours(7);
+
+    /// <summary>Marker used by cancellations that do not identify a specific slot: suppress every slot.</summary>
+    public const string AnySlot = "*";
+
+    public static string BuildSlotKey(Guid workScheduleId, TimeOnly timeSlot) =>
+        workScheduleId == Guid.Empty ? AnySlot : $"{workScheduleId:D}:{timeSlot:HH\\:mm}";
+
     public string GenerateIdempotencyKey(Guid eventId, Guid recipientId, NotificationChannel channel, NotificationType type) =>
         $"{eventId:D}:{recipientId:D}:{channel}:{type}";
+
+    public IReadOnlyList<NotificationIntent> EvaluateAppointmentReminder(Guid eventId, AppointmentConfirmed payload, DateTimeOffset now)
+    {
+        var slotStart = new DateTimeOffset(payload.ScheduleDate.ToDateTime(payload.TimeSlot), ClinicUtcOffset);
+        var dueAt = slotStart - ReminderLeadTime;
+
+        // Appointment confirmed inside the lead window (or already past): the confirmation itself suffices.
+        if (dueAt <= now)
+        {
+            return Array.Empty<NotificationIntent>();
+        }
+
+        var intents = new List<NotificationIntent>();
+        var isAccount = payload.IdentityUserId.HasValue && payload.IdentityUserId.Value != Guid.Empty;
+        var recipientId = isAccount ? payload.IdentityUserId!.Value : payload.PatientId;
+        var recipientType = isAccount ? RecipientType.Account : RecipientType.Guest;
+        var contact = new RecipientContactSnapshot(payload.PatientName, payload.PatientEmail, payload.PatientPhone);
+        var slotKey = BuildSlotKey(payload.WorkScheduleId, payload.TimeSlot);
+
+        var title = "Nhắc lịch khám";
+        var body = $"Bạn có lịch khám ngày {payload.ScheduleDate:dd/MM/yyyy} lúc {payload.TimeSlot:HH\\:mm}. Vui lòng đến đúng giờ.";
+
+        NotificationIntent Make(NotificationChannel channel) => new(
+            EventId: eventId,
+            RecipientId: recipientId,
+            RecipientType: recipientType,
+            Channel: channel,
+            NotificationType: NotificationType.AppointmentReminder,
+            IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, channel, NotificationType.AppointmentReminder),
+            Title: title,
+            Body: body,
+            ContactSnapshot: contact,
+            ScheduledFor: dueAt,
+            AppointmentId: payload.AppointmentId,
+            SlotKey: slotKey);
+
+        if (isAccount) intents.Add(Make(NotificationChannel.InApp));
+        if (!string.IsNullOrWhiteSpace(payload.PatientEmail)) intents.Add(Make(NotificationChannel.Email));
+        else if (!string.IsNullOrWhiteSpace(payload.PatientPhone)) intents.Add(Make(NotificationChannel.Sms));
+
+        return intents;
+    }
 
     public bool ShouldSuppressCancellation(AppointmentCancelled payload) =>
         payload.IsRescheduleRelease;
@@ -65,7 +122,8 @@ public sealed class NotificationPolicyEngine : INotificationPolicyEngine
                 IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, NotificationChannel.InApp, NotificationType.AppointmentConfirmed),
                 Title: title,
                 Body: body,
-                ContactSnapshot: contact
+                ContactSnapshot: contact,
+                AppointmentId: payload.AppointmentId
             ));
         }
 
@@ -81,7 +139,8 @@ public sealed class NotificationPolicyEngine : INotificationPolicyEngine
                 IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, NotificationChannel.Email, NotificationType.AppointmentConfirmed),
                 Title: title,
                 Body: body,
-                ContactSnapshot: contact
+                ContactSnapshot: contact,
+                AppointmentId: payload.AppointmentId
             ));
         }
 
@@ -97,7 +156,8 @@ public sealed class NotificationPolicyEngine : INotificationPolicyEngine
                 IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, NotificationChannel.Sms, NotificationType.AppointmentConfirmed),
                 Title: title,
                 Body: body,
-                ContactSnapshot: contact
+                ContactSnapshot: contact,
+                AppointmentId: payload.AppointmentId
             ));
         }
 
@@ -137,7 +197,8 @@ public sealed class NotificationPolicyEngine : INotificationPolicyEngine
                 IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, NotificationChannel.InApp, NotificationType.AppointmentCancelled),
                 Title: title,
                 Body: body,
-                ContactSnapshot: contact
+                ContactSnapshot: contact,
+                AppointmentId: payload.AppointmentId
             ));
         }
 
@@ -152,7 +213,8 @@ public sealed class NotificationPolicyEngine : INotificationPolicyEngine
                 IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, NotificationChannel.Email, NotificationType.AppointmentCancelled),
                 Title: title,
                 Body: body,
-                ContactSnapshot: contact
+                ContactSnapshot: contact,
+                AppointmentId: payload.AppointmentId
             ));
         }
         else if (!string.IsNullOrWhiteSpace(payload.PatientPhone))
@@ -166,7 +228,8 @@ public sealed class NotificationPolicyEngine : INotificationPolicyEngine
                 IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, NotificationChannel.Sms, NotificationType.AppointmentCancelled),
                 Title: title,
                 Body: body,
-                ContactSnapshot: contact
+                ContactSnapshot: contact,
+                AppointmentId: payload.AppointmentId
             ));
         }
 
@@ -200,10 +263,12 @@ public sealed class NotificationPolicyEngine : INotificationPolicyEngine
                 IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, NotificationChannel.InApp, NotificationType.PatientCalled),
                 Title: title,
                 Body: body,
-                ContactSnapshot: contact
+                ContactSnapshot: contact,
+                AppointmentId: payload.AppointmentId
             ));
         }
-        else if (!string.IsNullOrWhiteSpace(payload.PatientPhone))
+
+        if (!string.IsNullOrWhiteSpace(payload.PatientPhone))
         {
             intents.Add(new NotificationIntent(
                 EventId: eventId,
@@ -214,7 +279,8 @@ public sealed class NotificationPolicyEngine : INotificationPolicyEngine
                 IdempotencyKey: GenerateIdempotencyKey(eventId, recipientId, NotificationChannel.Sms, NotificationType.PatientCalled),
                 Title: title,
                 Body: body,
-                ContactSnapshot: contact
+                ContactSnapshot: contact,
+                AppointmentId: payload.AppointmentId
             ));
         }
 

@@ -21,6 +21,7 @@ public sealed class NotificationTestFactory : WebApplicationFactory<Program>
         new(Encoding.UTF8.GetBytes("notification-secret-test-key-of-at-least-32-bytes-length!"));
 
     public string DatabaseName { get; } = Guid.NewGuid().ToString();
+    public string? ServiceToken { get; set; } = "integration-test-service-token";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -29,7 +30,8 @@ public sealed class NotificationTestFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["TestDatabaseName"] = DatabaseName
+                ["TestDatabaseName"] = DatabaseName,
+                ["Identity:ServiceToken"] = ServiceToken
             });
         });
 

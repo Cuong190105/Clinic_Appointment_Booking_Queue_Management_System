@@ -149,6 +149,32 @@ public sealed class GatewayAuthIntegrationTests : IClassFixture<GatewayAuthTestF
     }
 
     [Fact]
+    public async Task Notification_DeadLetterEndpoint_Requires_Admin_Role()
+    {
+        var token = _factory.KeyRing.GenerateToken(Guid.NewGuid().ToString(), role: "Patient");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/admin/notifications/dead-lettered");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Admin_DeadLetterEndpoint_Forwards_OperatorSubject_To_NotificationService()
+    {
+        var operatorId = Guid.NewGuid();
+        var token = _factory.KeyRing.GenerateToken(operatorId.ToString(), role: "Admin");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/admin/notifications/dead-lettered?limit=7");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(operatorId.ToString("D"), _factory.LastNotificationOperatorId);
+        Assert.Equal("test-service-token", _factory.LastNotificationServiceToken);
+        Assert.Equal("/internal/notifications/deliveries/dead-lettered", _factory.LastNotificationPath);
+    }
+
+    [Fact]
     public async Task Key_Rotation_Validates_Both_Old_And_New_Keys()
     {
         var oldKey = _factory.KeyRing.ActiveKey;
@@ -268,6 +294,9 @@ public class GatewayAuthTestFactory : WebApplicationFactory<Program>
     public TestKeyRing KeyRing { get; } = new();
     public bool SimulateUpstreamJwksFailure { get; set; }
     public string? LastReceivedUpstreamCorrelationId { get; set; }
+    public string? LastNotificationOperatorId { get; set; }
+    public string? LastNotificationServiceToken { get; set; }
+    public string? LastNotificationPath { get; set; }
 
     public GatewayAuthTestFactory() : this(true) { }
 
@@ -292,6 +321,7 @@ public class GatewayAuthTestFactory : WebApplicationFactory<Program>
                 ["Jwt:PublicBaseUrl"] = "http://localhost:5000",
                 ["Jwt:Issuer"] = "Clinic.Identity",
                 ["Jwt:Audience"] = "Clinic.Services",
+                ["Identity:ServiceToken"] = "test-service-token",
                 ["Features:UseIdentityService"] = UseIdentityService ? "true" : "false"
             });
         });
@@ -373,8 +403,14 @@ public class GatewayAuthTestFactory : WebApplicationFactory<Program>
             {
                 _parent.LastReceivedUpstreamCorrelationId = cidValues.FirstOrDefault();
             }
+            if (request.Headers.TryGetValues("X-Clinic-Operator-Id", out var operatorValues))
+                _parent.LastNotificationOperatorId = operatorValues.FirstOrDefault();
+            if (request.Headers.TryGetValues("X-Clinic-Service-Token", out var serviceTokenValues))
+                _parent.LastNotificationServiceToken = serviceTokenValues.FirstOrDefault();
 
             var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.Contains("/internal/notifications/deliveries/dead-lettered", StringComparison.OrdinalIgnoreCase))
+                _parent.LastNotificationPath = path;
 
             if (request.Method == HttpMethod.Post && path.Equals("/specialties", StringComparison.OrdinalIgnoreCase))
             {
