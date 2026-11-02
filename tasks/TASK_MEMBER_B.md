@@ -313,3 +313,13 @@ Các đầu việc hoàn thiện OpenAPI, SLA/QoS và kiểm thử tải đượ
 - **Phase 8:** chuẩn hóa metrics/tracing/logging cho Gateway, services và broker; cung cấp dashboard/truy vấn/cảnh báo để tính SLI/SLO; hỗ trợ failure tests cho QoS.
 - **Phase 9:** tạo load test harness/script tái lập, tham số hóa môi trường, thu kết quả và resource telemetry; điều phối chạy tải trên dữ liệu cô lập.
 - **Hoàn tất:** cùng A xác nhận ngưỡng, chạy lại acceptance và ghi báo cáo hiệu năng/giới hạn môi trường.
+
+## Rà soát Phase 7–9 (02/11/2026)
+
+Các artifact Phase 7–9 đã được giữ lại. Trạng thái phase được điều chỉnh theo bằng chứng trong source, không dựa riêng vào số test pass được ghi trong báo cáo:
+
+- **Phase 7 — Chưa nghiệm thu:** API Catalog và contract test khung đã có; URL OpenAPI riêng từng service chưa được phục vụ, drift tests chưa đối chiếu spec/route thực. Xem [`PHASE_7_OPENAPI_CONTRACTS_EXECUTION_PLAN_MEMBER_B.md`](PHASE_7_OPENAPI_CONTRACTS_EXECUTION_PLAN_MEMBER_B.md).
+- **Phase 8 — Đạt một phần:** rate limiter Gateway và scrape Gateway/Queue đã có; instrumentation/scrape cho các service còn lại và kiểm chứng rule/dashboard bằng metric thật còn thiếu. QoS tests hiện chưa gọi boundary thật. Xem [`PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_B.md`](PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_B.md).
+- **Phase 9 — Chưa nghiệm thu:** k6/runner là nền tảng ban đầu; benchmark và C# invariant tests hiện chưa chứng minh hành vi tải nghiệp vụ. Cần lượt chạy cô lập có telemetry và báo cáo tái lập. Xem [`PHASE_9_LOAD_TESTING_EXECUTION_PLAN_MEMBER_B.md`](PHASE_9_LOAD_TESTING_EXECUTION_PLAN_MEMBER_B.md) và [`../docs/PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md`](../docs/PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md).
+
+Các trạng thái và tiêu chí trong phần rà soát này được ưu tiên hơn các checkmark hoặc kết luận hoàn tất ghi trước đó trong tài liệu.

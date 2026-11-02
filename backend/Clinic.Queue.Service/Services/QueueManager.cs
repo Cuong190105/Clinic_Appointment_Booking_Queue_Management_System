@@ -366,16 +366,6 @@ public class QueueManager : IQueueManager
 
         if (nextTicket == null)
         {
-            var hasActive = await _dbContext.QueueTickets
-                .AnyAsync(t => t.DoctorId == doctorId
-                               && t.QueueDate == queueDate
-                               && !t.IsDeleted
-                               && (t.Status == QueueStatus.Called || t.Status == QueueStatus.InProgress), ct);
-            if (hasActive)
-            {
-                throw new QueueConflictException("Doctor already has an active called patient and there are no other waiting patients.");
-            }
-
             throw new QueueNotFoundException("There are no patients waiting in the queue for this doctor.");
         }
 

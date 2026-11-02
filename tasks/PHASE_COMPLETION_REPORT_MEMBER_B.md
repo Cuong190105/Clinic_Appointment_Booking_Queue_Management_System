@@ -40,3 +40,15 @@
 - B tiếp tục phần việc chung Phase 7–9: OpenAPI validation, metrics/SLO instrumentation và load test harness theo [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
 
 Kết quả kiểm thử trước merge chỉ là bằng chứng lịch sử của từng nhánh; không thay thế việc kiểm tra lại cây hợp nhất.
+
+## Addendum — Rà soát Phase 7–9 và quyết định thiết kế (02/11/2026)
+
+Artifact mới của Phase 7–9 được giữ trong repository, nhưng chưa được nghiệm thu toàn diện:
+
+- Phase 7: API Catalog và test scaffolding đã có; các OpenAPI URL riêng chưa được triển khai và drift test chưa kiểm tra tài liệu sinh thật.
+- Phase 8: Gateway/Queue metrics scrape, dashboard, alert rules và rate limiter có cấu hình; chưa chứng minh scrape/alert/dashboard cho toàn bộ service bằng metric thật. QoS test hiện chủ yếu kiểm tra primitive/sample.
+- Phase 9: k6 scripts và runner có thể dùng làm điểm bắt đầu; kết quả catalog benchmark không đại diện tải nghiệp vụ, còn invariant tests là mô phỏng in-memory. Cần chạy workload thật trên dữ liệu cô lập và thu resource/dependency telemetry.
+
+Kế hoạch khắc phục và tiêu chí đóng được ghi tại các execution plan Phase 7, 8, 9 và [`docs/PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md`](../docs/PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md). Các kết luận “hoàn thành” cũ cho Phase 7–9 không còn được xem là nghiệm thu; cần hoàn tất các checklist còn mở trước khi đóng.
+
+Trong quá trình hợp nhất, các lựa chọn A đã chốt cho Phase 5–6 tiếp tục là nguồn chuẩn: `ExamCompleted` chỉ kết thúc encounter, không tự finalize report; không thêm MedicalHistory projection/rebuild khi cùng Medical Records DB đáp ứng; Notification history là nguồn dữ liệu chính, SignalR chỉ là hint và Redis chỉ cần khi scale nhiều instance. Implementation trùng bounded context, generic `NotificationRequested` title/body tự do, `ServiceProxyMiddleware` route lệch và Redis package của Clinic API đã được loại/khôi phục theo implementation A.
