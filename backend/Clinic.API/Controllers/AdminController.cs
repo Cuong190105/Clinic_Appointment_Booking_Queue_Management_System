@@ -3,7 +3,6 @@ using Clinic.API.Services;
 using Clinic.Contracts.Analytics;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.Admin.Queries;
-using Clinic.Application.Features.Users.Queries;
 using MapsterMapper;
 using MediatR;
 using Clinic.Application.Features;
@@ -26,8 +25,10 @@ namespace Clinic.API.Controllers
         private readonly AppointmentServiceClient _appointmentClient;
         private readonly SchedulingManagementClient _scheduling;
         private readonly QueueServiceClient _queueClient;
+        private readonly MedicalRecordsServiceClient _medicalRecordsClient;
+        private readonly NotificationServiceClient _notificationClient;
 
-        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient)
+        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient, NotificationServiceClient notificationClient)
         {
             _sender = sender;
             _mapper = mapper;
@@ -37,7 +38,19 @@ namespace Clinic.API.Controllers
             _appointmentClient = appointmentClient;
             _scheduling = scheduling;
             _queueClient = queueClient;
+            _medicalRecordsClient = medicalRecordsClient;
+            _notificationClient = notificationClient;
         }
+
+        [HttpGet("notifications/dead-lettered")]
+        [Authorize(Roles = "Admin")]
+        public Task<IActionResult> GetDeadLetteredNotifications(CancellationToken ct) =>
+            _notificationClient.ProxyOperatorAsync(HttpContext, "internal/notifications/deliveries/dead-lettered", HttpMethod.Get, ct);
+
+        [HttpPost("notifications/deliveries/{deliveryId:guid}/replay")]
+        [Authorize(Roles = "Admin")]
+        public Task<IActionResult> ReplayDeadLetteredNotification(Guid deliveryId, CancellationToken ct) =>
+            _notificationClient.ProxyOperatorAsync(HttpContext, $"internal/notifications/deliveries/{deliveryId:D}/replay", HttpMethod.Post, ct);
 
         [HttpGet("ping")]
         [Authorize(Roles = "Admin")]
@@ -156,14 +169,15 @@ namespace Clinic.API.Controllers
                 "admin/dashboard-metrics",
                 ct);
             var queueMetrics = await _queueClient.GetDashboardMetricsAsync(HttpContext, ct);
-            if (appointmentMetrics is null || queueMetrics is null)
+            var patientCount = await _medicalRecordsClient.GetInternalAsync<PatientCountResponse>("internal/patients/count", ct);
+            if (appointmentMetrics is null || queueMetrics is null || patientCount is null)
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
                 {
                     Title = "Dashboard metrics unavailable",
-                    Detail = "Appointment or Queue service did not return dashboard metrics."
+                    Detail = "Appointment, Queue, or Medical Records service did not return dashboard metrics."
                 });
 
-            var result = await _sender.Send(new GetDashboardDataQuery(appointmentMetrics, queueMetrics), ct);
+            var result = await _sender.Send(new GetDashboardDataQuery(appointmentMetrics, queueMetrics, patientCount.Count), ct);
             return Ok(result);
         }
 
@@ -211,3 +225,5 @@ namespace Clinic.API.Controllers
         }
     }
 }
+
+internal sealed record PatientCountResponse(int Count);

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Json;
 using System.Net.Http;
 using System.Net;
+using Clinic.API.Services;
 
 namespace Clinic.API.Controllers
 {
@@ -20,12 +21,16 @@ namespace Clinic.API.Controllers
         private readonly int _refreshTokenDays;
         private readonly bool _useIdentityService;
         private readonly ILogger<AuthController> _logger;
+        private readonly MedicalRecordsServiceClient _medicalRecordsClient;
+        private readonly NotificationServiceClient _notificationClient;
 
         public AuthController(
             ISender sender,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
-            ILogger<AuthController> logger)
+            ILogger<AuthController> logger,
+            MedicalRecordsServiceClient medicalRecordsClient,
+            NotificationServiceClient notificationClient)
         {
             _sender = sender;
             _identityClient = httpClientFactory.CreateClient("Identity");
@@ -33,6 +38,8 @@ namespace Clinic.API.Controllers
             _refreshTokenDays = configuration.GetValue("Jwt:RefreshTokenDays", 7);
             _useIdentityService = configuration.GetValue("Features:UseIdentityService", true);
             _logger = logger;
+            _medicalRecordsClient = medicalRecordsClient;
+            _notificationClient = notificationClient;
         }
 
         [HttpPost("login")]
@@ -94,7 +101,12 @@ namespace Clinic.API.Controllers
             _logger.LogInformation("AUTH_AUDIT: Registration attempt for username '{Username}', phone '{PhoneNumber}' from IP '{ClientIp}'. CorrelationId: {CorrelationId}",
                 request.Username.Trim(), request.PhoneNumber.Trim(), clientIp, correlationId);
 
-            var profileIds = await _sender.Send(new ResolveIdentityRegistrationProfileQuery(request.PhoneNumber));
+            var profileIds = await _medicalRecordsClient.GetInternalAsync<IdentityRegistrationPatientIds>(
+                $"internal/patients/resolve-registration?phoneNumber={Uri.EscapeDataString(request.PhoneNumber.Trim())}",
+                HttpContext.RequestAborted);
+            if (profileIds is null)
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new { message = "Medical Records Service is unavailable for patient registration." });
             using var upstreamRequest = CreateServiceRequest(HttpMethod.Post, "v1/auth/register");
             upstreamRequest.Content = JsonContent.Create(new IdentityRegisterRequest(
                 request.Username.Trim(), request.Password, request.FullName.Trim(), request.PhoneNumber.Trim(),
@@ -130,19 +142,16 @@ namespace Clinic.API.Controllers
                     return StatusCode(StatusCodes.Status502BadGateway, new { message = "Identity Service returned an incomplete registration response." });
                 }
 
-                try
-                {
-                    await _sender.Send(new ProvisionIdentityPatientCommand(
-                        identity.UserId, identity.PersonId, identity.PatientId.Value,
+                var provisioned = await _medicalRecordsClient.PostInternalAsync("internal/patients/provision-identity",
+                    new IdentityPatientProvisionRequest(identity.PatientId.Value, identity.PersonId, identity.UserId,
                         request.FullName.Trim(), request.PhoneNumber.Trim(), request.Email, request.DateOfBirth,
-                        request.Gender, request.Address), HttpContext.RequestAborted);
-                }
-                catch (Exception ex)
+                        request.Gender.ToString(), request.Address), HttpContext.RequestAborted);
+                if (!provisioned)
                 {
-                    _logger.LogError(ex, "AUTH_AUDIT: Patient profile provisioning delayed after account creation for userId '{UserId}'. CorrelationId: {CorrelationId}",
+                    _logger.LogError("AUTH_AUDIT: Medical Records patient provisioning failed after Identity account creation. UserId={UserId}, CorrelationId={CorrelationId}",
                         identity.UserId, correlationId);
                     return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                        new { message = "The account was created, but the Patient profile is still being provisioned. Please retry registration shortly." });
+                        new { message = "The account was created, but the Patient profile could not be provisioned. Contact support to retry provisioning." });
                 }
 
                 _logger.LogInformation("AUTH_AUDIT: Registration completed successfully for username '{Username}', userId '{UserId}'. CorrelationId: {CorrelationId}",
@@ -379,7 +388,20 @@ namespace Clinic.API.Controllers
                         new { message = "Password reset is temporarily unavailable." });
                 var delivery = await upstream.Content.ReadFromJsonAsync<IdentityPasswordResetDelivery>(cancellationToken: HttpContext.RequestAborted);
                 if (delivery is { Found: true, PersonId: not null, ResetToken: not null })
-                    await _sender.Send(new QueuePasswordResetNotificationCommand(delivery.PersonId.Value, delivery.ResetToken), HttpContext.RequestAborted);
+                {
+                    var identifierValue = request.PhoneNumberOrEmail.Trim();
+                    var isEmail = identifierValue.Contains('@');
+                    var email = isEmail ? identifierValue : null;
+                    var phone = isEmail ? null : identifierValue;
+
+                    await _notificationClient.SendPasswordResetNotificationAsync(
+                        delivery.PersonId.Value,
+                        email,
+                        phone,
+                        delivery.ResetToken,
+                        HttpContext.RequestAborted);
+                }
+
 
                 _logger.LogInformation("AUTH_AUDIT: Forgot password request completed for identifier '{Identifier}'. Found: {Found}. CorrelationId: {CorrelationId}",
                     request.PhoneNumberOrEmail, delivery?.Found == true, correlationId);
@@ -487,6 +509,9 @@ namespace Clinic.API.Controllers
         }
 
     internal sealed record IdentityTokenResponse(string AccessToken, string RefreshToken, IReadOnlyList<string> Roles);
+    private sealed record IdentityPatientProvisionRequest(Guid PatientId, Guid PersonId, Guid IdentityUserId,
+        string FullName, string PhoneNumber, string? Email, DateOnly DateOfBirth, string Gender, string Address);
+    private sealed record IdentityRegistrationPatientIds(Guid PersonId, Guid PatientId);
 
     private IActionResult? CheckIdentityFeatureFlag()
     {

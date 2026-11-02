@@ -25,12 +25,12 @@ Hệ thống **duy trì trọn vẹn khả năng 1 con người nhận nhiều v
 Kiến trúc thống nhất như sau:
 
 1. **Identity Service làm Nguồn sự thật duy nhất (Single Source of Truth - SSOT)** cho tài khoản và nhân thân cơ bản: Sở hữu bảng `Users` và `Persons` (`PersonProfile` gồm `FullName`, `PhoneNumber`, `Email`, `DateOfBirth`, `Gender`, `Address`) trong `ClinicIdentityDB`.
-2. **Các Business Services (Scheduling, Medical/Patient) sử dụng Projection (Bản chiếu)**:
+2. **Các Business Services (Scheduling, Appointment, Medical Records) sử dụng Projection (Bản chiếu)**:
     - Trong `Clinic.Scheduling.Service`: `Employee` và `Doctor` lưu projection các trường nhân thân (`PersonId`, `IdentityUserId`, `FullName`, `PhoneNumber`, `Email`, `Gender`) để phục vụ truy vấn tại chỗ siêu tốc mà không cần gọi RPC sang Identity.
-    - Trong `Medical / Patient Service` (hiện ở `ClinicDB`, tương lai tách riêng ở GĐ 5): `Patient` lưu projection các trường nhân thân (`PersonId`, `IdentityUserId`, `FullName`, `PhoneNumber`, `DateOfBirth`, `Gender`, `Address`) kết hợp dữ liệu y tế (BHYT, tiền sử bệnh).
+    - `Patient` thuộc cùng bounded context và database với Medical Records; lưu projection nhân thân tối thiểu từ Identity cùng dữ liệu hồ sơ bệnh nhân. Không có Patient Service riêng.
 3. **Đồng bộ hóa qua Event-Driven**: Khi người dùng cập nhật thông tin tại Identity Service, sự kiện `UserProfileUpdated` được phát qua Message Broker để các service tự cập nhật bản chiếu của mình.
-4. **Bệnh nhân vãng lai (Walk-in)**: Lễ tân tạo trực tiếp `Patient` trong Patient Service với `IdentityUserId = null`. Khi bệnh nhân đăng ký tài khoản online sau này bằng cùng số điện thoại, Identity Service sẽ liên kết `IdentityUserId` vào hồ sơ `Patient` sẵn có.
-5. **Tiền đề vững chắc cho Giai đoạn 5 (Tách Patient Service)**: Đến GĐ 5, việc tách `Patient` thành service riêng hoàn toàn độc lập và sạch sẽ, không bị vướng mắc khóa ngoại với bất kỳ service nào.
+4. **Bệnh nhân vãng lai (Walk-in)**: Lễ tân tạo hồ sơ Patient trong hệ thống Medical Records với `IdentityUserId = null`. Nếu bệnh nhân đăng ký tài khoản online sau này, hồ sơ nhân thân đồng bộ từ Identity qua event theo quy trình liên kết đã định nghĩa.
+5. **Quyết định Phase 5:** Patient và MedicalReport được sở hữu trong cùng Medical Records Service/DB. Không xây Patient Service riêng; các service khác chỉ lưu projection hoặc `PatientId` loose reference cần cho nghiệp vụ.
 
 ### 1.3. Các Aggregate và Entity chuyển giao quyền sở hữu
 
@@ -67,7 +67,7 @@ flowchart TD
 - **Nguồn sự thật (SSOT)**: `Clinic.Identity.Service` (`ClinicIdentityDB`) sở hữu bảng `Persons` (`PersonProfile`).
 - **Liên kết**: `IdentityUser` lưu `PersonId`, `PatientId`, `DoctorId`, `EmployeeId` và nhúng trực tiếp vào Claims của Access Token (`sub`, `personId`, `roles`, `patientId`, `doctorId`, `employeeId`).
 - **Bản chiếu (Projection)**: `Clinic.Scheduling.Service` lưu thông tin nhân sự `Employee` có sẵn các cột projection: `IdentityUserId`, `PersonId`, `FullName`, `PhoneNumber`, `Email`, `Gender`. Khi truy vấn danh sách bác sĩ, lịch trực, service đọc trực tiếp từ DB của mình.
-- **Bệnh nhân vãng lai**: Lễ tân tạo hồ sơ trong Patient Service với `IdentityUserId = null`.
+- **Bệnh nhân vãng lai**: Lễ tân tạo hồ sơ Patient trong Medical Records Service với `IdentityUserId = null`; không có Patient Service riêng.
 - **Đồng bộ Event**: Khi đổi thông tin cá nhân, Identity Service phát `UserProfileUpdated` để Scheduling Service cập nhật bản chiếu.
 
 ---
@@ -332,7 +332,7 @@ sequenceDiagram
     participant Identity as Identity Service (SSOT)
     participant Broker as RabbitMQ (Thành viên B)
     participant Scheduling as Scheduling Service (Projection)
-    participant Patient as Patient Service (Projection)
+    participant Medical as Medical Records Service (Patient + report)
 
     User->>Identity: Đổi Họ tên / SĐT / Email
     Identity->>Identity: Cập nhật bảng Persons trong ClinicIdentityDB
@@ -341,9 +341,9 @@ sequenceDiagram
     par Cập nhật Staff Projection
         Broker->>Scheduling: Consumer UserProfileUpdated
         Scheduling->>Scheduling: UPDATE Employees SET FullName = ..., PhoneNumber = ... WHERE PersonId = ...
-    and Cập nhật Patient Projection
-        Broker->>Patient: Consumer UserProfileUpdated
-        Patient->>Patient: UPDATE Patients SET FullName = ..., PhoneNumber = ... WHERE PersonId = ...
+    and Cập nhật Patient Profile
+        Broker->>Medical: Consumer UserProfileUpdated
+        Medical->>Medical: Cập nhật projection nhân thân trong Patients
     end
 ```
 

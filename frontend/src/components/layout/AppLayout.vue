@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { usePatientStore } from '@/stores/patient'
 import { supportedLocales, setLocale } from '@/lib/i18n'
 import ChangePasswordModal from '@/components/ui/ChangePasswordModal.vue'
-import { connectNotifications, disconnectNotifications, type RealtimeNotification } from '@/features/notifications/notifications.realtime'
+import { notificationsApi, type NotificationItemDto } from '@/features/notifications/notifications.api'
 
 const { locale } = useI18n()
 const router = useRouter()
@@ -14,7 +14,10 @@ const auth = useAuthStore()
 const patient = usePatientStore()
 
 const isChangePasswordOpen = ref(false)
-const realtimeNotification = ref<RealtimeNotification | null>(null)
+const isNotificationsOpen = ref(false)
+const unreadCount = ref(0)
+const notifications = ref<NotificationItemDto[]>([])
+let realtimeConnection: { stop: () => void } | null = null
 
 const currentRole = computed<string>(() => {
   return auth.user?.activeRole ?? auth.currentUserRole ?? auth.user?.role ?? auth.user?.roles?.[0] ?? ''
@@ -27,22 +30,53 @@ const displayName = computed(() => {
   return auth.user?.name || 'User'
 })
 
+async function syncNotifications() {
+  if (!auth.isAuthenticated) return
+  try {
+    const [count, page] = await Promise.all([
+      notificationsApi.getUnreadCount(),
+      notificationsApi.list({ pageNumber: 1, pageSize: 10 }),
+    ])
+    unreadCount.value = count
+    notifications.value = page.items
+  } catch {
+    // Ignore transient fetch errors in layout header
+  }
+}
+
+async function handleMarkRead(item: NotificationItemDto) {
+  if (item.isRead) return
+  try {
+    await notificationsApi.markAsRead(item.id)
+    await syncNotifications()
+  } catch {
+    // Ignore
+  }
+}
+
+async function handleMarkAllRead() {
+  try {
+    await notificationsApi.markAllAsRead()
+    await syncNotifications()
+  } catch {
+    // Ignore
+  }
+}
+
 onMounted(() => {
   if (auth.isAuthenticated) {
     auth.fetchMe().catch(() => undefined)
-    connectNotifications((message) => {
-      realtimeNotification.value = message
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification(message.title, { body: message.content })
-      }
-      window.setTimeout(() => {
-        if (realtimeNotification.value?.id === message.id) realtimeNotification.value = null
-      }, 8_000)
-    }).catch(() => undefined)
+    void syncNotifications()
+    realtimeConnection = notificationsApi.connectRealtimeHints({
+      onSyncRequired: () => syncNotifications(),
+    })
   }
 })
 
-onBeforeUnmount(() => { disconnectNotifications().catch(() => undefined) })
+onUnmounted(() => {
+  realtimeConnection?.stop()
+  realtimeConnection = null
+})
 
 function onLocaleChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value
@@ -50,6 +84,8 @@ function onLocaleChange(event: Event) {
 }
 
 function logout() {
+  realtimeConnection?.stop()
+  realtimeConnection = null
   auth.logout()
   router.push('/login')
 }
@@ -57,15 +93,6 @@ function logout() {
 
 <template>
   <div class="flex min-h-screen bg-slate-50">
-    <div
-      v-if="realtimeNotification"
-      role="status"
-      class="fixed right-5 top-5 z-50 max-w-sm rounded-xl border border-violet-200 bg-white p-4 shadow-xl"
-    >
-      <div class="font-semibold text-slate-800">{{ realtimeNotification.title }}</div>
-      <div class="mt-1 text-sm text-slate-600">{{ realtimeNotification.content }}</div>
-      <button class="mt-2 text-xs font-semibold text-violet-700" type="button" @click="realtimeNotification = null">Đóng</button>
-    </div>
 
     <!-- ================================================= -->
     <!-- SIDEBAR -->
@@ -557,6 +584,59 @@ function logout() {
             {{ language.toUpperCase() }}
           </option>
         </select>
+
+        <!-- Notifications Bell -->
+        <div v-if="auth.isAuthenticated" class="relative">
+          <button
+            type="button"
+            aria-label="Notifications"
+            class="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-violet-400 hover:text-violet-600 focus:outline-none"
+            @click="isNotificationsOpen = !isNotificationsOpen"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            <span
+              v-if="unreadCount > 0"
+              class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white"
+            >
+              {{ unreadCount > 99 ? '99+' : unreadCount }}
+            </span>
+          </button>
+
+          <div
+            v-if="isNotificationsOpen"
+            class="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
+          >
+            <div class="mb-2 flex items-center justify-between border-b border-slate-100 pb-2">
+              <span class="text-xs font-semibold text-slate-700">Thông báo</span>
+              <button
+                v-if="unreadCount > 0"
+                type="button"
+                class="text-xs font-medium text-violet-600 hover:underline"
+                @click="handleMarkAllRead"
+              >
+                Đánh dấu đã đọc tất cả
+              </button>
+            </div>
+            <div v-if="notifications.length === 0" class="py-4 text-center text-xs text-slate-400">
+              Chưa có thông báo mới
+            </div>
+            <ul v-else class="max-h-72 space-y-1.5 overflow-y-auto">
+              <li
+                v-for="item in notifications"
+                :key="item.id"
+                class="cursor-pointer rounded-lg p-2 text-xs transition-colors hover:bg-slate-50"
+                :class="item.isRead ? 'text-slate-500' : 'bg-violet-50/60 font-medium text-slate-800'"
+                @click="handleMarkRead(item)"
+              >
+                <div class="truncate font-semibold">{{ item.title }}</div>
+                <div class="mt-0.5 line-clamp-2 text-[11px] text-slate-600">{{ item.content }}</div>
+              </li>
+            </ul>
+          </div>
+        </div>
 
 
           <!-- USER -->

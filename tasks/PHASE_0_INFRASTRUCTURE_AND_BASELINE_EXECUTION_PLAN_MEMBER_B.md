@@ -39,16 +39,16 @@ flowchart LR
 
     subgraph Broker ["RabbitMQ Broker"]
         EX["Topic Exchange: clinic.events"]
-        DLX["Dead Letter Exchange: clinic.dlx"]
+        DLX["Service-specific Dead Letter Exchanges"]
 
-        Q_Sched["Queue: q.scheduling.events"]
-        Q_Appt["Queue: q.appointment.events"]
-        Q_Queue["Queue: q.queue.events"]
-        Q_Med["Queue: q.medical-records.events"]
-        Q_Notif["Queue: q.notification.business-events"]
+        Q_Sched["Scheduling consumer queues (see service topology)"]
+        Q_Appt["Appointment consumer queues (see service topology)"]
+        Q_Queue["Queue consumer queues (see service topology)"]
+        Q_Med["clinic.medical-records.events.v2"]
+        Q_Notif["clinic.notification.events.v2"]
 
-        DLQ_Med["DLQ: q.medical-records.dlq"]
-        DLQ_Notif["DLQ: q.notification.dlq"]
+        DLQ_Med["clinic.medical-records.events.dead"]
+        DLQ_Notif["clinic.notification.events.dlq"]
     end
 
     P1 -->|schedule.*| EX
@@ -177,9 +177,9 @@ Các metric cốt lõi được cấu hình thu thập:
 2. **Duplicate Event Idempotency**:
    - Kiểm thử gửi liên tiếp 2 event có cùng `EventId` tới consumer: Consumer phát hiện `EventId` đã tồn tại trong Inbox, không thực thi cập nhật lần 2, dữ liệu nghiệp vụ không bị nhân đôi.
 3. **Out-of-Order Resiliency**:
-   - Kiểm thử nhận event `ExamCompleted` trước khi nhận `ExamStarted`: Cơ chế kiểm tra `WorkflowVersion` của Medical Records Service ngăn chặn event cũ ghi đè trạng thái đã hoàn tất.
+   - Kiểm thử nhận event `ExamCompleted` trước `ExamStarted`: Medical Records đánh dấu encounter hoàn tất theo `AppointmentId`; event bắt đầu đến muộn không hồi quy encounter. `ExamCompleted` không tạo hoặc finalize MedicalReport.
 4. **Dead-Letter Routing & Retry Exhaustion**:
-   - Sự kiện bị lỗi cấu hình hoặc dữ liệu không hợp lệ được thử lại theo cơ chế Bounded Exponential Backoff (tối đa 4–5 lần), sau đó chuyển an toàn vào Dead-Letter Queue (`q.*.dlq`) kèm nguyên vẹn metadata và causation ID để phục vụ điều tra lỗi.
+   - Event retry hữu hạn theo policy của consumer tương ứng; poison message được chuyển vào DLQ/quarantine đúng topology của service. Không giả định mọi service dùng cùng số lần retry hoặc cùng tên DLQ.
 
 ### 5.2. Đánh giá trạng thái Giai đoạn 0
 - [x] RabbitMQ Topic Exchange `clinic.events` và Dead-Letter Exchange `clinic.dlx` hoạt động bền vững.

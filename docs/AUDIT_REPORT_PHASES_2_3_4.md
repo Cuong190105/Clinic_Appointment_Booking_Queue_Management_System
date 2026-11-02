@@ -277,6 +277,9 @@ Commit `3338c0c` còn bổ sung `GET /receptionist/queue-doctors` để lễ tâ
 ---
 
 #### 2.3. Phase 3 (Appointment Service)
+
+> **Lưu ý:** Phần 2.3 dưới đây là snapshot audit lịch sử trước khi hoàn tất Phase 3; các khẳng định rằng Appointment còn trong ClinicDB, dual-write còn tồn tại hoặc MedicalReports phải giữ Appointment table đã bị supersede bởi kết quả cutover Phase 3 ở mục 1.2. Kế hoạch Phase 5 hiện hành là [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](../tasks/PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md) và quyết định 2026-10-26: Patient + MedicalReport cùng Medical Records Service/DB; `AppointmentId` là encounter key; Queue completion và report finalization độc lập.
+
 - **Những gì còn tồn đọng trong Monolith**:
   1. `Clinic.Domain/Entities/Appointment.cs` và `AppointmentSnapshot.cs`.
   2. `DbSet<Appointment>` và `DbSet<AppointmentSnapshot>` trong `ApplicationDbContext.cs`.

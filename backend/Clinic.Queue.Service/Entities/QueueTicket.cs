@@ -11,6 +11,8 @@ public class QueueTicket
     public DateOnly QueueDate { get; set; }
     public int QueueNumber { get; set; }
     public string? PatientName { get; set; }
+    public Guid? IdentityUserId { get; set; }
+    public string? PatientPhone { get; set; }
     public string? DoctorName { get; set; }
     public bool Priority { get; set; }
     public QueueStatus Status { get; set; } = QueueStatus.Waiting;

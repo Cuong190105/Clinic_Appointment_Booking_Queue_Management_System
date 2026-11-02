@@ -23,28 +23,24 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<Person?> GetByEmailAsync(string email)
         {
             return await _dbContext.Persons
-                .Include(p => p.Patient)
                 .FirstOrDefaultAsync(p => p.Email == email);
         }
 
         public async Task<Person?> GetByPhoneNumberAsync(string phoneNumber)
         {
             return await _dbContext.Persons
-                .Include(p => p.Patient)
                 .FirstOrDefaultAsync(p => p.PhoneNumber == phoneNumber);
         }
 
         public async Task<Person?> GetByIdAsync(Guid id)
         {
             return await _dbContext.Persons
-                .Include(p => p.Patient)
                 .FirstOrDefaultAsync(p => p.Id == id);
         }
 
         public async Task<Person?> GetByIdentityUserIdAsync(Guid userId)
         {
             return await _dbContext.Persons
-                .Include(p => p.Patient)
                 .FirstOrDefaultAsync(p => p.IdentityUserId == userId);
         }
 
@@ -69,7 +65,6 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<Person?> GetByBasicInfoAsync(string fullName, DateOnly dateOfBirth, Gender gender)
         {
             return await _dbContext.Persons
-                .Include(p => p.Patient)
                 .FirstOrDefaultAsync(p => p.FullName == fullName && p.DateOfBirth == dateOfBirth && p.Gender == gender);
         }
     }

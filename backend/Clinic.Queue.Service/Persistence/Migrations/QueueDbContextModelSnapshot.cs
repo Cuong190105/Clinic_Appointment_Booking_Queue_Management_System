@@ -224,6 +224,9 @@ namespace Clinic.Queue.Service.Persistence.Migrations
                     b.Property<DateTime?>("ExamStartedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("IdentityUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -233,6 +236,10 @@ namespace Clinic.Queue.Service.Persistence.Migrations
                     b.Property<string>("PatientName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PatientPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<bool>("Priority")
                         .HasColumnType("bit");

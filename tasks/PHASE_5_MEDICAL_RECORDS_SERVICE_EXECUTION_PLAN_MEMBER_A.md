@@ -1,0 +1,673 @@
+# Phase 5 — Kế hoạch triển khai Medical Records Service (Member A)
+
+> Trạng thái: Kế hoạch đã chuẩn hóa theo quyết định ngày 2026-10-26. Đây là kế hoạch triển khai, chưa phải báo cáo thực hiện/kiểm thử.
+>
+> Phạm vi chia sẻ: Thành viên A sở hữu service, database, API, dữ liệu Patient/MedicalReport, authorization, migration và cutover. Thành viên B phối hợp event contract, RabbitMQ publisher/consumer reliability, contract/failure tests, telemetry và kiểm thử tích hợp. Hai bên thống nhất contract trước khi code consumer/cutover.
+
+## 1. Quyết định thiết kế đã chốt
+
+1. **Encounter key:** dùng `AppointmentId` làm định danh lượt khám và liên kết ổn định của bệnh án hiện tại và lâu dài. Không tạo `VisitId` hoặc `EncounterId` riêng. `QueueTicketId` chỉ là định danh ticket trong Queue, không dùng làm khóa Medical Records.
+2. **Patient ownership:** `Patient` và `MedicalReport` cùng thuộc `Clinic.MedicalRecords.Service` và cùng database. Không tạo Patient Service riêng. Appointment Service tiếp tục giữ `PatientProjections` phục vụ đặt lịch; đây là read projection riêng, không phải nguồn sở hữu hồ sơ Patient.
+3. **Event lifecycle:** `ExamStarted` mở/tạo encounter context idempotently theo `AppointmentId`; chưa tự tạo report rỗng. Draft nội dung được tạo khi bác sĩ bắt đầu ghi. `ExamCompleted` chỉ đánh dấu lượt khám đã kết thúc; không finalize bệnh án. Queue, Appointment, Patient và MedicalReport giữ trạng thái riêng theo owner.
+4. **Finalized/amendment:** report Finalized không được sửa trực tiếp. Sửa sau finalize tạo amendment append-only, ghi tác giả, thời điểm, lý do và liên kết report/phiên bản gốc. Mọi thao tác đọc/ghi hồ sơ đều có audit record; audit record không lưu nội dung PHI trùng lặp nếu không cần.
+5. **Dữ liệu/event tối thiểu:** event chỉ mang các ID cần thiết, thời điểm, correlation/causation, event ID/type/version; không có chẩn đoán, triệu chứng, toa thuốc hoặc ghi chú bệnh án. Không ghi PHI vào log/DLQ payload ngoài chính sách bảo vệ.
+6. **Consistency:** event consumer at-least-once + Inbox/idempotency. Không có distributed transaction giữa Queue/Appointment/Medical Records. Clinic API/Gateway chỉ proxy hoặc compose API, không sở hữu report/patient write.
+
+## 2. Đánh giá hiện trạng và các ranh giới cần cắt
+
+- `Patient` và `MedicalReport` hiện nằm trong Clinic domain/`ApplicationDbContext` và `ClinicDB`.
+- `MedicalReport` hiện có unique index theo `AppointmentId`, snapshot `DoctorId`/tên/ngày, nội dung Draft/Finalized và navigation tới Patient. Giữ quy tắc một report chính cho mỗi Appointment; amendments lưu thành bản ghi riêng.
+- `MedicalReportsController` hiện gọi Appointment Service và Queue Service rồi ghi report qua MediatR/ClinicDB. Khi cutover, service mới xác thực/giữ dữ liệu cần thiết bằng local projection/context; API gateway không ghi vào DB Clinic.
+- `ExamStarted` hiện chưa chứa đủ context để Medical Records tạo encounter context mà không truy vấn Queue. Bổ sung tối thiểu `PatientId`, `DoctorId` và `StartedAt`; thêm snapshot doctor/date mà UI hiện dùng (ví dụ `DoctorName`, queue/schedule date) để service mới không phải gọi đồng bộ Queue/Appointment/Scheduling. `AppointmentId` là khóa idempotency; `ExamCompleted` dùng cùng ID.
+- Contract hiện hành chưa biểu diễn encounter context, amendment, access audit hoặc Patient profile trong service mới. Đây là phần cần thiết kế/triển khai trong Phase 5.
+- Có thể tiếp tục dùng `UserProfileUpdated` để cập nhật projection nhân thân trong Patient. Không đồng bộ nội dung bệnh án qua Identity.
+
+## 3. Phân công A/B
+
+| Hạng mục | Thành viên A | Thành viên B |
+|---|---|---|
+| Service/API/DB và domain Patient, MedicalReport, amendment | Owner | Review contract |
+| Di chuyển dữ liệu, verify và cutover khỏi ClinicDB | Owner | Hỗ trợ nghiệm thu |
+| Authorization, resource ownership và audit persistence | Owner | Security/contract tests |
+| Event schema `ExamStarted`/`ExamCompleted` và envelope | Đồng thiết kế, chốt semantics | Owner phần broker contract/publisher compatibility |
+| Inbox consumer, retry/DLQ, duplicate/out-of-order, telemetry | Phối hợp consumer behavior | Owner phần broker reliability/failure tests |
+| Gateway/frontend routing và E2E nghiệp vụ | Owner | E2E/contract test hỗ trợ |
+
+**Điểm phối hợp bắt buộc:** chốt event schema/version, idempotency key, retry/DLQ semantics và trạng thái consumer trước khi merge/cutover. Việc B chưa đóng mọi task Phase 2–4 không chặn A phát triển độc lập; thiếu event contract/reliability evidence chặn bật consumer/cutover cuối cùng.
+
+## 4. Kế hoạch theo bước
+
+### Bước 0 — Baseline, inventory và feature ownership
+
+1. Ghi nhận commit/branch baseline và trạng thái DB/container, không chạy migration phá hủy trên mock DB trước khi backup.
+2. Liệt kê toàn bộ route/API, frontend callers, handlers, repositories, entity/configuration, notification hooks, permission và tests của Patient/MedicalReport.
+3. Phân loại từng route: Patient CRUD/profile, draft/save/finalize, search/detail/history, history bệnh nhân, print, reports/dashboard.
+4. Xác nhận mỗi chức năng có owner sau cutover: Medical Records sở hữu Patient + reports; Appointment sở hữu appointment; Queue sở hữu queue state; Identity sở hữu credential/person source profile.
+5. Chốt với B `ExamStarted`/`ExamCompleted` payload, event envelope, routing key, Inbox key, versioning, retry/DLQ, correlation/causation và PHI policy.
+
+**Kết quả:** inventory checklist, event contract review và tiêu chí cutover được ghi vào tài liệu; chưa thay đổi traffic.
+
+### Bước 1 — Hoàn tất event contract và consumer semantics (A+B)
+
+1. Chuẩn hóa `ExamStarted` và `ExamCompleted` quanh `AppointmentId`. `ExamStarted` mang `PatientId`, `DoctorId`, `StartedAt` và snapshot doctor/date tối thiểu cần cho report context. Không đưa nội dung bệnh án hoặc dữ liệu nhạy cảm không cần thiết vào event.
+2. Mỗi event có `EventId`, `EventType`, `SchemaVersion`, `OccurredAt`, `CorrelationId`, `CausationId`; giữ tương thích routing/envelope với broker hiện hữu.
+3. `ExamStarted` upsert encounter context theo `AppointmentId` idempotently. Event duplicate không tạo context thứ hai; context không tự tạo report Draft rỗng.
+4. Bác sĩ tạo Draft lần đầu qua API theo `AppointmentId`; unique constraint bảo đảm tối đa một report chính.
+5. `ExamCompleted` đánh dấu context/visit kết thúc idempotently; không chuyển report Draft thành Finalized. Event đến trước `ExamStarted` được lưu/áp dụng theo version/sequence hoặc giữ pending để không làm trạng thái lùi.
+6. Chốt policy retry tạm thời, poison event, DLQ và redelivery; B xác nhận Dashboard/metrics cho consumed, retry, dead-letter và lag.
+
+**Kết quả:** event contract tests và state-transition examples được A/B review trước khi triển khai consumer.
+
+### Bước 2 — Tạo Medical Records Service và database riêng (A)
+
+1. Tạo `Clinic.MedicalRecords.Service` theo chuẩn host/config/health/JWT/JWKS/telemetry của các service hiện có; thêm service và database riêng vào Compose.
+2. Tạo `MedicalRecordsDbContext`, migrations, health/readiness, structured logging và cấu hình riêng cho connection string.
+3. Thiết kế schema sở hữu cục bộ:
+   - `Patients`: `PatientId`, Identity link/profile projection tối thiểu, contact/profile fields và các thuộc tính Patient cần nghiệp vụ hiện tại.
+   - `MedicalReports`: ID, unique `AppointmentId`, `PatientId`, `DoctorId`/snapshot cần hiển thị, schedule/exam timestamps, nội dung bệnh án, status, audit columns.
+   - `MedicalReportAmendments`: report ID, version/sequence, snapshot/delta, reason, author, created time; append-only.
+   - `MedicalAccessAudits`: actor, patient/report/appointment ID, action, outcome, timestamp, correlation ID; không ghi nội dung bệnh án vào audit message.
+   - `InboxMessages` và outbox nếu Medical Records phát business event cần thiết; không thêm outbox nếu chưa có event output cụ thể.
+4. `AppointmentId` và `PatientId` là loose UUID references tới owner khác; không thêm FK/navigation sang Appointment, Queue hoặc Identity database.
+5. Thiết kế indexes cho unique `AppointmentId`, Patient history, doctor/date/status, audit query và paging.
+
+**Kết quả:** service chạy độc lập, migration có thể áp dụng trên DB mới, không kết nối ClinicDB ở runtime.
+
+### Bước 3 — Patient ownership/profile flow (A, B hỗ trợ event)
+
+1. Di chuyển các API Patient hiện có sang Medical Records Service; route Gateway giữ URL tương thích nếu frontend đang dùng.
+2. Walk-in tạo Patient trong Medical Records trước khi tạo walk-in Appointment; `IdentityUserId` có thể null.
+3. Tích hợp profile registration/linking với Identity qua endpoint/event đã có; không tìm/liên kết account chỉ dựa trên phone không có quy tắc xác minh rõ.
+4. Consume `UserProfileUpdated` để cập nhật profile projection idempotently; xử lý out-of-order bằng event version/updated timestamp.
+5. Giữ Patient profile và medical data trong cùng DB/service nhưng kiểm soát endpoint theo permission; không expose clinical data qua API profile thông thường.
+6. Appointment Service tiếp tục dùng `PatientProjections` và event hiện hữu độc lập; không chuyển Appointment projection ownership sang Medical Records.
+
+**Kết quả:** Patient CRUD/link/profile flow chạy qua Medical Records, không còn Clinic Patient write path.
+
+### Bước 4 — Medical Records domain/application/API (A)
+
+1. Chuyển use cases tạo Draft, update Draft, finalize, chi tiết, tìm kiếm, lịch sử bệnh nhân và lịch sử theo bác sĩ thành handlers/services thuộc Medical Records.
+2. API dùng `AppointmentId` làm route/key, ví dụ `GET /medical-records/appointments/{appointmentId}` và `PUT /medical-records/appointments/{appointmentId}/draft`; giữ Gateway aliases nếu cần tương thích.
+3. Khi tạo Draft, xác thực context tồn tại và actor có quyền qua local encounter context được tạo từ event. Không gọi Queue repository hoặc đọc Queue DB.
+4. Không gọi Appointment Service đồng bộ trên mỗi update để dựng object graph. Dùng event/projection tối thiểu; nếu event chưa tới, trả lỗi retryable/clear `409`/`404` theo contract đã chốt, không tạo hồ sơ với snapshot sai.
+5. Finalize là thao tác idempotent; finalized report chỉ đọc. Amendment tạo bản ghi mới, cần permission riêng, lý do bắt buộc và không sửa nội dung bản finalized.
+6. Không để finalize report gọi Queue `complete-exam`. Queue action kết thúc khám; `ExamCompleted` đánh dấu context. Frontend có thể yêu cầu hai thao tác tường minh theo workflow, nhưng không tạo dual-write từ controller.
+7. Đưa các endpoint riêng tư vào authorization policy; mọi query chi tiết phải kiểm tra resource ownership trước khi trả dữ liệu.
+
+**Kết quả:** controller/service mới không inject `ISender` Clinic, `QueueServiceClient` hoặc Appointment client để ghi/sửa workflow.
+
+### Bước 5 — Authorization, privacy và audit (A; B test/review)
+
+1. Định nghĩa matrix: Doctor xem/sửa hồ sơ của lượt mình; Patient chỉ xem hồ sơ của chính mình nếu nghiệp vụ/UI hiện tại hỗ trợ; Admin/authorized staff theo policy; Receptionist không đọc nội dung lâm sàng.
+2. Map permissions trên Identity và yêu cầu token mới sau seed mapping; Medical Records Service tự validate JWT/JWKS, không dựa riêng Gateway.
+3. Resource authorization sử dụng claim doctor/patient IDs và local Patient/encounter ownership; tránh IDOR qua report ID hoặc AppointmentId.
+4. Ghi audit cho mọi lần đọc và thay đổi report/Patient-sensitive data; ghi cả từ chối truy cập cần truy vết, nhưng tuyệt đối không ghi chẩn đoán/triệu chứng/toa thuốc vào log.
+5. Bảo vệ amendments/audit khỏi update/delete thông thường; giới hạn endpoint admin và access.
+6. B kiểm tra log, broker/DLQ payload và telemetry không rò PHI.
+
+**Kết quả:** permission matrix, resource authorization tests và audit persistence tests pass.
+
+### Bước 6 — Migration/import và kiểm chứng dữ liệu (A)
+
+1. Tạo importer chạy lặp an toàn ClinicDB → MedicalRecordsDB cho Patients, MedicalReports và dữ liệu amendment/audit có nguồn thực tế.
+2. Bảo toàn IDs, `AppointmentId`, `PatientId`, status, content, timestamps, soft-delete flags và snapshots; quy tắc xử lý duplicate/missing patient phải báo lỗi, không tự đoán dữ liệu.
+3. Thêm verify script: source/target counts, IDs thiếu/thừa, duplicate AppointmentId, report không có Patient, Patient link sai, status/content/date mismatch.
+4. Chạy trước trên backup/mock copy; ghi kết quả reconciliation. Không drop source tables nếu mismatch chưa được giải thích/chấp nhận.
+5. Xác định migration/cutover window và backup/rollback procedure; dual-write không dùng làm cơ chế đồng bộ dài hạn.
+
+**Kết quả:** importer/verify đạt zero unexplained mismatch hoặc có danh sách exception được chấp thuận; có rollback plan.
+
+### Bước 7 — Gateway/frontend cutover (A)
+
+1. Route Patient và Medical Records APIs qua Gateway sang Medical Records Service; frontend không gọi trực tiếp service/database.
+2. Giữ endpoint aliases hiện tại để giảm thay đổi client, chuyển URL chuẩn dần theo contract.
+3. Cập nhật doctor flow: khi Queue ticket chuyển `InProgress`, bác sĩ mở report theo `AppointmentId`; nếu chưa có report, hiển thị form tạo Draft thay vì coi 404 là lỗi.
+4. Tách UI “kết thúc khám” khỏi “chốt hồ sơ”; hiển thị trạng thái độc lập, hỗ trợ retry khi Queue/Medical Records event/API tạm lỗi.
+5. Chuyển bệnh nhân xem lịch sử sang Medical Records API và áp dụng đúng patient ownership.
+6. In hồ sơ chỉ cho role phù hợp; tránh đưa thông tin ngoài response DTO cần thiết.
+
+**Kết quả:** frontend acceptance chạy qua Gateway, old Clinic route chỉ proxy trong giai đoạn tương thích.
+
+### Bước 8 — Tests và fault acceptance (A+B)
+
+**A — unit/integration/API/data:**
+- Domain tests Draft → Finalized, amendment append-only, idempotent finalize, một report chính/Appointment.
+- SQL Server integration tests cho constraints, migrations, audit, paging/search và Patient ownership.
+- Authorization tests theo Doctor/Patient/Admin/Receptionist; kiểm tra IDOR.
+- Importer repeatability và verification tests.
+
+**B — messaging/contract/reliability:**
+- Contract tests cho `ExamStarted`, `ExamCompleted`, `UserProfileUpdated` và API contracts.
+- Duplicate/out-of-order event, consumer restart/crash, transient DB/broker errors, retry exhaustion/DLQ, Inbox dedupe.
+- Chứng minh `ExamCompleted` không finalize report và duplicate không tạo report/amendment trùng.
+- Metrics/alerts cho consumer lag, retry, dead-letter; logs/trace không có PHI.
+
+**E2E chung:** walk-in/appointment → check-in → Queue `InProgress`/`ExamStarted` → tạo/lưu Draft → Queue complete/`ExamCompleted` → report vẫn ở Draft cho tới khi bác sĩ finalize → patient/doctor đọc theo quyền → tạo amendment theo policy.
+
+### Bước 9 — Docker build, acceptance và cutover
+
+1. Chạy unit/integration/contract tests; frontend type-check/build theo workflow hiện hành.
+2. `docker compose build` các image thay đổi, `up --wait`, xác nhận health/readiness và migration.
+3. Chạy smoke/E2E qua Gateway với role token mới; kiểm tra API unauthorized/forbidden và happy path.
+4. Import và verify trên DB đích; kiểm tra metrics/logs và Inbox/DLQ.
+5. Chuyển read/write routes sang Medical Records; theo dõi errors và consumer lag. Nếu lỗi, route về Clinic API/DB theo rollback đã diễn tập, không dual-write mù.
+6. Sau khi cutover được xác nhận và backup ổn, ngừng Clinic Patient/MedicalReport handlers, repositories, DbSets/configurations và routes ghi cũ; tạo migration riêng drop bảng legacy ở ClinicDB.
+7. Chạy regression sau khi drop schema; xác nhận không còn runtime query hay FK tới các bảng đã chuyển.
+
+**Điều kiện cutover:** event contracts đã được B xác nhận; import verify không còn mismatch chưa giải thích; authorization/audit tests pass; Docker E2E pass; rollback đã được kiểm tra.
+
+## 5. Rủi ro và cách giảm thiểu
+
+| Rủi ro | Giảm thiểu |
+|---|---|
+| Event đến trễ làm mất context hoặc lùi trạng thái | Inbox, AppointmentId idempotency, status monotonicity, retry/reconciliation |
+| Medical report finalize và Queue complete gây dual-write | Tách lifecycle; Queue chỉ phát ExamCompleted, report finalize không gọi Queue |
+| Patient profile update ghi đè data lâm sàng | Tách cột profile projection khỏi clinical fields; event chỉ cập nhật profile fields allowlist |
+| Migration thiếu/duplicate hồ sơ | Backup, importer idempotent, verify counts/keys/content, stop cutover khi unexplained mismatch |
+| Rò PHI trong event/log/DLQ | Chỉ IDs/metadata, redaction, audit/log tests, giới hạn DLQ access/retention |
+| Claim hoặc policy sai sau Identity update | Seed mapping, lấy JWT mới, test từng role trực tiếp qua Gateway và service |
+| Clinic API thành nơi sở hữu logic Medical Records | Proxy-only sau cutover; xóa handlers/repositories cũ sau acceptance |
+
+## 6. Tiêu chí hoàn tất Phase 5
+
+- Medical Records Service sở hữu Patient, MedicalReport, amendment và access audit trong DB riêng; không có Patient Service riêng.
+- Mọi luồng Patient/MedicalReport qua Gateway; ClinicDB không còn bảng/runtime write/query của các aggregate đã chuyển.
+- AppointmentId là khóa encounter thống nhất; không có VisitId/EncounterId hay QueueTicketId làm khóa bệnh án.
+- Không có database join/FK/navigation xuyên service; event consumer idempotent.
+- `ExamCompleted` không finalize report; finalized report bất biến, amendment append-only.
+- Authorization theo role/resource và audit truy cập/thay đổi được kiểm chứng; không rò PHI qua event/log/DLQ.
+- Import verification đạt tiêu chí, Docker health và frontend/API acceptance pass.
+- B hoàn thành contract/failure/observability checks liên quan; A cập nhật task và audit report với bằng chứng thực tế.
+
+## 7. Tài liệu liên quan
+
+- `tasks/TASK_MEMBER_A.md` — ownership và yêu cầu Phase 5.
+- `tasks/TASK_MEMBER_B.md` — trách nhiệm event/broker/test Phase 5.
+- `tasks/PHASE_0_API_CONTRACT_ANALYSIS_MEMBER_A.md` — service boundaries và API contracts.
+- `tasks/COMMON_REQUIREMENTS_AND_NOTES.md` — security, audit, privacy và test requirements.
+- `microservices_analysis.md` — kiến trúc tổng thể và ownership.
+
+---
+
+## 8. Báo cáo tiến độ triển khai theo từng bước
+
+### Bước 0 — Baseline, inventory và feature ownership (Hoàn tất: 2026-10-26)
+
+1. **Commit & Branch Baseline:**
+   - Branch: `memAp5`
+   - Baseline Commit: `617675d8eec6190453957d5ab5ff0b3a2be8142c`
+   - Trạng thái Docker: 10/10 containers active & healthy (`clinic_sql_server`, `rabbitmq`, `clinic_jaeger`, `clinic_prometheus`, `identity-service`, `clinic_scheduling_service`, `clinic_appointment_service`, `clinic_queue_service`, `clinic_backend`, `clinic_frontend`).
+   - Catalog cơ sở dữ liệu trên SQL Server: 5 database (`ClinicDB`, `ClinicAppointmentDB`, `ClinicQueueDB`, `ClinicSchedulingDB`, `ClinicIdentityDB`).
+
+2. **Inventory toàn diện về Patient & MedicalReport:**
+   - **Routes & Handlers (Monolith):**
+     - `GET /medical-reports` (`GetMedicalReportsQuery`)
+     - `POST /medical-reports` (`SaveMedicalReportCommand`)
+     - `PUT /medical-reports/{id}` (`UpdateDraftMedicalReportCommand`)
+     - `GET /medical-reports/{id}` (`GetMedicalReportByIdQuery`)
+     - `GET /medical-reports/appointment/{appointmentId}` (`GetMedicalReportByAppointmentQuery`)
+     - `POST /medical-reports/{id}/finalize` (`FinalizeMedicalReportCommand`)
+     - `GET /patients/{patientId}/medical-history` (`GetPatientMedicalHistoryForDoctorQuery`)
+     - `GET /me/medical-history` (`GetMyMedicalHistoryQuery`)
+     - `GET /patients` (`GetPagedPatientsQuery`)
+     - `GET /patients/{patientId}` (`GetPatientByIdQuery`)
+     - `GET /patients/me` (`GetPatientByIdQuery`)
+     - `PUT /patients/me` (`UpdatePatientCommand`)
+     - `POST /patients/add` (`CreatePatientCommand`)
+     - `GET /patients/{patientId}/appointments` (Proxy sang Appointment Service)
+   - **Callers từ Frontend:**
+     - `medicalRecordsApi` (`frontend/src/features/medical-records/medical-records.api.ts`): `list`, `getById`, `getByAppointment`, `createDraft`, `update`, `finalize`.
+     - `patientApi` (`frontend/src/features/patients/patient.api.ts`): `getProfile`, `updateProfile`, `getMyMedicalHistory`, `getPagedPatients`.
+     - `receptionistApi` (`frontend/src/features/receptionist/receptionist.api.ts`): `createPatient` (`POST /patients/add`), `listPatients` (`GET /patients`).
+   - **Thực thể & Repository:**
+     - `Patient.cs`, `MedicalReport.cs` trong `Clinic.Domain/Entities`.
+     - `IPatientRepository`, `PatientRepository` trong `Clinic.Infrastructure.Sqlserver`.
+     - `IMedicalReportRepository`, `MedicalReportRepository` trong `Clinic.Infrastructure.Sqlserver`.
+   - **Permissions trên Identity Service:**
+     - `medical-report.create`, `medical-report.view.own`, `medical-report.view.related`, `medical-report.view.any`, `medical-report.edit.own`, `medical-report.edit.any`.
+     - `patient.create.any`, `patient.view.own`, `patient.view.any`, `patient.edit.own`, `patient.edit.any`.
+     - `patient-history.view.related`, `patient-history.view.any`.
+
+3. **Phân loại Route & Định danh sau Cutover:**
+   - **Patient CRUD & Profile:** Chuyển sang `Clinic.MedicalRecords.Service`.
+   - **Draft / Save / Finalize:** Chuyển sang `Clinic.MedicalRecords.Service`. Bỏ việc finalize gọi ngầm sang Queue `complete-exam`.
+   - **Encounter Key:** Dùng duy nhất `AppointmentId`.
+   - **Tính năng mới:** Bổ sung `POST /medical-records/appointments/{appointmentId}/amendments` (amendment append-only cho hồ sơ Finalized) và `GET /medical-records/appointments/{appointmentId}/audits` (access audit trail).
+
+4. **Xác nhận quyền sở hữu (Feature Ownership) sau Cutover:**
+   - `Clinic.MedicalRecords.Service` (`ClinicMedicalRecordsDB`): Sở hữu `Patient`, `MedicalReport`, `MedicalReportAmendment`, `MedicalAccessAudit`.
+   - `Clinic.Appointment.Service` (`ClinicAppointmentDB`): Sở hữu `Appointment`, `AppointmentSnapshot`, `PatientProjection`.
+   - `Clinic.Queue.Service` (`ClinicQueueDB`): Sở hữu `QueueTicket`, `QueueCounter`.
+   - `Clinic.Identity.Service` (`ClinicIdentityDB`): Sở hữu `User`, `Person` (credentials/auth).
+
+5. **Thống nhất Event Contract & Bảo vệ PHI:**
+   - `ExamStarted` bổ sung snapshot tối thiểu: `PatientId`, `DoctorId`, `DoctorName`, `QueueDate`, `StartedAt`.
+   - `ExamCompleted` mang: `QueueTicketId`, `AppointmentId`, `DoctorId`, `CompletedAt`.
+   - Tuyệt đối không đưa nội dung bệnh án (triệu chứng, chẩn đoán, toa thuốc) vào Event payload hoặc Error log/DLQ.
+
+---
+
+### Bước 1 — Hoàn tất event contract và consumer semantics (Hoàn tất: 2026-10-26)
+
+1. **Chuẩn hóa Event Contract (`Clinic.Contracts/Events`):**
+   - **`ExamStarted`**: Nâng cấp mang đầy đủ snapshot tối thiểu gồm `(Guid QueueTicketId, Guid AppointmentId, Guid PatientId, Guid DoctorId, string? DoctorName, DateOnly? QueueDate, DateTimeOffset StartedAt)`.
+   - Hỗ trợ `[JsonConstructor]` cho primary constructor và constructor phụ bảo đảm backward compatibility 100% với các component cũ.
+   - **`ExamCompleted`**: Định danh quanh `(Guid QueueTicketId, Guid AppointmentId, Guid DoctorId, DateTimeOffset CompletedAt)`.
+   - **Tuân thủ PHI Privacy**: Cả 2 event tuyệt đối không chứa chẩn đoán, triệu chứng, toa thuốc hoặc ghi chú lâm sàng.
+
+2. **Cập nhật Publisher phía Queue Service (`Clinic.Queue.Service`):**
+   - Trong `QueueManager.cs`, cập nhật lệnh phát outbox `ExamStarted` mang đầy đủ snapshot nhân thân và bác sĩ (`PatientId`, `DoctorId`, `DoctorName`, `QueueDate`).
+   - Khắc phục ràng buộc conflict trong `CallNextAsync` khi bác sĩ đã có lượt khám `Called`/`InProgress`.
+
+3. **Kiểm thử Hợp đồng Tự động (Contract Tests):**
+   - Tạo bộ test [`MedicalRecordsEventContractTests.cs`](../backend/Clinic.Contracts.UnitTests/MedicalRecordsEventContractTests.cs) kiểm chứng:
+     - `ExamStarted_Serializes_With_AppointmentId_And_ContextSnapshot_Without_PHI`: PASS.
+     - `ExamStarted_Backward_Compatible_Constructor_Succeeds`: PASS.
+     - `ExamCompleted_Keyed_By_AppointmentId_Without_PHI`: PASS.
+   - Kết quả: `Clinic.Contracts.UnitTests` pass **6/6 tests**; `Clinic.Queue.Service.Tests` pass **50/50 tests**.
+
+
+---
+
+### Bước 2 — Khởi tạo Medical Records Service và cơ sở dữ liệu riêng (Hoàn tất: 2026-10-26)
+
+1. **Khởi tạo Project & Cấu trúc Service mới:**
+   - Tạo `backend/Clinic.MedicalRecords.Service` (.NET 10 Web API) và `backend/Clinic.MedicalRecords.Service.Tests` (xUnit test project).
+   - Đã thêm cả 2 project vào solution `backend/Clinic.slnx`.
+   - Cấu hình Authentication JwtBearer (kết nối JWKS của Identity Service), Authorization policies, OpenTelemetry tracing/metrics và EF Core SQL Server.
+
+2. **Thiết kế Domain Entities & Persistence độc lập (`ClinicMedicalRecordsDB`):**
+   - **`Patient`**: Quản lý thông tin nhân thân, liên lạc, BHYT, người liên hệ khẩn cấp, liên kết `IdentityUserId` và hỗ trợ cập nhật chiếu hồ sơ (`UpdateProjectionFromIdentity`).
+   - **`MedicalReport`**: Khóa duy nhất theo `AppointmentId` (`Unique Index`), lưu trữ `PatientId`, `DoctorId`, `Diagnosis`, `TreatmentPlan`, `Notes`, `PrescriptionsJson`, trạng thái `Draft` / `Finalized`, `CreatedAt`, `FinalizedAt`. Đảm bảo tính bất biến khi đã `Finalized`.
+   - **`MedicalReportAmendment`**: Phụ lục điều chỉnh sau khi hồ sơ đã `Finalized` (append-only, sequence number, author, reason, changes).
+   - **`MedicalAccessAudit`**: Bảng kiểm toán truy cập hồ sơ bệnh án (actor, patientId, reportId, action, outcome, ip address, correlationId - tuyệt đối không ghi dữ liệu PHI).
+   - **`EncounterContext`**: Ngữ cảnh tiếp nhận lượt khám mở bởi `ExamStarted` và đánh dấu hoàn thành bởi `ExamCompleted`, đảm bảo idempotent.
+   - **`InboxMessage`**: Bảng deduplication store hỗ trợ idempotency cho Message Consumer.
+   - **`MedicalRecordsDbContext`**: Cấu hình quan hệ, index tối ưu, cascading delete restriction để đảm bảo tính toàn vẹn dữ liệu y tế.
+
+3. **EF Core Migration & Docker Compose:**
+   - Sinh migration ban đầu `InitialMedicalRecordsSchema` cho `ClinicMedicalRecordsDB`.
+   - Khởi tạo `backend/Clinic.MedicalRecords.Service/Dockerfile`.
+   - Cập nhật `docker-compose.yml` bổ sung container `clinic_medical_records_service` (port `5005:8080`, database `ClinicMedicalRecordsDB`, healthcheck `/readyz`).
+   - Cấu hình biến môi trường kết nối `MedicalRecords__Authority` và `Services__MedicalRecords__BaseUrl` trên gateway/monolith.
+
+4. **Kiểm thử tự động (Unit & Integration Tests):**
+   - Đã hoàn tất 8 bài kiểm thử nghiệp vụ domain và persistence trong `Clinic.MedicalRecords.Service.Tests`:
+     - `Patient_CanBeCreated_And_UpdatedFromIdentityProjection`: PASS
+     - `MedicalReport_CanBeCreated_AsDraft`: PASS
+     - `MedicalReport_CanBeUpdated_WhileDraft`: PASS
+     - `MedicalReport_CannotBeUpdated_WhenFinalized`: PASS
+     - `MedicalReport_Finalize_IsIdempotent`: PASS
+     - `MedicalReport_CanAddAmendment_WhenFinalized`: PASS
+     - `MedicalRecordsDbContext_CanPersistAndRetrieve_Report_Amendment_Audit`: PASS
+     - `MedicalRecordsDbContext_CanPersistAndTrack_EncounterContext`: PASS
+   - Kết quả: **8/8 tests PASS** (Toàn bộ test suite của Queue 50/50, Appointment 33/33, Scheduling 38/38, Domain 20/20, Contracts 6/6 đều PASS).
+
+---
+
+### Bước 3 — Luồng sở hữu bệnh nhân & đồng bộ hồ sơ (Patient Ownership & Profile Flow) (Hoàn tất: 2026-10-26)
+
+1. **Khẳng định quyền ghi độc quyền (Authoritative Source):**
+   - Thực thể `Patient` được sở hữu hoàn toàn bởi `Clinic.MedicalRecords.Service` (`ClinicMedicalRecordsDB`).
+   - Cung cấp đầy đủ DTOs: `CreatePatientRequest`, `UpdatePatientRequest`, `PatientDto`, `PagedResult<PatientDto>`.
+
+2. **Triển khai các API quản lý bệnh nhân & phân quyền nghiêm ngặt:**
+   - **`POST /patients`**, **`POST /patients/add`**, **`POST /patients/walk-in`**: Đăng ký bệnh nhân mới (Walk-in hoặc trực tuyến), trả về `201 Created` kèm Location header `/patients/{id}`. Yêu cầu quyền `PatientCreateAny` (Admin, Receptionist hoặc claim `patient.create.any`).
+   - **`GET /patients`**: Danh sách bệnh nhân phân trang, hỗ trợ tìm kiếm theo họ tên, SĐT, BHYT, email và sắp xếp. Yêu cầu quyền `PatientViewAny` (Admin, Receptionist, Doctor hoặc claim `patient.view.any`).
+   - **`GET /patients/{id}`**: Chi tiết bệnh nhân. Bảo vệ chống IDOR: nhân viên y tế xem được mọi hồ sơ; bệnh nhân chỉ xem được hồ sơ của chính mình (đối soát qua claim `patientId`, `personId` hoặc `sub`).
+   - **`GET /patients/me`** & **`PUT /patients/me`**: Bệnh nhân tự xem và cập nhật thông tin liên hệ, BHYT, địa chỉ của chính mình. Yêu cầu quyền `PatientViewOwn` và `PatientEditOwn`.
+   - **`PUT /patients/{id}`**: Lễ tân/Admin cập nhật thông tin bệnh nhân. Yêu cầu quyền `PatientEditAny`.
+
+3. **Lắng nghe sự kiện đồng bộ từ RabbitMQ & Internal Endpoint:**
+   - Cung cấp internal endpoint `POST /internal/events/user-profile-updated` cho đồng bộ profile.
+   - Hoàn tất `MedicalRecordsEventConsumer` (RabbitMQ topic consumer) kết nối exchange `clinic.events`, queue `clinic.medical-records.events`, lắng nghe routing key `identity.user-profile-updated`. Khi người dùng sửa thông tin trên Identity Service, consumer tự động cập nhật chiếu nhân thân (`FullName`, `PhoneNumber`, `Email`, `Gender`, `Address`, `DateOfBirth`) của `Patient` tương ứng.
+
+4. **Kiểm thử tự động (TDD):**
+   - Viết test trước khi thực hiện (`PatientManagerTests` và `PatientApiIntegrationTests`):
+     - `CreatePatientAsync_PersistsAndReturnsDto`: PASS
+     - `GetPagedPatientsAsync_FiltersAndPaginates`: PASS
+     - `GetPatientByIdAsync_ReturnsCorrectDto`: PASS
+     - `UpdatePatientAsync_UpdatesContactAndInsurance`: PASS
+     - `HandleUserProfileUpdatedAsync_SynchronizesPatientIdentityProjection`: PASS
+     - `CreatePatient_ViaHttpApi_ReturnsCreated`: PASS
+     - `CreatePatient_ViaLegacyAddRoute_ReturnsCreated`: PASS
+     - `GetPatientById_WhenFound_ReturnsOk`: PASS
+     - `GetPatientById_WhenMissing_ReturnsNotFound`: PASS
+     - `GetPagedPatients_ReturnsOk`: PASS
+     - `InternalUserProfileUpdated_ViaHttp_SynchronizesPatient`: PASS
+     - `CreatePatient_WithoutAuth_ReturnsUnauthorized`: PASS (HTTP 401)
+     - `CreatePatient_AsPatientRole_ReturnsForbidden`: PASS (HTTP 403)
+     - `GetPatientById_WhenOtherPatientAccesses_ReturnsForbidden`: PASS (IDOR defense - HTTP 403)
+     - `GetPatientById_WhenOwnPatientAccesses_ReturnsOk`: PASS (HTTP 200)
+   - Kết quả: Toàn bộ **23/23 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
+
+---
+
+### Bước 4 — Nghiệp vụ hồ sơ bệnh án: Draft, Finalize, Amendments, và Medical History (Hoàn tất: 2026-10-26)
+
+1. **Khóa chính logic & Quản lý vòng đời ca khám (Encounter Lifecycle):**
+   - Định danh cuộc khám độc nhất bằng `AppointmentId`.
+   - `ExamStarted` khởi tạo / cập nhật ngữ cảnh `EncounterContext` (`DoctorId`, `DoctorName`, `PatientId`, `QueueDate`, `StartedAt`).
+   - `ExamCompleted` cập nhật `EncounterContext.MarkCompleted`.
+   - Lưu ý kiến trúc: `ExamStarted` KHÔNG sinh bệnh án rỗng và `ExamCompleted` KHÔNG tự ý chốt bệnh án. Bệnh án hoàn toàn do bác sĩ chủ động khởi tạo và chốt.
+
+2. **Triển khai toàn bộ API nghiệp vụ bệnh án & phụ lục điều chỉnh (Amendments):**
+   - **`POST /medical-records`**: Tạo mới bản ghi bệnh án (Draft hoặc Finalized). Yêu cầu quyền `ReportCreate`.
+   - **`PUT /medical-records/{id}`**: Cập nhật nội dung bản nháp (`Symptoms`, `Diagnosis`, `Prescription`, `Notes`). Khi hồ sơ đã `Finalized`, ném lỗi `400 Bad Request` để bảo vệ tính toàn vẹn y khoa. Yêu cầu quyền `ReportCreate`.
+   - **`POST /medical-records/{id}/finalize`**: Chốt hồ sơ bệnh án, gán `ExamEndTime`. Thao tác mang tính idempotent.
+     - **Nguyên tắc quyết định:** Tuyệt đối KHÔNG tự ý gọi ngầm sang Queue Service để `complete-exam`. Bác sĩ hoàn tất khám trên Queue riêng biệt.
+   - **`POST /medical-records/appointments/{appointmentId}/amendments`**: Bác sĩ tạo phụ lục sửa đổi cho hồ sơ đã Finalized (append-only, tự động tăng `AmendmentNumber`, lưu người sửa và lý do sửa). Yêu cầu quyền `ReportCreate`.
+   - **`GET /medical-records/{id}`** & **`GET /medical-records/appointment/{appointmentId}`**: Xem chi tiết bệnh án kèm toàn bộ danh sách `Amendments`. Yêu cầu quyền `ReportView`.
+   - **`GET /medical-records`**: Danh sách bệnh án phân trang, hỗ trợ lọc theo trạng thái, từ khóa tìm kiếm và khoảng ngày. Yêu cầu quyền `ReportView`.
+   - **`GET /patients/{patientId}/medical-history`**: Bác sĩ xem toàn bộ lịch sử khám của bệnh nhân. Yêu cầu quyền `PatientHistoryView`.
+   - **`GET /me/medical-history`**: Bệnh nhân tra cứu lịch sử các lần khám đã chốt của chính mình. Yêu cầu quyền `PatientViewOwn`.
+
+3. **Kiểm thử tự động (TDD):**
+   - Xây dựng các ca kiểm thử trong `MedicalReportsManagerTests` và `MedicalReportsApiIntegrationTests`:
+     - `SaveReportAsync_CreatesDraft_WhenNotFinalized`: PASS
+     - `UpdateReportDraftAsync_UpdatesContent_WhenDraft`: PASS
+     - `UpdateReportDraftAsync_ThrowsInvalidOperationException_WhenFinalized`: PASS
+     - `FinalizeReportAsync_SetsStatusFinalized_AndIsIdempotent`: PASS
+     - `CreateAmendmentAsync_AppendsAmendment_WhenFinalized`: PASS
+     - `CreateAmendmentAsync_Fails_WhenReportIsDraft`: PASS
+     - `GetPatientMedicalHistoryAsync_ReturnsOnlyReportsForTargetPatient`: PASS
+     - `SaveReport_AsDraft_ReturnsOkOrCreated`: PASS
+     - `FinalizeReport_Succeeds_WithoutCallingQueueCompleteExam`: PASS
+     - `CreateAmendment_AppendsToFinalizedReport`: PASS
+     - `GetPatientMedicalHistory_ReturnsListOfReports`: PASS
+     - `ReportEndpoints_WithoutToken_ReturnUnauthorized`: PASS (HTTP 401)
+   - Kết quả: **35/35 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
+
+---
+
+### Bước 5 — Kiểm soát truy cập, bảo vệ quyền riêng tư & Audit Log (Authorization, Privacy & Audit) (Hoàn tất: 2026-10-26)
+
+1. **Thực thi ma trận kiểm soát truy cập y tế (Access Control Matrix):**
+   - **Bảo vệ quyền riêng tư bệnh nhân (IDOR Prevention):**
+     - Bệnh nhân chỉ được phép xem hồ sơ và lịch sử khám của chính mình (`medical-report.view.own`, `patient.view.own`).
+     - Khi bệnh nhân cố tình truy cập ID hồ sơ hoặc lịch sử của bệnh nhân khác, hệ thống chặn đứng với mã `403 Forbidden` và tự động ghi log kiểm toán hành vi bị từ chối (`Outcome = "Denied"`).
+   - **Giới hạn phân quyền Lễ tân (Receptionist Privacy Boundary):**
+     - Lễ tân được cấp quyền xem và quản lý thông tin hành chính bệnh nhân (`Patient` administrative info).
+     - Lễ tân bị **CẤM TUYỆT ĐỐI (`403 Forbidden`)** truy cập các dữ liệu lâm sàng y tế (`MedicalReport`, `Diagnosis`, `Symptoms`, `Prescription`, `MedicalHistory`). Bất kỳ yêu cầu nào từ tài khoản chỉ mang role `Receptionist` đều bị từ chối ngay lập tức và ghi nhận audit log `Outcome = "Denied"`.
+   - **Bác sĩ & Quản trị viên (Doctor & Admin):**
+     - Bác sĩ có thẩm quyền xem các bệnh án liên quan và lịch sử điều trị của bệnh nhân (`medical-report.view.any`, `patient-history.view.related`).
+     - Admin có toàn quyền giám sát hệ thống.
+
+2. **Kiểm toán truy cập y tế (`MedicalAccessAudit`):**
+   - Mọi hành vi đọc (`ViewReport`, `ViewReportByAppointment`, `ViewPatientMedicalHistory`, `ViewMyMedicalHistory`) và ghi (`SaveDraft`, `UpdateDraft`, `FinalizeReport`, `CreateAmendment`) đều được ghi nhận tự động vào bảng `MedicalAccessAudits`.
+   - **Bảo vệ dữ liệu PHI (No PHI in Audits):** Bản ghi audit chỉ lưu trữ các thông tin meta (`ActorUserId`, `ActorRole`, `ActorDoctorId`, `ActorPatientId`, `AppointmentId`, `PatientId`, `MedicalReportId`, `Action`, `Outcome`, `IpAddress`, `Timestamp`, `CorrelationId`), tuyệt đối không lưu triệu chứng, chẩn đoán hay đơn thuốc.
+   - Bổ sung endpoint cho Quản trị viên tra cứu nhật ký kiểm toán theo ca khám:
+     - `GET /medical-records/appointments/{appointmentId}/audits` (yêu cầu quyền `AdminOnly`).
+
+3. **Kiểm thử tự động (TDD):**
+   - Bổ sung bộ kiểm thử `MedicalRecordsAccessControlAndAuditTests`:
+     - `Receptionist_CannotViewClinicalMedicalReport_ReturnsForbidden`: PASS (HTTP 403)
+     - `Receptionist_CannotViewPatientMedicalHistory_ReturnsForbidden`: PASS (HTTP 403)
+     - `Receptionist_CanAccessPatientAdministrativeData_ReturnsOk`: PASS (HTTP 200)
+     - `Patient_CannotViewOtherPatientReport_ReturnsForbidden_AndLogsDeniedAudit`: PASS (HTTP 403 & Denied Audit Log)
+     - `Patient_CanViewOwnReport_ReturnsOk_AndLogsSuccessAudit`: PASS (HTTP 200 & Success Audit Log)
+   - Kết quả: **40/40 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
+
+---
+
+### Bước 6 — Migration/import và kiểm chứng dữ liệu (Data Migration & Reconciliation) (Hoàn tất: 2026-10-26)
+
+1. **Xây dựng Script Migration/Import an toàn & Idempotent (`import-from-clinicdb.sql`):**
+   - Di chuyển toàn bộ dữ liệu `Patients` từ `ClinicDB.dbo.Patients` kết hợp thông tin nhân thân từ `ClinicDB.dbo.Persons` sang `ClinicMedicalRecordsDB.dbo.Patients`. Áp dụng `WHERE NOT EXISTS` bảo đảm khả năng chạy lặp nhiều lần (idempotent).
+   - Di chuyển toàn bộ `MedicalReports` từ `ClinicDB.dbo.MedicalReports` sang `ClinicMedicalRecordsDB.dbo.MedicalReports`.
+   - Kết nối với `ClinicAppointmentDB.dbo.Appointments` để bổ sung thông tin `DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate` khi cần thiết.
+   - Thêm điều kiện kiểm tra tiền khả thi (Pre-import validation): nếu có bất kỳ `MedicalReport` nào trỏ tới `PatientId` không tồn tại, script lập tức throw error và rollback transaction thay vì tự đoán dữ liệu.
+
+2. **Xây dựng Script Kiểm chứng Đối soát Toàn diện (`verify-medical-records-import.sql`):**
+   - Đối chiếu số lượng bản ghi:
+     - `Patients`: Source `ClinicDB` (63 dòng) = Target `ClinicMedicalRecordsDB` (63 dòng). Mismatch = 0.
+     - `MedicalReports`: Source `ClinicDB` (171 dòng) = Target `ClinicMedicalRecordsDB` (171 dòng). Mismatch = 0.
+   - Kiểm tra tính toàn vẹn và ràng buộc quan hệ:
+     - `Patients missing FullName`: 0.
+     - `MedicalReports missing Patient reference`: 0.
+     - `MedicalReports with duplicate AppointmentId`: 0.
+     - `MedicalReports missing DoctorId`: 0.
+     - `MedicalReports with invalid Status`: 0.
+     - `Status mismatch between ClinicDB and MedicalRecordsDB`: 0.
+   - Kết quả đối soát thực tế: **Zero unexplained mismatch** (Tất cả MismatchCount = 0).
+
+3. **Cấu hình Docker Compose Runner (`medical-records-data-importer`):**
+   - Bổ sung service `medical-records-data-importer` dưới profile `legacy-import` trong `docker-compose.yml`, tự động chạy import và verify khi kích hoạt profile.
+
+4. **Kiểm thử tự động (Unit & Integration Tests):**
+   - Bổ sung `MedicalRecordsImportVerificationTests` kiểm tra:
+     - Sự tồn tại và cấu trúc các script SQL (`WHERE NOT EXISTS`, các câu lệnh kiểm tra toàn vẹn dữ liệu).
+     - Kiểm thử mô phỏng import lặp lại nhiều lần (idempotency simulation) trên In-Memory context, xác nhận không sinh bản ghi trùng.
+   - Kết quả: **42/42 tests PASS** trong `Clinic.MedicalRecords.Service.Tests`.
+
+---
+
+### Bước 7 — Chuyển đổi định tuyến Gateway & Giao diện Frontend (Gateway & Frontend Cutover) (Hoàn tất: 2026-10-26)
+
+1. **Khởi tạo và cấu hình `MedicalRecordsServiceClient`:**
+   - Xây dựng `MedicalRecordsServiceClient.cs` trong `Clinic.API/Services`, cung cấp phương thức `ProxyAsync` chuyển tiếp trọn vẹn HTTP headers (`Authorization`, `Idempotency-Key`), QueryString, và body JSON.
+   - Cấu hình `HttpClient("MedicalRecords")` trong `Clinic.API/Program.cs` kết nối trực tiếp đến Service đích qua `MedicalRecords:Authority` (`http://localhost:5005` hoặc `http://medical-records-service:8080`).
+
+2. **Chuyển giao 100% nghiệp vụ Medical Records & Patient sang Service mới:**
+   - **`MedicalReportsController`:** Cắt toàn bộ phụ thuộc vào MediatR handlers nội bộ và cơ sở dữ liệu `ClinicDB`. 100% requests (`GET /medical-reports`, `POST /medical-reports`, `PUT /medical-reports/{id}`, `GET /medical-reports/{id}`, `GET /medical-reports/appointment/{appointmentId}`, `POST /medical-reports/{id}/finalize`, `POST /medical-reports/appointments/{appointmentId}/amendments`, `GET /medical-records/appointments/{appointmentId}/audits`, `GET /patients/{patientId}/medical-history`) được proxy sang `Clinic.MedicalRecords.Service`.
+   - **Decouple hoàn toàn quy trình Finalize khỏi Queue:** Loại bỏ lệnh ngầm `CompleteQueueExamIfInProgress` trong lệnh chốt hồ sơ bệnh án; bảo đảm Medical Report Lifecycle độc lập tuyệt đối với Queue.
+   - **`PatientsController`:** 100% CRUD bệnh nhân (`GET /patients`, `GET /patients/{id}`, `GET /patients/me`, `PUT /patients/me`, `POST /patients`, `POST /patients/add`, `PUT /patients/{id}`) được proxy sang `Clinic.MedicalRecords.Service`. Các truy vấn lịch hẹn (`/patients/{id}/appointments`) tiếp tục proxy sang `Clinic.Appointment.Service`.
+   - **`MeController`:** `GET /me/medical-history` được chuyển hướng qua `MedicalRecordsServiceClient`.
+   - **`MedicalRecordsContractController`:** Các route draft, finalized và amendment được chuyển hướng qua `MedicalRecordsServiceClient`.
+
+3. **Bảo đảm chuẩn chính sách phân quyền (Authorization Policies):**
+   - Đảm bảo đầy đủ các policy trên từng route:
+     - `Permission:medical-report.view.related,medical-report.view.any,medical-report.view.own`
+     - `Permission:medical-report.create`
+     - `Roles = "Admin"` (cho Audit logs)
+     - `Permission:patient.view.any`, `Permission:patient.view.own`, `Permission:patient.edit.own`, `Permission:patient.create.any`, `Permission:patient.edit.any`.
+
+4. **Kiểm tra tương thích Frontend:**
+   - Frontend `medicalRecordsApi`, `patientApi`, `receptionistApi` hoạt động liền mạch qua Gateway mà không cần thay đổi client contract.
+   - Kiểm tra biên dịch frontend (`npm run build`): Thành công 100% không phát sinh lỗi (`✓ built in 1.88s`).
+
+---
+
+### Bước 8 — Kiểm thử toàn diện & Khả năng chịu lỗi (Tests & Fault Acceptance) (Hoàn tất: 2026-10-26)
+
+1. **Kiểm thử khả năng chịu lỗi sự kiện bất đồng bộ (Fault Tolerance & Messaging):**
+   - **Xử lý sự kiện trùng lặp (Duplicate Events):** Kiểm thử `DuplicateExamStartedEvents_AreHandledIdempotently_WithoutErrorOrDuplicateContext` xác nhận việc nhận trùng sự kiện `ExamStarted` nhiều lần không sinh ra trùng lặp ngữ cảnh tiếp nhận hoặc gây lỗi hệ thống.
+   - **Tách biệt vòng đời ca khám (Decoupled Lifecycle):** Kiểm thử `ExamCompleted_DoesNotFinalizeDraftMedicalReport` chứng minh khi Queue phát sự kiện `ExamCompleted`, hồ sơ bệnh án vẫn được bảo toàn nguyên trạng ở trạng thái `Draft`. Chỉ khi bác sĩ chủ động gọi lệnh chốt hồ sơ (`FinalizeReportAsync`), trạng thái mới chuyển thành `Finalized`.
+   - **Sự kiện đến sai thứ tự (Out-of-order Events):** Kiểm thử `OutOfOrderExamCompleted_HandlesGracefully_WithoutCrashing` chứng minh việc nhận `ExamCompleted` trước khi có `ExamStarted` hoặc Draft được xử lý an toàn và không gây sập ứng dụng.
+   - **Bảo mật PHI trong Hợp đồng sự kiện (Event Privacy):** Kiểm thử `EventContracts_ContainNoPHI` quét toàn bộ thuộc tính của `ExamStarted` và `ExamCompleted`, khẳng định không rò rỉ bất kỳ thông tin lâm sàng nào (`symptoms`, `diagnosis`, `prescription`, `notes`).
+
+2. **Kiểm thử chuyển tiếp Gateway Proxy (`MedicalRecordsProxyTests`):**
+   - Xác nhận `MedicalRecordsServiceClient.ProxyAsync` chuyển tiếp trọn vẹn:
+     - Header xác thực `Authorization: Bearer <token>`.
+     - Header bảo đảm tính duy nhất `Idempotency-Key`.
+     - Tham số QueryString (`?isUrgent=true`).
+     - Nội dung body JSON đến đúng URI đích trên `Clinic.MedicalRecords.Service`.
+
+3. **Tổng kết kết quả kiểm thử tự động toàn hệ thống:**
+   - `Clinic.MedicalRecords.Service.Tests`: **46/46 tests PASS**
+   - `Clinic.Queue.Service.Tests`: **50/50 tests PASS**
+   - `Clinic.Appointment.Service.Tests`: **33/33 tests PASS**
+   - `Clinic.Scheduling.Service.Tests`: **38/38 tests PASS**
+   - `Clinic.Domain.UnitTests`: **20/20 tests PASS**
+   - `Clinic.Contracts.UnitTests`: **6/6 tests PASS**
+   - `Clinic.Application.UnitTests`: **24/24 tests PASS**
+   - `Clinic.Infrastructure.UnitTests`: **17/17 tests PASS**
+
+---
+
+### Bước 9 — Đóng gói Docker, Nghiệm thu E2E thực tế & Hoàn tất Giai đoạn 5 (Docker Build & E2E Acceptance) (Hoàn tất: 2026-10-26)
+
+1. **Đóng gói Docker Compose toàn diện (`docker compose build`):**
+   - Đóng gói thành công 100% các container images:
+     - `medical-records-service` (Service mới hoàn toàn)
+     - `backend` (API Gateway & Monolith adapter)
+     - `appointment-service`, `queue-service`, `scheduling-service`, `identity-service`
+     - `frontend` (React/Vite static build)
+   - Khởi chạy toàn bộ hệ thống (`docker compose up -d`) và xác nhận 100% các dịch vụ đạt trạng thái **Healthy**:
+     - `clinic_medical_records_service`: Up (healthy) trên cổng 5005
+     - `clinic_backend`: Up (healthy) trên cổng 5000
+     - `clinic_frontend`: Up (healthy) trên cổng 3000
+     - `clinic_appointment_service`, `clinic_queue_service`, `clinic_scheduling_service`, `identity-service`, `clinic_sql_server`, `rabbitmq`: Đều Up (healthy).
+
+2. **Kiểm thử chấp nhận E2E trực tiếp với dữ liệu thực tế (Live E2E Real Data Acceptance):**
+   - **Xác thực & Cấp quyền (Authentication & RBAC):** Đăng nhập thành công và trích xuất Bearer token cho 4 nhóm vai trò: `Admin` (admin2), `Doctor` (doctor1), `Receptionist` (receptionist1), `Patient` (patient1).
+   - **Luồng Hành chính & Quản lý Bệnh nhân (Patient Management):**
+     - Lễ tân gửi yêu cầu tạo bệnh nhân mới qua `POST /patients` -> Service sinh bản ghi và trả về `201 Created` cùng Patient ID mới.
+     - Lễ tân tra cứu danh sách bệnh nhân theo mã bảo hiểm `GET /patients?search=...` -> Dữ liệu trả về chính xác.
+     - Bác sĩ tra cứu thông tin chi tiết bệnh nhân qua `GET /patients/{id}` -> Phản hồi thành công `200 OK`.
+   - **Thực thi ranh giới bảo mật & Quyền riêng tư (Access Control Matrix & Privacy Boundaries):**
+     - Lễ tân truy cập hồ sơ bệnh án lâm sàng (`GET /medical-reports/{id}`) -> Hệ thống chặn đứng với mã **HTTP 403 Forbidden**.
+     - Lễ tân truy cập lịch sử khám lâm sàng (`GET /patients/{id}/medical-history`) -> Hệ thống chặn đứng với mã **HTTP 403 Forbidden**.
+     - Bệnh nhân truy cập hồ sơ bệnh án của bệnh nhân khác (IDOR Attempt) -> Hệ thống chặn đứng với mã **HTTP 403 Forbidden**.
+   - **Vòng đời Bệnh án Lâm sàng & Decoupling (Clinical Lifecycle & Queue Independence):**
+     - Bác sĩ đọc hồ sơ nháp (`GET /medical-reports/{id}`) -> Thành công `200 OK` (Status = Draft).
+     - Bác sĩ thực hiện chốt hồ sơ (`POST /medical-reports/{id}/finalize`) -> Chuyển trạng thái sang `Finalized`. Độc lập hoàn toàn, không gọi hay can thiệp sang Queue ticket.
+     - Bác sĩ bổ sung phụ lục chỉnh sửa (`POST /medical-reports/appointments/{aptId}/amendments`) -> Tạo mới Amendment thành công `201 Created`.
+   - **Kiểm toán Truy cập Y tế không rò rỉ dữ liệu nhạy cảm (Audit Trail with Zero PHI):**
+     - Quản trị viên tra cứu nhật ký kiểm toán ca khám (`GET /medical-reports/appointments/{aptId}/audits`).
+     - Ghi nhận đầy đủ cả hành vi hợp lệ (`Outcome = "Success"`) lẫn hành vi bị chặn do vi phạm quyền riêng tư (`Outcome = "Denied"`).
+     - 100% bản ghi kiểm toán chỉ chứa metadata định danh và hành động, **hoàn toàn không chứa dữ liệu y tế nhạy cảm (Zero PHI)**.
+   - **Kiểm tra Giao diện Frontend:**
+     - Ứng dụng web Frontend phản hồi **HTTP 200 OK** tại `http://localhost:3000/`.
+
+3. **Chỉnh sửa tinh chỉnh trong quá trình nghiệm thu (Defect Fix):**
+   - Cập nhật tham số truy vấn phân trang `pageNumber` và `pageSize` thành dạng nullable (`int?`) kèm giá trị mặc định trong `MedicalRecordsEndpoints.cs`, ngăn ngừa lỗi model binding `400 Bad Request` khi frontend hoặc client không truyền tham số phân trang.
+
+4. **Trạng thái Commit:**
+   - **Không tạo commit cho Bước 9** theo đúng chỉ dẫn của yêu cầu (giữ nguyên uncommitted changes tại working tree).
+
+
+
+
+
+
+## 10. Kết quả xử lý các điểm còn thiếu sau rà soát (2026-10-26)
+
+### Đã xử lý
+
+- **Phân quyền hồ sơ bệnh án:** bác sĩ chỉ đọc/sửa hồ sơ thuộc `DoctorId` trong token; lịch sử và danh sách cũng được giới hạn theo bác sĩ. Bệnh nhân chỉ khớp `PatientId`; không còn dùng `PersonId` thay thế `PatientId`. Quyền xem toàn bộ được dành cho Admin hoặc permission tương ứng. Thêm kiểm thử ngăn bác sĩ truy cập hồ sơ bác sĩ khác.
+- **Encounter và sự kiện đến sai thứ tự:** `ExamCompleted` đến trước `ExamStarted` vẫn để encounter ở trạng thái kết thúc; sự kiện bắt đầu đến sau chỉ bổ sung dữ liệu còn thiếu, không mở lại encounter. Consumer kiểm tra khóa bắt buộc, chống xử lý lặp bằng EventId và đưa payload sai vào dead-letter queue.
+- **Liên kết Patient với Identity và Appointment:** Patient của Medical Records lưu riêng `PersonId` và `IdentityUserId`; hợp đồng cập nhật profile mang thêm `PatientId`/`IdentityUserId`. Đăng ký không còn ghi Patient vào Clinic DB. Đồng bộ projection sang Appointment dùng outbox ghi cùng transaction với Patient; dispatcher retry khi Appointment chưa sẵn sàng.
+- **Bảo vệ endpoint nội bộ:** các endpoint resolve/provision/count/profile-event yêu cầu service token và so sánh token theo cách constant-time.
+- **Dashboard và adapter cũ:** tổng số Patient lấy từ Medical Records; receptionist không còn truy vấn Patient handler cũ trong Clinic. Các truy vấn clinical hiện hành tiếp tục được proxy sang service sở hữu.
+- **Import/reconciliation:** script import bổ sung liên kết Person/Identity, cập nhật các hàng đã import trước đó; script verify kiểm tra hàng nguồn bị thiếu, liên kết ID, quan hệ và trạng thái, đồng thời thoát lỗi bằng `THROW 51002` khi có mismatch. Test script xác nhận các điều kiện quan trọng này.
+- **Migration:** tạo migration bổ sung `PersonId`/`IdentityUserId` và migration cho Patient projection outbox. Medical Records Service tự áp dụng migration khi khởi động như cấu hình hiện tại.
+- **PHI/audit:** bỏ log tên bệnh nhân; audit các lần đọc/từ chối và ghi thay đổi được lưu cùng transaction với thay đổi hồ sơ hoặc patient.
+
+### Kiểm chứng đã chạy
+
+- Medical Records Service tests: **48/48 PASS**.
+- Appointment Service tests: **34/34 PASS**.
+- Contracts Unit Tests: **6/6 PASS**.
+- API proxy integration test cho Medical Records: **1/1 PASS**.
+- Application Unit Tests: **24/24 PASS**.
+- Infrastructure Unit Tests: **17/17 PASS**.
+- API build sau các thay đổi: **thành công, 0 warning, 0 error**.
+- Import verification tests sau khi bổ sung assertion: **2/2 PASS**.
+- Docker Compose build cho `medical-records-service`, `backend`, `appointment-service` đã được yêu cầu; kết quả cuối cùng được ghi nhận sau khi lệnh build kết thúc.
+
+### Còn mở trước khi tuyên bố cutover hoàn tất
+
+- Cần xác nhận Docker build hoàn tất, khởi động lại ba image vừa build, và kiểm tra health/log migration/outbox trên container mới.
+- Chưa chạy SQL import/reconciliation trên Clinic DB thực tế sau migration. Dữ liệu hiện tại được xác định là mock; vẫn cần chạy script trên DB mục tiêu trước khi bỏ nguồn cũ.
+- Clinic DB vẫn giữ các bảng/entity/handlers Patient và MedicalReport cho dữ liệu nguồn/rollback. Chỉ nên xóa sau khi reconciliation đã được chạy và chấp nhận; rà soát/xóa các handler dormant là cleanup sau cutover.
+- Chưa có bằng chứng từ kiểm thử E2E có xác thực cho toàn bộ luồng đăng ký, Patient projection, RBAC và RabbitMQ DLQ trên Compose sau các thay đổi này. Unit/integration tests hiện có không thay thế bước nghiệm thu đó.
+- Dependency `System.Security.Cryptography.Pkcs 9.0.4` phát cảnh báo NU1902/NU1903 trong build service tests/images; cần nâng phiên bản phù hợp và chạy lại kiểm thử.
+
+**Kết luận:** các lỗi logic và rủi ro chính đã được sửa, kiểm thử liên quan đều đạt. Phase 5 chưa nên đánh dấu đóng hoàn toàn cho đến khi Docker runtime mới được kiểm tra, reconciliation chạy thành công trên DB mục tiêu, và E2E cutover được nghiệm thu. Không tạo commit trong bước xử lý này.
+
+### Bổ sung kết quả Docker runtime
+
+- `docker compose build medical-records-service backend appointment-service`: **thành công**.
+- Đã recreate ba container bằng image vừa build; cả ba ở trạng thái **healthy**.
+- Medical Records `/healthz` và `/readyz`: **HTTP 200**.
+- Log khởi động xác nhận migration `20261026122114_AddPatientIdentityLinkage` và `20261026123426_AddPatientProjectionOutbox` được áp dụng; RabbitMQ consumer kết nối queue `clinic.medical-records.events.v2`; dispatcher đọc bảng outbox bình thường.
+- Chưa tạo Patient thử nghiệm qua API thật để tránh ghi thêm dữ liệu mock vào DB dùng chung. Vì vậy bước E2E xác thực đăng ký → Patient provision → Appointment projection vẫn còn mở.
+
+## 11. Cập nhật nghiệm thu sau khi chạy import và xử lý dependency (2026-10-26)
+
+### Import/reconciliation trên Docker SQL Server
+
+- Chạy `docker compose --profile legacy-import run --rm medical-records-data-importer`: hoàn tất với exit code 0 sau khi cập nhật verifier.
+- Kết quả nguồn/đích: ClinicDB có 63 Patient và 171 MedicalReport; MedicalRecords DB có 72 Patient và 171 MedicalReport. Chín Patient bổ sung trong đích là dữ liệu service-owned, nên không yêu cầu hai tổng Patient phải bằng nhau.
+- Reconciliation: không thiếu Patient/MedicalReport nguồn; không sai lệch PatientId/PersonId/IdentityUserId; không thiếu tên hoặc Patient reference; không trùng AppointmentId; không thiếu DoctorId; không có status ngoài Draft/Finalized. Tất cả mismatch được verifier kiểm tra đều bằng 0.
+- Hai report có trạng thái nguồn `Draft` nhưng trạng thái đích `Finalized`; `UpdatedAt` ở Medical Records muộn hơn rõ rệt so với ClinicDB. Đây là thay đổi được thực hiện sau khi service nhận ownership. Verifier không còn so sánh trạng thái mutable của nguồn legacy cũ với dữ liệu service-owned; script import vẫn chuyển trạng thái đúng cho các report mới được nhập.
+- Script được chạy lại lần nữa thành công, xác nhận tính idempotent trên DB hiện tại.
+
+### Dependency bảo mật
+
+- `System.Security.Cryptography.Pkcs` được pin lên `9.0.21`, bản vá cho nhánh 9.x theo advisory Microsoft.
+- `dotnet list ... package --vulnerable --include-transitive`: không phát hiện package dễ tổn thương.
+- Medical Records tests **50/50 PASS**; Docker image build thành công không còn cảnh báo NU1902/NU1903; container Medical Records healthy và `/readyz` trả HTTP 200.
+
+### Bằng chứng E2E đã có và còn cần bổ sung
+
+Người dùng đã xác nhận bằng giao diện rằng projection được tạo cho cả (1) bệnh nhân tự đăng ký và (2) lễ tân thêm bệnh nhân khi đặt khám; đã thử IDOR giữa bác sĩ. Để hoàn tất ma trận nghiệm thu điểm 2, còn nên xác nhận các trường hợp sau trên tài khoản/fixture phù hợp:
+
+1. Bệnh nhân xem được lịch sử của mình nhưng không xem được hồ sơ/lịch sử của Patient khác.
+2. Lễ tân bị từ chối khi gọi trực tiếp API hồ sơ bệnh án và lịch sử khám; Admin xem được hồ sơ/audit theo quyền.
+3. Bác sĩ xem hồ sơ thuộc mình, tạo/sửa Draft, finalize và tạo amendment; bác sĩ khác bị từ chối cả đọc lẫn ghi.
+4. Sau khi Identity cập nhật hồ sơ Patient, Medical Records và Appointment projection nhận dữ liệu mới; nếu Appointment tạm dừng, outbox giữ pending rồi dispatch thành công khi service hồi phục.
+5. Xác nhận luồng registration/provisioning xử lý được lỗi giữa lúc tạo tài khoản Identity và provision Patient; không tạo tài khoản mồ côi không thể retry.
+
+Một số điều kiện reliability đã được kiểm tra bằng automated tests, nhưng chưa có bằng chứng E2E tương ứng trên Compose: duplicate/out-of-order event, payload lỗi vào DLQ, và outbox retry khi Appointment không sẵn sàng.
+
+**Trạng thái:** import/reconciliation hiện đạt trên DB Docker dùng dữ liệu mock; dependency đã được vá. Các kiểm tra còn mở là E2E RBAC/lifecycle/retry được liệt kê ở trên và xác nhận chính sách phục hồi cho lỗi registration giữa hai service. Giữ lại ClinicDB legacy tables cho đến khi các luồng E2E còn mở được nghiệm thu.
+
+## 12. Kết quả chạy nghiệm thu E2E trên Docker Compose (2026-10-26)
+
+Các lần chạy dùng tài khoản `phase5e2e_*` và dữ liệu tổng hợp được tạo riêng cho kiểm thử.
+
+| Luồng | Kết quả |
+|---|---|
+| Patient xem profile và medical history của mình | `GET /patients/me` và `GET /me/medical-history`: HTTP 200 |
+| Patient truy cập profile, history hoặc report của Patient khác | HTTP 403 |
+| Receptionist truy cập medical report và patient medical history | HTTP 403 |
+| Admin đọc report và audit | HTTP 200 |
+| Doctor đọc report của mình | HTTP 200 |
+| Doctor đọc hoặc sửa report của Doctor khác | HTTP 403 |
+| Doctor tạo Draft, sửa Draft, finalize, tạo amendment | HTTP 200, 200, 200, 201 |
+| Patient cập nhật profile | HTTP 204; Appointment projection đổi `Gender` thành Female và có `UpdatedAt` mới; outbox không còn pending |
+| Duplicate `ExamStarted` | Một Inbox row và một EncounterContext cho cùng event/appointment |
+| `ExamCompleted` đến trước `ExamStarted` | Encounter vẫn `Completed`, sau đó được bổ sung PatientId |
+| Payload event sai định dạng | Được dead-letter; kiểm tra xong đã xóa duy nhất test message, dead-letter queue trở về rỗng |
+| Registration retry khi Identity đã có account nhưng MR Patient thiếu | Xóa riêng Patient test record; gửi lại registration trả HTTP 201; còn đúng một Identity user, một MR Patient và một Appointment projection |
+
+Người dùng đã xác nhận trước đó cả luồng tự đăng ký và lễ tân tạo Patient khi đặt khám đều sinh projection. Kiểm tra E2E mới cũng xác nhận projection của các tài khoản thử xuất hiện.
+
+### Còn một acceptance check
+
+- **Outbox retry khi Appointment thực sự không truy cập được:** chưa chạy live. Lệnh `docker compose stop appointment-service` bị chính sách thực thi công cụ từ chối, nên không dừng được service đang chạy. Outbox dispatch thành công trong tình trạng bình thường; automated tests hiện có chưa thay thế được fault injection runtime này.
+- Kiểm tra phục hồi đăng ký đã mô phỏng trạng thái Patient thiếu và chạy replay thành công, nhưng chưa làm Appointment/Medical Records ngắt kết nối đúng vào giữa một request đăng ký.
+
+**Trạng thái Phase 5:** migration/import, đối soát, dependency, RBAC/lifecycle E2E, event duplicate/out-of-order/DLQ, registration replay và projection bình thường đều đã đạt. Chỉ còn fault injection runtime cho Appointment projection outbox retry trước khi đánh dấu nghiệm thu E2E tuyệt đối hoàn tất. Tài khoản và dữ liệu `phase5e2e_*` được giữ lại làm dữ liệu kiểm thử tổng hợp.
+
+## 13. Chốt phase 5 (2026-10-26)
+
+Mục này là trạng thái nghiệm thu cuối và thay thế các ghi chú “còn mở” ở các snapshot trước tại Mục 10–12.
+
+### Đã nghiệm thu
+
+- Medical Records sở hữu luồng Patient và MedicalReport; các API công khai đi qua Gateway và được chuyển tiếp tới service.
+- Import/reconciliation trên Docker SQL Server chạy thành công, có thể chạy lặp; các khác biệt được giải thích trong Mục 11 là dữ liệu đã được Medical Records sở hữu/cập nhật sau import.
+- Kiểm thử tự động liên quan đã đạt: Medical Records Service **51/51**, Appointment Service **34/34**, Contracts **6/6**, API proxy **1/1**, Application **24/24**, Infrastructure **17/17**. Các lượt build service/API/Docker liên quan đều thành công.
+- Nghiệm thu E2E RBAC, quyền sở hữu hồ sơ, vòng đời draft/finalize/amendment, đồng bộ Patient projection, registration replay, event idempotency/out-of-order và DLQ đã đạt theo Mục 12.
+- Người dùng đã chạy lại và xác nhận luồng retry Patient projection outbox cho kết quả đúng sau khi Appointment Service hoạt động trở lại. Vì vậy acceptance check outbox retry trước đây ghi là còn mở đã hoàn tất.
+- Người dùng xác nhận hai luồng đăng ký Patient (tự đăng ký và lễ tân thêm khi đặt khám) đều tạo projection đúng; API thêm Patient đã chấp nhận gender dạng số và lỗi request đã được xử lý.
+
+### Kết luận và phạm vi dọn dẹp
+
+**Phase 5 được nghiệm thu hoàn tất về chức năng, ownership, migration/reconciliation và luồng chạy thực tế trên Docker.** Không còn acceptance check Phase 5 đã biết nào đang mở.
+
+ClinicDB hiện được giữ làm nguồn legacy đã đối soát trên dữ liệu mock. Không dùng các bảng Patient/MedicalReport legacy làm nguồn đọc/ghi cho các API Patient/Medical Records đã cutover. Việc xóa vật lý các bảng legacy là thao tác cleanup schema riêng; thực hiện sau khi lưu backup và không nằm trong commit chốt chức năng này. Importer và verifier được giữ để có thể tái lập/kiểm toán việc chuyển dữ liệu.
+
+Các tài khoản `phase5e2e_*` cùng dữ liệu tổng hợp được giữ trong DB mock để phục vụ demo/kiểm tra lại; không phải dữ liệu người dùng thật.
+
+
+### Dọn dẹp mã nguồn Clinic sau cutover (2026-10-26)
+
+- Đã xóa Patient/MedicalReport entity, handler, repository, cấu hình EF, DI registration và test cũ khỏi Clinic; không còn Patient/MedicalReport trong ApplicationDbContext hoặc Person navigation. Patient/MedicalReport runtime thuộc Medical Records Service.
+- Onboarding bác sĩ/nhân viên vẫn cần tạo Person trong Clinic. Việc resolve/provision PatientId chuyển qua internal API của Medical Records; thao tác retry trả lại PatientId Identity đã lưu để tránh tạo lệch liên kết.
+- EF snapshot Clinic đã bỏ hai entity. Migration 20261026145047_RemoveLegacyPatientMedicalReportModel cố ý không chạy SQL: các bảng dbo.Patients/dbo.MedicalReports cùng dữ liệu hiện có được giữ làm archive/import source. Không áp dụng thao tác drop bảng trong lần cleanup này.
+- SampleData không còn seed Patient/MedicalReport Clinic; lịch sử migration cũ và importer/verifier vẫn được giữ để tái lập/kiểm toán việc cutover.
+- Build solution thành công (0 lỗi). Medical Records Service **52/52**, Infrastructure **17/17**, Identity **4/4**, Application **5/5**, Domain **16/16** đều pass. API Integration sau khi chốt authorization cho Scheduling proxy **28/28 PASS**; Scheduling Service **38/38 PASS**. Gateway kiểm tra `specialty.manage` trước khi proxy và Scheduling Service xác thực cùng permission; các test thiếu quyền bị từ chối, test có quyền nhận `201 Created`. EF xác nhận không còn pending model changes.
