@@ -20,9 +20,9 @@ public sealed class ReservationsController : ControllerBase
     [HttpPost]
     [Authorize]
     [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Reserve(
         [FromRoute] Guid scheduleId,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
@@ -42,9 +42,9 @@ public sealed class ReservationsController : ControllerBase
     [HttpPost("{reservationId:guid}/confirm")]
     [Authorize]
     [ProducesResponseType(typeof(ReservationActionResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Confirm([FromRoute] Guid scheduleId, [FromRoute] Guid reservationId)
     {
         var response = await _schedulingClient.PostAsync($"schedules/{scheduleId}/reservations/{reservationId}/confirm", null);
@@ -55,8 +55,8 @@ public sealed class ReservationsController : ControllerBase
     [HttpPost("{reservationId:guid}/release")]
     [Authorize]
     [ProducesResponseType(typeof(ReservationActionResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Release([FromRoute] Guid scheduleId, [FromRoute] Guid reservationId)
     {
         var response = await _schedulingClient.PostAsync($"schedules/{scheduleId}/reservations/{reservationId}/release", null);

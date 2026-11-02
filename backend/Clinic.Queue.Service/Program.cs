@@ -42,9 +42,12 @@ builder.Services.AddDbContext<QueueDbContext>((sp, options) =>
 
 // Services
 builder.Services.AddScoped<IQueueManager, QueueManager>();
-builder.Services.AddHostedService<QueueOutboxPublisher>();
-builder.Services.AddHostedService<QueueEventConsumer>();
-builder.Services.AddHostedService<QueueMetricsWorker>();
+if (!builder.Environment.IsEnvironment("Testing") && !builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
+{
+    builder.Services.AddHostedService<QueueOutboxPublisher>();
+    builder.Services.AddHostedService<QueueEventConsumer>();
+    builder.Services.AddHostedService<QueueMetricsWorker>();
+}
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("clinic-queue-service"))
     .WithMetrics(metrics => metrics
@@ -85,10 +88,78 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("PatientOnly", policy => policy.RequireRole("Patient"));
 });
 
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info.Title = "Clinic Queue Service API (Internal)";
+        document.Info.Version = "1.0.0";
+        document.Info.Description = "Internal OpenAPI specification for Clinic.Queue.Service (daily queue tickets, call-next, start/complete exam, skip/retry, and priority).";
+        document.Components ??= new Microsoft.OpenApi.OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new Microsoft.OpenApi.OpenApiSecurityScheme
+        {
+            Type = Microsoft.OpenApi.SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.ParameterLocation.Header,
+            Name = "Authorization",
+            Description = "JWT Bearer access token"
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        if (metadata.OfType<Microsoft.AspNetCore.Authorization.IAuthorizeData>().Any())
+        {
+            operation.Security = new List<Microsoft.OpenApi.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer", context.Document)] = new List<string>()
+                }
+            };
+        }
+
+        operation.Parameters ??= new List<Microsoft.OpenApi.IOpenApiParameter>();
+        if (!operation.Parameters.Any(p => string.Equals(p.Name, "X-Correlation-ID", StringComparison.OrdinalIgnoreCase)))
+        {
+            operation.Parameters.Add(new Microsoft.OpenApi.OpenApiParameter
+            {
+                Name = "X-Correlation-ID",
+                In = Microsoft.OpenApi.ParameterLocation.Header,
+                Required = false,
+                Description = "Distributed correlation identifier",
+                Schema = new Microsoft.OpenApi.OpenApiSchema { Type = Microsoft.OpenApi.JsonSchemaType.String }
+            });
+        }
+        return Task.CompletedTask;
+    });
+});
+
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapOpenApi().AddEndpointFilter(async (context, next) =>
+{
+    var httpContext = context.HttpContext;
+    var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+    var expectedToken = config["Identity:ServiceToken"] ?? config["Services:InternalToken"];
+    var suppliedToken = httpContext.Request.Headers["X-Clinic-Service-Token"].FirstOrDefault()
+        ?? httpContext.Request.Headers["X-Identity-Service-Token"].FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(expectedToken) && !string.IsNullOrWhiteSpace(suppliedToken) &&
+        System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(expectedToken),
+            System.Text.Encoding.UTF8.GetBytes(suppliedToken)))
+    {
+        return await next(context);
+    }
+    if (httpContext.User?.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    if (!httpContext.User.IsInRole("Admin")) return Results.Forbid();
+    return await next(context);
+});
 app.MapPrometheusScrapingEndpoint();
 
 // Health checks

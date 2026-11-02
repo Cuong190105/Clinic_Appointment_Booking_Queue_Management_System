@@ -44,8 +44,9 @@ namespace Clinic.API.Controllers
 
         [HttpPost("login")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(AuthLoginResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<AuthLoginResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         // The login body exposes only client-safe session metadata; the refresh token stays in the HttpOnly cookie.
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
@@ -90,8 +91,10 @@ namespace Clinic.API.Controllers
 
         [HttpPost("register")]
         [AllowAnonymous]
-        [ProducesResponseType(StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<ApiCreatedIdResult>), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             if (CheckIdentityFeatureFlag() is { } flagResult) return flagResult;
@@ -208,8 +211,9 @@ namespace Clinic.API.Controllers
         [HttpPost("revoke")]
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> Revoke([FromBody] RefreshRequest request)
         {
             var correlationId = GetCorrelationId();
@@ -254,8 +258,9 @@ namespace Clinic.API.Controllers
 
         [HttpPost("refresh")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(AuthRefreshResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<AuthRefreshResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> Refresh()
         {
             if (CheckIdentityFeatureFlag() is { } flagResult) return flagResult;
@@ -310,7 +315,9 @@ namespace Clinic.API.Controllers
 
         [HttpGet("me")]
         [Authorize]
-        [ProducesResponseType(typeof(IdentityUserProfileResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<IdentityUserProfileResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetUserInfo()
         {
             if (CheckIdentityFeatureFlag() is { } flagResult) return flagResult;
@@ -343,7 +350,8 @@ namespace Clinic.API.Controllers
 
         [HttpGet("permissions")]
         [Authorize]
-        [ProducesResponseType(typeof(IReadOnlyList<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<string>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
         public IActionResult GetPermissions()
         {
             var permissions = User.FindAll("permission")
@@ -357,8 +365,9 @@ namespace Clinic.API.Controllers
 
         [HttpPost("/forgot-password")]
         [AllowAnonymous]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<ApiMessageResult>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
         {
             if (CheckIdentityFeatureFlag() is { } flagResult) return flagResult;
@@ -411,8 +420,9 @@ namespace Clinic.API.Controllers
 
         [HttpPost("/reset-password")]
         [AllowAnonymous]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<ApiMessageResult>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
         {
             if (CheckIdentityFeatureFlag() is { } flagResult) return flagResult;
@@ -455,8 +465,9 @@ namespace Clinic.API.Controllers
 
         [HttpPost("/change-password")]
         [Authorize]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<ApiMessageResult>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> ChangePassword([FromBody] UpdatePasswordRequest request)
         {
             if (CheckIdentityFeatureFlag() is { } flagResult) return flagResult;

@@ -1,3 +1,10 @@
+extern alias IdentityServiceApp;
+extern alias SchedulingServiceApp;
+extern alias AppointmentServiceApp;
+extern alias QueueServiceApp;
+extern alias MedicalRecordsServiceApp;
+extern alias NotificationServiceApp;
+
 using System.Net;
 using System.Data.Common;
 using System.Security.Claims;
@@ -61,6 +68,13 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
                 ["SkipDatabaseInitialization"] = "true",
                 ["SkipBackgroundWorkers"] = "true",
                 ["Identity:ServiceToken"] = "integration-test-service-token",
+                ["Services:InternalToken"] = "integration-test-service-token",
+                ["Identity:Authority"] = "http://clinic-identity-service:8080",
+                ["Scheduling:Authority"] = "http://clinic-scheduling-service:8080",
+                ["Appointment:Authority"] = "http://clinic-appointment-service:8080",
+                ["Queue:Authority"] = "http://clinic-queue-service:8080",
+                ["MedicalRecords:Authority"] = "http://clinic-medicalrecords-service:8080",
+                ["Notification:Authority"] = "http://clinic-notification-service:8080",
                 ["ConnectionStrings:DefaultConnection"] = TestConnectionString
             });
         });
@@ -87,6 +101,21 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
     {
         AllowAutoRedirect = false
     });
+
+    public HttpClient CreateStrictlyAnonymousClient()
+    {
+        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Test-Anonymous", "true");
+        return client;
+    }
+
+    public HttpClient CreateRoleClient(string role, Guid? userId = null)
+    {
+        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Test-User-Id", (userId ?? PatientUserId).ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Role", role);
+        return client;
+    }
 
     public HttpClient CreateAuthenticatedClient(
         Guid? userId = null,
@@ -171,6 +200,7 @@ END";
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
+        await RealMicroserviceOpenApiRegistry.DisposeAllAsync();
         await DeleteTestDatabaseAsync();
     }
 
@@ -240,14 +270,197 @@ DROP DATABASE [{staleDb}];";
     }
 }
 
+/// <summary>
+/// Boots real in-process WebApplicationFactory hosts for all 6 microservices so contract/drift tests
+/// fetch real runtime OpenAPI documents rather than hardcoded mock JSON.
+/// </summary>
+public static class RealMicroserviceOpenApiRegistry
+{
+    public const string InternalServiceToken = "integration-test-service-token";
+
+    private static readonly object SyncLock = new();
+    private static WebApplicationFactory<IdentityServiceApp::Program>? _identityHost;
+    private static WebApplicationFactory<SchedulingServiceApp::Program>? _schedulingHost;
+    private static WebApplicationFactory<AppointmentServiceApp::Program>? _appointmentHost;
+    private static WebApplicationFactory<QueueServiceApp::Program>? _queueHost;
+    private static WebApplicationFactory<MedicalRecordsServiceApp::Program>? _medicalRecordsHost;
+    private static WebApplicationFactory<NotificationServiceApp::Program>? _notificationHost;
+
+    private static WebApplicationFactory<IdentityServiceApp::Program> GetIdentityHost()
+    {
+        lock (SyncLock)
+        {
+            return _identityHost ??= new WebApplicationFactory<IdentityServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken,
+                    ["ConnectionStrings:IdentityConnection"] = "Server=(localdb)\\mssqllocaldb;Database=IdentityOpenApiSpec;Trusted_Connection=True;TrustServerCertificate=True;"
+                }));
+            });
+        }
+    }
+
+    private static WebApplicationFactory<SchedulingServiceApp::Program> GetSchedulingHost()
+    {
+        lock (SyncLock)
+        {
+            return _schedulingHost ??= new WebApplicationFactory<SchedulingServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
+
+    private static WebApplicationFactory<AppointmentServiceApp::Program> GetAppointmentHost()
+    {
+        lock (SyncLock)
+        {
+            return _appointmentHost ??= new WebApplicationFactory<AppointmentServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
+
+    private static WebApplicationFactory<QueueServiceApp::Program> GetQueueHost()
+    {
+        lock (SyncLock)
+        {
+            return _queueHost ??= new WebApplicationFactory<QueueServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
+
+    private static WebApplicationFactory<MedicalRecordsServiceApp::Program> GetMedicalRecordsHost()
+    {
+        lock (SyncLock)
+        {
+            return _medicalRecordsHost ??= new WebApplicationFactory<MedicalRecordsServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
+
+    private static WebApplicationFactory<NotificationServiceApp::Program> GetNotificationHost()
+    {
+        lock (SyncLock)
+        {
+            return _notificationHost ??= new WebApplicationFactory<NotificationServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
+
+    public static HttpClient CreateAnonymousServiceClient(string serviceName) => serviceName.ToLowerInvariant() switch
+    {
+        "identity" => GetIdentityHost().CreateClient(),
+        "scheduling" => GetSchedulingHost().CreateClient(),
+        "appointment" => GetAppointmentHost().CreateClient(),
+        "queue" => GetQueueHost().CreateClient(),
+        "medicalrecords" or "medical-records" or "medical records" => GetMedicalRecordsHost().CreateClient(),
+        "notification" => GetNotificationHost().CreateClient(),
+        _ => throw new ArgumentOutOfRangeException(nameof(serviceName), $"Unknown microservice '{serviceName}'.")
+    };
+
+    public static HttpClient CreateServiceClient(string serviceName)
+    {
+        var client = CreateAnonymousServiceClient(serviceName);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Clinic-Service-Token", InternalServiceToken);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Identity-Service-Token", InternalServiceToken);
+        return client;
+    }
+
+    public static async ValueTask DisposeAllAsync()
+    {
+        IAsyncDisposable?[] hosts;
+        lock (SyncLock)
+        {
+            hosts =
+            [
+                _identityHost,
+                _schedulingHost,
+                _appointmentHost,
+                _queueHost,
+                _medicalRecordsHost,
+                _notificationHost
+            ];
+            _identityHost = null;
+            _schedulingHost = null;
+            _appointmentHost = null;
+            _queueHost = null;
+            _medicalRecordsHost = null;
+            _notificationHost = null;
+        }
+
+        foreach (var host in hosts)
+        {
+            if (host is not null)
+            {
+                try
+                {
+                    await host.DisposeAsync();
+                }
+                catch
+                {
+                    // Ignore shutdown errors during test cleanup
+                }
+            }
+        }
+    }
+}
+
 public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
 {
-    public HttpClient CreateClient(string name) => new(new TestIdentityHandler())
+    public HttpClient CreateClient(string name) => new(new TestIdentityHandler(name))
     {
         BaseAddress = new Uri("http://identity.test")
     };
 
-    private sealed class TestIdentityHandler : HttpMessageHandler
+    private sealed class TestIdentityHandler(string clientName) : HttpMessageHandler
     {
         private static readonly HashSet<string> _reservedSlots = new();
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -453,6 +666,38 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             if (path.EndsWith("/v1/auth/me", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
                 return Json(HttpStatusCode.OK, "{\"userId\":\"b0000001-0000-0000-0000-000000000001\",\"personId\":\"b0000002-0000-0000-0000-000000000001\",\"username\":\"identity-admin-user\",\"fullName\":\"Identity Admin User\",\"phoneNumber\":\"09000000000\",\"email\":\"admin-user@example.test\",\"gender\":\"Other\",\"address\":\"Address\",\"dateOfBirth\":\"1990-01-01\",\"roles\":[\"Patient\"],\"isActive\":true,\"createdAt\":\"2026-01-01T00:00:00Z\"}");
+            if (path.EndsWith("/v1/auth/forgot-password", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+                return Json(HttpStatusCode.OK, "{\"found\":false,\"personId\":null,\"resetToken\":null}");
+            if (path.Equals("/specialties", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"isSuccess\":true,\"result\":{\"items\":[{\"id\":\"c0000001-0000-0000-0000-000000000001\",\"name\":\"Cardiology\",\"description\":\"Heart care\",\"establishedDate\":\"2020-01-01\"}],\"pageNumber\":1,\"pageSize\":20,\"totalCount\":1,\"totalPages\":1,\"hasPrevious\":false,\"hasNext\":false}}");
+            if (path.StartsWith("/specialties/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/status", StringComparison.OrdinalIgnoreCase) && request.Method.Method == "PATCH")
+                return path.Contains(Guid.Empty.ToString(), StringComparison.OrdinalIgnoreCase)
+                    ? Json(HttpStatusCode.NotFound, "{\"error\":\"Specialty not found\"}")
+                    : new HttpResponseMessage(HttpStatusCode.NoContent);
+            if (path.Equals("/doctors", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"isSuccess\":true,\"result\":{\"items\":[{\"id\":\"a0000004-0000-0000-0000-000000000001\",\"fullName\":\"Dr. Cardiology\",\"phoneNumber\":\"0901234567\",\"email\":\"doc@clinic.test\",\"licenseNumber\":\"LIC-001\",\"qualification\":\"MD\",\"experienceYears\":10,\"biography\":\"Senior Doctor\",\"status\":\"Active\",\"currentSpecialty\":\"Cardiology\"}],\"pageNumber\":1,\"pageSize\":10,\"totalCount\":1,\"totalPages\":1,\"hasPrevious\":false,\"hasNext\":false}}");
+            if (path.Equals("/doctors/available", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "[{\"id\":\"a0000004-0000-0000-0000-000000000001\",\"fullName\":\"Dr. Cardiology\",\"qualification\":\"MD\",\"experienceYears\":10,\"specialtyId\":\"c0000001-0000-0000-0000-000000000001\"}]");
+            if (path.Equals("/schedules/availability", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"isSuccess\":true,\"result\":[{\"scheduleId\":\"d0000001-0000-0000-0000-000000000001\",\"doctorId\":\"a0000004-0000-0000-0000-000000000001\",\"doctorName\":\"Dr. Cardiology\",\"specialtyName\":\"Cardiology\",\"date\":\"2026-11-10\",\"timeSlot\":\"09:00:00\",\"shiftStart\":\"08:00:00\",\"shiftEnd\":\"12:00:00\",\"recommendedCapacity\":10,\"remainingCapacity\":8}],\"totalCount\":1}");
+            if (path.Equals("/patients/me", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"id\":\"a0000005-0000-0000-0000-000000000001\",\"fullName\":\"Patient Name\",\"phoneNumber\":\"0909999999\",\"email\":\"patient@clinic.test\",\"gender\":\"Female\",\"dateOfBirth\":\"1995-05-15\",\"address\":\"HCMC\"}");
+            if (path.Equals("/notifications/unread-count", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"unreadCount\":2}");
+            if (path.EndsWith("openapi/v1.json", StringComparison.OrdinalIgnoreCase))
+            {
+                using var serviceClient = RealMicroserviceOpenApiRegistry.CreateAnonymousServiceClient(clientName);
+                using var forwardReq = new HttpRequestMessage(HttpMethod.Get, "/openapi/v1.json");
+                if (request.Headers.TryGetValues("X-Clinic-Service-Token", out var cst))
+                    forwardReq.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", cst);
+                if (request.Headers.TryGetValues("X-Identity-Service-Token", out var ist))
+                    forwardReq.Headers.TryAddWithoutValidation("X-Identity-Service-Token", ist);
+                if (request.Headers.TryGetValues("Authorization", out var auth))
+                    forwardReq.Headers.TryAddWithoutValidation("Authorization", auth);
+                var realSpecResponse = await serviceClient.SendAsync(forwardReq, cancellationToken);
+                var specContent = await realSpecResponse.Content.ReadAsStringAsync(cancellationToken);
+                return Json(realSpecResponse.StatusCode, specContent);
+            }
             var content = path.EndsWith("jwks.json", StringComparison.OrdinalIgnoreCase)
                 ? "{\"keys\":[]}"
                 : path.EndsWith("/v1/internal/roles", StringComparison.OrdinalIgnoreCase)
@@ -486,29 +731,44 @@ public sealed class TestAuthenticationHandler : AuthenticationHandler<Authentica
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (string.Equals(Request.Headers["X-Test-Anonymous"].FirstOrDefault(), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
+
         var userId = Request.Headers["X-Test-User-Id"].FirstOrDefault()
             ?? ApiContractFactory.PatientUserId.ToString();
         var doctorId = Request.Headers["X-Test-Doctor-Id"].FirstOrDefault()
             ?? ApiContractFactory.DoctorId.ToString();
         var patientId = Request.Headers["X-Test-Patient-Id"].FirstOrDefault()
             ?? ApiContractFactory.PatientId.ToString();
+        var role = Request.Headers["X-Test-Role"].FirstOrDefault() ?? "Admin";
 
-        var identity = new ClaimsIdentity(
-            new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId),
-                new Claim(ClaimTypes.Role, "Admin"),
-                new Claim("doctorId", doctorId),
-                new Claim("patientId", patientId),
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Role, role),
+            new("doctorId", doctorId),
+            new("patientId", patientId)
+        };
+
+        if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            claims.AddRange(
+            [
                 new Claim("permission", "queue.start-exam.any"),
                 new Claim("permission", "queue.complete-exam.any"),
                 new Claim("permission", "medical-report.view.any"),
                 new Claim("permission", "user.manage"),
                 new Claim("permission", "employee.create"),
                 new Claim("permission", "doctor.create"),
-                new Claim("permission", "role.manage")
-            },
-            Scheme);
+                new Claim("permission", "role.manage"),
+                new Claim("permission", "queue.check-in"),
+                new Claim("permission", "appointment.create")
+            ]);
+        }
+
+        var identity = new ClaimsIdentity(claims, Scheme);
         return Task.FromResult(AuthenticateResult.Success(
             new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme)));
     }

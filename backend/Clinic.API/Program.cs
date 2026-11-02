@@ -250,7 +250,7 @@ builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHand
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Clinic.Application.Interfaces.ICurrentUser, Clinic.API.Authentication.CurrentUser>();
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(Clinic.API.OpenApi.GatewayOpenApiConfiguration.Configure);
 builder.Services.AddSwaggerGen(options =>
 {
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -319,6 +319,59 @@ app.MapGet("/schedules/{id:guid}", async (Guid id, IHttpClientFactory clients) =
     var content = await response.Content.ReadAsStringAsync();
     return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
 }).AllowAnonymous();
+
+// Microservice OpenAPI spec proxy routes declared in API Catalog (Service-Internal specs, restricted to Admin operators)
+var adminOpenApiPolicy = new Microsoft.AspNetCore.Authorization.AuthorizeAttribute { Roles = "Admin" };
+
+static async Task<IResult> ProxyInternalServiceOpenApiAsync(
+    string clientName,
+    IHttpClientFactory clients,
+    IConfiguration config,
+    HttpContext httpContext,
+    CancellationToken ct)
+{
+    try
+    {
+        var client = clients.CreateClient(clientName);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "openapi/v1.json");
+        var internalToken = config["Services:InternalToken"] ?? config["Identity:ServiceToken"];
+        if (!string.IsNullOrWhiteSpace(internalToken))
+        {
+            request.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", internalToken);
+            request.Headers.TryAddWithoutValidation("X-Identity-Service-Token", internalToken);
+        }
+        if (httpContext.Request.Headers.TryGetValue("Authorization", out var authHeader) && !string.IsNullOrWhiteSpace(authHeader))
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", authHeader.ToString());
+        }
+        using var response = await client.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode) return Results.StatusCode((int)response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(content, "application/json");
+    }
+    catch
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+}
+
+app.MapGet("/identity/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Identity", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/scheduling/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Scheduling", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/appointment/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Appointment", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/queue/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Queue", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/medical-records/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("MedicalRecords", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/notification/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Notification", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
 
 app.Map("/hubs/notifications", (HttpContext ctx, NotificationServiceClient client, CancellationToken ct) =>
     client.ProxySignalRAsync(ctx, null, ct)).RequireAuthorization();

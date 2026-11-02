@@ -16,34 +16,34 @@ public sealed class MedicalRecordsContractController : ControllerBase
         _medicalRecordsClient = medicalRecordsClient;
     }
 
-    [HttpPost("encounters/{visitId:guid}/draft")]
+    [HttpPost("encounters/{appointmentId:guid}/draft")]
     [Authorize]
     [ProducesResponseType(typeof(MedicalRecordContractResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> SaveDraft([FromRoute] Guid visitId, [FromBody] DraftMedicalRecordRequest request)
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SaveDraft([FromRoute] Guid appointmentId, [FromBody] DraftMedicalRecordRequest request)
     {
         return await _medicalRecordsClient.ProxyAsync(
             HttpContext,
-            $"medical-records/encounters/{visitId}/draft",
+            $"medical-records/encounters/{appointmentId}/draft",
             HttpMethod.Post,
             request,
             HttpContext.RequestAborted);
     }
 
-    [HttpGet("encounters/{visitId:guid}")]
+    [HttpGet("encounters/{appointmentId:guid}")]
     [Authorize]
     [ProducesResponseType(typeof(MedicalRecordContractResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetByEncounter([FromRoute] Guid visitId)
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetByEncounter([FromRoute] Guid appointmentId)
     {
         return await _medicalRecordsClient.ProxyAsync(
             HttpContext,
-            $"medical-records/encounters/{visitId}",
+            $"medical-records/encounters/{appointmentId}",
             HttpMethod.Get,
             ct: HttpContext.RequestAborted);
     }
@@ -51,11 +51,11 @@ public sealed class MedicalRecordsContractController : ControllerBase
     [HttpPost("reports/{reportId:guid}/finalize")]
     [Authorize]
     [ProducesResponseType(typeof(MedicalRecordContractResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Finalize(
         [FromRoute] Guid reportId,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
@@ -70,10 +70,10 @@ public sealed class MedicalRecordsContractController : ControllerBase
     [HttpPost("reports/{reportId:guid}/amendments")]
     [Authorize]
     [ProducesResponseType(typeof(MedicalRecordContractResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Amend(
         [FromRoute] Guid reportId,
         [FromBody] AmendmentMedicalRecordRequest request)

@@ -549,7 +549,7 @@ Kế hoạch chi tiết, quyết định thiết kế, ma trận kiểm thử v�
 
 ## Đợt nghiệm thu sau sáu phase — Phase 7–9
 
-Các đầu việc hoàn thiện OpenAPI, SLA/QoS và kiểm thử tải được chia sẻ với Thành viên B; kế hoạch, phân công song song và tiêu chí pass/fail nằm tại [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
+Kế hoạch chi tiết từng bước, decision gates, yêu cầu nghiệm thu và bằng chứng cần lưu cho Thành viên A nằm tại [`PHASE_7_9_EXECUTION_PLAN_MEMBER_A.md`](PHASE_7_9_EXECUTION_PLAN_MEMBER_A.md). Kế hoạch/phân công chung A–B nằm tại [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
 
 ### Thành viên A phụ trách
 

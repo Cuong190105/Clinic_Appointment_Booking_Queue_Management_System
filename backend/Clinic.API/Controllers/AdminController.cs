@@ -54,7 +54,7 @@ namespace Clinic.API.Controllers
 
         [HttpGet("ping")]
         [Authorize(Roles = "Admin")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<ApiMessageResult>), StatusCodes.Status200OK)]
         public IActionResult Ping()
         {
             return Ok(new { message = "pong" });
@@ -62,7 +62,8 @@ namespace Clinic.API.Controllers
 
         [HttpGet("roles")]
         [Authorize(Policy = "Permission:role.manage")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> Roles()
         {
             var roles = await _identityAccounts.GetRoleCatalogAsync(null, HttpContext.RequestAborted);
@@ -71,7 +72,8 @@ namespace Clinic.API.Controllers
 
         [HttpGet("users")]
         [Authorize(Policy = "Permission:user.manage")]
-        [ProducesResponseType(typeof(PaginationResponse<UserSummaryDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<PaginationResponse<UserSummaryDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> GetPagedUsers([FromQuery] PagedUsersQueryRequest request)
         {
             var query = $"?search={Uri.EscapeDataString(request.Search ?? string.Empty)}&role={Uri.EscapeDataString(request.Role ?? string.Empty)}" +
@@ -93,7 +95,8 @@ namespace Clinic.API.Controllers
 
         [HttpGet("users/all-brief")]
         [Authorize(Policy = "Permission:user.manage")]
-        [ProducesResponseType(typeof(List<UserBriefDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<List<UserBriefDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> GetAllUsers()
         {
             var users = new List<UserBriefDto>();
@@ -121,8 +124,8 @@ namespace Clinic.API.Controllers
 
         [HttpGet("users/{userId}")]
         [Authorize(Policy = "Permission:user.manage")]
-        [ProducesResponseType(typeof(UserDetailDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetUserById(Guid userId)
         {
             using var response = await SendIdentityRequest(HttpMethod.Get, $"v1/internal/users/{userId}");
@@ -160,7 +163,8 @@ namespace Clinic.API.Controllers
 
         [HttpGet("dashboard")]
         [Authorize(Roles = "Admin")]
-        [ProducesResponseType(typeof(DashboardDataDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<DashboardDataDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> GetDashboardData()
         {
             var ct = HttpContext.RequestAborted;

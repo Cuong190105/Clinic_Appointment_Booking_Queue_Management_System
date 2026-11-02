@@ -20,9 +20,16 @@ var serviceToken = builder.Configuration["Identity:ServiceToken"];
 if (accessMinutes is < 1 or > 60 || refreshDays is < 1 or > 90)
     throw new InvalidOperationException("JWT access/refresh lifetimes are outside supported bounds.");
 
-var connectionString = builder.Configuration.GetConnectionString("IdentityConnection")
-    ?? throw new InvalidOperationException("ConnectionStrings:IdentityConnection is required.");
-builder.Services.AddDbContext<IdentityDbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddDbContext<IdentityDbContext>((sp, options) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var env = sp.GetRequiredService<IHostEnvironment>();
+    var connectionString = config.GetConnectionString("IdentityConnection")
+        ?? (env.IsEnvironment("Testing")
+            ? "Server=(localdb)\\mssqllocaldb;Database=IdentityTestingFallback;Trusted_Connection=True;TrustServerCertificate=True"
+            : throw new InvalidOperationException("ConnectionStrings:IdentityConnection is required."));
+    options.UseSqlServer(connectionString);
+});
 var signingKeyRing = new SigningKeyRing(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton(signingKeyRing);
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
@@ -52,6 +59,78 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true
         }));
 });
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info.Title = "Clinic Identity Service API (Internal)";
+        document.Info.Version = "1.0.0";
+        document.Info.Description = "Internal OpenAPI specification for Clinic.Identity.Service (authentication, token issuance, JWKS, and internal user/role provisioning).";
+        document.Components ??= new Microsoft.OpenApi.OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new Microsoft.OpenApi.OpenApiSecurityScheme
+        {
+            Type = Microsoft.OpenApi.SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.ParameterLocation.Header,
+            Name = "Authorization",
+            Description = "JWT Bearer access token"
+        };
+        document.Components.SecuritySchemes["ServiceToken"] = new Microsoft.OpenApi.OpenApiSecurityScheme
+        {
+            Type = Microsoft.OpenApi.SecuritySchemeType.ApiKey,
+            In = Microsoft.OpenApi.ParameterLocation.Header,
+            Name = "X-Identity-Service-Token",
+            Description = "Internal service-to-service token between Clinic Gateway and Identity Service"
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var relativePath = "/" + (context.Description.RelativePath ?? string.Empty).TrimStart('/');
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        var hasAuthorize = metadata.OfType<Microsoft.AspNetCore.Authorization.IAuthorizeData>().Any();
+        var isServiceTokenRoute = relativePath.StartsWith("/v1/internal/", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals("/v1/auth/register", StringComparison.OrdinalIgnoreCase)
+            || relativePath.Equals("/v1/auth/forgot-password", StringComparison.OrdinalIgnoreCase);
+
+        if (isServiceTokenRoute)
+        {
+            operation.Security = new List<Microsoft.OpenApi.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("ServiceToken", context.Document)] = new List<string>()
+                }
+            };
+        }
+        else if (hasAuthorize)
+        {
+            operation.Security = new List<Microsoft.OpenApi.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer", context.Document)] = new List<string>()
+                }
+            };
+        }
+
+        operation.Parameters ??= new List<Microsoft.OpenApi.IOpenApiParameter>();
+        if (!operation.Parameters.Any(p => string.Equals(p.Name, "X-Correlation-ID", StringComparison.OrdinalIgnoreCase)))
+        {
+            operation.Parameters.Add(new Microsoft.OpenApi.OpenApiParameter
+            {
+                Name = "X-Correlation-ID",
+                In = Microsoft.OpenApi.ParameterLocation.Header,
+                Required = false,
+                Description = "Distributed correlation identifier propagated from API Gateway",
+                Schema = new Microsoft.OpenApi.OpenApiSchema { Type = Microsoft.OpenApi.JsonSchemaType.String }
+            });
+        }
+        return Task.CompletedTask;
+    });
+});
 var app = builder.Build();
 app.Use(async (context, next) =>
 {
@@ -69,6 +148,22 @@ app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapOpenApi().AddEndpointFilter(async (context, next) =>
+{
+    var httpContext = context.HttpContext;
+    var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+    var expectedToken = config["Identity:ServiceToken"] ?? config["Services:InternalToken"];
+    var suppliedToken = httpContext.Request.Headers["X-Identity-Service-Token"].FirstOrDefault()
+        ?? httpContext.Request.Headers["X-Clinic-Service-Token"].FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(expectedToken) && !string.IsNullOrWhiteSpace(suppliedToken) &&
+        CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(expectedToken), Encoding.UTF8.GetBytes(suppliedToken)))
+    {
+        return await next(context);
+    }
+    if (httpContext.User?.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    if (!httpContext.User.IsInRole("Admin")) return Results.Forbid();
+    return await next(context);
+});
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" }));
 app.MapGet("/readyz", async (IdentityDbContext db, CancellationToken ct) =>
@@ -513,8 +608,9 @@ app.MapPost("/internal/keys/rotate", (HttpRequest request, SigningKeyRing ring) 
     return Results.Ok(new { activeKid = ring.Rotate() });
 }).AllowAnonymous();
 
-await using (var scope = app.Services.CreateAsyncScope())
+if (!app.Configuration.GetValue<bool>("SkipDatabaseInitialization"))
 {
+    await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     await db.Database.MigrateAsync();
     await SeedRolesAsync(db);
