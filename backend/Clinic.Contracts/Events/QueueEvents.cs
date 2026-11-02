@@ -4,7 +4,10 @@ public sealed record ExamStarted(
     Guid QueueTicketId,
     Guid AppointmentId,
     Guid DoctorId,
-    DateTimeOffset StartedAt
+    DateTimeOffset StartedAt,
+    Guid PatientId = default,
+    string? PatientName = null,
+    string? DoctorName = null
 );
 
 public sealed record PatientCalled(
@@ -12,7 +15,8 @@ public sealed record PatientCalled(
     Guid AppointmentId,
     Guid DoctorId,
     int QueueNumber,
-    DateTimeOffset CalledAt
+    DateTimeOffset CalledAt,
+    Guid PatientId = default
 );
 
 public sealed record PatientSkipped(

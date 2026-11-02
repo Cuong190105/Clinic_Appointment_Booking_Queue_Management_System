@@ -17,6 +17,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 0: Chuẩn hóa contract và baseline
 
+**Trạng thái: Hoàn thành. RabbitMQ topic exchange, durable queue/DLQ, versioned event envelope, transactional outbox/inbox, correlation/tracing, metrics và Docker health checks đã được triển khai xuyên suốt các service.**
+
 ### Nhiệm vụ
 
 1. Dựng Message Broker bằng RabbitMQ hoặc Azure Service Bus.
@@ -162,6 +164,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 3: Tách Appointment Service
 
+**Trạng thái: Hoàn thành. Appointment outbox/consumer, contract và idempotency tests, booking/reschedule compensation, Gateway/frontend cutover và reconciliation đã được nghiệm thu; xem `docs/AUDIT_REPORT_PHASES_2_3_4.md`.**
+
 > Các nội dung trong phần này ghi lại trạng thái chuyển tiếp của Giai đoạn 3. Khi đó Queue vẫn ở Monolith; Giai đoạn 4 chuyển consumer và quyền tạo ticket sang Queue Service/Queue DB.
 
 ### Nhiệm vụ
@@ -195,6 +199,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 4: Tách Queue Service
 
+**Trạng thái: Hoàn thành. Queue Service là owner duy nhất của ticket; cấp số atomic theo ngày địa phương, Inbox idempotency, event trạng thái, reconciliation, metrics và concurrency/failure tests đã được nghiệm thu; xem `docs/AUDIT_REPORT_PHASES_2_3_4.md`.**
+
 ### Nhiệm vụ
 
 1. Tạo consumer cho `AppointmentCheckedIn` từ Appointment Service trong Queue Service; đây là event đầu vào duy nhất để tạo QueueTicket. `PatientCheckedIn` không được dùng như một lệnh/event đầu vào trùng nghĩa.
@@ -223,6 +229,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ## Giai đoạn 5: Tách Medical Records Service
 
+**Trạng thái: Hoàn thành. Medical Records Service độc lập tiêu thụ `ExamStarted`/`ExamCompleted`, xử lý duplicate/out-of-order theo Inbox và workflow version, duy trì projection lịch sử có thể rebuild, audit mọi truy cập/thay đổi và cung cấp contract Save/Finalize qua Gateway.**
+
 ### Nhiệm vụ
 
 1. Tạo consumer cho `ExamStarted`.
@@ -250,6 +258,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 ---
 
 ## Giai đoạn 6: Tách Notification Service và hoàn thiện Gateway
+
+**Trạng thái: Hoàn thành. Notification Service dùng broker + durable database thay `Channel<T>`, dedupe business event, delivery audit, timeout/retry bounded/dead-letter, email/SMS/in-app/SignalR, Redis backplane; Gateway đã hoàn thiện route, CORS, rate limit và correlation propagation.**
 
 ### Nhiệm vụ
 
@@ -289,3 +299,13 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 - Gateway route frontend tới các service đúng thiết kế.
 - Restart service hoặc broker không làm mất dữ liệu nghiệp vụ đã commit.
 - Có tài liệu vận hành và hướng dẫn xử lý message lỗi.
+
+### Nghiệm thu cuối (2026-11-02)
+
+- `dotnet build Clinic.slnx --no-restore`: thành công, `0 Error`.
+- `Clinic.MedicalRecords.Service.Tests`: `4/4 passed`, gồm Draft từ event, duplicate, out-of-order không hồi quy, rebuild projection và HTTP contract Save/Finalize/immutable.
+- `Clinic.Notification.Service.Tests`: `6/6 passed`, gồm event dedupe, bounded exponential backoff, provider timeout, permanent failure, retry exhaustion/dead-letter và chống delivery lặp sau terminal state.
+- Queue lifecycle regression test: `1/1 passed`; trạng thái `Called` được giữ riêng với `InProgress`, hỗ trợ nhiều visit hoạt động đồng thời theo thiết kế Phase 4.
+- Frontend: `vue-tsc --build` thành công; Vitest `22/22 files`, `94/94 tests passed`.
+- `docker compose config --quiet`: cấu hình hợp lệ; service health checks, RabbitMQ, Redis, Prometheus và Jaeger đã được nối trong Compose.
+- Runbook vận hành/replay/reconciliation: `docs/MEMBER_B_OPERATIONS_RUNBOOK.md`.

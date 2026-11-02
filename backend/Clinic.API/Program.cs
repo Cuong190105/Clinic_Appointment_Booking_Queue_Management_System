@@ -16,6 +16,8 @@ using System.Security.Claims;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 _ = new TimeConverter(); // Fail fast when the clinic timezone is invalid.
@@ -28,15 +30,19 @@ builder.Services.AddCors(options =>
     options.AddPolicy("FrontendCors", policy =>
     {
         policy
-            .WithOrigins(
-                "http://localhost:5173",
-                "http://localhost:5174",
-                "https://localhost:5173",
-                "https://localhost:5174")
+            .WithOrigins((builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ??
+                ["http://localhost:5173", "http://localhost:5174", "https://localhost:5173", "https://localhost:5174"]))
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
     });
+});
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
 });
 
 // Add services to the container.
@@ -72,14 +78,14 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 // Configure notification services
 builder.Services.Configure<EmailOptions>(
     builder.Configuration.GetSection("Email"));
-builder.Services.AddSignalR();
+var signalR = builder.Services.AddSignalR();
+var redisConnection = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrWhiteSpace(redisConnection)) signalR.AddStackExchangeRedis(redisConnection);
 
 // Add workers. Test hosts can disable background consumers because their database
 // and broker dependencies are outside the HTTP contract test boundary.
 if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
 {
-    builder.Services.AddHostedService<NotificationWorker>();
-    builder.Services.AddHostedService<ScheduledNotificationWorker>();
     builder.Services.AddHostedService<OutboxPublisher>();
     // AppointmentCheckedInConsumer removed: Queue Service is the sole consumer of AppointmentCheckedIn
 }
@@ -108,6 +114,16 @@ builder.Services.AddHttpClient("Queue", client =>
 {
     var queueAuthority = builder.Configuration["Queue:Authority"] ?? "http://localhost:5004";
     client.BaseAddress = new Uri(queueAuthority.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddHttpClient("MedicalRecords", client =>
+{
+    client.BaseAddress = new Uri((builder.Configuration["MedicalRecords:Authority"] ?? "http://localhost:5005").TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddHttpClient("Notification", client =>
+{
+    client.BaseAddress = new Uri((builder.Configuration["Notification:Authority"] ?? "http://localhost:5006").TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddTransient<IdentityAccountClient>();
@@ -159,6 +175,16 @@ builder.Services
             ValidateIssuerSigningKey = true,
             RoleClaimType = ClaimTypes.Role,
             ClockSkew = TimeSpan.FromSeconds(30)
+        };
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var token = context.Request.Query["access_token"];
+                if (!string.IsNullOrWhiteSpace(token) && context.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications"))
+                    context.Token = token;
+                return Task.CompletedTask;
+            }
         };
     })
     .AddJwtBearer(LegacyJwtScheme, options =>
@@ -305,10 +331,11 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseCors("FrontendCors");
-
 app.UseRouting();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
+app.UseMiddleware<ServiceProxyMiddleware>();
 app.UseMiddleware<SchedulingProxyMiddleware>();
 
 app.MapControllers();

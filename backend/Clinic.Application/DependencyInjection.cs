@@ -26,11 +26,8 @@ namespace Clinic.Application
             services.AddSingleton(config);
             services.AddScoped<IMapper, Mapper>();
             services.AddScoped<IPersonService, PersonService>();
-            services.AddScoped<INotificationService, NotificationService>();
-            services.AddSingleton<INotificationQueue, NotificationQueue>();
-            services.AddScoped<IAccountNotificationHandler, AccountNotificationHandler>();
-            services.AddScoped<ICustomNotificationHandler, CustomNotificationHandler>();
-            services.AddScoped<IDueNotificationHandler, DueNotificationHandler>();
+            // Notification delivery is owned by Clinic.Notification.Service. The former
+            // in-memory Channel<T> pipeline is intentionally not registered at runtime.
             // Application services are registered via the infrastructure layer.
             // TODO: nếu dùng Mapster theo pattern IRegister, quét cấu hình mapping tại đây:
             // TypeAdapterConfig.GlobalSettings.Scan(Assembly.GetExecutingAssembly());

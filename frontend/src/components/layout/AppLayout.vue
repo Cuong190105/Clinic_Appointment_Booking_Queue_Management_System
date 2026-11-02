@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { usePatientStore } from '@/stores/patient'
 import { supportedLocales, setLocale } from '@/lib/i18n'
 import ChangePasswordModal from '@/components/ui/ChangePasswordModal.vue'
+import { connectNotifications, disconnectNotifications, type RealtimeNotification } from '@/features/notifications/notifications.realtime'
 
 const { locale } = useI18n()
 const router = useRouter()
@@ -13,6 +14,7 @@ const auth = useAuthStore()
 const patient = usePatientStore()
 
 const isChangePasswordOpen = ref(false)
+const realtimeNotification = ref<RealtimeNotification | null>(null)
 
 const currentRole = computed<string>(() => {
   return auth.user?.activeRole ?? auth.currentUserRole ?? auth.user?.role ?? auth.user?.roles?.[0] ?? ''
@@ -28,8 +30,19 @@ const displayName = computed(() => {
 onMounted(() => {
   if (auth.isAuthenticated) {
     auth.fetchMe().catch(() => undefined)
+    connectNotifications((message) => {
+      realtimeNotification.value = message
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(message.title, { body: message.content })
+      }
+      window.setTimeout(() => {
+        if (realtimeNotification.value?.id === message.id) realtimeNotification.value = null
+      }, 8_000)
+    }).catch(() => undefined)
   }
 })
+
+onBeforeUnmount(() => { disconnectNotifications().catch(() => undefined) })
 
 function onLocaleChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value
@@ -44,6 +57,15 @@ function logout() {
 
 <template>
   <div class="flex min-h-screen bg-slate-50">
+    <div
+      v-if="realtimeNotification"
+      role="status"
+      class="fixed right-5 top-5 z-50 max-w-sm rounded-xl border border-violet-200 bg-white p-4 shadow-xl"
+    >
+      <div class="font-semibold text-slate-800">{{ realtimeNotification.title }}</div>
+      <div class="mt-1 text-sm text-slate-600">{{ realtimeNotification.content }}</div>
+      <button class="mt-2 text-xs font-semibold text-violet-700" type="button" @click="realtimeNotification = null">Đóng</button>
+    </div>
 
     <!-- ================================================= -->
     <!-- SIDEBAR -->

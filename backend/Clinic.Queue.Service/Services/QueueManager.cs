@@ -372,7 +372,7 @@ public class QueueManager : IQueueManager
         nextTicket.Call();
 
         AddOutboxMessage(
-            new PatientCalled(nextTicket.Id, nextTicket.AppointmentId, nextTicket.DoctorId, nextTicket.QueueNumber, DateTimeOffset.UtcNow),
+            new PatientCalled(nextTicket.Id, nextTicket.AppointmentId, nextTicket.DoctorId, nextTicket.QueueNumber, DateTimeOffset.UtcNow, nextTicket.PatientId),
             EventTypes.PatientCalled,
             "queue.patient-called",
             Guid.NewGuid());
@@ -390,7 +390,7 @@ public class QueueManager : IQueueManager
 
         ticket.Call();
         AddOutboxMessage(
-            new PatientCalled(ticket.Id, ticket.AppointmentId, ticket.DoctorId, ticket.QueueNumber, DateTimeOffset.UtcNow),
+            new PatientCalled(ticket.Id, ticket.AppointmentId, ticket.DoctorId, ticket.QueueNumber, DateTimeOffset.UtcNow, ticket.PatientId),
             EventTypes.PatientCalled,
             "queue.patient-called",
             Guid.NewGuid());
@@ -411,7 +411,8 @@ public class QueueManager : IQueueManager
         ticket.StartExam();
 
         AddOutboxMessage(
-            new ExamStarted(ticket.Id, ticket.AppointmentId, ticket.DoctorId, DateTimeOffset.UtcNow),
+            new ExamStarted(ticket.Id, ticket.AppointmentId, ticket.DoctorId, DateTimeOffset.UtcNow,
+                ticket.PatientId, ticket.PatientName, ticket.DoctorName),
             EventTypes.ExamStarted,
             "queue.exam-started",
             Guid.NewGuid());
@@ -432,7 +433,7 @@ public class QueueManager : IQueueManager
         ticket.CompleteExam();
 
         AddOutboxMessage(
-            new ExamCompleted(ticket.Id, ticket.AppointmentId, ticket.DoctorId, DateTimeOffset.UtcNow),
+            new ExamCompleted(ticket.Id, ticket.AppointmentId, ticket.DoctorId, DateTimeOffset.UtcNow, ticket.PatientId),
             EventTypes.ExamCompleted,
             "queue.exam-completed",
             Guid.NewGuid());
