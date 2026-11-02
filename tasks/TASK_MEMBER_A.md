@@ -515,7 +515,7 @@ Kế hoạch chi tiết, quyết định thiết kế, ma trận kiểm thử v�
 - Test pass: Appointment **35/35**, Queue **51/51**, Notification **30/30**, Gateway operator integration **2/2**, frontend full suite **176/176**.
 - Runtime acceptance pass: SQL Server reminder/suppression; RabbitMQ retry, restart recovery và quarantine; delivery replay qua Gateway với role Admin và audit actor; authenticated SignalR qua Gateway với user isolation, reconnect và REST history recovery; Data Protection key persisted sau restart.
 - Docker build `backend` + `notification-service`, Compose config, migration `20261101155904_AddDeliveryReplayOperatorAudit` và health checks đều pass. Email/SMS acceptance dùng provider MOCK, không gửi tin thật. RabbitMQ poison-event DLQ chỉ lưu metadata đã làm sạch; event được phát lại từ source outbox sau khi xử lý producer.
-- Thay đổi code và tài liệu đang ở staged và unstaged working-tree diff; chưa commit.
+- Phase 6 đã được commit trong `5ec36f7` và merge vào nhánh hiện tại qua `79f1d09`.
 
 ### Lưu ý
 
@@ -544,5 +544,18 @@ Kế hoạch chi tiết, quyết định thiết kế, ma trận kiểm thử v�
 - Không có truy cập database xuyên service.
 
 - Có unit test, integration test và tài liệu vận hành cho phần phụ trách.
+
+---
+
+## Đợt nghiệm thu sau sáu phase — Phase 7–9
+
+Các đầu việc hoàn thiện OpenAPI, SLA/QoS và kiểm thử tải được chia sẻ với Thành viên B; kế hoạch, phân công song song và tiêu chí pass/fail nằm tại [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
+
+### Thành viên A phụ trách
+
+- **Phase 7:** kiểm kê HTTP API theo service; hoàn thiện OpenAPI service-owned gồm version, DTO, validation, security, error response và idempotency; xác nhận public/internal contract.
+- **Phase 8:** đề xuất/chốt SLI/SLO nghiệp vụ cho từng service và workflow; thống nhất timeout, retry, idempotency, rate-limit/concurrency behavior; bổ sung metric nghiệp vụ còn thiếu.
+- **Phase 9:** định nghĩa workload, test data cô lập, invariant và ngưỡng nghiệm thu; phân tích/sửa bottleneck thuộc service owner.
+- **Hoàn tất:** review chung contract và SLO; nghiệm thu E2E/runtime sau khi áp dụng thay đổi.
 
 \r\n

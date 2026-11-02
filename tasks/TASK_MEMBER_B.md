@@ -297,3 +297,16 @@ Quyết định: Clinic API giữ vai trò Gateway; persisted notification histo
 - Gateway route frontend tới các service đúng thiết kế.
 - Restart service hoặc broker không làm mất dữ liệu nghiệp vụ đã commit.
 - Có tài liệu vận hành và hướng dẫn xử lý message lỗi.
+
+---
+
+## Đợt nghiệm thu sau sáu phase — Phase 7–9
+
+Các đầu việc hoàn thiện OpenAPI, SLA/QoS và kiểm thử tải được chia sẻ với Thành viên A; kế hoạch, phân công song song và tiêu chí pass/fail nằm tại [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
+
+### Thành viên B phụ trách
+
+- **Phase 7:** dựng cơ chế generate/validate OpenAPI, phát hiện breaking contract, contract test/snapshot và catalog/aggregation qua Gateway.
+- **Phase 8:** chuẩn hóa metrics/tracing/logging cho Gateway, services và broker; cung cấp dashboard/truy vấn/cảnh báo để tính SLI/SLO; hỗ trợ failure tests cho QoS.
+- **Phase 9:** tạo load test harness/script tái lập, tham số hóa môi trường, thu kết quả và resource telemetry; điều phối chạy tải trên dữ liệu cô lập.
+- **Hoàn tất:** cùng A xác nhận ngưỡng, chạy lại acceptance và ghi báo cáo hiệu năng/giới hạn môi trường.
