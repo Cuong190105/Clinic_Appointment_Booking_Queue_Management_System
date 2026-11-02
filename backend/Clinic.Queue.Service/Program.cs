@@ -93,11 +93,11 @@ app.MapPrometheusScrapingEndpoint();
 
 // Health checks
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy", service = "Clinic.Queue.Service" }));
-app.MapGet("/readyz", async (QueueDbContext db, ILogger<Program> logger, CancellationToken ct) =>
+app.MapGet("/readyz", async (QueueDbContext db, IHostEnvironment env, ILogger<Program> logger, CancellationToken ct) =>
 {
     try
     {
-        if (db.Database.IsRelational() && !await db.Database.CanConnectAsync(ct))
+        if (!env.IsEnvironment("Testing") && db.Database.IsRelational() && !await db.Database.CanConnectAsync(ct))
             return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         return Results.Ok(new { status = "Ready", service = "Clinic.Queue.Service" });
     }

@@ -7,6 +7,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Environment files
+.dotnet/
+.dotnet-install.ps1
+.nuget/
 .env
 .env.*
 !.env.example

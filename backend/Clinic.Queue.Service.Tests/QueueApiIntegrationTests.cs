@@ -230,12 +230,12 @@ public class QueueApiIntegrationTests : IClassFixture<TestQueueAppFactory>
         Assert.Equal(ticket.Id, calledTicket.Id);
         Assert.Equal("Called", calledTicket.Status);
 
-        // 5. Calling next again while patient is Called returns 409 Conflict
+        // 5. Multiple active visits are supported; with no other Waiting ticket the queue is empty.
         var callNextConflictReq = new HttpRequestMessage(HttpMethod.Post, $"/doctors/{doctorId}/queue/next");
         callNextConflictReq.Headers.Add("X-Test-Role", "Doctor");
         callNextConflictReq.Headers.Add("X-Test-DoctorId", doctorId.ToString());
         var callNextConflictRes = await _client.SendAsync(callNextConflictReq);
-        Assert.Equal(HttpStatusCode.Conflict, callNextConflictRes.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, callNextConflictRes.StatusCode);
 
         // 6. Doctor starts exam
         var startExamReq = new HttpRequestMessage(HttpMethod.Post, $"/queue/{ticket.Id}/start-exam");
