@@ -7,5 +7,7 @@ public sealed record UserProfileUpdated(
     string? Email,
     string? Gender,
     DateOnly? DateOfBirth = null,
-    string? Address = null
+    string? Address = null,
+    Guid? PatientId = null,
+    Guid? IdentityUserId = null
 );

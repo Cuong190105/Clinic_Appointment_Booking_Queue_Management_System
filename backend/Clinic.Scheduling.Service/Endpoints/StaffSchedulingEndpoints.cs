@@ -146,7 +146,7 @@ public static class StaffSchedulingEndpoints
             var specialty = new Specialty { Id = Guid.NewGuid(), Name = request.Name.Trim(), Description = request.Description, EstablishedDate = request.EstablishedDate };
             db.Specialties.Add(specialty); await db.SaveChangesAsync(ct);
             return Results.Created($"/specialties/{specialty.Id}", new SpecialtyDto(specialty.Id, specialty.Name, specialty.Description, specialty.EstablishedDate));
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization("SpecialtyManage");
 
         app.MapPut("/specialties/{id:guid}", async (Guid id, [FromBody] UpdateSpecialtyRequest request, SchedulingDbContext db, CancellationToken ct) =>
         {
@@ -154,13 +154,13 @@ public static class StaffSchedulingEndpoints
             if (await db.Specialties.AnyAsync(x => x.Id != id && x.Name == request.Name && !x.IsDeleted, ct)) return Results.Conflict();
             s.Name = request.Name.Trim(); s.Description = request.Description; s.EstablishedDate = request.EstablishedDate; s.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct); return Results.NoContent();
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization("SpecialtyManage");
 
         app.MapPatch("/specialties/{id:guid}/status", async (Guid id, SchedulingDbContext db, CancellationToken ct) =>
         {
             var s = await db.Specialties.FirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted, ct); if (s is null) return Results.NotFound();
             s.IsDeleted = true; s.UpdatedAt = DateTime.UtcNow; await db.SaveChangesAsync(ct); return Results.NoContent();
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization("SpecialtyManage");
 
         app.MapPost("/doctors", async ([FromBody] CreateDoctorRequest request, SchedulingDbContext db, CancellationToken ct) =>
         {

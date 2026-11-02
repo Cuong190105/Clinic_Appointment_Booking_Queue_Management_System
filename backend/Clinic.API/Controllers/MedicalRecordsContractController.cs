@@ -1,4 +1,5 @@
 using Clinic.API.Models;
+using Clinic.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,6 +9,13 @@ namespace Clinic.API.Controllers;
 [Route("/medical-records")]
 public sealed class MedicalRecordsContractController : ControllerBase
 {
+    private readonly MedicalRecordsServiceClient _medicalRecordsClient;
+
+    public MedicalRecordsContractController(MedicalRecordsServiceClient medicalRecordsClient)
+    {
+        _medicalRecordsClient = medicalRecordsClient;
+    }
+
     [HttpPost("encounters/{visitId:guid}/draft")]
     [Authorize]
     [ProducesResponseType(typeof(MedicalRecordContractResponse), StatusCodes.Status201Created)]
@@ -15,10 +23,14 @@ public sealed class MedicalRecordsContractController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult SaveDraft([FromRoute] Guid visitId, [FromBody] DraftMedicalRecordRequest request)
+    public async Task<IActionResult> SaveDraft([FromRoute] Guid visitId, [FromBody] DraftMedicalRecordRequest request)
     {
-        return StatusCode(StatusCodes.Status201Created,
-            new MedicalRecordContractResponse(Guid.Empty, visitId, "Draft", DateTime.UtcNow));
+        return await _medicalRecordsClient.ProxyAsync(
+            HttpContext,
+            $"medical-records/encounters/{visitId}/draft",
+            HttpMethod.Post,
+            request,
+            HttpContext.RequestAborted);
     }
 
     [HttpGet("encounters/{visitId:guid}")]
@@ -27,9 +39,13 @@ public sealed class MedicalRecordsContractController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult GetByEncounter([FromRoute] Guid visitId)
+    public async Task<IActionResult> GetByEncounter([FromRoute] Guid visitId)
     {
-        return Ok(new MedicalRecordContractResponse(Guid.Empty, visitId, "Draft", DateTime.UtcNow));
+        return await _medicalRecordsClient.ProxyAsync(
+            HttpContext,
+            $"medical-records/encounters/{visitId}",
+            HttpMethod.Get,
+            ct: HttpContext.RequestAborted);
     }
 
     [HttpPost("reports/{reportId:guid}/finalize")]
@@ -40,11 +56,15 @@ public sealed class MedicalRecordsContractController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public IActionResult Finalize(
+    public async Task<IActionResult> Finalize(
         [FromRoute] Guid reportId,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
     {
-        return Ok(new MedicalRecordContractResponse(reportId, Guid.Empty, "Finalized", DateTime.UtcNow));
+        return await _medicalRecordsClient.ProxyAsync(
+            HttpContext,
+            $"medical-records/{reportId}/finalize",
+            HttpMethod.Post,
+            ct: HttpContext.RequestAborted);
     }
 
     [HttpPost("reports/{reportId:guid}/amendments")]
@@ -54,11 +74,15 @@ public sealed class MedicalRecordsContractController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult Amend(
+    public async Task<IActionResult> Amend(
         [FromRoute] Guid reportId,
         [FromBody] AmendmentMedicalRecordRequest request)
     {
-        return StatusCode(StatusCodes.Status201Created,
-            new MedicalRecordContractResponse(reportId, Guid.Empty, "Amended", DateTime.UtcNow));
+        return await _medicalRecordsClient.ProxyAsync(
+            HttpContext,
+            $"medical-records/{reportId}/amendments",
+            HttpMethod.Post,
+            request,
+            HttpContext.RequestAborted);
     }
 }

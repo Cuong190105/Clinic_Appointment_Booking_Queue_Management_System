@@ -39,18 +39,6 @@ services:
             start_period: 10s
         restart: always
 
-    redis:
-        image: redis:7.4-alpine
-        command: ["redis-server", "--appendonly", "yes"]
-        volumes:
-            - redis_data:/data
-        healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
-        restart: always
-
     backend:
         build:
             context: ./backend
@@ -60,7 +48,6 @@ services:
             - "5000:8080"
         environment:
             - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
-            - ConnectionStrings__Redis=redis:6379
             - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
@@ -68,9 +55,11 @@ services:
             - Services__Scheduling__BaseUrl=http://scheduling-service:8080
             - Appointment__Authority=http://appointment-service:8080
             - Queue__Authority=http://queue-service:8080
-            - MedicalRecords__Authority=http://medical-records-service:8080
-            - Notification__Authority=http://notification-service:8080
             - Services__Queue__BaseUrl=http://queue-service:8080
+            - MedicalRecords__Authority=http://medical-records-service:8080
+            - Services__MedicalRecords__BaseUrl=http://medical-records-service:8080
+            - Notification__Authority=http://notification-service:8080
+            - Services__Notification__BaseUrl=http://notification-service:8080
             - Identity__RequireHttpsMetadata=false
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__PublicBaseUrl=${IDENTITY_PUBLIC_BASE_URL:-http://localhost:5000}
@@ -87,22 +76,18 @@ services:
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
             - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
         depends_on:
+            notification-service:
+                condition: service_healthy
             identity-service:
                 condition: service_healthy
             scheduling-service:
                 condition: service_healthy
             rabbitmq:
                 condition: service_healthy
-            redis:
-                condition: service_healthy
             db:
                 condition: service_healthy
             jaeger:
                 condition: service_started
-            medical-records-service:
-                condition: service_healthy
-            notification-service:
-                condition: service_healthy
         healthcheck:
             test:
                 [
@@ -213,8 +198,6 @@ services:
                 condition: service_healthy
             queue-service:
                 condition: service_healthy
-            medical-records-service:
-                condition: service_healthy
             notification-service:
                 condition: service_healthy
             identity-service:
@@ -259,6 +242,10 @@ services:
             - Appointment__Authority=http://appointment-service:8080
             - Queue__Authority=http://queue-service:8080
             - Services__Queue__BaseUrl=http://queue-service:8080
+            - MedicalRecords__Authority=http://medical-records-service:8080
+            - Services__MedicalRecords__BaseUrl=http://medical-records-service:8080
+            - Notification__Authority=http://notification-service:8080
+            - Services__Notification__BaseUrl=http://notification-service:8080
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - RabbitMq__Host=rabbitmq
@@ -373,24 +360,85 @@ services:
                 condition: service_healthy
             queue-service:
                 condition: service_healthy
-            medical-records-service:
-                condition: service_healthy
-            notification-service:
-                condition: service_healthy
         restart: "no"
 
     medical-records-service:
         build:
             context: ./backend
             dockerfile: Clinic.MedicalRecords.Service/Dockerfile
+        container_name: clinic_medical_records_service
         ports:
             - "5005:8080"
         environment:
             - ConnectionStrings__MedicalRecordsConnection=Server=db,1433;Database=ClinicMedicalRecordsDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
+            - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
             - Appointment__Authority=http://appointment-service:8080
-            - Queue__Authority=http://queue-service:8080
+            - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
+            - Jwt__Audience=Clinic.Services
+            - RabbitMq__Host=rabbitmq
+            - RabbitMq__Port=5672
+            - RabbitMq__Username=clinic
+            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__VirtualHost=/
+            - ASPNETCORE_HTTP_PORTS=8080
+        depends_on:
+            db:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+            identity-service:
+                condition: service_healthy
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "/usr/bin/bash",
+                    "-c",
+                    "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        restart: always
+
+    medical-records-data-importer:
+        profiles: ["legacy-import"]
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        entrypoint: ["/bin/bash", "-c"]
+        command:
+            - >-
+                until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql &&
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /verify.sql
+        environment:
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+        volumes:
+            - ./backend/Clinic.MedicalRecords.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+            - ./backend/Clinic.MedicalRecords.Service/Persistence/verify-medical-records-import.sql:/verify.sql:ro
+        depends_on:
+            backend:
+                condition: service_healthy
+            medical-records-service:
+                condition: service_healthy
+        restart: "no"
+
+    notification-service:
+        build:
+            context: ./backend
+            dockerfile: Clinic.Notification.Service/Dockerfile
+        container_name: clinic_notification_service
+        ports:
+            - "5006:8080"
+        environment:
+            - ConnectionStrings__NotificationConnection=Server=db,1433;Database=ClinicNotificationDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - Identity__Authority=http://identity-service:8080
+            - Identity__RequireHttpsMetadata=false
+            - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
+            - DataProtection__KeyDirectory=/var/lib/clinic/notification-protection-keys
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - RabbitMq__Host=rabbitmq
@@ -399,55 +447,29 @@ services:
             - RabbitMq__Password=clinic-dev-password
             - RabbitMq__VirtualHost=/
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+            - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
             - ASPNETCORE_HTTP_PORTS=8080
+        volumes:
+            - notification_protection_keys:/var/lib/clinic/notification-protection-keys
         depends_on:
-            db: { condition: service_healthy }
-            rabbitmq: { condition: service_healthy }
-            identity-service: { condition: service_healthy }
+            db:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+            identity-service:
+                condition: service_healthy
         healthcheck:
-            test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]"]
+            test:
+                [
+                    "CMD",
+                    "/usr/bin/bash",
+                    "-c",
+                    "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]",
+                ]
             interval: 10s
             timeout: 5s
             retries: 5
-            start_period: 30s
-        restart: always
-
-    notification-service:
-        build:
-            context: ./backend
-            dockerfile: Clinic.Notification.Service/Dockerfile
-        ports:
-            - "5006:8080"
-        environment:
-            - ConnectionStrings__NotificationConnection=Server=db,1433;Database=ClinicNotificationDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
-            - ConnectionStrings__Redis=redis:6379
-            - Identity__Authority=http://identity-service:8080
-            - Identity__RequireHttpsMetadata=false
-            - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
-            - Jwt__Audience=Clinic.Services
-            - RabbitMq__Host=rabbitmq
-            - RabbitMq__Port=5672
-            - RabbitMq__Username=clinic
-            - RabbitMq__Password=clinic-dev-password
-            - RabbitMq__VirtualHost=/
-            - Email__Host=${SMTP_HOST:-}
-            - Email__Port=${SMTP_PORT:-587}
-            - Email__Username=${SMTP_USERNAME:-}
-            - Email__Password=${SMTP_PASSWORD:-}
-            - Email__From=${SMTP_FROM:-no-reply@clinic.local}
-            - Sms__Endpoint=${SMS_PROVIDER_ENDPOINT:-}
-            - ASPNETCORE_HTTP_PORTS=8080
-        depends_on:
-            db: { condition: service_healthy }
-            rabbitmq: { condition: service_healthy }
-            redis: { condition: service_healthy }
-            identity-service: { condition: service_healthy }
-        healthcheck:
-            test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; IFS= read -r status <&3; [[ $$status == *'200'* ]]"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
-            start_period: 30s
+            start_period: 15s
         restart: always
 
     frontend:
@@ -480,10 +502,6 @@ services:
             backend:
                 condition: service_healthy
             queue-service:
-                condition: service_healthy
-            medical-records-service:
-                condition: service_healthy
-            notification-service:
                 condition: service_healthy
         healthcheck:
             test:
@@ -519,4 +537,4 @@ volumes:
     rabbitmq_data:
     prometheus_data:
     identity_signing_keys:
-    redis_data:
+    notification_protection_keys:

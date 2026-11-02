@@ -152,9 +152,12 @@ Yêu cầu:
 
 ### Medical Records
 
-- Dùng `visitId` hoặc `encounterId` làm định danh ổn định.
+- Dùng `AppointmentId` làm định danh ổn định của lượt khám; không tạo `VisitId`/`EncounterId` riêng.
+- `Patient` và `MedicalReport` thuộc cùng Medical Records Service và database; không tạo Patient Service riêng.
 - Không dùng `QueueTicketId` làm liên kết lâu dài.
-- Có trạng thái Draft, Finalized và quy trình amendment nếu cần.
+- `ExamStarted` idempotently mở encounter context theo `AppointmentId`; Draft nội dung được tạo khi bác sĩ bắt đầu ghi.
+- `ExamCompleted` chỉ đánh dấu lượt khám kết thúc; không tự finalize report. Draft/Finalized là lifecycle riêng của hồ sơ.
+- Hồ sơ Finalized không sửa trực tiếp; mọi amendment là bản ghi append-only có tác giả, thời điểm, lý do và liên kết phiên bản trước.
 - Mọi truy cập hồ sơ bệnh án phải được audit.
 
 ## 7. Yêu cầu bảo mật
@@ -289,3 +292,13 @@ Dự án được xem là đạt khi:
 - Medical Records có phân quyền và audit.
 - Frontend chỉ giao tiếp qua API Gateway.
 - Có tài liệu triển khai, rollback và xử lý sự cố.
+
+## 13. Nghiệm thu OpenAPI, SLA/QoS và tải sau sáu phase
+
+Kế hoạch triển khai và phân công A/B nằm tại [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md). Các nguyên tắc nghiệm thu:
+
+- Mỗi HTTP API trong scope phải có OpenAPI spec có thể generate/validate; ghi rõ service owner, version, DTO, auth, validation và error response. Event broker tiếp tục dùng event contract có schema version; không mô tả event như HTTP API.
+- Mỗi service và workflow quan trọng phải có SLI/SLO đo được, ngưỡng, test window, nguồn metric và điều kiện loại trừ. Timeout, retry/backoff, idempotency và rate/concurrency limit phải có policy và kiểm thử tương ứng.
+- Có load script và báo cáo tái lập trên môi trường Docker được mô tả rõ; ghi throughput, latency percentiles, lỗi, tài nguyên, DB pressure, queue depth/lag và invariant nghiệp vụ.
+- SLO ban đầu trong tài liệu Phase 7–9 là đề xuất cho môi trường môn học, cần A/B chốt trước khi làm tiêu chí pass/fail. Không tuyên bố SLA production nếu chưa có vận hành, hạ tầng và dữ liệu đo phù hợp.
+- Load/fault testing chỉ chạy với dữ liệu test cô lập; không gửi email/SMS thật, không đưa PHI/secret vào log/metrics và không làm giảm kiểm tra quyền hay invariant để đạt kết quả tải.

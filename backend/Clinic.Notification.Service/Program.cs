@@ -1,47 +1,161 @@
 using System.Security.Claims;
-using Clinic.Notification.Service.Entities;
-using Clinic.API.Hubs;
+using Clinic.Notification.Service.Endpoints;
+using Clinic.Notification.Service.Messaging;
 using Clinic.Notification.Service.Persistence;
+using Clinic.Notification.Service.Realtime;
 using Clinic.Notification.Service.Services;
+using Clinic.Notification.Service.Services.Delivery;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddDbContext<NotificationDbContext>(o => o.UseSqlServer(builder.Configuration.GetConnectionString("NotificationConnection")));
-builder.Services.AddHttpClient("sms", c => c.Timeout = TimeSpan.FromSeconds(15));
-var signalR = builder.Services.AddSignalR(); var redis = builder.Configuration.GetConnectionString("Redis"); if (!string.IsNullOrWhiteSpace(redis)) signalR.AddStackExchangeRedis(redis);
-builder.Services.AddSingleton<IDeliveryProvider, InAppProvider>(); builder.Services.AddSingleton<IDeliveryProvider, EmailProvider>(); builder.Services.AddSingleton<IDeliveryProvider, SmsProvider>();
-builder.Services.AddScoped<NotificationIngestionService>(); builder.Services.AddScoped<DeliveryProcessor>();
-builder.Services.AddHostedService<NotificationEventConsumer>(); builder.Services.AddHostedService<DeliveryWorker>();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
+
+// JSON formatting
+builder.Services.ConfigureHttpJsonOptions(options =>
 {
-    o.Authority = (builder.Configuration["Identity:Authority"] ?? "http://localhost:5001").TrimEnd('/'); o.RequireHttpsMetadata = builder.Configuration.GetValue("Identity:RequireHttpsMetadata", false); o.Audience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services";
-    o.TokenValidationParameters = new TokenValidationParameters { ValidateIssuer = true, ValidIssuers = [builder.Configuration["Jwt:Issuer"] ?? "http://localhost:5000", "Clinic.Identity"], ValidateAudience = true,
-        ValidAudiences = [builder.Configuration["Jwt:Audience"] ?? "Clinic.Services", "Clinic.Client"], ValidateLifetime = true, ValidateIssuerSigningKey = true, RoleClaimType = ClaimTypes.Role };
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 });
-builder.Services.AddAuthorization(); builder.Services.AddOpenTelemetry().ConfigureResource(x => x.AddService("clinic-notification-service")).WithMetrics(x => x.AddAspNetCoreInstrumentation().AddMeter(NotificationTelemetry.MeterName).AddPrometheusExporter());
-var app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapPrometheusScrapingEndpoint(); app.MapHub<NotificationHub>("/hubs/notifications");
-app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
-app.MapGet("/readyz", async (NotificationDbContext db, CancellationToken ct) => { if (!await db.Database.CanConnectAsync(ct)) return Results.StatusCode(503); return Results.Ok(new { status = "Ready" }); }).AllowAnonymous();
-app.MapGet("/me/notifications", async (ClaimsPrincipal user, DateTimeOffset? createdBefore, int? limit, NotificationDbContext db, CancellationToken ct) =>
+
+// Persistence
+builder.Services.AddDbContext<NotificationDbContext>((sp, options) =>
 {
-    var raw = user.FindFirstValue("patientId") ?? user.FindFirstValue("personId") ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
-    if (!Guid.TryParse(raw, out var recipientId)) return Results.Forbid(); var before = createdBefore ?? DateTimeOffset.UtcNow; var take = Math.Clamp(limit ?? 20, 1, 100);
-    var messages = await db.Messages.AsNoTracking().Where(x => x.RecipientId == recipientId && x.CreatedAt < before).OrderByDescending(x => x.CreatedAt).Take(take)
-        .Select(x => new { x.Id, x.Title, message = x.Body, x.CreatedAt, sent = x.Deliveries.Any(d => d.Status == DeliveryStatus.Sent) }).ToListAsync(ct); return Results.Ok(messages);
-}).RequireAuthorization();
-app.MapGet("/admin/deliveries", async (DeliveryStatus? status, NotificationDbContext db, CancellationToken ct) =>
+    var env = sp.GetRequiredService<IHostEnvironment>();
+    var config = sp.GetRequiredService<IConfiguration>();
+    var conn = config.GetConnectionString("NotificationConnection")
+        ?? config.GetConnectionString("DefaultConnection");
+
+    if (!env.IsEnvironment("Testing") && !string.IsNullOrEmpty(conn))
+    {
+        options.UseSqlServer(conn);
+    }
+    else
+    {
+        var testDbName = config["TestDatabaseName"] ?? "ClinicNotificationDB_Fallback";
+        options.UseInMemoryDatabase(testDbName);
+    }
+});
+
+// Domain services & secret protection
+builder.Services.AddNotificationDataProtection(builder.Configuration);
+builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
+builder.Services.AddSingleton<INotificationPolicyEngine, NotificationPolicyEngine>();
+builder.Services.AddSingleton<INotificationEventProcessor, NotificationEventProcessor>();
+
+// Background messaging consumers and dispatchers
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    var query = db.Deliveries.AsNoTracking().Include(x => x.Message).AsQueryable(); if (status.HasValue) query = query.Where(x => x.Status == status);
-    return Results.Ok(await query.OrderByDescending(x => x.Message.CreatedAt).Take(200).Select(x => new { x.Id, x.Channel, x.Status, x.AttemptCount, x.NextAttemptAt, x.SentAt, x.ProviderResponseCode, x.LastErrorCode, x.Message.CorrelationId }).ToListAsync(ct));
-}).RequireAuthorization(p => p.RequireRole("Admin"));
-app.MapPost("/admin/deliveries/{id:guid}/replay", async (Guid id, NotificationDbContext db, CancellationToken ct) =>
+    builder.Services.AddHostedService<NotificationEventHostedConsumer>();
+    builder.Services.AddHostedService<NotificationOutboxDeliveryHostedService>();
+}
+
+// Delivery & Provider abstractions
+builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
+builder.Services.AddScoped<ISmsSender, LoggingSmsSender>();
+builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
+builder.Services.AddScoped<NotificationDeliveryDispatcher>();
+
+// SignalR Realtime Hub
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IUserIdProvider, SubUserIdProvider>();
+
+// Authentication & JWT validation
+var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5001";
+var issuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:5000";
+var audience = builder.Configuration["Jwt:Audience"] ?? "Clinic.Services";
+var requireHttpsMetadata = builder.Configuration.GetValue<bool>("Identity:RequireHttpsMetadata", false);
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = identityAuthority.TrimEnd('/');
+        options.RequireHttpsMetadata = requireHttpsMetadata;
+        options.Audience = audience;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = issuer,
+            ValidateAudience = true,
+            ValidAudience = audience,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = "sub"
+        };
+
+        // Extract token from query string for WebSocket SignalR connections
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// Health checks
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapGet("/", () => Results.Ok(new
 {
-    var delivery = await db.Deliveries.SingleOrDefaultAsync(x => x.Id == id, ct); if (delivery is null) return Results.NotFound(); if (delivery.Status != DeliveryStatus.DeadLettered) return Results.Conflict();
-    delivery.Status = DeliveryStatus.Pending; delivery.AttemptCount = 0; delivery.NextAttemptAt = DateTimeOffset.UtcNow; delivery.LastErrorCode = null; await db.SaveChangesAsync(ct); return Results.Accepted();
-}).RequireAuthorization(p => p.RequireRole("Admin"));
-if (!app.Configuration.GetValue<bool>("SkipDatabaseInitialization")) { await using var scope = app.Services.CreateAsyncScope(); await scope.ServiceProvider.GetRequiredService<NotificationDbContext>().Database.EnsureCreatedAsync(); }
-app.Run(); public partial class Program { }
+    service = "Clinic.Notification.Service",
+    status = "Healthy",
+    version = "1.0.0"
+}));
+
+app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy", service = "Clinic.Notification.Service" }));
+
+app.MapGet("/readyz", async (NotificationDbContext db, CancellationToken ct) =>
+{
+    try
+    {
+        if (db.Database.IsRelational() && !await db.Database.CanConnectAsync(ct))
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        return Results.Ok(new { status = "Ready", service = "Clinic.Notification.Service" });
+    }
+    catch
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+});
+
+// SignalR Hub & REST endpoints
+app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapNotificationEndpoints();
+app.MapInternalNotificationEndpoints();
+
+// Auto-migrate on relational startup
+if (app.Environment.EnvironmentName != "Testing")
+{
+    try
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        if (db.Database.IsRelational())
+        {
+            await db.Database.MigrateAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Could not apply database migrations on startup.");
+    }
+}
+
+app.Run();
+
+public partial class Program { }

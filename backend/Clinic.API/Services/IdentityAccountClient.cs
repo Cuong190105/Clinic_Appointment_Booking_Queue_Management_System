@@ -100,7 +100,7 @@ public sealed class IdentityAccountClient(IHttpClientFactory factory, IConfigura
     }
 }
 
-public sealed record IdentityProvisionResult(Guid UserId, Guid PersonId, bool IsActive, bool Created);
+public sealed record IdentityProvisionResult(Guid UserId, Guid PersonId, bool IsActive, bool Created, Guid? PatientId = null);
 public sealed record IdentityUserProfile(Guid UserId, Guid PersonId, string Username, string FullName,
     string? PhoneNumber, string? Email, string Gender, string? Address, DateOnly DateOfBirth,
     IReadOnlyList<string> Roles, bool IsActive, DateTime CreatedAt, Guid? PatientId, Guid? EmployeeId, Guid? DoctorId);

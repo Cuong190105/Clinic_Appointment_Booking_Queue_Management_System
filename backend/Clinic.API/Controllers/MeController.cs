@@ -1,7 +1,5 @@
 using Clinic.API.Services;
 using Clinic.Application.Contracts;
-using Clinic.Application.Features.MedicalReports.Queries;
-using Clinic.Application.Features.Users.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,11 +17,15 @@ namespace Clinic.API.Controllers
     {
         private readonly ISender _sender;
         private readonly QueueServiceClient _queueClient;
+        private readonly MedicalRecordsServiceClient _medicalRecordsClient;
+        private readonly NotificationServiceClient _notificationClient;
 
-        public MeController(ISender sender, QueueServiceClient queueClient)
+        public MeController(ISender sender, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient, NotificationServiceClient notificationClient)
         {
             _sender = sender;
             _queueClient = queueClient;
+            _medicalRecordsClient = medicalRecordsClient;
+            _notificationClient = notificationClient;
         }
 
         /// <summary>
@@ -45,17 +47,15 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetMyMedicalHistory()
         {
-            var result = await _sender.Send(new GetMyMedicalHistoryQuery());
-            return Ok(result);
+            return await _medicalRecordsClient.ProxyAsync(HttpContext, "me/medical-history", HttpMethod.Get);
         }
 
         [Authorize]
         [HttpGet("notifications")]
-        [ProducesResponseType(typeof(PaginationResponse<NotificationDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetNotifications([FromQuery] DateTime createdBefore, [FromQuery] int limit)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetNotifications()
         {
-            var result = await _sender.Send(new GetNotificationsQuery{ CreatedBefore = createdBefore, Limit = limit });
-            return Ok(result);
+            return await _notificationClient.ProxyAsync(HttpContext, "notifications/me");
         }
     }
 }
