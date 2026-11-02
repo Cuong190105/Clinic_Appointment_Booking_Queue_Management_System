@@ -96,9 +96,9 @@ sequenceDiagram
 - **Cam kết bảo mật**: Tuyệt đối không bao giờ ghi mật khẩu người dùng, token bí mật (`access_token`, `refresh_token`), hoặc mã PIN reset mật khẩu vào log file hoặc telemetry.
 
 ### 3.4. Frontend Client & State Management
-- [frontend/src/lib/api/http.ts](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/frontend/src/lib/api/http.ts): Tự động đính kèm header `X-Correlation-ID` (UUID) trên tất cả HTTP request gửi đi. Xử lý cơ chế tự động refresh token khi gặp mã lỗi 401 và hàng đợi các request chờ (Token Refresh Queue).
-- [frontend/src/features/auth/auth.api.ts](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/frontend/src/features/auth/auth.api.ts): Bổ sung đầy đủ các method gọi API mới: `logout()`, `getPermissions()`, `fetchMe()`.
-- [frontend/src/stores/auth.ts](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/frontend/src/stores/auth.ts): Cập nhật hàm `logout()` gọi trực tiếp Gateway `/auth/logout` để thu hồi token ở server trước khi xóa sạch thông tin local state và chuyển hướng về màn hình đăng nhập.
+- [`http.ts`](../frontend/src/lib/api/http.ts): Tự động đính kèm header `X-Correlation-ID` (UUID) trên tất cả HTTP request gửi đi. Xử lý cơ chế tự động refresh token khi gặp mã lỗi 401 và hàng đợi các request chờ (Token Refresh Queue).
+- [`auth.api.ts`](../frontend/src/features/auth/auth.api.ts): Bổ sung đầy đủ các method gọi API mới: `logout()`, `getPermissions()`, `fetchMe()`.
+- [`auth.ts`](../frontend/src/stores/auth.ts): Cập nhật hàm `logout()` gọi trực tiếp Gateway `/auth/logout` để thu hồi token ở server trước khi xóa sạch thông tin local state và chuyển hướng về màn hình đăng nhập.
 
 ### 3.5. Feature Flag Fallback
 - Bổ sung cấu hình `"Features": { "UseIdentityService": true }` trong `appsettings.json`.
@@ -109,7 +109,7 @@ sequenceDiagram
 ## 4. Bằng Chứng Nghiệm Thu & Kiểm Thử Chi Tiết
 
 ### 4.1. Gateway Auth Integration Tests (12/12 Passed)
-Bộ kiểm thử tích hợp chuyên biệt tại [`backend/Clinic.IntegrationTests/Auth/GatewayAuthIntegrationTests.cs`](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/backend/Clinic.IntegrationTests/Auth/GatewayAuthIntegrationTests.cs):
+Bộ kiểm thử tích hợp chuyên biệt tại [`GatewayAuthIntegrationTests.cs`](../backend/Clinic.IntegrationTests/Auth/GatewayAuthIntegrationTests.cs):
 1. `Discovery_Endpoint_Returns_Valid_Configuration`: Kiểm tra endpoint Discovery trả về đầy đủ metadata OIDC và link tới JWKS.
 2. `Jwks_Endpoint_Proxies_Keys_From_Identity`: Xác nhận Gateway proxy chính xác danh sách public keys từ Identity Service.
 3. `Valid_RS256_Token_Authenticates_Successfully`: Token RS256 hợp lệ truy cập thành công tài nguyên được bảo vệ.
@@ -124,7 +124,7 @@ Bộ kiểm thử tích hợp chuyên biệt tại [`backend/Clinic.IntegrationT
 12. `Feature_Flag_Disables_Identity_Route`: Khi tắt feature flag, Gateway trả về HTTP 503 đúng theo thiết kế vận hành.
 
 ### 4.2. Auth Contract Tests (6/6 Passed)
-- Kiểm thử hợp đồng API tại [`backend/Clinic.IntegrationTests/Auth/AuthContractTests.cs`](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/backend/Clinic.IntegrationTests/Auth/AuthContractTests.cs) bảo đảm cấu trúc DTO request và response không bị sai lệch so với thỏa thuận giữa 2 thành viên.
+- Kiểm thử hợp đồng API tại [`AuthContractTests.cs`](../backend/Clinic.IntegrationTests/Auth/AuthContractTests.cs) bảo đảm cấu trúc DTO request và response không bị sai lệch so với thỏa thuận giữa 2 thành viên.
 
 ### 4.3. Frontend Unit Tests (94/94 Passed)
 - Chạy toàn bộ test suite frontend bằng `npm run test:unit`: 22 test files, 94 passed, 0 failed.

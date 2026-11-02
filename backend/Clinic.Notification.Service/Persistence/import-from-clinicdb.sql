@@ -39,7 +39,7 @@ SELECT
     n.Id,
     ISNULL(u.Id, n.PersonId) AS RecipientId,
     CASE WHEN u.Id IS NOT NULL THEN 1 ELSE 2 END AS RecipientType, -- 1 = Account, 2 = Guest
-    CASE 
+    CASE
         WHEN n.Type = 'AppointmentConfirmation' THEN 1
         WHEN n.Type = 'AppointmentCancellation' THEN 2
         WHEN n.Type = 'AppointmentReminder' THEN 3
@@ -68,4 +68,3 @@ WHERE NOT EXISTS (
 );
 
 COMMIT TRANSACTION;
-

@@ -20,6 +20,5 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Clinic.MedicalRecords.Service\Clinic.MedicalRecords.Service.csproj" />
-    <ProjectReference Include="..\Clinic.Contracts\Clinic.Contracts.csproj" />
   </ItemGroup>
 </Project>

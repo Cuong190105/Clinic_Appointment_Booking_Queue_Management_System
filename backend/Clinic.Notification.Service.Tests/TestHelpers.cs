@@ -39,4 +39,3 @@ internal static class TestDbHelper
         return new NotificationDbContext(options);
     }
 }
-

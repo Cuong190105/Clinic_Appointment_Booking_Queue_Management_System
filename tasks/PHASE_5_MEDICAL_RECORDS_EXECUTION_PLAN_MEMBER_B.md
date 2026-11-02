@@ -1,104 +1,34 @@
-# Kế Hoạch & Báo Cáo Triển Khai Giai Đoạn 5: Tách Medical Records Service — Hạ Tầng Consumer, Xử Lý Sự Kiện Lệch Thứ Tự & Kiểm Toán Bệnh Án (Thành viên B)
+# Phase 5 — Phối hợp Messaging và nghiệm thu của Thành viên B
 
-> **Tài liệu tham chiếu**:
-> - `tasks/TASK_MEMBER_B.md` (Nhiệm vụ Thành viên B - Giai đoạn 5)
-> - `tasks/COMMON_REQUIREMENTS_AND_NOTES.md` (Yêu cầu kỹ thuật chung)
-> - `docs/MEMBER_B_OPERATIONS_RUNBOOK.md` (Runbook vận hành & Rebuild projection)
-> - `backend/Clinic.MedicalRecords.Service.Tests/MedicalRecordWorkflowTests.cs` (Bộ kiểm thử Workflow Bệnh án)
+**Vai trò:** Thành viên A sở hữu Medical Records Service, database, Patient/MedicalReport, API, authorization, audit, migration và cutover. Thành viên B phụ trách phối hợp event contract, broker reliability, consumer failure behavior, contract/failure tests, telemetry và runtime integration. Tài liệu này không giao B xây lại service/domain/API đã được A triển khai.
 
----
+## Quyết định thiết kế phải tuân theo
 
-## 1. Tổng Quan & Mục Tiêu Giai Đoạn 5
+- Dùng `AppointmentId` làm định danh ổn định của encounter; không thêm `VisitId` hoặc `EncounterId` thay thế.
+- `ExamStarted` mở hoặc cập nhật `EncounterContext` idempotently. Không tự tạo một MedicalReport Draft rỗng.
+- `ExamCompleted` chỉ đánh dấu encounter đã kết thúc; không finalize MedicalReport. Bác sĩ finalize qua luồng Medical Records riêng.
+- `Patient` và `MedicalReport` cùng thuộc Medical Records Service. Không thêm MedicalHistory projection riêng nếu truy vấn từ DB sở hữu đã đáp ứng; mọi projection mới cần lý do đo được và được A duyệt.
+- Event chỉ chứa ID, thời điểm và snapshot cần cho context. Không đưa nội dung bệnh án hoặc dữ liệu cá nhân không cần thiết vào event/log/DLQ.
 
-### 1.1. Vai trò của Thành viên B trong Giai đoạn 5
-Trong Giai đoạn 5, hệ thống bóc tách toàn bộ chức năng quản lý hồ sơ khám bệnh và lịch sử điều trị sang một dịch vụ độc lập: **Medical Records Service** (`Clinic.MedicalRecords.Service`) với cơ sở dữ liệu riêng `ClinicMedicalRecordsDB`. Thành viên B phụ trách:
-1. Xây dựng **Medical Records Event Consumer** tiếp nhận các sự kiện bắt đầu khám (`ExamStarted`) và kết thúc khám (`ExamCompleted`) từ Queue Service qua RabbitMQ.
-2. Xử lý bài toán sự kiện đến lệch thứ tự (Out-of-Order Events) và sự kiện trùng lặp (Duplicate Events) dựa trên cơ chế phiên bản luồng (`WorkflowVersion`).
-3. Xây dựng bản chiếu lịch sử y tế (`MedicalHistory` Projection) với khả năng tái tạo (Rebuild) 100% từ dữ liệu gốc khi có sự cố mà không làm thay đổi hồ sơ lâm sàng.
-4. Triển khai cơ chế kiểm toán truy vết (Audit Logging) cho mọi thao tác xem, sửa, và khóa bệnh án.
-5. Viết bộ kiểm thử hợp đồng (Contract Tests) cho quy trình Lưu nháp (Save Draft) và Khóa bệnh án bất biến (Finalize Report).
+## Các bước B phụ trách
 
----
+1. **Contract và producer compatibility:** cùng A xác nhận schema version, `EventId`, correlation/causation, routing key và payload `ExamStarted`/`ExamCompleted`. B kiểm tra Queue producer phát đúng ID/snapshot theo hợp đồng đã chốt; thay đổi contract phải tương thích hoặc tăng schema version.
+2. **Consumer reliability:** kiểm tra consumer của Medical Records dùng Inbox/idempotency và local transaction đúng thứ tự; xử lý duplicate, retry hữu hạn, poison message, DLQ, broker restart và graceful shutdown. `ExamCompleted` đến trước `ExamStarted` không được làm thay đổi lifecycle của MedicalReport.
+3. **Kiểm thử:** bổ sung contract/failure tests cho duplicate, event đảo thứ tự, consumer crash trước/sau commit, broker restart và retry exhaustion. Phân biệt test component với test dùng SQL Server/RabbitMQ thật.
+4. **Telemetry và vận hành:** đo consumer processed/failure/retry/DLQ/lag và correlation; không ghi PHI hoặc access token. Ghi cách chẩn đoán event bằng ID và cách replay có kiểm soát.
+5. **E2E chung với A:** từ Queue `ExamStarted` đến EncounterContext, sau đó tạo/lưu Draft, phát `ExamCompleted` và xác nhận context thành Completed trong khi report vẫn Draft cho tới khi bác sĩ finalize.
 
-## 2. Thiết Kế Kiến Trúc & Vòng Đời Hồ Sơ Bệnh Án
+## Điều kiện hoàn tất phần B
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Doctor as Bác Sĩ Lâm Sàng
-    participant Queue as Queue Service
-    participant Broker as RabbitMQ (clinic.events)
-    participant MedCons as MedicalRecordsEventConsumer
-    participant MedDB as ClinicMedicalRecordsDB
-    participant GW as API Gateway
+- Duplicate event không tạo tác dụng phụ trùng; event đảo thứ tự không làm report bị finalize hoặc lùi trạng thái.
+- Broker/consumer restart không làm mất business transaction đã commit; lỗi hữu hạn đi qua retry/DLQ theo cấu hình hiện hành.
+- Contract và telemetry có test/evidence; log và DLQ không chứa nội dung bệnh án.
+- E2E xác nhận lifecycle Queue/encounter/report là các trạng thái thuộc owner tương ứng.
 
-    Note over Queue,MedDB: 1. Tiếp Nhận Sự Kiện Bắt Đầu Khám (ExamStarted)
-    Queue->>Broker: Publish 'queue.exam-started' (ticketId, appointmentId, doctorId, patientId)
-    Broker->>MedCons: Consumer nhận event
-    MedCons->>MedDB: Local Tx: Kiểm tra Inbox & Tạo MedicalRecord (Status: Draft, WorkflowVersion: 1)
-    MedCons->>MedDB: Ghi Audit Log (DraftCreated)
+**Khoảng trống cần B xử lý sau khi merge:** consumer hiện tại NACK lỗi với `requeue: false`, khiến RabbitMQ đưa event thẳng vào dead-letter queue mà chưa có bounded transient retry queue. B cần bổ sung retry/backoff giới hạn và kiểm thử trên RabbitMQ thật trước khi đánh dấu consumer reliability đạt.
 
-    Note over Doctor,MedDB: 2. Bác Sĩ Ghi Nhận Chẩn Đoán & Kê Đơn
-    Doctor->>GW: PUT /api/medical-reports/{id} (isFinalize: false, diagnosis, prescription)
-    GW->>MedDB: Cập nhật nội dung lâm sàng (Status: Draft)
-    GW->>MedDB: Ghi Audit Log (Saved)
+## Ngoài phạm vi của B
 
-    Note over Queue,MedDB: 3. Kết Thúc Khám & Khóa Hồ Sơ (ExamCompleted)
-    Queue->>Broker: Publish 'queue.exam-completed'
-    Broker->>MedCons: Consumer nhận event
-    MedCons->>MedDB: Local Tx: Cập nhật MedicalRecord (Status: Finalized, WorkflowVersion: 2)
-    MedCons->>MedDB: Tạo/Cập nhật bản chiếu MedicalHistory
-    MedCons->>MedDB: Ghi Audit Log (Finalized)
+Không thiết kế lại entity/API/database, không triển khai audit nghiệp vụ thay A, không tạo `MedicalHistory` projection hoặc endpoint rebuild khi chưa có quyết định, và không finalize hồ sơ từ `ExamCompleted`.
 
-    Note over Doctor,GW: 4. Chặn Sửa Đổi Khi Đã Khóa Hồ Sơ
-    Doctor->>GW: PUT /api/medical-reports/{id} (Cố tình sửa sau khi Finalized)
-    GW-->>Doctor: HTTP 400 Bad Request ("Hồ sơ bệnh án đã khóa, không thể chỉnh sửa trực tiếp")
-```
-
----
-
-## 3. Các Hạng Mục Đã Hoàn Thành Chi Tiết
-
-### 3.1. Consumer Tiếp Nhận Sự Kiện Hàng Đợi (`MedicalRecordsEventConsumer`)
-- Kết nối tới RabbitMQ queue bền vững `q.medical-records.events` lắng nghe routing keys:
-  - `queue.exam-started`: Tự động khởi tạo ngữ cảnh hồ sơ bệnh án mới ở trạng thái `Draft` với liên kết ổn định `AppointmentId` và `PatientId`.
-  - `queue.exam-completed`: Cập nhật trạng thái sang `Finalized`, đồng thời ghi nhận vào bảng bản chiếu lịch sử y khoa của bệnh nhân.
-- Cơ chế Idempotency: Kiểm tra kép qua bảng `InboxMessages`. Nếu nhận sự kiện duplicate, consumer xác nhận ngay mà không tạo bản ghi bệnh án thứ hai.
-
-### 3.2. Cơ Chế Chống Hồi Quy Do Sự Kiện Đến Lệch Thứ Tự (`WorkflowVersion`)
-- Trong môi trường phân tán, sự kiện `ExamCompleted` có thể đến trước `ExamStarted` (do độ trễ mạng hoặc retry):
-  - Khi `ExamCompleted` đến trước: Service khởi tạo ngay bản ghi với trạng thái `Finalized` và gán `WorkflowVersion = 2`.
-  - Khi `ExamStarted` đến muộn: Service kiểm tra thấy bản ghi đã tồn tại với `WorkflowVersion >= 2` $\rightarrow$ Giữ nguyên trạng thái `Finalized`, **tuyệt đối không hồi quy về `Draft`**, bảo đảm tính toàn vẹn dữ liệu lâm sàng.
-
-### 3.3. Bản Chiếu Lịch Sử Y Tế (`MedicalHistory` Projection) & Khả Năng Tái Tạo
-- Thực thể `MedicalHistory` được tách biệt làm read model tối ưu cho việc tra cứu tiền sử bệnh của bệnh nhân qua các đợt khám.
-- Cơ chế Rebuild an toàn (`MedicalHistoryProjector.RebuildAsync`):
-  - Cung cấp endpoint quản trị `POST /admin/medical-history/rebuild`.
-  - Có thể xóa và tái tạo toàn bộ bản chiếu từ bảng sự kiện/hồ sơ gốc mà không làm thay đổi các trường lâm sàng hay dấu mốc thời gian cập nhật (`UpdatedAt`) của hồ sơ gốc.
-
-### 3.4. Kiểm Toán Bảo Mật & Bảo Vệ Dữ Liệu Lâm Sàng
-- Bảng kiểm toán `MedicalRecordAudits` lưu trữ: `MedicalRecordId`, `Action` (`DraftCreated`, `Saved`, `Finalized`, `Exported`, `Viewed`), `ActorId`, `ActorName`, `IpAddress`, `CorrelationId`, `Timestamp`.
-- Tuân thủ quy định bảo mật: Tuyệt đối không log nội dung chẩn đoán bệnh án, tiền sử cá nhân hoặc kết quả xét nghiệm vào file log hệ thống hay dead-letter queue.
-
-### 3.5. Kiểm Thử Hợp Đồng Bất Biến (Immutability Contract)
-- Endpoint `PUT /api/medical-reports/{id}` hỗ trợ lưu nháp (`isFinalize = false`) không giới hạn số lần khi hồ sơ ở trạng thái `Draft`.
-- Khi chuyển `isFinalize = true`: Hồ sơ chuyển sang `Finalized`. Mọi yêu cầu gọi lại `PUT` sau thời điểm này đều bị từ chối với mã lỗi `400 Bad Request` kèm thông báo bảo mật.
-
----
-
-## 4. Bằng Chứng Nghiệm Thu & Kiểm Thử Chi Tiết
-
-### 4.1. Kết Quả Kiểm Thử Đã Đạt (4/4 Passed)
-Chạy toàn bộ test suite tại [`backend/Clinic.MedicalRecords.Service.Tests`](file:///d:/CODE/KHDV/Clinic_Appointment_Booking_Queue_Management_System/backend/Clinic.MedicalRecords.Service.Tests):
-```bash
-Passed! - Failed: 0, Passed: 4, Skipped: 0, Total: 4, Duration: 1 s - Clinic.MedicalRecords.Service.Tests.dll
-```
-1. `ExamStarted_CreatesOneDraft_WhenDuplicated`: Kiểm thử gửi 2 event `ExamStarted` cùng ID, xác nhận chỉ có 1 bản ghi `Draft` được tạo ra trong DB.
-2. `CompletedBeforeStarted_NeverRegressesFromFinalized`: Kiểm thử gửi `ExamCompleted` trước `ExamStarted`, xác nhận hồ sơ đạt `Finalized` và không bị tụt về `Draft`.
-3. `HistoryProjection_CanBeRebuiltWithoutChangingClinicalRecord`: Kiểm thử tái tạo read model `MedicalHistory`, xác nhận số lượng bản chiếu đúng và dấu thời gian của hồ sơ gốc giữ nguyên.
-4. `MedicalReportsContract_SaveAndFinalize_EnforcesImmutability`: Kiểm thử toàn bộ vòng đời API: Lưu nháp $\to$ Chốt hồ sơ $\to$ Ngăn chặn sửa đổi sau khi chốt $\to$ Tra cứu danh sách theo trạng thái.
-
-### 4.2. Runtime & Docker Health
-- Service cấu hình độc lập tại cổng 5005 (`Clinic.MedicalRecords.Service`), kết nối tới database riêng `ClinicMedicalRecordsDB`.
-- Health checks `/healthz` và `/readyz` cấu hình hoàn chỉnh trong `docker-compose.yml`.
-
+Chi tiết sở hữu nghiệp vụ, API, migration và acceptance của A: [`PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md`](PHASE_5_MEDICAL_RECORDS_SERVICE_EXECUTION_PLAN_MEMBER_A.md).

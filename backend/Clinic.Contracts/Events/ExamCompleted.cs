@@ -4,6 +4,5 @@ public sealed record ExamCompleted(
     Guid QueueTicketId,
     Guid AppointmentId,
     Guid DoctorId,
-    DateTimeOffset CompletedAt,
-    Guid PatientId = default
+    DateTimeOffset CompletedAt
 );

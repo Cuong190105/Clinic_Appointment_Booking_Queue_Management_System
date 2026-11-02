@@ -9,7 +9,6 @@ public sealed record ExamStarted
     public Guid PatientId { get; init; }
     public Guid DoctorId { get; init; }
     public string? DoctorName { get; init; }
-    public string? PatientName { get; init; }
     public DateOnly? QueueDate { get; init; }
     public DateTimeOffset StartedAt { get; init; }
 
@@ -21,8 +20,7 @@ public sealed record ExamStarted
         Guid doctorId,
         string? doctorName,
         DateOnly? queueDate,
-        DateTimeOffset startedAt,
-        string? patientName = null)
+        DateTimeOffset startedAt)
     {
         QueueTicketId = queueTicketId;
         AppointmentId = appointmentId;
@@ -31,16 +29,10 @@ public sealed record ExamStarted
         DoctorName = doctorName;
         QueueDate = queueDate;
         StartedAt = startedAt;
-        PatientName = patientName;
     }
 
     public ExamStarted(Guid queueTicketId, Guid appointmentId, Guid doctorId, DateTimeOffset startedAt)
-        : this(queueTicketId, appointmentId, Guid.Empty, doctorId, null, null, startedAt, null)
-    {
-    }
-
-    public ExamStarted(Guid queueTicketId, Guid appointmentId, Guid doctorId, DateTimeOffset startedAt, Guid patientId, string? patientName = null, string? doctorName = null)
-        : this(queueTicketId, appointmentId, patientId, doctorId, doctorName, null, startedAt, patientName)
+        : this(queueTicketId, appointmentId, Guid.Empty, doctorId, null, null, startedAt)
     {
     }
 }

@@ -43,7 +43,7 @@ public sealed class NotificationPolicyUnitTests
         var intents = _engine.EvaluateAppointmentConfirmed(eventId, payload);
 
         Assert.Equal(2, intents.Count);
-        
+
         var inApp = intents.Single(i => i.Channel == NotificationChannel.InApp);
         Assert.Equal(identityUserId, inApp.RecipientId);
         Assert.Equal(RecipientType.Account, inApp.RecipientType);

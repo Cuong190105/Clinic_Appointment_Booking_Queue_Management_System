@@ -24,8 +24,8 @@ BEGIN TRY
 
     -- Pre-import verification: Fail if any MedicalReport has a PatientId not present in ClinicDB.dbo.Patients
     IF EXISTS (
-        SELECT 1 
-        FROM ClinicDB.dbo.MedicalReports mr 
+        SELECT 1
+        FROM ClinicDB.dbo.MedicalReports mr
         WHERE NOT EXISTS (SELECT 1 FROM ClinicDB.dbo.Patients p WHERE p.Id = mr.PatientId)
     )
         THROW 51002, 'Pre-import validation failed: Found MedicalReports referencing missing Patients in ClinicDB.', 1;
@@ -55,7 +55,7 @@ BEGIN TRY
         UpdatedAt,
         IsDeleted
     )
-    SELECT 
+    SELECT
         pat.Id,
         per.IdentityUserId,
         pat.PersonId,
@@ -63,11 +63,11 @@ BEGIN TRY
         per.PhoneNumber,
         per.Email,
         COALESCE(per.DateOfBirth, '1900-01-01'),
-        CASE CONVERT(int, per.Gender) 
-            WHEN 0 THEN N'Male' 
-            WHEN 1 THEN N'Female' 
-            WHEN 2 THEN N'Other' 
-            ELSE N'Other' 
+        CASE CONVERT(int, per.Gender)
+            WHEN 0 THEN N'Male'
+            WHEN 1 THEN N'Female'
+            WHEN 2 THEN N'Other'
+            ELSE N'Other'
         END,
         per.Address,
         pat.InsuranceNumber,
@@ -101,7 +101,7 @@ BEGIN TRY
         UpdatedAt,
         IsDeleted
     )
-    SELECT 
+    SELECT
         mr.Id,
         mr.AppointmentId,
         mr.PatientId,
@@ -115,7 +115,7 @@ BEGIN TRY
         mr.Diagnosis,
         mr.Prescription,
         mr.Notes,
-        CASE 
+        CASE
             WHEN mr.Status IN (N'Finalized', N'1') THEN N'Finalized'
             ELSE N'Draft'
         END,

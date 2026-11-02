@@ -106,43 +106,4 @@ public sealed class EventContractCompatibilityTests
         Assert.Equal("0901234567", restored.Payload.PatientPhone);
     }
 
-    [Fact]
-    public void NotificationRequested_SerializationRoundTrip()
-    {
-        var recipientId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow;
-
-        var notif = new NotificationRequested(
-            recipientId,
-            "appointment-reminder",
-            "Appointment Reminder",
-            "Your appointment is tomorrow at 9 AM.",
-            new[] { "email", "in_app" },
-            "patient@test.com",
-            "0901234567",
-            now.AddDays(1));
-
-        var envelope = new EventEnvelope<NotificationRequested>
-        {
-            EventId = Guid.NewGuid(),
-            EventType = EventTypes.NotificationRequested,
-            SchemaVersion = 1,
-            OccurredAt = now,
-            CorrelationId = Guid.NewGuid(),
-            Producer = "notification-service",
-            Payload = notif
-        };
-
-        var json = JsonSerializer.Serialize(envelope, EventJsonSerializerOptions.Default);
-        var restored = JsonSerializer.Deserialize<EventEnvelope<NotificationRequested>>(json, EventJsonSerializerOptions.Default);
-
-        Assert.NotNull(restored);
-        Assert.Equal(recipientId, restored.Payload.RecipientId);
-        Assert.Equal("appointment-reminder", restored.Payload.TemplateKey);
-        Assert.Equal("Appointment Reminder", restored.Payload.Title);
-        Assert.Equal(2, restored.Payload.Channels.Length);
-        Assert.Contains("email", restored.Payload.Channels);
-        Assert.Contains("in_app", restored.Payload.Channels);
-        Assert.Equal("patient@test.com", restored.Payload.Email);
-    }
 }

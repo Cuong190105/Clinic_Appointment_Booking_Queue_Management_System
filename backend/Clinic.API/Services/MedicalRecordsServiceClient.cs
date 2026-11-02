@@ -26,7 +26,7 @@ public sealed class MedicalRecordsServiceClient
         CancellationToken ct = default)
     {
         var httpMethod = method ?? new HttpMethod(httpContext.Request.Method);
-        
+
         // Append query string if targetPath does not contain query parameters
         var path = targetPath;
         if (!path.Contains('?') && httpContext.Request.QueryString.HasValue)

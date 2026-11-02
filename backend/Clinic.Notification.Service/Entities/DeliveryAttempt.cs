@@ -24,4 +24,3 @@ public sealed class DeliveryAttempt
     // Navigation
     public DeliveryOutboxMessage? DeliveryOutboxMessage { get; set; }
 }
-

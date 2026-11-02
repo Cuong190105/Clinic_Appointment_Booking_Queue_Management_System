@@ -14,4 +14,3 @@ public sealed record ProviderDeliveryResult(
     string ProviderResponse,
     string? ProviderReference = null
 );
-

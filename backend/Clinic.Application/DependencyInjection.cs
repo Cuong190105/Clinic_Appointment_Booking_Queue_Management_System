@@ -3,6 +3,7 @@ using Clinic.Application.Interfaces;
 using Clinic.Application.Services;
 using Mapster;
 using MapsterMapper;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Clinic.Application
@@ -23,8 +24,7 @@ namespace Clinic.Application
             services.AddSingleton(config);
             services.AddScoped<IMapper, Mapper>();
             services.AddScoped<IPersonService, PersonService>();
-            // Notification delivery is owned by Clinic.Notification.Service. The former
-            // in-memory Channel<T> pipeline is intentionally not registered at runtime.
+            // Notification services retired from monolith: owned by Clinic.Notification.Service.
 
             return services;
         }

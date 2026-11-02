@@ -100,4 +100,3 @@ public class NotificationDbContextFactory : IDesignTimeDbContextFactory<Notifica
         return new NotificationDbContext(optionsBuilder.Options);
     }
 }
-

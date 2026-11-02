@@ -40,4 +40,3 @@ public sealed class NotificationItem
     // Navigation
     public ICollection<DeliveryOutboxMessage> Deliveries { get; set; } = new List<DeliveryOutboxMessage>();
 }
-

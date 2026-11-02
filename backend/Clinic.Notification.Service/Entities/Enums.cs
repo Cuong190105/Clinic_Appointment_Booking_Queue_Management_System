@@ -31,4 +31,3 @@ public enum DeliveryStatus
     /// <summary>Delivery withheld permanently (e.g. reminder for a cancelled/rescheduled appointment).</summary>
     Suppressed = 4
 }
-

@@ -5,4 +5,3 @@ public sealed record RecipientContactSnapshot(
     string? Email,
     string? PhoneNumber
 );
-

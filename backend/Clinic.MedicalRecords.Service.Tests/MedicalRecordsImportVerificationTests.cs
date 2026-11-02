@@ -17,7 +17,7 @@ public class MedicalRecordsImportVerificationTests
         var basePath = AppContext.BaseDirectory;
         // Navigate up from bin/Debug/net10.0 to service directory or workspace root
         var servicePersistenceDir = Path.GetFullPath(Path.Combine(basePath, "../../../../Clinic.MedicalRecords.Service/Persistence"));
-        
+
         var importSqlPath = Path.Combine(servicePersistenceDir, "import-from-clinicdb.sql");
         var verifySqlPath = Path.Combine(servicePersistenceDir, "verify-medical-records-import.sql");
 
