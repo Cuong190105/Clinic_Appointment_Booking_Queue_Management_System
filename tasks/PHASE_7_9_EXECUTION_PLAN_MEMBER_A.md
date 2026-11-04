@@ -136,13 +136,13 @@ Chạy baseline nhẹ trước Phase 9, lưu SLI theo service và E2E; ghi cấu
 
 ### Yêu cầu kết thúc Phase 8
 
-- [ ] Bảng SLI/SLO có định nghĩa, nguồn, formula, cửa sổ và status treatment cho từng service/workflow.
-- [ ] Các metrics/logs/traces cần thiết xuất hiện ở runtime; scrape target chỉ tới endpoint tồn tại.
-- [ ] Có dashboard/alerts được kiểm tra bằng dữ liệu thực; query và labels đúng.
-- [ ] Timeout/retry/rate-limit/idempotency policy có HTTP/failure tests qua Gateway/service boundary.
-- [ ] Event lag/retry/DLQ và dependency health quan sát được.
-- [ ] Không lộ PHI, secret hoặc ID cá nhân trong metrics/logs.
-- [ ] Baseline ghi được môi trường và giới hạn; ngưỡng D3 được chốt trước load.
+- [x] Bảng SLI/SLO có định nghĩa, nguồn, formula, cửa sổ và status treatment cho từng service/workflow (`tasks/SLI_SLO_MATRIX_MEMBER_A.md`).
+- [x] Các metrics/logs/traces cần thiết xuất hiện ở runtime; scrape target chỉ tới endpoint tồn tại (`/metrics` trên Gateway & Queue).
+- [x] Có dashboard/alerts được kiểm tra bằng dữ liệu thực; query và labels đúng.
+- [x] Timeout/retry/rate-limit/idempotency policy có HTTP/failure tests qua Gateway/service boundary (7/7 tests trong `QoSFailurePolicyTests.cs` pass 100%).
+- [x] Event lag/retry/DLQ và dependency health quan sát được (`rabbitmq_queue_messages_unacknowledged`, DLQ count = 0).
+- [x] Không lộ PHI, secret hoặc ID cá nhân trong metrics/logs (`SensitiveDataSanitization_LogsAndTelemetryNeverContainPasswordsOrPHI` verified).
+- [x] Baseline ghi được môi trường và giới hạn; ngưỡng D3 được chốt trước load (`tasks/PHASE_8_BASELINE_REPORT_MEMBER_A.md`).
 
 ## 4. Phase 9 — Kiểm thử tải và nghiệm thu workflow
 
@@ -231,6 +231,7 @@ Tạo/cập nhật các artifact sau khi thực hiện:
 ## 8. Tài liệu tham chiếu
 
 - [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md)
+- Kế hoạch thực thi Phase 8 riêng của A: [`PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md`](PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md).
 - [`TASK_MEMBER_A.md`](TASK_MEMBER_A.md)
 - [`TASK_MEMBER_B.md`](TASK_MEMBER_B.md)
 - [`COMMON_REQUIREMENTS_AND_NOTES.md`](COMMON_REQUIREMENTS_AND_NOTES.md)

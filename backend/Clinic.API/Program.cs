@@ -1,3 +1,4 @@
+using System.Net;
 using Clinic.API;
 using Clinic.API.Middlewares;
 using Clinic.API.Services;
@@ -41,16 +42,46 @@ builder.Services.AddCors(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        context.HttpContext.Response.ContentType = "application/json";
+
+        var response = Clinic.API.Models.ApiResponse.Fail(
+            HttpStatusCode.TooManyRequests,
+            "Rate limit exceeded. Please try again after 60 seconds.");
+
+        await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken);
+    };
+
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/healthz", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/readyz", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+        {
+            return RateLimitPartition.GetNoLimiter("exempt");
+        }
+
+        var partitionKey = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.User.FindFirstValue("sub")
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = builder.Configuration.GetValue<int?>("QoS:RateLimitPermitLimit") ?? 100,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
-            }));
+            });
+    });
 });
 
 // Add services to the container.
@@ -103,19 +134,19 @@ builder.Services.AddHttpClient("Scheduling", client =>
     var schedulingAuthority = builder.Configuration["Scheduling:Authority"] ?? "http://localhost:5002";
     client.BaseAddress = new Uri(schedulingAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 builder.Services.AddHttpClient("Appointment", client =>
 {
     var appointmentAuthority = builder.Configuration["Appointment:Authority"] ?? "http://localhost:5003";
     client.BaseAddress = new Uri(appointmentAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(15);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 builder.Services.AddHttpClient("Queue", client =>
 {
     var queueAuthority = builder.Configuration["Queue:Authority"] ?? "http://localhost:5004";
     client.BaseAddress = new Uri(queueAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(15);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 builder.Services.AddTransient<IdentityAccountClient>();
 builder.Services.AddTransient<SchedulingManagementClient>();
 builder.Services.AddTransient<ProfileProjectionSyncClient>();
@@ -127,7 +158,7 @@ builder.Services.AddHttpClient("MedicalRecords", client =>
         ?? "http://localhost:5005";
     client.BaseAddress = new Uri(medicalRecordsAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(15);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 builder.Services.AddTransient<Clinic.API.Services.QueueServiceClient>();
 builder.Services.AddTransient<Clinic.API.Services.MedicalRecordsServiceClient>();
 builder.Services.AddHttpClient("Notification", client =>
@@ -137,7 +168,7 @@ builder.Services.AddHttpClient("Notification", client =>
         ?? "http://localhost:5006";
     client.BaseAddress = new Uri(notificationAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 builder.Services.AddTransient<Clinic.API.Services.NotificationServiceClient>();
 
 builder.Services

@@ -52,6 +52,7 @@ cypress/videos/
 cypress/screenshots/
 
 *.ps1
+!scripts/*.ps1
 
 AgriTrace-Backend-feature-CleanArchitechture/
 

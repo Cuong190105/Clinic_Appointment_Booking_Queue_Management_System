@@ -9,6 +9,9 @@ using Clinic.Identity.Service.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 var issuer = builder.Configuration["Jwt:Issuer"] ?? "Clinic.Identity";
@@ -131,7 +134,20 @@ builder.Services.AddOpenApi(options =>
         return Task.CompletedTask;
     });
 });
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("clinic-identity-service"))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddPrometheusExporter())
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation(options => options.Filter = context => context.Request.Path != "/metrics")
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter());
+
 var app = builder.Build();
+app.MapPrometheusScrapingEndpoint();
 app.Use(async (context, next) =>
 {
     var correlationId = context.Request.Headers.TryGetValue("X-Correlation-ID", out var cid) && !string.IsNullOrWhiteSpace(cid)

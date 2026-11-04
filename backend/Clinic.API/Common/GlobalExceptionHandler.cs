@@ -5,7 +5,6 @@ using Clinic.Application.Common.Exceptions;
 using Clinic.Domain.Common.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 
-
 namespace Clinic.API.Common
 {
     /// <summary>
@@ -33,6 +32,9 @@ namespace Clinic.API.Common
                 ArgumentException => (HttpStatusCode.BadRequest, new[] { exception.Message }),
                 InvalidOperationException => (HttpStatusCode.BadRequest, new[] { exception.Message }),
                 UnauthorizedAccessException => (HttpStatusCode.Unauthorized, new[] { exception.Message }),
+                TimeoutException or TaskCanceledException when !httpContext.RequestAborted.IsCancellationRequested
+                    => (HttpStatusCode.GatewayTimeout, new[] { "Downstream microservice did not respond within the SLA threshold." }),
+                HttpRequestException => (HttpStatusCode.BadGateway, new[] { "Downstream microservice connection failed or refused." }),
                 _ => (HttpStatusCode.InternalServerError, new[] { exception.InnerException?.Message ?? exception.Message ?? "An unexpected error occurred." })
             };
 

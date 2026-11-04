@@ -4,6 +4,8 @@
 
 **Trạng thái:** Đang triển khai một phần. B đã thêm API Catalog, test scaffolding, telemetry artifacts và load harness; rà soát hiện tại đánh giá Phase 7 chưa nghiệm thu, Phase 8 đạt một phần, Phase 9 chưa có bằng chứng tải nghiệp vụ đủ tin cậy. Kế hoạch chi tiết của A: [`PHASE_7_9_EXECUTION_PLAN_MEMBER_A.md`](PHASE_7_9_EXECUTION_PLAN_MEMBER_A.md). Trạng thái và khắc phục phía B: các execution plan Member B tương ứng.
 
+Kế hoạch thực thi riêng Phase 8 của A: [`PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md`](PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md).
+
 **Phạm vi hệ thống:** `Clinic.Identity.Service`, `Clinic.Scheduling.Service`, `Clinic.Appointment.Service`, `Clinic.Queue.Service`, `Clinic.MedicalRecords.Service`, `Clinic.Notification.Service` và `Clinic.API` (Gateway/BFF). SQL Server và RabbitMQ được tính là dependency vận hành cần quan sát khi tải.
 
 **Nguyên tắc:** Không mở lại sáu phase nghiệp vụ đã nghiệm thu. Đây là đợt hoàn thiện hợp đồng, vận hành và bằng chứng hiệu năng. Mục tiêu SLA/SLO bên dưới là mục tiêu cho môi trường Docker phục vụ môn học, không phải cam kết production hay cam kết pháp lý.

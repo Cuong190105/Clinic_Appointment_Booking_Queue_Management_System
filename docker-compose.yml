@@ -26,9 +26,14 @@ services:
         ports:
             - "5672:5672"
             - "15672:15672"
+            - "15692:15692"
         environment:
             RABBITMQ_DEFAULT_USER: clinic
             RABBITMQ_DEFAULT_PASS: clinic-dev-password
+        command:
+            - /bin/bash
+            - -c
+            - rabbitmq-plugins enable --offline rabbitmq_prometheus && rabbitmq-server
         volumes:
             - rabbitmq_data:/var/lib/rabbitmq
         healthcheck:
@@ -39,10 +44,26 @@ services:
             start_period: 10s
         restart: always
 
+    mssql-exporter:
+        image: awaragi/prometheus-mssql-exporter:latest
+        environment:
+            SERVER: db
+            PORT: 1433
+            USERNAME: sa
+            PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            ENCRYPT: "false"
+            TRUST_SERVER_CERTIFICATE: "true"
+        depends_on:
+            db:
+                condition: service_healthy
+        expose:
+            - "4000"
+        restart: always
+
     backend:
         build:
             context: ./backend
-            dockerfile: Dockerfile # Đường dẫn tới Dockerfile của Backend
+            dockerfile: Dockerfile # ÄÆ°á»ng dáº«n tá»›i Dockerfile cá»§a Backend
         container_name: clinic_backend
         ports:
             - "5000:8080"
@@ -198,6 +219,12 @@ services:
                 condition: service_healthy
             queue-service:
                 condition: service_healthy
+            db:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+            mssql-exporter:
+                condition: service_started
             notification-service:
                 condition: service_healthy
             identity-service:
@@ -474,11 +501,11 @@ services:
 
     frontend:
         build:
-            context: ./frontend # Thay bằng đường dẫn tới thư mục Vue.js của bạn
+            context: ./frontend # Thay báº±ng Ä‘Æ°á»ng dáº«n tá»›i thÆ° má»¥c Vue.js cá»§a báº¡n
             dockerfile: Dockerfile
         container_name: clinic_frontend
         ports:
-            - "3000:80" # Truy cập Frontend ở giao diện máy thật qua port 3000
+            - "3000:80" # Truy cáº­p Frontend á»Ÿ giao diá»‡n mÃ¡y tháº­t qua port 3000
         depends_on:
             backend:
                 condition: service_healthy
@@ -497,6 +524,7 @@ services:
             - "9090:9090"
         volumes:
             - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - ./observability/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
             - prometheus_data:/prometheus
         depends_on:
             backend:

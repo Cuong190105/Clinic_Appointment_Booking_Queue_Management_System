@@ -555,6 +555,7 @@ Kế hoạch chi tiết từng bước, decision gates, yêu cầu nghiệm thu 
 
 - **Phase 7:** kiểm kê HTTP API theo service; hoàn thiện OpenAPI service-owned gồm version, DTO, validation, security, error response và idempotency; xác nhận public/internal contract.
 - **Phase 8:** đề xuất/chốt SLI/SLO nghiệp vụ cho từng service và workflow; thống nhất timeout, retry, idempotency, rate-limit/concurrency behavior; bổ sung metric nghiệp vụ còn thiếu.
+- Kế hoạch chi tiết, phân công và checklist Phase 8: [`PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md`](PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md).
 - **Phase 9:** định nghĩa workload, test data cô lập, invariant và ngưỡng nghiệm thu; phân tích/sửa bottleneck thuộc service owner.
 - **Hoàn tất:** review chung contract và SLO; nghiệm thu E2E/runtime sau khi áp dụng thay đổi.
 

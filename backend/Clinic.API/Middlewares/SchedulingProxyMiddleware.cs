@@ -91,11 +91,21 @@ public sealed class SchedulingProxyMiddleware(RequestDelegate next, IHttpClientF
         {
             throw;
         }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning("Scheduling proxy timed out for {Method} {Path}", method, path);
+            context.Response.StatusCode = (int)HttpStatusCode.GatewayTimeout;
+            await context.Response.WriteAsJsonAsync(
+                Clinic.API.Models.ApiResponse.Fail(HttpStatusCode.GatewayTimeout, "Scheduling service request timed out."),
+                context.RequestAborted);
+        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Scheduling proxy failed for {Method} {Path}", method, path);
             context.Response.StatusCode = (int)HttpStatusCode.BadGateway;
-            await context.Response.WriteAsJsonAsync(new { message = "Scheduling Service is unavailable." }, context.RequestAborted);
+            await context.Response.WriteAsJsonAsync(
+                Clinic.API.Models.ApiResponse.Fail(HttpStatusCode.BadGateway, "Scheduling Service is unavailable."),
+                context.RequestAborted);
         }
     }
 

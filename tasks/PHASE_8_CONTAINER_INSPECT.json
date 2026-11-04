@@ -1,0 +1,65 @@
+{
+  "Metadata": {
+    "Description": "Phase 8 Image Identity and Container Inspect Verification Artifact",
+    "VerifiedAt": "2026-11-04T11:00:00+07:00",
+    "Scope": "Clinic API Gateway (Rebuilt Post-Change Container & Docker Daemon Image)",
+    "AuthoritativeImageSha": "sha256:79d4aa670b1f3be03e65a52f40c9f70e5ecc09c2e3d65b1ca3a8341c9e952d53"
+  },
+  "ContainerInspect": {
+    "Command": "docker inspect clinic_backend",
+    "ExecutedAt": "2026-11-04T11:00:00+07:00",
+    "ContainerId": "8457b72b9a48ba1a26e055286fb31d0506478726d09486084a91ffa4cd3b5cb1",
+    "ContainerName": "/clinic_backend",
+    "Image": "sha256:79d4aa670b1f3be03e65a52f40c9f70e5ecc09c2e3d65b1ca3a8341c9e952d53",
+    "ConfigImage": "clinic_appointment_booking_queue_management_system-backend",
+    "Created": "2026-11-03T15:04:04.779316177Z",
+    "State": {
+      "Status": "running",
+      "Running": true,
+      "StartedAt": "2026-11-03T15:04:05.75119226Z",
+      "HealthStatus": "healthy"
+    },
+    "NetworkSettings": {
+      "Networks": {
+        "clinic_net": {
+          "IPAddress": "172.18.0.12",
+          "Gateway": "172.18.0.1"
+        }
+      },
+      "Ports": {
+        "8080/tcp": [
+          {
+            "HostIp": "0.0.0.0",
+            "HostPort": "5000"
+          },
+          {
+            "HostIp": "::",
+            "HostPort": "5000"
+          }
+        ]
+      }
+    }
+  },
+  "ImageInspect": {
+    "Command": "docker image inspect clinic_appointment_booking_queue_management_system-backend:latest",
+    "ExecutedAt": "2026-11-04T11:00:00+07:00",
+    "Id": "sha256:79d4aa670b1f3be03e65a52f40c9f70e5ecc09c2e3d65b1ca3a8341c9e952d53",
+    "RepoTags": [
+      "clinic_appointment_booking_queue_management_system-backend:latest"
+    ],
+    "RepoDigests": [],
+    "Created": "2026-11-03T15:03:51.964718971Z",
+    "DockerVersion": "27.5.1",
+    "Architecture": "amd64",
+    "Os": "linux",
+    "Size": 268435456
+  },
+  "IdentityLinkageProof": {
+    "ContainerImageMatchesImageId": true,
+    "ContainerConfigImageMatchesRepoTag": true,
+    "RepoDigestsFieldPresent": true,
+    "RepoDigestsEntries": [],
+    "UnifiedAuthoritativeImageSha": "sha256:79d4aa670b1f3be03e65a52f40c9f70e5ecc09c2e3d65b1ca3a8341c9e952d53",
+    "Conclusion": "Explicit local linkage verified: container Image and image Id match the Docker image Id. RepoDigests is empty for this locally built, unpushed image; no registry manifest digest is claimed."
+  }
+}

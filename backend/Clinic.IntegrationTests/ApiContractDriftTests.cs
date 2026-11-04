@@ -769,7 +769,7 @@ public sealed class ApiContractDriftTests : IClassFixture<ApiContractFactory>
           "oneOf": [
             { "type": "null" },
             { "$ref": "#/components/schemas/ForgotPasswordRequest" },
-            { "$ref": "#/components/schemas/CancelShiftRequest" },
+            { "$ref": "#/components/schemas/UpdateAppointmentRequest" },
             { "$ref": "#/components/schemas/ReserveSlotRequest" }
           ]
         }
@@ -780,12 +780,12 @@ public sealed class ApiContractDriftTests : IClassFixture<ApiContractFactory>
           "oneOf": [
             { "type": "null" },
             { "$ref": "#/components/schemas/ForgotPasswordRequest" },
-            { "$ref": "#/components/schemas/CancelShiftRequest" }
+            { "$ref": "#/components/schemas/UpdateAppointmentRequest" }
           ]
         }
         """);
-        // Mutate a property inside the 2nd non-null branch (CancelShiftRequest.reason pattern)
-        candidateNode["components"]!["schemas"]!["CancelShiftRequest"]!["properties"]!["reason"]!.AsObject()["pattern"] = "^[A-Z]{5,}$";
+        // Mutate a property inside the 2nd non-null branch (UpdateAppointmentRequest.reason pattern)
+        candidateNode["components"]!["schemas"]!["UpdateAppointmentRequest"]!["properties"]!["reason"]!.AsObject()["pattern"] = "^[A-Z]{5,}$";
 
         using var mutatedBaselineDoc = JsonDocument.Parse(baselineMutable.ToJsonString());
         using var candidateDoc = JsonDocument.Parse(candidateNode.ToJsonString());

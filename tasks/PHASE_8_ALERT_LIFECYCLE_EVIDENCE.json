@@ -1,0 +1,40 @@
+﻿{
+    "TestName":  "Prometheus Alert Lifecycle Verification (Pending -\u003e Firing -\u003e Resolved)",
+    "TestedRule":  "MicroserviceDown",
+    "TargetJob":  "clinic-notification-service",
+    "TargetContainer":  "clinic_notification_service",
+    "FaultInjectionType":  "Safe process freeze via docker pause (duration: ~45s)",
+    "InitialState":  {
+                         "RuleState":  "inactive",
+                         "RuleHealth":  "ok"
+                     },
+    "FiringState":  {
+                        "Timestamp":  "2026-11-04T11:03:54+07:00",
+                        "ElapsedSeconds":  60.2,
+                        "RuleState":  "firing",
+                        "RuleHealth":  "ok",
+                        "Alert":  {
+                                      "labels":  {
+                                                     "alertname":  "MicroserviceDown",
+                                                     "instance":  "notification-service:8080",
+                                                     "job":  "clinic-notification-service",
+                                                     "severity":  "critical"
+                                                 },
+                                      "annotations":  {
+                                                          "description":  "clinic-notification-service has been unreachable for more than 30 seconds.",
+                                                          "summary":  "Microservice clinic-notification-service is down"
+                                                      },
+                                      "state":  "firing",
+                                      "activeAt":  "2026-11-04T04:03:06.763682612Z",
+                                      "value":  "0e+00"
+                                  }
+                    },
+    "ResolvedState":  {
+                          "Timestamp":  "2026-11-04T11:04:25+07:00",
+                          "ElapsedSeconds":  30.1,
+                          "RuleState":  "inactive",
+                          "RuleHealth":  "ok",
+                          "ActiveAlertsCount":  0
+                      },
+    "LifecycleSuccessfullyVerified":  true
+}
