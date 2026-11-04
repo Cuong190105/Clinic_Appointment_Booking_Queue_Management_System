@@ -111,9 +111,12 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
                      +-> (2) Appointment Service: Lưu Appointment (Pending) & Snapshot vào Appointment DB
                      |         (Nếu lỗi -> Gọi ReleaseReservation để bồi hoàn)
                      |
-                     +-> (3) Staff & Scheduling: POST ConfirmReservation
+                     +-> (3) Appointment Service: Commit local transaction (Pending + AppointmentCreated outbox)
                      |
-                     +-> (4) Appointment Service: Chuyển trạng thái sang Confirmed, Outbox phát AppointmentCreated
+                     +-> (4) AppointmentConfirmationWorker: POST ConfirmReservation sau commit
+                     |         (retry 10s/1m/5m; thất bại -> ReleaseReservation + Cancelled)
+                     |
+                     +-> (5) Appointment Service: Chuyển trạng thái sang Confirmed, Outbox phát AppointmentConfirmed
         ```
     - **Denormalized Fields & AppointmentSnapshot (Traceback)**: Thông tin hiển thị chính thức (`DoctorName`, `SpecialtyName`, `ScheduleDate`, `PatientName`, `PatientPhone`, `PatientGender`, `PatientDateOfBirth`) được lưu denormalized trực tiếp trên bảng `Appointments` (kèm bản chiếu `PatientProjections` đồng bộ qua `UserProfileUpdated`) để tránh join phân tán. Bảng `AppointmentSnapshot` giữ đúng vai trò lưu nhật ký chỉnh sửa (1-N changelog, có lưu kèm `OldDoctorId`, `OldDoctorName`, `OldScheduleDate`, `UpdatedByUserName`) phục vụ traceback khi người khám có vấn đề về đặt/đổi/hủy lịch.
     - **Hủy lịch & Đổi lịch (Cancel & Reschedule)**: Khi hủy lịch, phát sự kiện `AppointmentCancelled` để Scheduling Service giải phóng `SlotReservation` đã confirm. Khi đổi lịch, thực thi Reschedule Saga 2 pha (giữ slot mới $\rightarrow$ lưu snapshot & cập nhật lịch $\rightarrow$ confirm slot mới & giải phóng slot cũ).

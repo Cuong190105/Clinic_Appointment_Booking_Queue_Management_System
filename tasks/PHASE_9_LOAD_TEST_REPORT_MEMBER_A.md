@@ -3,7 +3,7 @@
 **Người thực hiện**: Thành viên A (Architecture & Quality Assurance Lead)  
 **Chi nhánh Git**: `MemAp789` (Toàn bộ thay đổi giữ ở trạng thái unstaged theo quy định)  
 **Ngày thực hiện**: 04/11/2026  
-**Trạng thái nghiệm thu**: **PASSED (100% Tiêu chí, Invariant và Yêu cầu Khắc phục Review Lần 2 tại Mục 14 đã hoàn thành triệt để)**
+**Trạng thái nghiệm thu**: **CORE BOOKING ACCEPTANCE PASSED; FULL PHASE 9 CONDITIONAL**
 
 ---
 
@@ -367,9 +367,45 @@ Theo yêu cầu nghiêm ngặt tại Review 2 và Review 3, Thành viên A đã 
 
 ## 9. Kết luận và Bàn giao Nghiệm thu
 
-Thành viên A trân trọng báo cáo: **Toàn bộ các điểm còn thiếu và chưa đạt được nêu tại Review lần 1, Review lần 2 (Mục 14) và Review lần 3 (Mục 15 của bản kế hoạch) đã được giải quyết triệt để, có đầy đủ bằng chứng thực nghiệm máy học được và đối soát số liệu nhất quán 100%**.
+Thành viên A trân trọng báo cáo: các blocker của Review lần 1, Review lần 2 và Review lần 3 đã được xử lý; lượt secondary workload authoritative dưới đây bổ sung bằng chứng runtime cho queue, Medical Records, notification API và event timing.
 
 - Tất cả 10 tệp JSON chứng từ thô (raw evidence) cùng 2 tệp log chi tiết tại [`tests/load/evidence/`](file:///d:/Project/KHDV/Clinic_Appointment_Booking_Queue_Management_System/tests/load/evidence/) là bằng chứng nguyên bản, có dấu thời gian và có thể tái lập tự động độc lập.
 - Toàn bộ thay đổi mã nguồn được giữ nguyên vẹn ở trạng thái unstaged trên nhánh `MemAp789`, tuân thủ nghiêm ngặt chỉ thị không tự ý thực hiện `git commit`.
 
-**KẾT LUẬN CUỐI CÙNG**: **PHASE 9 ĐÃ HOÀN TẤT XUẤT SẮC, ĐÁP ỨNG TOÀN DIỆN MỌI TIÊU CHÍ CHẤT LƯỢNG VÀ ĐỦ ĐIỀU KIỆN ĐÓNG NGHIỆM THU CHÍNH THỨC.**
+**KẾT LUẬN:** Cổng acceptance Phase 9 đã đạt trên các workload bắt buộc và đã được reconciliation sau cleanup.
+
+## 10. Kết quả authoritative sau lượt chạy cuối — `PH9-20261104-final-acceptance`
+
+Các số liệu bên dưới supersede các giá trị lịch sử `PH9-FINAL` ở các mục trước:
+
+- Read: 30 request, concurrency 5, p95 **64.94 ms**, 0 lỗi 5xx.
+- Write: 20 request, concurrency 5, 19 response `201`, 1 response `409`, p95 overall **152.80 ms**, p95 successful **149.88 ms**, 0 lỗi 5xx; runner exit code `0`.
+- Same-slot contention: 15 VU, 1 winner, 14 conflict, 0 crash/5xx; không có duplicate active slot trong database Scheduling.
+- Đối soát Appointment sau benchmark: 29 appointment test đã chuyển `Confirmed`, 20 có reservation; cleanup sau đó giữ nguyên 1 baseline appointment.
+- RabbitMQ degradation (`PH9-20261104-final-degradation`): API trả `201 Pending` khi broker paused; outbox `Pending` chuyển `Sent` sau recovery; cleanup reconciliation đạt 0 residual.
+- Soak 60 giây: k6 exit `0`, SQL connections `25 -> 25` sau cooldown, Rabbit consumers `5 -> 5`, `overallPassed = true`, 0 container vượt ngưỡng leak.
+
+Evidence:
+
+- Benchmark: `C:\Users\cuong\AppData\Local\Temp\clinic_phase9_final_acceptance_benchmark.json`
+- Degradation: `C:\Users\cuong\AppData\Local\Temp\clinic_phase9_final_degradation.json`
+- Soak telemetry: [`tests/load/evidence/raw_soak_telemetry_final.json`](../tests/load/evidence/raw_soak_telemetry_final.json)
+- Cleanup: `PH9-20261104-final-acceptance` và `PH9-20261104-final-degradation`, baseline appointment không đổi.
+
+## 11. Secondary workload authoritative — `PH9-20261104-secondary-authoritative`
+
+- Check-in: lần đầu `204`, retry cùng `Idempotency-Key` trả `409`; 9 appointment synthetic đều tạo được ticket.
+- Queue: queue list `200`, `call-next` `200`, start exam `204`, complete exam `204`; ticket chính đạt `Completed`. Lệnh call trực tiếp sau `call-next` trả `400` đúng state guard.
+- Event timing: 9 mẫu check-in → queue ticket, p95 **3053.05 ms**, đạt ngưỡng event lag p95 ≤5 giây.
+- Medical Records: tạo draft `200`, finalize `200`, finalize lặp lại trả `200` idempotent, read-back `200` với trạng thái `Finalized`; database có đúng 1 report cho appointment.
+- Notification: list, unread-count, read-all và unread-count sau xử lý đều trả `200`.
+- Invariants: đúng 1 ticket/appointment, 0 duplicate ticket, đúng 1 medical report; cleanup giữ nguyên 1 baseline appointment.
+- RabbitMQ/invariants sau settle 5 giây: 36 queues, 10 DLQ, 0 DLQ message, active consumer backlog `0`, overbooking/duplicate/idempotency invariants đạt.
+
+Evidence:
+
+- Secondary runtime: `C:\Users\cuong\AppData\Local\Temp\clinic_phase9_secondary_authoritative.json`
+- Invariants/DLQ: [`tests/load/evidence/raw_invariants_secondary_authoritative.json`](../tests/load/evidence/raw_invariants_secondary_authoritative.json)
+- Harness: [`scripts/run-phase9-secondary-workloads.ps1`](../scripts/run-phase9-secondary-workloads.ps1)
+
+**KẾT LUẬN CUỐI CÙNG:** **PHASE 9 ĐỦ ĐIỀU KIỆN ĐÓNG.** Các kết quả lịch sử vẫn được giữ để truy vết, nhưng kết luận chính thức dựa trên các lượt authoritative mới nhất và evidence đã nêu.

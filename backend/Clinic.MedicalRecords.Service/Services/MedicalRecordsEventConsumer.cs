@@ -76,7 +76,9 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
         if (port <= 0) port = 5672;
 
         var username = _configuration["RabbitMq:Username"] ?? _configuration["RabbitMQ__Username"] ?? "clinic";
-        var password = _configuration["RabbitMq:Password"] ?? _configuration["RabbitMQ__Password"] ?? "clinic-dev-password";
+        var password = _configuration["RabbitMq:Password"] ?? _configuration["RabbitMQ__Password"];
+        if (string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException("RabbitMQ password is not configured.");
 
         var factory = new ConnectionFactory
         {
@@ -106,6 +108,35 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
             autoDelete: false,
             cancellationToken: ct);
 
+        await _channel.ExchangeDeclareAsync(
+            exchange: MedicalRecordsRetryPolicy.RetryExchange,
+            type: ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+
+        foreach (var (retryQueueName, delayMilliseconds) in MedicalRecordsRetryPolicy.Queues)
+        {
+            await _channel.QueueDeclareAsync(
+                queue: retryQueueName,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object?>
+                {
+                    ["x-message-ttl"] = delayMilliseconds,
+                    ["x-dead-letter-exchange"] = exchangeName,
+                    ["x-dead-letter-routing-key"] = MedicalRecordsRetryPolicy.RetryRoutingKey
+                },
+                cancellationToken: ct);
+
+            await _channel.QueueBindAsync(
+                queue: retryQueueName,
+                exchange: MedicalRecordsRetryPolicy.RetryExchange,
+                routingKey: retryQueueName,
+                cancellationToken: ct);
+        }
+
         await _channel.QueueDeclareAsync(
             queue: queueName,
             durable: true,
@@ -134,6 +165,12 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
             queue: queueName,
             exchange: exchangeName,
             routingKey: "queue.exam-completed",
+            cancellationToken: ct);
+
+        await _channel.QueueBindAsync(
+            queue: queueName,
+            exchange: exchangeName,
+            routingKey: MedicalRecordsRetryPolicy.RetryRoutingKey,
             cancellationToken: ct);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
@@ -270,12 +307,49 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing event from {RoutingKey}", args.RoutingKey);
+                if (ct.IsCancellationRequested)
+                    return;
+
+                var retryCount = MedicalRecordsRetryPolicy.GetRetryCount(args.BasicProperties.Headers);
+                if (MedicalRecordsRetryPolicy.ShouldDeadLetter(ex, retryCount))
+                {
+                    _logger.LogError(
+                        ex,
+                        "Medical records event permanently failed; dead-lettering {RoutingKey} after {RetryCount} retries",
+                        args.RoutingKey,
+                        retryCount);
+                    await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: false, ct);
+                    return;
+                }
+
                 try
                 {
-                    await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: false, ct);
+                    var nextRetryCount = retryCount + 1;
+                    var retryProperties = MedicalRecordsRetryPolicy.CreateRetryProperties(
+                        args.BasicProperties,
+                        nextRetryCount);
+                    await _channel.BasicPublishAsync(
+                        exchange: MedicalRecordsRetryPolicy.RetryExchange,
+                        routingKey: MedicalRecordsRetryPolicy.GetRetryQueueName(retryCount),
+                        mandatory: true,
+                        basicProperties: retryProperties,
+                        body: args.Body,
+                        cancellationToken: ct);
+                    await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, ct);
+                    _logger.LogWarning(
+                        ex,
+                        "Medical records event transiently failed; scheduled retry {RetryCount}/{MaximumRetries}",
+                        nextRetryCount,
+                        MedicalRecordsRetryPolicy.MaximumRetries);
                 }
-                catch { }
+                catch (Exception retryException)
+                {
+                    _logger.LogError(
+                        retryException,
+                        "Could not schedule medical records event retry; leaving source message for broker redelivery");
+                    if (_channel.IsOpen)
+                        await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, ct);
+                }
             }
         };
 

@@ -18,7 +18,7 @@ Dịch vụ này sở hữu cơ sở dữ liệu riêng biệt: **`ClinicAppoint
 
 ### 1.2. Quyết định kiến trúc nền tảng
 1. **Sở hữu Aggregate `Appointment` độc lập**: Toàn bộ vòng đời lịch hẹn từ khi giữ chỗ đến khi hoàn tất khám hoặc hủy khám thuộc quyền sở hữu duy nhất của `Clinic.Appointment.Service`.
-2. **Điều phối Booking Saga (Saga Orchestration)**: Thay vì giữ kết nối distributed transaction, Appointment Service đóng vai trò Orchestrator gọi sang Scheduling Service để giữ slot (`ReserveSlot`), tạo lịch hẹn cục bộ, và xác nhận giữ chỗ (`ConfirmReservation`), tự động bồi hoàn (`ReleaseReservation`) khi có lỗi.
+2. **Điều phối Booking Saga bất đồng bộ (Saga Orchestration)**: Appointment Service gọi Scheduling Service để giữ slot (`ReserveSlot`), lưu Appointment `Pending` và outbox trong một local transaction ngắn, sau đó `AppointmentConfirmationWorker` xác nhận giữ chỗ (`ConfirmReservation`) sau commit. Worker retry sau 10 giây/1 phút/5 phút, giải phóng reservation (`ReleaseReservation`) và hủy Appointment nếu cả 3 lần retry đều thất bại. Không giữ local database transaction trong lúc gọi HTTP sang Scheduling.
 3. **Mô hình "Self-Contained Denormalized Read Model"**: Bảng `Appointments` lưu sẵn các thông tin hiển thị cơ bản của Bác sĩ (`DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate`) và Bệnh nhân (`PatientName`, `PatientPhone`, `PatientGender`, `PatientDateOfBirth`) để tối ưu hóa truy vấn chi tiết hoặc danh sách lịch khám mà không cần join phân tán.
 4. **Giao tiếp Hướng sự kiện (Event-Driven)**: Tách rời quan hệ runtime với Queue Service và Medical Records Service bằng các integration events (`AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentCheckedIn`, `ExamCompleted`) thông qua Transactional Outbox pattern.
 
@@ -187,7 +187,7 @@ erDiagram
 stateDiagram-v2
     [*] --> Pending : Đặt lịch Online (ReserveSlot thành công)
     [*] --> Confirmed : Lễ tân tiếp nhận Walk-in
-    Pending --> Confirmed : ConfirmReservation thành công
+    Pending --> Confirmed : ConfirmationWorker gọi ConfirmReservation thành công
     Pending --> Cancelled : Hủy trong thời gian giữ chỗ / Hết hạn
     Confirmed --> CheckedIn : Tiếp nhận tại quầy (Check-in đúng ngày)
     Confirmed --> Cancelled : Bệnh nhân / Quản trị hủy lịch (> 24h)
@@ -212,6 +212,7 @@ sequenceDiagram
     participant SchedAPI as Scheduling Service (/schedules/{id}/reservations)
     participant AppDB as ClinicAppointmentDB
     participant Broker as RabbitMQ
+    participant Worker as AppointmentConfirmationWorker
 
     Patient->>AppAPI: POST /appointments (Headers: Idempotency-Key)
     AppAPI->>SchedAPI: 1. POST /schedules/{id}/reservations (ReserveSlot)
@@ -225,10 +226,19 @@ sequenceDiagram
             AppAPI->>SchedAPI: POST .../release (Compensation bồi hoàn slot)
             AppAPI-->>Patient: 500 Internal Error
         else Lưu thành công
-            AppAPI->>SchedAPI: 3. POST .../confirm (ConfirmReservation)
-            AppAPI->>AppDB: 4. Cập nhật Appointment.Status = Confirmed & Ghi Outbox AppointmentCreated
-            AppAPI->>Broker: 5. Outbox đẩy sự kiện AppointmentCreated sang RabbitMQ
-            AppAPI-->>Patient: 201 Created (AppointmentDto chi tiết)
+            AppAPI->>AppDB: 3. Commit Appointment(Pending) + Outbox AppointmentCreated
+            AppAPI-->>Patient: 201 Created (AppointmentDto Status=Pending)
+            Note over AppAPI,AppDB: Không giữ transaction trong lúc gọi service khác
+            AppAPI->>Broker: 4. Outbox đẩy AppointmentCreated
+            Worker->>SchedAPI: 5. POST .../confirm (ConfirmReservation)
+            alt Xác nhận thành công
+                Worker->>AppDB: 6. Status=Confirmed + Outbox AppointmentConfirmed
+            else Lỗi tạm thời
+                Worker->>AppDB: RetryAt = 10s/1m/5m
+            else Hết 3 lần
+                Worker->>SchedAPI: ReleaseReservation
+                Worker->>AppDB: Status=Cancelled
+            end
         end
     end
 ```
@@ -335,8 +345,8 @@ sequenceDiagram
 1. **Bộ API Quản Lý Lịch Hẹn (`AppointmentEndpoints`)**:
    - `POST /appointments`:
      - Header bắt buộc: `Idempotency-Key` (kiểm tra trùng `IdempotencyKey` trên bảng `Appointments` trước khi gọi Saga để trả về kết quả idempotent tức thời).
-     - Thực thi Booking Saga: `ReserveSlot (Scheduling) -> Create Local Appointment -> ConfirmReservation (Scheduling)`.
-     - Tự động bồi hoàn (`ReleaseReservation`) nếu lưu appointment cục bộ gặp lỗi.
+     - Thực thi Booking Saga bất đồng bộ: `ReserveSlot (Scheduling) -> Commit Local Appointment(Pending) -> AppointmentConfirmationWorker -> ConfirmReservation (Scheduling)`.
+     - Tự động bồi hoàn (`ReleaseReservation`) nếu lưu appointment cục bộ gặp lỗi hoặc worker hết 3 lần retry xác nhận.
      - Hỗ trợ phân định luồng Online (ràng buộc capacity) và Walk-in (linh hoạt tại quầy).
    - `GET /appointments/{id}`: Xem chi tiết lịch khám (đọc trực tiếp từ bảng denormalized, zero network latency).
    - `GET /me/appointments`: Lấy danh sách lịch hẹn của bệnh nhân đang đăng nhập (lọc theo `PatientId` từ token, hỗ trợ lọc `upcoming` / `past`).

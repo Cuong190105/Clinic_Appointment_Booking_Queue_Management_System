@@ -162,7 +162,7 @@ DELETE FROM SlotReservations WHERE WorkScheduleId = '$scheduleId';
         $uniqueKey = "$TestRunId-deg-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
         $body = @{
             workScheduleId = $scheduleId
-            timeSlot = "09:00:00"
+            timeSlot = "19:45:00"
             reason = "[$TestRunId] Degradation test during RabbitMQ outage"
             isWalkIn = $false
         } | ConvertTo-Json
@@ -286,4 +286,3 @@ DELETE FROM SlotReservations WHERE WorkScheduleId = '$scheduleId';
         exit $exitCode
     }
 }
-

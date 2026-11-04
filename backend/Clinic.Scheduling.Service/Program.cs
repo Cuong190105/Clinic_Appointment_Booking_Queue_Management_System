@@ -28,7 +28,13 @@ builder.Services.AddDbContext<SchedulingDbContext>((sp, options) =>
     var conn = config.GetConnectionString("SchedulingConnection") ?? schedulingConnection;
     if (!string.IsNullOrEmpty(conn))
     {
-        options.UseSqlServer(conn);
+        options.UseSqlServer(conn, sql =>
+        {
+            sql.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(2),
+                errorNumbersToAdd: new[] { 1205 });
+        });
     }
 });
 
@@ -221,4 +227,3 @@ if (!app.Environment.IsEnvironment("Testing"))
 app.Run();
 
 public partial class Program { }
-

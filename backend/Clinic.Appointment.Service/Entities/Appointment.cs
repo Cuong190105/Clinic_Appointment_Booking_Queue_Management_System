@@ -9,6 +9,7 @@ public class Appointment
 
     public Guid Id { get; set; }
     public Guid PatientId { get; set; }
+    public Guid? PatientIdentityUserId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public string? PatientPhone { get; set; }
     public string? PatientGender { get; set; }
@@ -25,6 +26,9 @@ public class Appointment
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
     public bool IsWalkIn { get; set; } = false;
     public string? IdempotencyKey { get; set; }
+    public Guid? SchedulingReservationId { get; set; }
+    public int ConfirmationAttempts { get; set; }
+    public DateTime? NextConfirmationAttemptAt { get; set; }
 
     public Guid UpdatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -82,6 +86,7 @@ public class Appointment
         Status = AppointmentStatus.Confirmed;
         UpdatedByUserId = confirmedByUserId;
         UpdatedAt = DateTime.UtcNow;
+        NextConfirmationAttemptAt = null;
     }
 
     public void CheckIn(DateTime checkInTime)
@@ -163,4 +168,3 @@ public class Appointment
         UpdatedAt = DateTime.UtcNow;
     }
 }
-

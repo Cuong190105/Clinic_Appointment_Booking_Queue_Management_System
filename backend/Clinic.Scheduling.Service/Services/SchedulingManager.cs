@@ -188,11 +188,21 @@ public class SchedulingManager : ISchedulingManager
         return await strategy.ExecuteAsync(async () =>
         {
             using var transaction = _dbContext.Database.IsRelational()
-                ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+                ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct)
                 : null;
 
-            var schedule = await _dbContext.WorkSchedules
-                .FirstOrDefaultAsync(ws => ws.Id == scheduleId && ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted, ct);
+            var schedule = _dbContext.Database.IsRelational()
+                ? await _dbContext.WorkSchedules
+                    .FromSqlInterpolated($"""
+                        SELECT *
+                        FROM [WorkSchedules] WITH (UPDLOCK, ROWLOCK)
+                        WHERE [Id] = {scheduleId}
+                          AND [Status] = {"Active"}
+                          AND [IsDeleted] = 0
+                        """)
+                    .FirstOrDefaultAsync(ct)
+                : await _dbContext.WorkSchedules
+                    .FirstOrDefaultAsync(ws => ws.Id == scheduleId && ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted, ct);
 
             if (schedule == null)
             {
@@ -213,20 +223,20 @@ public class SchedulingManager : ISchedulingManager
             }
 
             // Count valid active reservations
-            var activeReservations = await _dbContext.SlotReservations
+            var activeReservationsQuery = _dbContext.SlotReservations
                 .Where(r => r.WorkScheduleId == scheduleId &&
                            (r.Status == ReservationStatus.Confirmed ||
-                           (r.Status == ReservationStatus.Reserved && r.ExpiresAt > now)))
-                .ToListAsync(ct);
+                           (r.Status == ReservationStatus.Reserved && r.ExpiresAt > now)));
 
             // Layer 1: Shift capacity threshold check
-            if (activeReservations.Count >= schedule.RecommendedCapacity)
+            var activeReservationCount = await activeReservationsQuery.CountAsync(ct);
+            if (activeReservationCount >= schedule.RecommendedCapacity)
             {
                 throw new InvalidOperationException("Ca làm việc đã đủ số lượng đặt online (RecommendedCapacity exceeded).");
             }
 
             // Layer 2: Exact slot conflict check
-            if (activeReservations.Any(r => r.TimeSlot == timeSlot))
+            if (await activeReservationsQuery.AnyAsync(r => r.TimeSlot == timeSlot, ct))
             {
                 throw new InvalidOperationException($"Khung giờ {timeSlot} đã được người khác đặt.");
             }

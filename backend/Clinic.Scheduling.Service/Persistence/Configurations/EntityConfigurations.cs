@@ -141,6 +141,9 @@ public class SlotReservationConfiguration : IEntityTypeConfiguration<SlotReserva
 
         // Index for expiration worker
         builder.HasIndex(r => new { r.Status, r.ExpiresAt });
+
+        // Supports active reservation count and slot checks scoped to one schedule.
+        builder.HasIndex(r => new { r.WorkScheduleId, r.Status, r.ExpiresAt });
     }
 }
 
@@ -160,4 +163,3 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
         builder.HasIndex(o => new { o.Status, o.CreatedAt });
     }
 }
-

@@ -82,7 +82,9 @@ public class QueueOutboxPublisher : BackgroundService
         if (port <= 0) port = 5672;
 
         var username = _configuration["RabbitMq:Username"] ?? _configuration["RabbitMQ__Username"] ?? _configuration["RabbitMq:UserName"] ?? "clinic";
-        var password = _configuration["RabbitMq:Password"] ?? _configuration["RabbitMQ__Password"] ?? "clinic-dev-password";
+        var password = _configuration["RabbitMq:Password"] ?? _configuration["RabbitMQ__Password"];
+        if (string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException("RabbitMQ password is not configured.");
         var virtualHost = _configuration["RabbitMq:VirtualHost"] ?? _configuration["RabbitMQ__VirtualHost"] ?? "/";
 
         var factory = new ConnectionFactory

@@ -1,0 +1,351 @@
+﻿{
+    "metadata":  {
+                     "timestamp":  "2026-11-04T14:14:36.6104381Z",
+                     "sqlContainer":  "clinic_sql_server",
+                     "rabbitContainer":  "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+                     "settleWindowSeconds":  5,
+                     "allInvariantsVerified":  true
+                 },
+    "invariants":  {
+                       "zeroOverbooking":  {
+                                               "verified":  true,
+                                               "violationsCount":  0,
+                                               "violations":  [
+
+                                                              ],
+                                               "schedules":  [
+                                                                 {
+                                                                     "workScheduleId":  "3E59290E-5BC0-050C-A87B-EF4B3C624487",
+                                                                     "bookedCount":  1
+                                                                 }
+                                                             ]
+                                           },
+                       "zeroDuplicateTickets":  {
+                                                    "verified":  true,
+                                                    "violationsCount":  0
+                                                },
+                       "idempotencyInvariance":  {
+                                                     "verified":  true,
+                                                     "violationsCount":  0
+                                                 },
+                       "outboxHealth":  {
+                                            "verified":  true,
+                                            "messages":  [
+                                                             {
+                                                                 "database":  "ClinicAppointmentDB",
+                                                                 "status":  "Sent",
+                                                                 "count":  864
+                                                             },
+                                                             {
+                                                                 "database":  "ClinicSchedulingDB",
+                                                                 "status":  "Sent",
+                                                                 "count":  180
+                                                             },
+                                                             {
+                                                                 "database":  "ClinicQueueDB",
+                                                                 "status":  "Published",
+                                                                 "count":  92
+                                                             }
+                                                         ]
+                                        },
+                       "rabbitMqQueues":  {
+                                              "verified":  true,
+                                              "totalQueuesCount":  36,
+                                              "dlqQueuesCount":  10,
+                                              "dlqMessagesTotal":  0,
+                                              "dlqStrictZeroVerified":  true,
+                                              "activeConsumerQueuesCount":  5,
+                                              "activeConsumerBacklogDrained":  true,
+                                              "queues":  [
+                                                             {
+                                                                 "name":  "q.notification-service.retry.1m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.medical-records-service.retry.5m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.notification.events.retry",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.appointment-service.retry.1m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.projection-service.retry.10s",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.projection-service.dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.medical-records.retry.1m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.notification-service.retry.10s",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.medical-records-service.dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.appointment.events",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.medical-records-service.retry.1m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.notification-service.dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.queue-service.retry.5m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.notification.events.dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.notification.events.v2",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.queue-service.retry",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.queue-service.outbox-dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.queue-service.retry.10s",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.scheduling.events",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.outbox.publish.dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.queue-service.events",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.projection-service.retry.1m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.queue-service.retry.1m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.medical-records-service.retry.10s",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.medical-records.retry.5m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.medical-records.events.dead",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.appointment-service.retry.10s",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.queue-service.dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.medical-records.retry.10s",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "clinic.medical-records.events.v2",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.projection-service.retry.5m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.scheduling-service.outbox-dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.appointment-service.retry.5m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.appointment-service.dlq",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  true,
+                                                                 "isRetry":  false
+                                                             },
+                                                             {
+                                                                 "name":  "q.notification-service.retry.5m",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             },
+                                                             {
+                                                                 "name":  "q.queue-service.cancelled-retry",
+                                                                 "messages":  0,
+                                                                 "messagesReady":  0,
+                                                                 "messagesUnacknowledged":  0,
+                                                                 "isDlq":  false,
+                                                                 "isRetry":  true
+                                                             }
+                                                         ]
+                                          }
+                   }
+}

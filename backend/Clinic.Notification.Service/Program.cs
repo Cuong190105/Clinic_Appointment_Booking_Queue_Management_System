@@ -54,7 +54,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
 }
 
 // Delivery & Provider abstractions
-builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
+builder.Services.Configure<SmtpEmailOptions>(builder.Configuration.GetSection("Email"));
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<ISmsSender, LoggingSmsSender>();
 builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddScoped<NotificationDeliveryDispatcher>();

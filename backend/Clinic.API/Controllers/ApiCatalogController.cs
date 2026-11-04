@@ -268,7 +268,7 @@ public sealed class ApiCatalogController : ControllerBase
                 new()
                 {
                     Name = "Clinic.Notification.Service",
-                    Role = "Omnichannel Notifications (Email, SMS, In-App, SignalR), Retry & DLQ",
+                    Role = "Email (SMTP), In-App, SignalR, Retry & DLQ; SMS is not implemented",
                     Authority = ResolveAuthority("Notification"),
                     AuthorityScope = "InternalClusterOnly",
                     HealthEndpoint = "/readyz",

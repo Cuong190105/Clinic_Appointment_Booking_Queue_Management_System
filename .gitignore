@@ -65,3 +65,5 @@ tests/load/tokens.json
 tests/load/tokens.*.json
 **/tokens.json
 *.token
+frontend/certs/*.key
+frontend/certs/*.pem

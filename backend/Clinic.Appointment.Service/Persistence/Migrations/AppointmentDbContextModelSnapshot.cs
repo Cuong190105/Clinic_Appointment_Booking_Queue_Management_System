@@ -28,6 +28,9 @@ namespace Clinic.Appointment.Service.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("ConfirmationAttempts")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -51,6 +54,9 @@ namespace Clinic.Appointment.Service.Persistence.Migrations
                     b.Property<bool>("IsWalkIn")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("NextConfirmationAttemptAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateOnly?>("PatientDateOfBirth")
                         .HasColumnType("date");
 
@@ -59,6 +65,9 @@ namespace Clinic.Appointment.Service.Persistence.Migrations
                         .HasColumnType("nvarchar(10)");
 
                     b.Property<Guid>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PatientIdentityUserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("PatientName")
@@ -77,6 +86,9 @@ namespace Clinic.Appointment.Service.Persistence.Migrations
 
                     b.Property<DateOnly>("ScheduleDate")
                         .HasColumnType("date");
+
+                    b.Property<Guid?>("SchedulingReservationId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SpecialtyName")
                         .HasMaxLength(100)

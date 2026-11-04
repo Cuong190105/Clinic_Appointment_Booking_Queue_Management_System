@@ -323,6 +323,8 @@ namespace Clinic.Scheduling.Service.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[Status] IN ('Reserved', 'Confirmed')");
 
+                    b.HasIndex("WorkScheduleId", "Status", "ExpiresAt");
+
                     b.ToTable("SlotReservations", (string)null);
                 });
 

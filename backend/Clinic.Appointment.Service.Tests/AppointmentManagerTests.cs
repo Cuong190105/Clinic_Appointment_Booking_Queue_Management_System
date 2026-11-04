@@ -105,7 +105,7 @@ public class AppointmentManagerTests
     }
 
     [Fact]
-    public async Task CreateAppointmentAsync_OnlineBooking_HappyPath_SagaCompletesAndPublishesOutboxEvents()
+    public async Task CreateAppointmentAsync_OnlineBooking_CommitsPendingAppointmentAndPublishesCreatedEvent()
     {
         var (db, client, manager) = CreateTestSetup();
         var scheduleId = Guid.NewGuid();
@@ -127,8 +127,6 @@ public class AppointmentManagerTests
             "Dr. House",
             "General",
             date);
-        client.ConfirmResult = true;
-
         var request = new CreateAppointmentRequest(
             scheduleId,
             slot,
@@ -151,19 +149,19 @@ public class AppointmentManagerTests
         Assert.Null(errorMessage);
         Assert.Equal(StatusCodes.Status201Created, statusCode);
         Assert.NotNull(result);
-        Assert.Equal(AppointmentStatus.Confirmed, result.Status); // Confirmed in online saga
+        Assert.Equal(AppointmentStatus.Pending, result.Status); // Confirmation is performed after commit by the worker
         Assert.Equal("Dr. House", result.DoctorName);
 
         // Verify DB
         var app = await db.Appointments.FindAsync(result.Id);
         Assert.NotNull(app);
-        Assert.Equal(AppointmentStatus.Confirmed, app.Status);
+        Assert.Equal(AppointmentStatus.Pending, app.Status);
+        Assert.Equal(reservationId, app.SchedulingReservationId);
 
-        // Verify Outbox: AppointmentCreated and AppointmentConfirmed
+        // Confirmation is deliberately not emitted until Scheduling confirms after this transaction commits.
         var outboxMessages = await db.OutboxMessages.ToListAsync();
-        Assert.Equal(2, outboxMessages.Count);
+        Assert.Single(outboxMessages);
         Assert.Contains(outboxMessages, m => m.EventType == EventTypes.AppointmentCreated);
-        Assert.Contains(outboxMessages, m => m.EventType == EventTypes.AppointmentConfirmed);
     }
 
     [Fact]
@@ -195,7 +193,7 @@ public class AppointmentManagerTests
     }
 
     [Fact]
-    public async Task CreateAppointmentAsync_OnlineBooking_WhenConfirmReservationFails_TriggersCompensationRelease()
+    public async Task CreateAppointmentAsync_OnlineBooking_WhenConfirmationIsUnavailable_LeavesPendingAppointmentForRetry()
     {
         var (db, client, manager) = CreateTestSetup();
         var scheduleId = Guid.NewGuid();
@@ -214,8 +212,6 @@ public class AppointmentManagerTests
             "Dr. Strange",
             "Magic",
             new DateOnly(2026, 11, 2));
-        client.ConfirmResult = false; // Confirm fails in Scheduling Service
-
         var request = new CreateAppointmentRequest(
             scheduleId,
             new TimeOnly(11, 0),
@@ -229,11 +225,11 @@ public class AppointmentManagerTests
             isStaff: false,
             idempotencyKey: "test-idemp-compensate");
 
-        Assert.False(success);
-        Assert.Equal(StatusCodes.Status409Conflict, statusCode);
-        // Compensation verified:
-        Assert.Single(client.ReleasedReservations);
-        Assert.Equal((scheduleId, reservationId), client.ReleasedReservations.First());
+        Assert.True(success);
+        Assert.Equal(StatusCodes.Status201Created, statusCode);
+        Assert.NotNull(result);
+        Assert.Equal(AppointmentStatus.Pending, result.Status);
+        Assert.Empty(client.ReleasedReservations);
     }
 
     [Fact]

@@ -44,6 +44,7 @@ builder.Services.AddScoped<IAppointmentManager, AppointmentManager>();
 if (!builder.Environment.IsEnvironment("Testing") && !builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
 {
     builder.Services.AddHostedService<AppointmentOutboxPublisher>();
+    builder.Services.AddHostedService<AppointmentConfirmationWorker>();
 }
 if (!builder.Environment.IsEnvironment("Testing") && !builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
 {

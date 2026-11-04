@@ -109,12 +109,13 @@ Run-Sql "ClinicSchedulingDB" $upsertSchedulesSql | Out-Null
 Write-Host "  -> Dynamic WorkSchedules prepared for [$TestRunId]." -ForegroundColor Green
 
 # 3. Create Sample Confirmed Appointments for Check-in Testing in ClinicAppointmentDB
-Write-Host "[3/4] Ensuring 10 Confirmed Appointments exist for Check-in Testing (Tagged with [$TestRunId])..." -ForegroundColor Yellow
+Write-Host "[3/4] Ensuring 9 Confirmed Appointments exist for Check-in Testing (Tagged with [$TestRunId])..." -ForegroundColor Yellow
 
 $appointmentIds = @()
-for ($i = 1; $i -le 10; $i++) {
+for ($i = 1; $i -le 9; $i++) {
     $appId = Get-DeterministicGuid "$TestRunId-checkin-app-$i"
-    $patientId = "a0000005-0000-0000-0000-" + ($i.ToString().PadLeft(12, '0'))
+    $patientNumber = (($i - 1) % 9) + 1
+    $patientId = "a0000005-0000-0000-0000-" + ($patientNumber.ToString().PadLeft(12, '0'))
     $appointmentIds += $appId
 
     $slotHour = 8 + [int]($i * 15 / 60)
@@ -147,7 +148,7 @@ END
 "@
     Run-Sql "ClinicAppointmentDB" $sql | Out-Null
 }
-Write-Host "  -> 10 Check-in appointments seeded on workload schedule $workloadScheduleId." -ForegroundColor Green
+Write-Host "  -> 9 Check-in appointments seeded on workload schedule $workloadScheduleId." -ForegroundColor Green
 
 # 4. Save metadata to $env:TEMP/clinic_phase9_env.json (OUTSIDE workspace)
 $envData = [PSCustomObject]@{

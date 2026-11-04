@@ -711,3 +711,27 @@ Artifact hiện tại đáp ứng điều kiện bắt buộc của Review lần
 **Kết luận:** **ĐIỂM P1 ĐÃ ĐƯỢC XỬ LÝ — ĐẠT.**
 
 Sau khi đối chiếu artifact này với các evidence đã kiểm tra trước đó, không còn blocker P1 nào thuộc phạm vi review này. **PHASE 9 ĐỦ ĐIỀU KIỆN ĐÓNG về mặt evidence đã lưu**, với lưu ý rằng kết luận này dựa trên artifact runtime hiện có và không thay thế việc rerun độc lập toàn bộ workload nếu quy trình nghiệm thu yêu cầu.
+
+## 17. Cập nhật authoritative sau rerun cuối — 04/11/2026
+
+Lượt `PH9-20261104-final-acceptance` và `PH9-20261104-final-degradation` đã được chạy lại sau các sửa đổi Async Saga và Scheduling contention. Kết quả hiện hành:
+
+- Read: 30 request, concurrency 5, p95 `64.94 ms`, 0 lỗi 5xx.
+- Write: 20 request, concurrency 5, 19 response `201`, 1 response `409`, p95 overall `152.80 ms`, p95 successful `149.88 ms`, 0 lỗi 5xx, runner exit `0`.
+- Same-slot contention: 15 VU, 1 winner, 14 conflict, 0 crash/5xx; không có duplicate active slot.
+- Degradation: API `201 Pending` khi RabbitMQ paused; outbox `Pending -> Sent` sau recovery; cleanup reconciliation đạt.
+- Soak: 60 giây, k6 exit `0`, SQL connections `25 -> 25`, Rabbit consumers `5 -> 5`, không phát hiện leak.
+
+Các số liệu `PH9-FINAL` và các lượt acceptance trước đây chỉ là historical diagnostics và không được dùng thay cho kết quả trên.
+
+### Quyết định đóng phase
+
+Secondary workload authoritative đã bổ sung đầy đủ runtime evidence còn thiếu:
+
+- 9 check-in/idempotency samples, queue ticket invariant và queue state transitions.
+- Medical Records draft/finalize/repeated-finalize/read-back.
+- Notification list/unread/read-all endpoints.
+- Event lag p95 `3053.05 ms` (9 samples, ngưỡng ≤5 giây).
+- RabbitMQ settle: 10 DLQ, 0 message, active backlog `0`; database invariants không vi phạm.
+
+**Kết luận:** **PHASE 9 ĐỦ ĐIỀU KIỆN ĐÓNG.** Evidence authoritative nằm tại `C:\Users\cuong\AppData\Local\Temp\clinic_phase9_secondary_authoritative.json` và [`tests/load/evidence/raw_invariants_secondary_authoritative.json`](../tests/load/evidence/raw_invariants_secondary_authoritative.json).

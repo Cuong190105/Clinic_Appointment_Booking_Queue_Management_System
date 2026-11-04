@@ -4,7 +4,7 @@ services:
         container_name: clinic_sql_server
         environment:
             - ACCEPT_EULA=Y
-            - SA_PASSWORD=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            - SA_PASSWORD=${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
             - MSSQL_PID=Express
         ports:
             - "1433:1433"
@@ -29,7 +29,7 @@ services:
             - "15692:15692"
         environment:
             RABBITMQ_DEFAULT_USER: clinic
-            RABBITMQ_DEFAULT_PASS: clinic-dev-password
+            RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
         command:
             - /bin/bash
             - -c
@@ -50,7 +50,7 @@ services:
             SERVER: db
             PORT: 1433
             USERNAME: sa
-            PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
             ENCRYPT: "false"
             TRUST_SERVER_CERTIFICATE: "true"
         depends_on:
@@ -92,7 +92,7 @@ services:
             - RabbitMq__Host=rabbitmq
             - RabbitMq__Port=5672
             - RabbitMq__Username=clinic
-            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__Password=${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
             - RabbitMq__VirtualHost=/
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
             - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
@@ -175,7 +175,7 @@ services:
             - RabbitMq__Host=rabbitmq
             - RabbitMq__Port=5672
             - RabbitMq__Username=clinic
-            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__Password=${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
             - RabbitMq__VirtualHost=/
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
             - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
@@ -211,7 +211,7 @@ services:
                 /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql &&
                 /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /verify.sql
         environment:
-            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
         volumes:
             - ./backend/Clinic.Identity.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
         depends_on:
@@ -240,7 +240,7 @@ services:
                 until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
                 /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql
         environment:
-            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
         volumes:
             - ./backend/Clinic.Scheduling.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
             - ./backend/Clinic.Scheduling.Service/Persistence/verify-scheduling-import.sql:/verify.sql:ro
@@ -278,7 +278,7 @@ services:
             - RabbitMq__Host=rabbitmq
             - RabbitMq__Port=5672
             - RabbitMq__Username=clinic
-            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__Password=${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
             - RabbitMq__VirtualHost=/
             - ASPNETCORE_HTTP_PORTS=8080
         depends_on:
@@ -313,7 +313,7 @@ services:
                 until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 3; done;
                 /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql
         environment:
-            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
         volumes:
             - ./backend/Clinic.Appointment.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
         depends_on:
@@ -341,7 +341,7 @@ services:
             - RabbitMq__Host=rabbitmq
             - RabbitMq__Port=5672
             - RabbitMq__Username=clinic
-            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__Password=${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
             - RabbitMq__VirtualHost=/
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
             - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
@@ -377,7 +377,7 @@ services:
                 /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -v ClinicWindowsTimeZone="$$CLINIC_SQL_TIME_ZONE" -i /migration.sql &&
                 /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /verify.sql
         environment:
-            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
             CLINIC_SQL_TIME_ZONE: ${CLINIC_SQL_TIME_ZONE:-SE Asia Standard Time}
         volumes:
             - ./backend/Clinic.Queue.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
@@ -408,7 +408,7 @@ services:
             - RabbitMq__Host=rabbitmq
             - RabbitMq__Port=5672
             - RabbitMq__Username=clinic
-            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__Password=${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
             - RabbitMq__VirtualHost=/
             - ASPNETCORE_HTTP_PORTS=8080
         depends_on:
@@ -442,7 +442,7 @@ services:
                 /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /migration.sql &&
                 /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b -i /verify.sql
         environment:
-            DB_SA_PASSWORD: ${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
         volumes:
             - ./backend/Clinic.MedicalRecords.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
             - ./backend/Clinic.MedicalRecords.Service/Persistence/verify-medical-records-import.sql:/verify.sql:ro
@@ -465,13 +465,19 @@ services:
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
+            - Email__Host=${SMTP_HOST:-smtp.gmail.com}
+            - Email__Port=${SMTP_PORT:-587}
+            - Email__Username=${SMTP_USERNAME}
+            - Email__Password=${SMTP_PASSWORD}
+            - Email__FromAddress=${SMTP_FROM_ADDRESS:-}
+            - Email__FromName=${SMTP_FROM_NAME:-Clinic Notification}
             - DataProtection__KeyDirectory=/var/lib/clinic/notification-protection-keys
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - RabbitMq__Host=rabbitmq
             - RabbitMq__Port=5672
             - RabbitMq__Username=clinic
-            - RabbitMq__Password=clinic-dev-password
+            - RabbitMq__Password=${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
             - RabbitMq__VirtualHost=/
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
             - OTEL_EXPORTER_OTLP_PROTOCOL=grpc

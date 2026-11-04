@@ -72,7 +72,9 @@ public sealed class SchedulingEventConsumer : BackgroundService
         if (port <= 0) port = 5672;
 
         var username = _configuration["RabbitMq:Username"] ?? _configuration["RabbitMQ__Username"] ?? "clinic";
-        var password = _configuration["RabbitMq:Password"] ?? _configuration["RabbitMQ__Password"] ?? "clinic-dev-password";
+        var password = _configuration["RabbitMq:Password"] ?? _configuration["RabbitMQ__Password"];
+        if (string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException("RabbitMQ password is not configured.");
 
         var factory = new ConnectionFactory
         {
@@ -203,4 +205,3 @@ public sealed class SchedulingEventConsumer : BackgroundService
         }
     }
 }
-
