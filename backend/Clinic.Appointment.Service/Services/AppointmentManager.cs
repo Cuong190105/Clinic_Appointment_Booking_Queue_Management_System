@@ -303,6 +303,13 @@ public class AppointmentManager : IAppointmentManager
 
                 return (true, null, ToDto(appointment), StatusCodes.Status201Created);
             }
+            catch (DbUpdateException ex)
+            {
+                if (tx != null) await tx.RollbackAsync(ct);
+                await _schedulingClient.ReleaseReservationAsync(request.WorkScheduleId, reservation.Id, ct);
+                _logger.LogWarning(ex, "Conflict saving appointment for patient {PatientId}: slot or key already exists.", patientId);
+                return (false, "Khung giờ khám hoặc lịch hẹn này đã tồn tại trong hệ thống.", null, StatusCodes.Status409Conflict);
+            }
             catch (Exception ex)
             {
                 if (tx != null) await tx.RollbackAsync(ct);
