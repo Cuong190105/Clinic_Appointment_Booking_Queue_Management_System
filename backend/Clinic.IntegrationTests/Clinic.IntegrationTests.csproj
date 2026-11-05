@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -29,6 +29,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Clinic.API\Clinic.API.csproj" />
+    <ProjectReference Include="..\Clinic.Identity.Service\Clinic.Identity.Service.csproj" Aliases="IdentityServiceApp" />
+    <ProjectReference Include="..\Clinic.StaffScheduling.Service\Clinic.StaffScheduling.Service.csproj" Aliases="SchedulingServiceApp" />
+    <ProjectReference Include="..\Clinic.Appointment.Service\Clinic.Appointment.Service.csproj" Aliases="AppointmentServiceApp" />
+    <ProjectReference Include="..\Clinic.Queue.Service\Clinic.Queue.Service.csproj" Aliases="QueueServiceApp" />
+    <ProjectReference Include="..\Clinic.MedicalRecords.Service\Clinic.MedicalRecords.Service.csproj" Aliases="MedicalRecordsServiceApp" />
+    <ProjectReference Include="..\Clinic.Notification.Service\Clinic.Notification.Service.csproj" Aliases="NotificationServiceApp" />
   </ItemGroup>
 
 </Project>

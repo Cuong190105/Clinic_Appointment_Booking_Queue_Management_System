@@ -3,9 +3,6 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["Clinic.API/Clinic.API.csproj", "Clinic.API/"]
-COPY ["Clinic.Application/Clinic.Application.csproj", "Clinic.Application/"]
-COPY ["Clinic.Domain/Clinic.Domain.csproj", "Clinic.Domain/"]
-COPY ["Clinic.Infrastructure.Sqlserver/Clinic.Infrastructure.Sqlserver.csproj", "Clinic.Infrastructure.Sqlserver/"]
 COPY ["Clinic.Contracts/Clinic.Contracts.csproj", "Clinic.Contracts/"]
 RUN dotnet restore "Clinic.API/Clinic.API.csproj"
 

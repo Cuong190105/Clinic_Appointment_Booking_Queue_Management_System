@@ -133,7 +133,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 ### Chuyển sang giai đoạn sau
 
-- Clinic tiếp tục sở hữu `Patient` và các dữ liệu hồ sơ/y tế thuộc Patient trong giai đoạn này. `Employee`, `Doctor` cùng dữ liệu nghề nghiệp/lịch làm việc được chuyển quyền sở hữu sang Scheduling Service theo Giai đoạn 2; Identity tiếp tục sở hữu tài khoản, role và nhân thân cơ bản. `Person` trong Clinic chỉ được giữ trong thời gian chuyển tiếp cho đến khi các luồng phụ thuộc được chuyển hoặc thay bằng projection/event.
+- Clinic tiếp tục sở hữu `Patient` và các dữ liệu hồ sơ/y tế thuộc Patient trong giai đoạn này. `Employee`, `Doctor` cùng dữ liệu nghề nghiệp/lịch làm việc được chuyển quyền sở hữu sang Staff & Scheduling Service theo Giai đoạn 2; Identity tiếp tục sở hữu tài khoản, role và nhân thân cơ bản. `Person` trong Clinic chỉ được giữ trong thời gian chuyển tiếp cho đến khi các luồng phụ thuộc được chuyển hoặc thay bằng projection/event.
 
 - OAuth authorization-code flow và federation với nhà cung cấp bên ngoài chưa cần cho bản chạy Docker của môn học; discovery/JWKS và JWT validation là phạm vi hiện tại. Đưa OAuth/OIDC đầy đủ vào kế hoạch nếu có client/federation bên ngoài.
 
@@ -175,7 +175,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 - Không triển khai flow `CheckAvailability` rồi mới `CreateAppointment`.
 
-- Capacity phải được giữ atomic trong Scheduling Service.
+- Capacity phải được giữ atomic trong Staff & Scheduling Service.
 
 - Reservation phải có timeout để tránh giữ slot vô thời hạn.
 
@@ -183,7 +183,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 > Danh sách dưới đây ghi nhận các năng lực và hạ tầng đã được chuyển, không đồng nghĩa toàn bộ API quản lý Staff & Scheduling đã cutover. Phần còn mở và tiêu chí đóng giai đoạn được theo dõi trong execution plan, mục 8.
 
-- Đã khởi tạo `Clinic.Scheduling.Service` (.NET 10 Web API) và cơ sở dữ liệu `ClinicSchedulingDB` hoàn toàn độc lập, cấu hình JWT authentication qua discovery/JWKS của Identity Service.
+- Đã khởi tạo `Clinic.StaffScheduling.Service` (.NET 10 Web API) và cơ sở dữ liệu `ClinicSchedulingDB` hoàn toàn độc lập, cấu hình JWT authentication qua discovery/JWKS của Identity Service.
 
 - Đã tạo schema/model tương ứng trong Scheduling cho `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`, `SlotReservation`, `OutboxMessage`; việc chuyển toàn bộ API và caller sang dùng các model này vẫn còn mở theo execution plan.
 
@@ -198,7 +198,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
     - Xóa bỏ hoàn toàn Foreign Key `FK_Appointments_WorkSchedules_WorkScheduleId`.
 
-    - Xóa bỏ hoàn toàn entity và bảng thừa `BookingSlot` trong `ClinicDB` (chuyển trọn vẹn việc quản lý slot sang Scheduling Service).
+    - Xóa bỏ hoàn toàn entity và bảng thừa `BookingSlot` trong `ClinicDB` (chuyển trọn vẹn việc quản lý slot sang Staff & Scheduling Service).
 
     - Triển khai Booking Saga trong `CreateAppointmentCommandHandler` (`ReserveSlot -> CreateAppointment -> ConfirmSlot / ReleaseSlot`). Phân định rạch ròi luồng Online (ràng buộc capacity) và Walk-in (linh hoạt, không chiếm slot online, được phép vượt `RecommendedCapacity`).
 
@@ -206,9 +206,9 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 ### Bằng chứng kiểm thử phát hành sau cutover
 
-- Kịch bản import dữ liệu `backend/Clinic.Scheduling.Service/Persistence/import-from-clinicdb.sql` và kịch bản đối soát `verify-scheduling-import.sql` đạt `MismatchCount = 0`.
+- Kịch bản import dữ liệu `backend/Clinic.StaffScheduling.Service/Persistence/import-from-clinicdb.sql` và kịch bản đối soát `verify-scheduling-import.sql` đạt `MismatchCount = 0`.
 
-- Unit tests `Clinic.Scheduling.Service.Tests`: 100% pass (bao gồm Capacity rule, 15m intervals, slot expiration, concurrency simulation, conflict detection).
+- Unit tests `Clinic.StaffScheduling.Service.Tests`: 100% pass (bao gồm Capacity rule, 15m intervals, slot expiration, concurrency simulation, conflict detection).
 
 - Integration tests `Clinic.IntegrationTests` (`BaselineBusinessWorkflowTests`): 3/3 passed.
 
@@ -274,13 +274,13 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 
 5. **Đồng bộ `ExamCompleted`**: Appointment Service lắng nghe `ExamCompleted` do Queue Service phát để chuyển `Appointment.Status = Completed` (Eventual Consistency). Finalize bệnh án không tự hoàn tất queue/appointment; hai trạng thái khám và hồ sơ là độc lập.
 
-6. **Hủy lịch & Đổi lịch với Scheduling Service**: Khi hủy lịch hoặc đổi lịch, giải phóng `SlotReservation` cũ qua cả internal API (`POST /internal/slots/release-by-appointment`) và sự kiện `AppointmentCancelled` trên RabbitMQ; khi đổi lịch, thực hiện Reschedule Saga 2 pha (giữ slot mới $\r\nightarrow$ lưu snapshot & cập nhật $\r\nightarrow$ confirm slot mới & giải phóng slot cũ).
+6. **Hủy lịch & Đổi lịch với Staff & Scheduling Service**: Khi hủy lịch hoặc đổi lịch, giải phóng `SlotReservation` cũ qua cả internal API (`POST /internal/slots/release-by-appointment`) và sự kiện `AppointmentCancelled` trên RabbitMQ; khi đổi lịch, thực hiện Reschedule Saga 2 pha (giữ slot mới $\r\nightarrow$ lưu snapshot & cập nhật $\r\nightarrow$ confirm slot mới & giải phóng slot cũ).
 
 ### Lưu ý
 
 - Không dùng distributed transaction giữa Appointment và Scheduling.
 
-- Không sửa trực tiếp dữ liệu của Scheduling Service để rollback.
+- Không sửa trực tiếp dữ liệu của Staff & Scheduling Service để rollback.
 
 - Phân biệt lỗi nghiệp vụ và lỗi tạm thời.
 
@@ -300,7 +300,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
     - Triển khai Reschedule Saga 2 pha (`Reserve new -> Reschedule & Snapshot -> Confirm new -> Release old slot & Outbox AppointmentCancelled`).
 
 - **Event-Driven Messaging (Outbox & RabbitMQ Consumers) & Cutover Gateway**:
-    - Triển khai `AppointmentOutboxPublisher` & `AppointmentEventConsumer` tại `Clinic.Appointment.Service` và `SchedulingEventConsumer` tại `Clinic.Scheduling.Service` kết nối qua RabbitMQ exchange `clinic.events`.
+    - Triển khai `AppointmentOutboxPublisher` & `AppointmentEventConsumer` tại `Clinic.Appointment.Service` và `SchedulingEventConsumer` tại `Clinic.StaffScheduling.Service` kết nối qua RabbitMQ exchange `clinic.events`.
 
     - Phía Monolith (`Clinic.API` & `ClinicDB`): Áp dụng migration `20261023013218_DecoupleAppointmentForeignKeys.cs` gỡ bỏ hoàn toàn `FK_QueueTickets_Appointments_AppointmentId` và `FK_MedicalReports_Appointments_AppointmentId`; triển khai `AppointmentServiceClient` cắt chuyển toàn bộ định tuyến lịch hẹn (`/appointments/**`, `/me/appointments/**`, `/receptionist/appointments/**`, `/admin/appointments/**`) sang `Clinic.Appointment.Service`.
 
@@ -316,7 +316,7 @@ Thành viên A phụ trách kiến trúc, backend service, database, API, busine
 - **Kiểm thử tự động (Unit & Integration Tests)**:
     - `Clinic.Appointment.Service.Tests`: **29/29 passed**.
 
-    - `Clinic.Scheduling.Service.Tests`: **35/35 passed**.
+    - `Clinic.StaffScheduling.Service.Tests`: **35/35 passed**.
 
     - `Clinic.Application.UnitTests`: **187/187 passed** (bổ sung test cho `CreateWalkInAppointment`, `GetMedicalReportsQuery`, `UpdateDraftMedicalReport`).
 
@@ -549,12 +549,13 @@ Kế hoạch chi tiết, quyết định thiết kế, ma trận kiểm thử v�
 
 ## Đợt nghiệm thu sau sáu phase — Phase 7–9
 
-Các đầu việc hoàn thiện OpenAPI, SLA/QoS và kiểm thử tải được chia sẻ với Thành viên B; kế hoạch, phân công song song và tiêu chí pass/fail nằm tại [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
+Kế hoạch chi tiết từng bước, decision gates, yêu cầu nghiệm thu và bằng chứng cần lưu cho Thành viên A nằm tại [`PHASE_7_9_EXECUTION_PLAN_MEMBER_A.md`](PHASE_7_9_EXECUTION_PLAN_MEMBER_A.md). Kế hoạch/phân công chung A–B nằm tại [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
 
 ### Thành viên A phụ trách
 
 - **Phase 7:** kiểm kê HTTP API theo service; hoàn thiện OpenAPI service-owned gồm version, DTO, validation, security, error response và idempotency; xác nhận public/internal contract.
 - **Phase 8:** đề xuất/chốt SLI/SLO nghiệp vụ cho từng service và workflow; thống nhất timeout, retry, idempotency, rate-limit/concurrency behavior; bổ sung metric nghiệp vụ còn thiếu.
+- Kế hoạch chi tiết, phân công và checklist Phase 8: [`PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md`](PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md).
 - **Phase 9:** định nghĩa workload, test data cô lập, invariant và ngưỡng nghiệm thu; phân tích/sửa bottleneck thuộc service owner.
 - **Hoàn tất:** review chung contract và SLO; nghiệm thu E2E/runtime sau khi áp dụng thay đổi.
 

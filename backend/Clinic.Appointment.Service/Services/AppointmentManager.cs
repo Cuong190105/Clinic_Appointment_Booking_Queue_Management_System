@@ -233,26 +233,16 @@ public class AppointmentManager : IAppointmentManager
                 currentUserId,
                 false)
             {
-                IdempotencyKey = idempotencyKey
+                IdempotencyKey = idempotencyKey,
+                PatientIdentityUserId = patientIdentityUserId,
+                SchedulingReservationId = reservation.Id,
+                NextConfirmationAttemptAt = DateTime.UtcNow
             };
 
             await using var tx = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
             try
             {
                 _db.Appointments.Add(appointment);
-                await _db.SaveChangesAsync(ct);
-
-                // Confirm reservation with Scheduling Service
-                var confirmed = await _schedulingClient.ConfirmReservationAsync(request.WorkScheduleId, reservation.Id, ct);
-                if (!confirmed)
-                {
-                    // Compensation: release slot
-                    await _schedulingClient.ReleaseReservationAsync(request.WorkScheduleId, reservation.Id, ct);
-                    if (tx != null) await tx.RollbackAsync(ct);
-                    return (false, "Failed to confirm reservation with Scheduling service.", null, StatusCodes.Status409Conflict);
-                }
-
-                appointment.Confirm(currentUserId);
 
                 // Outbox Events
                 _outbox.Add(new EventEnvelope<AppointmentCreated>
@@ -275,33 +265,17 @@ public class AppointmentManager : IAppointmentManager
                         DateTimeOffset.UtcNow)
                 }, "appointment.created");
 
-                _outbox.Add(new EventEnvelope<AppointmentConfirmed>
-                {
-                    EventId = Guid.NewGuid(),
-                    EventType = EventTypes.AppointmentConfirmed,
-                    SchemaVersion = 1,
-                    OccurredAt = DateTimeOffset.UtcNow,
-                    CorrelationId = Guid.NewGuid(),
-                    Producer = "Clinic.Appointment.Service",
-                    Payload = new AppointmentConfirmed(
-                        appointment.Id,
-                        appointment.PatientId,
-                        appointment.DoctorId,
-                        appointment.WorkScheduleId,
-                        appointment.ScheduleDate,
-                        appointment.TimeSlot,
-                        currentUserId,
-                        DateTimeOffset.UtcNow,
-                        PatientName: appointment.PatientName,
-                        PatientEmail: null,
-                        PatientPhone: appointment.PatientPhone,
-                        IdentityUserId: patientIdentityUserId)
-                }, "appointment.confirmed");
-
                 await _db.SaveChangesAsync(ct);
                 if (tx != null) await tx.CommitAsync(ct);
 
                 return (true, null, ToDto(appointment), StatusCodes.Status201Created);
+            }
+            catch (DbUpdateException ex)
+            {
+                if (tx != null) await tx.RollbackAsync(ct);
+                await _schedulingClient.ReleaseReservationAsync(request.WorkScheduleId, reservation.Id, ct);
+                _logger.LogWarning(ex, "Conflict saving appointment for patient {PatientId}: slot or key already exists.", patientId);
+                return (false, "Khung giờ khám hoặc lịch hẹn này đã tồn tại trong hệ thống.", null, StatusCodes.Status409Conflict);
             }
             catch (Exception ex)
             {
@@ -575,7 +549,7 @@ public class AppointmentManager : IAppointmentManager
 
             await _db.SaveChangesAsync(ct);
 
-            // Best-effort direct release on Scheduling Service alongside Outbox event
+            // Best-effort direct release on Staff & Scheduling Service alongside Outbox event
             _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
                 app.Id,
                 app.WorkScheduleId,
@@ -679,7 +653,7 @@ public class AppointmentManager : IAppointmentManager
             await _db.SaveChangesAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);
 
-            // Best-effort direct release of old slot on Scheduling Service alongside Outbox event
+            // Best-effort direct release of old slot on Staff & Scheduling Service alongside Outbox event
             _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
                 app.Id,
                 oldScheduleId,

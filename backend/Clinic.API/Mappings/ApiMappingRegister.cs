@@ -1,5 +1,4 @@
 using Clinic.API.Models;
-using Clinic.Application.Contracts;
 using Mapster;
 using System;
 

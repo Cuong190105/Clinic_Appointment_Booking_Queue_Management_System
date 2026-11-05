@@ -9,6 +9,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,7 +54,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
 }
 
 // Delivery & Provider abstractions
-builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
+builder.Services.Configure<SmtpEmailOptions>(builder.Configuration.GetSection("Email"));
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<ISmsSender, LoggingSmsSender>();
 builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddScoped<NotificationDeliveryDispatcher>();
@@ -101,14 +105,112 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info.Title = "Clinic Notification Service API (Internal)";
+        document.Info.Version = "1.0.0";
+        document.Info.Description = "Internal OpenAPI specification for Clinic.Notification.Service (in-app notifications, unread count, SignalR hub, and dead-letter delivery replay).";
+        document.Components ??= new Microsoft.OpenApi.OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new Microsoft.OpenApi.OpenApiSecurityScheme
+        {
+            Type = Microsoft.OpenApi.SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.ParameterLocation.Header,
+            Name = "Authorization",
+            Description = "JWT Bearer access token"
+        };
+        document.Components.SecuritySchemes["ServiceToken"] = new Microsoft.OpenApi.OpenApiSecurityScheme
+        {
+            Type = Microsoft.OpenApi.SecuritySchemeType.ApiKey,
+            In = Microsoft.OpenApi.ParameterLocation.Header,
+            Name = "X-Clinic-Service-Token",
+            Description = "Internal service-to-service token"
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var relativePath = "/" + (context.Description.RelativePath ?? string.Empty).TrimStart('/');
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        var hasAuthorize = metadata.OfType<Microsoft.AspNetCore.Authorization.IAuthorizeData>().Any();
+        if (relativePath.StartsWith("/internal/", StringComparison.OrdinalIgnoreCase))
+        {
+            operation.Security = new List<Microsoft.OpenApi.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("ServiceToken", context.Document)] = new List<string>()
+                }
+            };
+        }
+        else if (hasAuthorize)
+        {
+            operation.Security = new List<Microsoft.OpenApi.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer", context.Document)] = new List<string>()
+                }
+            };
+        }
+
+        operation.Parameters ??= new List<Microsoft.OpenApi.IOpenApiParameter>();
+        if (!operation.Parameters.Any(p => string.Equals(p.Name, "X-Correlation-ID", StringComparison.OrdinalIgnoreCase)))
+        {
+            operation.Parameters.Add(new Microsoft.OpenApi.OpenApiParameter
+            {
+                Name = "X-Correlation-ID",
+                In = Microsoft.OpenApi.ParameterLocation.Header,
+                Required = false,
+                Description = "Distributed correlation identifier",
+                Schema = new Microsoft.OpenApi.OpenApiSchema { Type = Microsoft.OpenApi.JsonSchemaType.String }
+            });
+        }
+        return Task.CompletedTask;
+    });
+});
 
 // Health checks
 builder.Services.AddHealthChecks();
 
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("clinic-notification-service"))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddPrometheusExporter())
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation(options => options.Filter = context => context.Request.Path != "/metrics")
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter());
+
 var app = builder.Build();
+app.MapPrometheusScrapingEndpoint();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapOpenApi().AddEndpointFilter(async (context, next) =>
+{
+    var httpContext = context.HttpContext;
+    var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+    var expectedToken = config["Identity:ServiceToken"] ?? config["Services:InternalToken"];
+    var suppliedToken = httpContext.Request.Headers["X-Clinic-Service-Token"].FirstOrDefault()
+        ?? httpContext.Request.Headers["X-Identity-Service-Token"].FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(expectedToken) && !string.IsNullOrWhiteSpace(suppliedToken) &&
+        System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(expectedToken),
+            System.Text.Encoding.UTF8.GetBytes(suppliedToken)))
+    {
+        return await next(context);
+    }
+    if (httpContext.User?.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    if (!httpContext.User.IsInRole("Admin")) return Results.Forbid();
+    return await next(context);
+});
 
 app.MapGet("/", () => Results.Ok(new
 {

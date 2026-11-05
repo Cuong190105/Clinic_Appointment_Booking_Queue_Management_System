@@ -1,0 +1,51 @@
+﻿{
+    "metadata":  {
+                     "testRunId":  "PH9-NEGTEST",
+                     "timestamp":  "2026-11-04T09:43:11.9140160Z",
+                     "sqlContainer":  "clinic_sql_server",
+                     "rabbitContainer":  "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+                     "isNegativeTest":  true
+                 },
+    "passed":  false,
+    "exitCode":  1,
+    "failedChecks":  1,
+    "steps":  [
+                  {
+                      "step":  1,
+                      "description":  "Verify initial RabbitMQ running state",
+                      "status":  "PASSED",
+                      "details":  {
+                                      "status":  "running"
+                                  },
+                      "timestamp":  "2026-11-04T09:43:10.8924743Z"
+                  },
+                  {
+                      "step":  2,
+                      "description":  "Pause RabbitMQ broker",
+                      "status":  "PASSED",
+                      "details":  {
+                                      "status":  "paused"
+                                  },
+                      "timestamp":  "2026-11-04T09:43:11.7028966Z"
+                  },
+                  {
+                      "step":  3,
+                      "description":  "Simulated failure during broker outage",
+                      "status":  "FAILED",
+                      "details":  {
+                                      "simulated":  true,
+                                      "reason":  "Intentional negative test injected failure to verify error handling and finally block unpause guarantee"
+                                  },
+                      "timestamp":  "2026-11-04T09:43:11.7058470Z"
+                  },
+                  {
+                      "step":  5,
+                      "description":  "Unpause RabbitMQ container",
+                      "status":  "PASSED",
+                      "details":  {
+                                      "status":  "running"
+                                  },
+                      "timestamp":  "2026-11-04T09:43:11.8893116Z"
+                  }
+              ]
+}

@@ -1,0 +1,306 @@
+﻿{
+    "MeasurementPhase":  "Phase 8 Post-Change Baseline Runtime Measurement",
+    "StartedAt":  "2026-11-04T10:04:04+07:00",
+    "CompletedAt":  "2026-11-04T10:10:19+07:00",
+    "DurationSeconds":  375.32,
+    "DurationFormatted":  "6m 15s",
+    "SteadyWindowSatisfied":  true,
+    "PacingMilliseconds":  385,
+    "TrafficProfile":  "Steady single-thread probe stream (~2.5 req/s), continuous 5-minute sampling window, 10 rotated JWT users with verified sub claims for authenticated routes",
+    "GatewayBaseUrl":  "http://localhost:5000",
+    "TotalEndpoints":  8,
+    "ProbesPerEndpoint":  100,
+    "TotalRequests":  800,
+    "DockerComposeProfile":  "Full Stack (12 containers, bridge network: clinic_net)",
+    "RebuiltService":  "clinic_backend (Gateway)",
+    "ImageId":  "sha256:79d4aa670b1f3be03e65a52f40c9f70e5ecc09c2e3d65b1ca3a8341c9e952d53",
+    "RepoDigest":  "clinic_appointment_booking_queue_management_system-backend@sha256:79d4aa670b1f3be03e65a52f40c9f70e5ecc09c2e3d65b1ca3a8341c9e952d53",
+    "ImageIdentityNote":  "Image built locally via Docker Compose BuildKit. Authoritative identity verified by Docker daemon ImageId matching Container Image SHA.",
+    "SourceCommitBaseline":  "f51a9aaff6d04e897db3dcf4937546ea4de94b58 + Phase 8 changes (RateLimiter, Exemption, 504/502, Correlation, ActivityListener, Multi-Service Telemetry)",
+    "AuthenticatedUsers":  [
+                               {
+                                   "Username":  "patient1",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000023",
+                                   "Jti":  "e8225755-ff41-4780-aebf-ad3a10380c55",
+                                   "TokenLength":  1492,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...C3QgRE4lxw"
+                               },
+                               {
+                                   "Username":  "patient2",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000024",
+                                   "Jti":  "2045a9b8-6dd4-4c53-817c-9b2b2f6bba0b",
+                                   "TokenLength":  1491,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...c3BedwMVEG"
+                               },
+                               {
+                                   "Username":  "patient3",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000025",
+                                   "Jti":  "6a10b7d1-68fd-4ae1-9892-5a7ee5710a14",
+                                   "TokenLength":  1486,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...zHXSMDXTZc"
+                               },
+                               {
+                                   "Username":  "patient4",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000026",
+                                   "Jti":  "cb2210e6-9983-47a8-ac7f-ff9547fb3f33",
+                                   "TokenLength":  1488,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...FL3o8Ss6di"
+                               },
+                               {
+                                   "Username":  "patient5",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000027",
+                                   "Jti":  "343a11c1-a4ba-40bb-bee1-b219037acc88",
+                                   "TokenLength":  1491,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...NtE3ZRFPos"
+                               },
+                               {
+                                   "Username":  "patient6",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000028",
+                                   "Jti":  "6f8245ce-f62f-4c97-8c8f-582033e72436",
+                                   "TokenLength":  1491,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...UnPjh-LqHz"
+                               },
+                               {
+                                   "Username":  "patient7",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000029",
+                                   "Jti":  "074ee0fd-75b8-4dc2-b63d-930704f3f1ae",
+                                   "TokenLength":  1488,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...Vwj7Qdx-yh"
+                               },
+                               {
+                                   "Username":  "patient8",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000030",
+                                   "Jti":  "3831706a-ab2f-45f0-b229-e35980eb5d14",
+                                   "TokenLength":  1487,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...LVxak4VvvP"
+                               },
+                               {
+                                   "Username":  "patient9",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000031",
+                                   "Jti":  "02927159-7e7b-4a2a-9be8-3a787571f3f8",
+                                   "TokenLength":  1486,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...Hm9Fngtn9-"
+                               },
+                               {
+                                   "Username":  "patient10",
+                                   "SubjectId":  "a0000002-0000-0000-0000-000000000032",
+                                   "Jti":  "afef0a8b-e001-4c89-ae7c-0282e6053c4e",
+                                   "TokenLength":  1492,
+                                   "TokenPreview":  "eyJhbGciOiJSUzI...Iy6wfZq6yw"
+                               }
+                           ],
+    "SubjectAuditTrail":  [
+                              {
+                                  "Username":  "patient1",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000023",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient2",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000024",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient3",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000025",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient4",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000026",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient5",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000027",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient6",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000028",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient7",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000029",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient8",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000030",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient9",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000031",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              },
+                              {
+                                  "Username":  "patient10",
+                                  "SubjectId":  "a0000002-0000-0000-0000-000000000032",
+                                  "TotalRequestsSent":  60,
+                                  "Status2xx":  60,
+                                  "Status401":  0,
+                                  "Status429":  0,
+                                  "Status5xx":  0
+                              }
+                          ],
+    "Results":  [
+                    {
+                        "Endpoint":  "Liveness Probe",
+                        "Route":  "GET /healthz",
+                        "Total":  100,
+                        "Success2xx":  100,
+                        "Throttled429":  0,
+                        "Client4xx":  0,
+                        "Server5xx":  0,
+                        "AvailabilityPct":  "100%",
+                        "AvgMs":  6.48,
+                        "P50Ms":  4.71,
+                        "P90Ms":  7.6,
+                        "P95Ms":  10.67,
+                        "P99Ms":  19.64
+                    },
+                    {
+                        "Endpoint":  "Readiness Probe",
+                        "Route":  "GET /readyz",
+                        "Total":  100,
+                        "Success2xx":  100,
+                        "Throttled429":  0,
+                        "Client4xx":  0,
+                        "Server5xx":  0,
+                        "AvailabilityPct":  "100%",
+                        "AvgMs":  57.36,
+                        "P50Ms":  20.83,
+                        "P90Ms":  37.78,
+                        "P95Ms":  130.42,
+                        "P99Ms":  710.48
+                    },
+                    {
+                        "Endpoint":  "API Catalog",
+                        "Route":  "GET /api/catalog",
+                        "Total":  100,
+                        "Success2xx":  100,
+                        "Throttled429":  0,
+                        "Client4xx":  0,
+                        "Server5xx":  0,
+                        "AvailabilityPct":  "100%",
+                        "AvgMs":  11.78,
+                        "P50Ms":  10.52,
+                        "P90Ms":  14.78,
+                        "P95Ms":  17.69,
+                        "P99Ms":  22.99
+                    },
+                    {
+                        "Endpoint":  "Specialties Catalog",
+                        "Route":  "GET /specialties",
+                        "Total":  100,
+                        "Success2xx":  100,
+                        "Throttled429":  0,
+                        "Client4xx":  0,
+                        "Server5xx":  0,
+                        "AvailabilityPct":  "100%",
+                        "AvgMs":  86.2,
+                        "P50Ms":  45.21,
+                        "P90Ms":  158.75,
+                        "P95Ms":  308.58,
+                        "P99Ms":  760.39
+                    },
+                    {
+                        "Endpoint":  "Doctors Directory",
+                        "Route":  "GET /doctors",
+                        "Total":  100,
+                        "Success2xx":  100,
+                        "Throttled429":  0,
+                        "Client4xx":  0,
+                        "Server5xx":  0,
+                        "AvailabilityPct":  "100%",
+                        "AvgMs":  114.88,
+                        "P50Ms":  73.25,
+                        "P90Ms":  279.04,
+                        "P95Ms":  392.21,
+                        "P99Ms":  707.5
+                    },
+                    {
+                        "Endpoint":  "Available Slots",
+                        "Route":  "GET /slots",
+                        "Total":  100,
+                        "Success2xx":  100,
+                        "Throttled429":  0,
+                        "Client4xx":  0,
+                        "Server5xx":  0,
+                        "AvailabilityPct":  "100%",
+                        "AvgMs":  90.35,
+                        "P50Ms":  52.26,
+                        "P90Ms":  129.84,
+                        "P95Ms":  245.73,
+                        "P99Ms":  796.65
+                    },
+                    {
+                        "Endpoint":  "Auth User Profile",
+                        "Route":  "GET /auth/me",
+                        "Total":  100,
+                        "Success2xx":  100,
+                        "Throttled429":  0,
+                        "Client4xx":  0,
+                        "Server5xx":  0,
+                        "AvailabilityPct":  "100%",
+                        "AvgMs":  97.87,
+                        "P50Ms":  32.13,
+                        "P90Ms":  131.56,
+                        "P95Ms":  198.03,
+                        "P99Ms":  1231.86
+                    },
+                    {
+                        "Endpoint":  "Queue Status Check",
+                        "Route":  "GET /me/queue-status",
+                        "Total":  100,
+                        "Success2xx":  100,
+                        "Throttled429":  0,
+                        "Client4xx":  0,
+                        "Server5xx":  0,
+                        "AvailabilityPct":  "100%",
+                        "AvgMs":  24.35,
+                        "P50Ms":  16.45,
+                        "P90Ms":  34.05,
+                        "P95Ms":  45.39,
+                        "P99Ms":  66.58
+                    }
+                ]
+}

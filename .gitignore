@@ -52,9 +52,18 @@ cypress/videos/
 cypress/screenshots/
 
 *.ps1
+!scripts/*.ps1
 
 AgriTrace-Backend-feature-CleanArchitechture/
 
 vue-base-starter-main/
 
 graphify-out/
+
+# Load test runtime tokens and secrets
+tests/load/tokens.json
+tests/load/tokens.*.json
+**/tokens.json
+*.token
+frontend/certs/*.key
+frontend/certs/*.pem

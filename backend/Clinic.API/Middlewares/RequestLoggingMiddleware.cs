@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 
 namespace Clinic.API.Middlewares;
 
@@ -15,7 +15,7 @@ public class RequestLoggingMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context, Clinic.Application.Interfaces.ICorrelationContext correlationContext)
+    public async Task InvokeAsync(HttpContext context, ICorrelationContext correlationContext)
     {
         var stopwatch = Stopwatch.StartNew();
         var correlationId = GetOrCreateCorrelationId(context);

@@ -1,26 +1,19 @@
+using System.Net;
+using System.Reflection;
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Clinic.API;
 using Clinic.API.Middlewares;
 using Clinic.API.Services;
-using Clinic.Application;
-using Clinic.Infrastructure.Sqlserver;
-using Clinic.Infrastructure.Sqlserver.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Clinic.Infrastructure.Sqlserver.Outbox;
-using Clinic.Domain.Common;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.OpenApi;
-using System.Reflection;
-using System.Security.Claims;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Microsoft.AspNetCore.RateLimiting;
-using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-_ = new TimeConverter(); // Fail fast when the clinic timezone is invalid.
-const string ClinicJwtScheme = "ClinicJwt";
 const string IdentityJwtScheme = "IdentityJwt";
-const string LegacyJwtScheme = "LegacyJwt";
 
 builder.Services.AddCors(options =>
 {
@@ -41,30 +34,56 @@ builder.Services.AddCors(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        context.HttpContext.Response.ContentType = "application/json";
+
+        var response = Clinic.API.Models.ApiResponse.Fail(
+            HttpStatusCode.TooManyRequests,
+            "Rate limit exceeded. Please try again after 60 seconds.");
+
+        await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken);
+    };
+
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/healthz", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/readyz", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+        {
+            return RateLimitPartition.GetNoLimiter("exempt");
+        }
+
+        var partitionKey = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.User.FindFirstValue("sub")
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = builder.Configuration.GetValue<int?>("QoS:RateLimitPermitLimit") ?? 100,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
-            }));
+            });
+    });
 });
 
-// Add services to the container.
+// Add presentation services (Controllers, Filters, ProblemDetails, Mapster)
 builder.Services.AddPresentation();
-builder.Services.AddApplication();
-builder.Services.AddInfrastructureSqlServer(builder.Configuration);
 
-// Ensure the custom Meter and its instruments exist before the OpenTelemetry provider starts.
-_ = MessagingTelemetry.Meter;
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("clinic-api"))
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
-        .AddMeter(MessagingTelemetry.MeterName)
+        .AddHttpClientInstrumentation()
         .AddPrometheusExporter())
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation(options =>
@@ -74,7 +93,6 @@ builder.Services.AddOpenTelemetry()
                 context.Request.Path != "/metrics";
         })
         .AddHttpClientInstrumentation()
-        .AddSource(MessagingTelemetry.SourceName)
         .AddOtlpExporter());
 
 // Configure JSON serialization options to handle enum values as strings
@@ -83,43 +101,41 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 });
 
-// Add workers. Test hosts can disable background consumers because their database
-// and broker dependencies are outside the HTTP contract test boundary.
-if (!builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
-{
-    builder.Services.AddHostedService<OutboxPublisher>();
-}
-
-// Add Authentication and Authorization services
+// Correlation and User context
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Clinic.API.Middlewares.ICorrelationContext, Clinic.API.Middlewares.CorrelationContext>();
+builder.Services.AddScoped<Clinic.API.Authentication.ICurrentUser, Clinic.API.Authentication.CurrentUser>();
 builder.Services.AddTransient<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+
+// Downstream microservice HTTP clients
 builder.Services.AddHttpClient("Identity", client =>
 {
     var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5001";
     client.BaseAddress = new Uri(identityAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
 }).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+
 builder.Services.AddHttpClient("Scheduling", client =>
 {
     var schedulingAuthority = builder.Configuration["Scheduling:Authority"] ?? "http://localhost:5002";
     client.BaseAddress = new Uri(schedulingAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+
 builder.Services.AddHttpClient("Appointment", client =>
 {
     var appointmentAuthority = builder.Configuration["Appointment:Authority"] ?? "http://localhost:5003";
     client.BaseAddress = new Uri(appointmentAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(15);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+
 builder.Services.AddHttpClient("Queue", client =>
 {
     var queueAuthority = builder.Configuration["Queue:Authority"] ?? "http://localhost:5004";
     client.BaseAddress = new Uri(queueAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(15);
-});
-builder.Services.AddTransient<IdentityAccountClient>();
-builder.Services.AddTransient<SchedulingManagementClient>();
-builder.Services.AddTransient<ProfileProjectionSyncClient>();
-builder.Services.AddTransient<Clinic.API.Services.AppointmentServiceClient>();
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+
 builder.Services.AddHttpClient("MedicalRecords", client =>
 {
     var medicalRecordsAuthority = builder.Configuration["MedicalRecords:Authority"]
@@ -127,9 +143,8 @@ builder.Services.AddHttpClient("MedicalRecords", client =>
         ?? "http://localhost:5005";
     client.BaseAddress = new Uri(medicalRecordsAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(15);
-});
-builder.Services.AddTransient<Clinic.API.Services.QueueServiceClient>();
-builder.Services.AddTransient<Clinic.API.Services.MedicalRecordsServiceClient>();
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+
 builder.Services.AddHttpClient("Notification", client =>
 {
     var notificationAuthority = builder.Configuration["Notification:Authority"]
@@ -137,46 +152,22 @@ builder.Services.AddHttpClient("Notification", client =>
         ?? "http://localhost:5006";
     client.BaseAddress = new Uri(notificationAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
-});
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+
+// Gateway microservice client wrappers
+builder.Services.AddTransient<IdentityAccountClient>();
+builder.Services.AddTransient<SchedulingManagementClient>();
+builder.Services.AddTransient<Clinic.API.Services.AppointmentServiceClient>();
+builder.Services.AddTransient<Clinic.API.Services.QueueServiceClient>();
+builder.Services.AddTransient<Clinic.API.Services.MedicalRecordsServiceClient>();
 builder.Services.AddTransient<Clinic.API.Services.NotificationServiceClient>();
 
+// Authentication with Identity Service JWKS / Authority
 builder.Services
     .AddAuthentication(options =>
     {
-        options.DefaultAuthenticateScheme = ClinicJwtScheme;
-        options.DefaultChallengeScheme = ClinicJwtScheme;
-    })
-    .AddPolicyScheme(ClinicJwtScheme, "Clinic access token", options =>
-    {
-        options.ForwardDefaultSelector = context =>
-        {
-            string? rawToken = null;
-            var header = context.Request.Headers.Authorization.ToString();
-            if (header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            {
-                rawToken = header["Bearer ".Length..].Trim();
-            }
-            else if (context.Request.Path.StartsWithSegments("/hubs/notifications"))
-            {
-                var queryToken = context.Request.Query["access_token"].ToString();
-                if (!string.IsNullOrWhiteSpace(queryToken))
-                {
-                    rawToken = queryToken.Trim();
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(rawToken)) return IdentityJwtScheme;
-            try
-            {
-                var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler()
-                    .ReadJwtToken(rawToken);
-                return string.IsNullOrWhiteSpace(token.Header.Kid) ? LegacyJwtScheme : IdentityJwtScheme;
-            }
-            catch
-            {
-                return IdentityJwtScheme;
-            }
-        };
+        options.DefaultAuthenticateScheme = IdentityJwtScheme;
+        options.DefaultChallengeScheme = IdentityJwtScheme;
     })
     .AddJwtBearer(IdentityJwtScheme, options =>
     {
@@ -211,46 +202,15 @@ builder.Services
                 return Task.CompletedTask;
             }
         };
-    })
-    .AddJwtBearer(LegacyJwtScheme, options =>
-    {
-        var legacyKey = builder.Configuration["Jwt:Key"] ?? string.Empty;
-        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuers = ["Clinic.API", "Clinic.Identity"],
-            ValidateAudience = true,
-            ValidAudiences = ["Clinic.Client", "Clinic.Services"],
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(legacyKey)),
-            RoleClaimType = ClaimTypes.Role
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/notifications"))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
-        };
     });
-// Register permission policy provider and handler for dynamic permission policies
+
+// Dynamic permission-based authorization
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider, Clinic.API.Authorization.PermissionPolicyProvider>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, Clinic.API.Authorization.PermissionAuthorizationHandler>();
 
-// Register current-user accessor (đọc UserId từ ClaimsPrincipal của request hiện tại)
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<Clinic.Application.Interfaces.ICurrentUser, Clinic.API.Authentication.CurrentUser>();
-
-builder.Services.AddOpenApi();
+// OpenAPI & Swagger
+builder.Services.AddOpenApi(Clinic.API.OpenApi.GatewayOpenApiConfiguration.Configure);
 builder.Services.AddSwaggerGen(options =>
 {
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -266,11 +226,9 @@ builder.Services.AddSwaggerGen(options =>
     options.AddSecurityRequirement(document =>
         new OpenApiSecurityRequirement
         {
-            [new OpenApiSecuritySchemeReference("Bearer", document)] =
-                new List<string>()
+            [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
         });
 
-    // Đọc file XML comment sinh ra từ bước 1, để Swagger UI hiện summary/description
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
@@ -320,18 +278,68 @@ app.MapGet("/schedules/{id:guid}", async (Guid id, IHttpClientFactory clients) =
     return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
 }).AllowAnonymous();
 
+// Microservice OpenAPI spec proxy routes declared in API Catalog (Service-Internal specs, restricted to Admin operators)
+var adminOpenApiPolicy = new Microsoft.AspNetCore.Authorization.AuthorizeAttribute { Roles = "Admin" };
+
+static async Task<IResult> ProxyInternalServiceOpenApiAsync(
+    string clientName,
+    IHttpClientFactory clients,
+    IConfiguration config,
+    HttpContext httpContext,
+    CancellationToken ct)
+{
+    try
+    {
+        var client = clients.CreateClient(clientName);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "openapi/v1.json");
+        var internalToken = config["Services:InternalToken"] ?? config["Identity:ServiceToken"];
+        if (!string.IsNullOrWhiteSpace(internalToken))
+        {
+            request.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", internalToken);
+            request.Headers.TryAddWithoutValidation("X-Identity-Service-Token", internalToken);
+        }
+        if (httpContext.Request.Headers.TryGetValue("Authorization", out var authHeader) && !string.IsNullOrWhiteSpace(authHeader))
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", authHeader.ToString());
+        }
+        using var response = await client.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode) return Results.StatusCode((int)response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(content, "application/json");
+    }
+    catch
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+}
+
+app.MapGet("/identity/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Identity", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/scheduling/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Scheduling", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/appointment/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Appointment", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/queue/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Queue", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/medical-records/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("MedicalRecords", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
+app.MapGet("/notification/openapi.json", (IHttpClientFactory clients, IConfiguration config, HttpContext ctx, CancellationToken ct) =>
+    ProxyInternalServiceOpenApiAsync("Notification", clients, config, ctx, ct)).RequireAuthorization(adminOpenApiPolicy).ExcludeFromDescription();
+
 app.Map("/hubs/notifications", (HttpContext ctx, NotificationServiceClient client, CancellationToken ct) =>
     client.ProxySignalRAsync(ctx, null, ct)).RequireAuthorization();
 app.Map("/hubs/notifications/{**subPath}", (HttpContext ctx, string? subPath, NotificationServiceClient client, CancellationToken ct) =>
     client.ProxySignalRAsync(ctx, subPath, ct)).RequireAuthorization();
 app.MapGet("/healthz", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
-app.MapGet("/readyz", async (IServiceScopeFactory scopeFactory, IHttpClientFactory clients, CancellationToken ct) =>
+app.MapGet("/readyz", async (IHttpClientFactory clients, CancellationToken ct) =>
 {
     try
     {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<Clinic.Infrastructure.Sqlserver.Persistence.ApplicationDbContext>();
-        if (!await db.Database.CanConnectAsync(ct)) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         using var identity = await clients.CreateClient("Identity").GetAsync("readyz", ct);
         return identity.IsSuccessStatusCode
             ? Results.Ok(new { status = "Ready" })
@@ -343,22 +351,17 @@ app.MapGet("/readyz", async (IServiceScopeFactory scopeFactory, IHttpClientFacto
     }
 }).AllowAnonymous();
 
-// Seed the database with an initial admin user if it doesn't exist.
-// Integration contract tests intentionally skip this external infrastructure step.
-if (!app.Configuration.GetValue<bool>("SkipDatabaseInitialization"))
-{
-    using var scope = app.Services.CreateScope();
-    var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
-
-    await initializer.MigrateAsync();
-}
-
-// Bắt mọi exception chưa xử lý và trả về envelope ApiResponse (qua GlobalExceptionHandler).
+// Global exception handling returning standard envelope ApiResponse
 app.UseExceptionHandler();
+
+app.Use((context, next) =>
+{
+    context.Request.EnableBuffering();
+    return next();
+});
 
 app.UseMiddleware<RequestLoggingMiddleware>();
 
-// Configure the HTTP request pipeline.
 if (true || app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -378,7 +381,6 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
-app.UseMiddleware<SchedulingProxyMiddleware>();
 
 app.MapControllers();
 

@@ -1,6 +1,5 @@
+using Clinic.API.Models;
 using Clinic.API.Services;
-using Clinic.Application.Contracts;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,14 +14,12 @@ namespace Clinic.API.Controllers
     [Authorize]
     public class MeController : ControllerBase
     {
-        private readonly ISender _sender;
         private readonly QueueServiceClient _queueClient;
         private readonly MedicalRecordsServiceClient _medicalRecordsClient;
         private readonly NotificationServiceClient _notificationClient;
 
-        public MeController(ISender sender, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient, NotificationServiceClient notificationClient)
+        public MeController(QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient, NotificationServiceClient notificationClient)
         {
-            _sender = sender;
             _queueClient = queueClient;
             _medicalRecordsClient = medicalRecordsClient;
             _notificationClient = notificationClient;

@@ -35,7 +35,7 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
 | :-------------------------------- | :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1. Identity Service**           | `User`, `Role`, `Permission`, `UserRole`, `RolePermission`, `RefreshToken`, `Person`       | Quản lý xác thực, đăng nhập, phân quyền, cấp phát token JWT/OIDC.                      | Công khai endpoint JWKS (`/.well-known/jwks.json`) để các service khác tự xác thực JWT độc lập.                                                                                  |
 | **2. Staff & Scheduling Service** | `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`, `SlotReservation` | Quản lý nhân viên y tế, bác sĩ, lịch trực, duyệt ca và sở hữu capacity/slot.           | Cung cấp Synchronous API (`GetAvailability`, `ReserveSlot`, `ReleaseSlot`, `ConfirmSlot`); phát sự kiện lịch trực qua Outbox; tiêu thụ `AppointmentCancelled` để giải phóng slot. |
-| **3. Appointment Service**        | `Appointment`, `AppointmentSnapshot` (Traceback), `PatientProjection`            | Đặt lịch, xác nhận, đổi lịch, hủy lịch và check-in lịch hẹn khám bệnh.                 | Sử dụng Saga điều phối giữ chỗ với Scheduling Service; lưu thông tin hiển thị denormalized trên `Appointment` & nhật ký chỉnh sửa trên `AppointmentSnapshot`; phát sự kiện `AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentCheckedIn`; tiêu thụ `ExamCompleted`, `UserProfileUpdated`. |
+| **3. Appointment Service**        | `Appointment`, `AppointmentSnapshot` (Traceback), `PatientProjection`            | Đặt lịch, xác nhận, đổi lịch, hủy lịch và check-in lịch hẹn khám bệnh.                 | Sử dụng Saga điều phối giữ chỗ với Staff & Scheduling Service; lưu thông tin hiển thị denormalized trên `Appointment` & nhật ký chỉnh sửa trên `AppointmentSnapshot`; phát sự kiện `AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentCheckedIn`; tiêu thụ `ExamCompleted`, `UserProfileUpdated`. |
 | **4. Queue Service**              | `QueueTicket`, `QueueCounter`                                                    | Tiếp nhận bệnh nhân, cấp số thứ tự khám tại chỗ, quản lý vòng đời hàng đợi phòng khám. | Nhận sự kiện check-in; tự sinh số khám với unique constraint cục bộ; phát sự kiện `PatientCalled`, `ExamStarted`, `ExamCompleted`.                                               |
 | **5. Medical Records Service** | `Patient`, `MedicalReport`, `MedicalReportAmendment`, `MedicalAccessAudit` | Quản lý hồ sơ bệnh nhân và bệnh án trong cùng service/DB; không có Patient Service riêng. | Dùng `AppointmentId` làm encounter key, loose reference tới Appointment; permission riêng và audit truy cập y tế. |
 | **6. Notification Service**       | `Notification`, `NotificationTemplate`, `DeliveryAttempt`, `InboxMessage`, outbox | Quản lý lịch sử in-app, gửi SMS/Email và SignalR hint.                                | Lắng nghe event từ broker qua durable inbox; chỉ nhận `RecipientId`/`RecipientType` và contact snapshot tối thiểu, không nhận domain entity.                                      |
@@ -65,7 +65,7 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
     - Luồng xử lý: `GetAvailableSlotsQueryHandler` query `WorkScheduleRepository`, sau đó join với bảng `Appointment` để trừ đi các khung giờ đã có người đặt.
 - **Thay đổi khi chuyển sang Microservices**:
     - **Đổi quyền sở hữu**: Chuyển API này hoàn toàn về **Staff & Scheduling Service** (`GET /schedules/availability` hoặc `GET /slots`).
-    - **Ranh giới dữ liệu & Xóa bỏ BookingSlot cũ**: Scheduling Service **tuyệt đối không được query sang Appointment DB**. Service này tự quản lý capacity, ca làm việc và các slot giữ chỗ/xác nhận thông qua `SlotReservations` ngay trong cơ sở dữ liệu `ClinicSchedulingDB`. Bảng `BookingSlots` trong monolith `ClinicDB` đã được xóa bỏ hoàn toàn (không còn entity `BookingSlot`).
+    - **Ranh giới dữ liệu & Xóa bỏ BookingSlot cũ**: Staff & Scheduling Service **tuyệt đối không được query sang Appointment DB**. Service này tự quản lý capacity, ca làm việc và các slot giữ chỗ/xác nhận thông qua `SlotReservations` ngay trong cơ sở dữ liệu `ClinicSchedulingDB`. Bảng `BookingSlots` trong monolith `ClinicDB` đã được xóa bỏ hoàn toàn (không còn entity `BookingSlot`).
     - **Quy tắc sinh slot thời gian thực**:
       - Các slot 15 phút được sinh tự động phủ kín ca trực nếu ca trực chưa đạt ngưỡng `RecommendedCapacity`.
       - **Chặn khung giờ quá khứ**: Chỉ sinh các slot trong tương lai cách thời điểm hiện tại tối thiểu 30 phút (`>= UtcNow + 30m`) để bệnh nhân có đủ thời gian chuẩn bị và di chuyển tới phòng khám.
@@ -111,12 +111,15 @@ Tuân thủ nguyên tắc: **Mỗi aggregate/entity chỉ có đúng 1 service s
                      +-> (2) Appointment Service: Lưu Appointment (Pending) & Snapshot vào Appointment DB
                      |         (Nếu lỗi -> Gọi ReleaseReservation để bồi hoàn)
                      |
-                     +-> (3) Staff & Scheduling: POST ConfirmReservation
+                     +-> (3) Appointment Service: Commit local transaction (Pending + AppointmentCreated outbox)
                      |
-                     +-> (4) Appointment Service: Chuyển trạng thái sang Confirmed, Outbox phát AppointmentCreated
+                     +-> (4) AppointmentConfirmationWorker: POST ConfirmReservation sau commit
+                     |         (retry 10s/1m/5m; thất bại -> ReleaseReservation + Cancelled)
+                     |
+                     +-> (5) Appointment Service: Chuyển trạng thái sang Confirmed, Outbox phát AppointmentConfirmed
         ```
     - **Denormalized Fields & AppointmentSnapshot (Traceback)**: Thông tin hiển thị chính thức (`DoctorName`, `SpecialtyName`, `ScheduleDate`, `PatientName`, `PatientPhone`, `PatientGender`, `PatientDateOfBirth`) được lưu denormalized trực tiếp trên bảng `Appointments` (kèm bản chiếu `PatientProjections` đồng bộ qua `UserProfileUpdated`) để tránh join phân tán. Bảng `AppointmentSnapshot` giữ đúng vai trò lưu nhật ký chỉnh sửa (1-N changelog, có lưu kèm `OldDoctorId`, `OldDoctorName`, `OldScheduleDate`, `UpdatedByUserName`) phục vụ traceback khi người khám có vấn đề về đặt/đổi/hủy lịch.
-    - **Hủy lịch & Đổi lịch (Cancel & Reschedule)**: Khi hủy lịch, phát sự kiện `AppointmentCancelled` để Scheduling Service giải phóng `SlotReservation` đã confirm. Khi đổi lịch, thực thi Reschedule Saga 2 pha (giữ slot mới $\rightarrow$ lưu snapshot & cập nhật lịch $\rightarrow$ confirm slot mới & giải phóng slot cũ).
+    - **Hủy lịch & Đổi lịch (Cancel & Reschedule)**: Khi hủy lịch, phát sự kiện `AppointmentCancelled` để Staff & Scheduling Service giải phóng `SlotReservation` đã confirm. Khi đổi lịch, thực thi Reschedule Saga 2 pha (giữ slot mới $\rightarrow$ lưu snapshot & cập nhật lịch $\rightarrow$ confirm slot mới & giải phóng slot cũ).
     - **Vòng đời trạng thái**: `Pending` $\rightarrow$ `Confirmed` $\rightarrow$ `CheckedIn` $\rightarrow$ `Completed` / `Cancelled`.
 
 ---

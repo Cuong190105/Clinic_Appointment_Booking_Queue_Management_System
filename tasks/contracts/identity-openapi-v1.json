@@ -1,0 +1,988 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Clinic Identity Service API (Internal)",
+    "description": "Internal OpenAPI specification for Clinic.Identity.Service (authentication, token issuance, JWKS, and internal user/role provisioning).",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost/"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/.well-known/openid-configuration": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/v1/internal/roles": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
+      }
+    },
+    "/internal/keys/rotate": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
+      }
+    },
+    "/v1/auth/forgot-password": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
+      }
+    },
+    "/v1/auth/reset-password": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/v1/auth/change-password": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/auth/revoke": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/v1/auth/permissions": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/auth/users/{userId}": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/internal/users/provision": {
+      "post": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisionAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
+      }
+    },
+    "/v1/internal/users/{userId}/roles": {
+      "put": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountRolesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
+      }
+    },
+    "/v1/internal/users/{userId}/profile": {
+      "put": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIdentityProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
+      }
+    },
+    "/v1/internal/users": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
+      }
+    },
+    "/v1/internal/users/{userId}": {
+      "get": {
+        "tags": [
+          "Clinic.Identity.Service"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier propagated from API Gateway",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChangePasswordRequest": {
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "ForgotPasswordRequest": {
+        "required": [
+          "phoneNumberOrEmail"
+        ],
+        "type": "object",
+        "properties": {
+          "phoneNumberOrEmail": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginRequest": {
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "ProvisionAccountRequest": {
+        "required": [
+          "userId",
+          "personId",
+          "username",
+          "password",
+          "fullName",
+          "phoneNumber",
+          "email",
+          "dateOfBirth",
+          "gender",
+          "address",
+          "roles"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "patientId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "employeeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "doctorId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "RefreshRequest": {
+        "required": [
+          "refreshToken"
+        ],
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterRequest": {
+        "required": [
+          "username",
+          "password",
+          "fullName",
+          "phoneNumber",
+          "email",
+          "dateOfBirth",
+          "gender",
+          "address",
+          "personId",
+          "patientId"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ResetPasswordRequest": {
+        "required": [
+          "token",
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateAccountRolesRequest": {
+        "required": [
+          "roles"
+        ],
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "patientId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "employeeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "doctorId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "UpdateIdentityProfileRequest": {
+        "required": [
+          "fullName",
+          "phoneNumber",
+          "email",
+          "dateOfBirth",
+          "gender",
+          "address"
+        ],
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "JWT Bearer access token",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "ServiceToken": {
+        "type": "apiKey",
+        "description": "Internal service-to-service token between Clinic Gateway and Identity Service",
+        "name": "X-Identity-Service-Token",
+        "in": "header"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Clinic.Identity.Service"
+    }
+  ]
+}

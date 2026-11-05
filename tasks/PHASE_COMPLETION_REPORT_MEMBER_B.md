@@ -41,14 +41,17 @@
 
 Kết quả kiểm thử trước merge chỉ là bằng chứng lịch sử của từng nhánh; không thay thế việc kiểm tra lại cây hợp nhất.
 
-## Addendum — Rà soát Phase 7–9 và quyết định thiết kế (02/11/2026)
+## Addendum — Rà soát Phase 7–9 và quyết định thiết kế (04/11/2026)
 
-Artifact mới của Phase 7–9 được giữ trong repository, nhưng chưa được nghiệm thu toàn diện:
+Sau khi chạy lại trên cây hợp nhất, trạng thái được cập nhật như sau:
 
-- Phase 7: API Catalog và test scaffolding đã có; các OpenAPI URL riêng chưa được triển khai và drift test chưa kiểm tra tài liệu sinh thật.
-- Phase 8: Gateway/Queue metrics scrape, dashboard, alert rules và rate limiter có cấu hình; chưa chứng minh scrape/alert/dashboard cho toàn bộ service bằng metric thật. QoS test hiện chủ yếu kiểm tra primitive/sample.
-- Phase 9: k6 scripts và runner có thể dùng làm điểm bắt đầu; kết quả catalog benchmark không đại diện tải nghiệp vụ, còn invariant tests là mô phỏng in-memory. Cần chạy workload thật trên dữ liệu cô lập và thu resource/dependency telemetry.
+- Phase 7: các service đã expose OpenAPI, Gateway có proxy URL, và `ApiContractDriftTests` đã kiểm tra runtime spec/baseline. Báo cáo cũ cần được thay bằng evidence mới.
+- Phase 8: Prometheus đã báo `up` cho Gateway, sáu service, SQL exporter và RabbitMQ exporter; alert rules được load hợp lệ. Vẫn cần evidence dashboard, alert firing/recovery và SLO report theo workload.
+- Phase 9: runner đã có workload đọc và booking ghi, auth, idempotency và exit-code gate. Vẫn cần chạy tải thật, đối soát DB/broker và thu resource/dependency telemetry; invariant C# in-memory không được dùng làm bằng chứng hệ thống.
+- Acceptance runtime ngày 04/11/2026 đã chạy: degradation RabbitMQ và soak 60 giây đạt, cleanup đạt; business benchmark có 0 lỗi 5xx nhưng không đạt latency SLO (read p95 752.76 ms, write p95 9396.39 ms). Phase 9 chưa được đóng.
+- Booking Saga đã được sửa theo commit-first design: Appointment được commit ở trạng thái `Pending` trước khi `ConfirmReservation`; `AppointmentConfirmationWorker` xác nhận sau commit với retry 10s/1m/5m và bồi hoàn sau 3 lần thất bại. Benchmark trước thay đổi không còn đại diện cho thiết kế mới; cần chạy lại workload và đo confirmation lag.
+- Reliability: Medical Records consumer đã có retry hữu hạn 10s/1m/5m trước khi DLQ; cần chạy integration fault test trên RabbitMQ để nghiệm thu hành vi runtime.
 
-Kế hoạch khắc phục và tiêu chí đóng được ghi tại các execution plan Phase 7, 8, 9 và [`docs/PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md`](../docs/PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md). Các kết luận “hoàn thành” cũ cho Phase 7–9 không còn được xem là nghiệm thu; cần hoàn tất các checklist còn mở trước khi đóng.
+Các checklist còn mở chỉ được đóng sau khi có evidence runtime tương ứng; số lượng unit test pass không tự động chứng minh SLO/load acceptance.
 
 Trong quá trình hợp nhất, các lựa chọn A đã chốt cho Phase 5–6 tiếp tục là nguồn chuẩn: `ExamCompleted` chỉ kết thúc encounter, không tự finalize report; không thêm MedicalHistory projection/rebuild khi cùng Medical Records DB đáp ứng; Notification history là nguồn dữ liệu chính, SignalR chỉ là hint và Redis chỉ cần khi scale nhiều instance. Implementation trùng bounded context, generic `NotificationRequested` title/body tự do, `ServiceProxyMiddleware` route lệch và Redis package của Clinic API đã được loại/khôi phục theo implementation A.

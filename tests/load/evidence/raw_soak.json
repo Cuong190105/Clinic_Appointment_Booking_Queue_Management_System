@@ -1,0 +1,160 @@
+{
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "specialties handled (200/429)": {
+                    "passes": 217,
+                    "fails": 0,
+                    "name": "specialties handled (200/429)",
+                    "path": "::specialties handled (200/429)",
+                    "id": "052b64bd55a730bb1ed642a4637e74e9"
+                },
+                "doctors handled (200/429)": {
+                    "name": "doctors handled (200/429)",
+                    "path": "::doctors handled (200/429)",
+                    "id": "a94d16b99f62778240a1803a85ac99b4",
+                    "passes": 211,
+                    "fails": 0
+                }
+            }
+    },
+    "metrics": {
+        "iterations": {
+            "count": 634,
+            "rate": 10.526394637115507
+        },
+        "http_req_receiving": {
+            "p(95)": 0.35358039999999985,
+            "avg": 0.16936972009029344,
+            "min": 0.037548,
+            "med": 0.133888,
+            "max": 1.436673,
+            "p(90)": 0.2862536
+        },
+        "data_received": {
+            "count": 576201,
+            "rate": 9566.749394795886
+        },
+        "http_req_duration{expected_response:true}": {
+            "min": 0.67231,
+            "med": 1.333448,
+            "max": 80.200206,
+            "p(90)": 8.0690026,
+            "p(95)": 9.920677,
+            "avg": 3.645794103837473
+        },
+        "http_req_waiting": {
+            "min": 0.54086,
+            "med": 1.136758,
+            "max": 79.674246,
+            "p(90)": 7.809911,
+            "p(95)": 9.702785999999998,
+            "avg": 3.440874257336345
+        },
+        "vus_max": {
+            "value": 15,
+            "min": 15,
+            "max": 15
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "http_reqs": {
+            "count": 443,
+            "rate": 7.355193729088596
+        },
+        "http_req_sending": {
+            "med": 0.022668,
+            "max": 0.355586,
+            "p(90)": 0.0637834,
+            "p(95)": 0.08384459999999998,
+            "avg": 0.035550126410835194,
+            "min": 0.011343
+        },
+        "http_req_connecting": {
+            "p(95)": 0,
+            "avg": 0.013801866817155756,
+            "min": 0,
+            "med": 0,
+            "max": 0.649052,
+            "p(90)": 0
+        },
+        "iteration_duration": {
+            "min": 1200.0924,
+            "med": 1201.971658,
+            "max": 1280.76795,
+            "p(90)": 1208.5170922,
+            "p(95)": 1209.8715396,
+            "avg": 1203.3905167476341
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 443,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "checks": {
+            "passes": 428,
+            "fails": 0,
+            "value": 1
+        },
+        "http_req_duration": {
+            "max": 80.200206,
+            "p(90)": 8.0690026,
+            "p(95)": 9.920677,
+            "avg": 3.645794103837473,
+            "min": 0.67231,
+            "med": 1.333448,
+            "thresholds": {
+                "p(99)<1500": false,
+                "p(95)<500": false
+            }
+        },
+        "http_req_blocked": {
+            "avg": 0.03450341534988708,
+            "min": 0.003761,
+            "med": 0.006926,
+            "max": 3.338695,
+            "p(90)": 0.013066600000000001,
+            "p(95)": 0.0414358999999998
+        },
+        "data_sent": {
+            "rate": 1310.4365134441887,
+            "count": 78927
+        },
+        "vus": {
+            "min": 1,
+            "max": 15,
+            "value": 1
+        }
+    },
+    "setup_data": {
+        "tokens": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        ]
+    }
+}

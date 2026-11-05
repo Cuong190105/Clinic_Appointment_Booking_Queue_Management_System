@@ -18,6 +18,12 @@ Tại thư mục gốc, chạy docker compose:
 docker compose up -d --build
 ```
 
+Before starting Compose, copy `.env.example` to `.env` and set `DB_SA_PASSWORD`,
+`RABBITMQ_PASSWORD`, `JWT_KEY`, `IDENTITY_SERVICE_TOKEN`, `SMTP_USERNAME`, and
+`SMTP_PASSWORD`. For Gmail, `SMTP_PASSWORD` must be a Gmail App Password, not
+the normal account password. Email delivery uses the configured SMTP provider;
+SMS is intentionally left as a mock provider and does not send real messages.
+
 ## Sử dụng app
 
 Trong db đã có sẵn một số người dùng mẫu, tài khoản có dạng role + STT, ví dụ admin1, doctor2,...

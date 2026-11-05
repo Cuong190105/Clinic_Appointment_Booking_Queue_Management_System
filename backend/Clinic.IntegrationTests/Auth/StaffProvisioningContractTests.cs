@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Clinic.Infrastructure.Sqlserver.Persistence;
 using Clinic.IntegrationTests.Fixtures;
-using Microsoft.EntityFrameworkCore;
 
 namespace Clinic.IntegrationTests.Auth;
 
@@ -11,7 +9,6 @@ public sealed class StaffProvisioningContractTests(ApiContractFactory factory) :
     [Fact]
     public async Task New_employee_creation_links_identity_and_scheduling_profiles()
     {
-        await factory.InitializeDatabaseAsync();
         using var client = factory.CreateAuthenticatedClient();
         var phone = $"07{Random.Shared.Next(100000000, 999999999)}";
         var username = $"employee-test-{Guid.NewGuid():N}";
@@ -37,9 +34,6 @@ public sealed class StaffProvisioningContractTests(ApiContractFactory factory) :
             : envelope.RootElement;
         var employeeId = result.GetProperty("id").GetGuid();
         Assert.NotEqual(Guid.Empty, employeeId);
-
-        await using var db = factory.CreateDbContext();
-        var person = await db.Persons.SingleAsync(x => x.PhoneNumber == phone);
-        Assert.NotEqual(Guid.Empty, person.IdentityUserId);
+        Assert.Equal("Identity Employee Test", result.GetProperty("fullName").GetString());
     }
 }

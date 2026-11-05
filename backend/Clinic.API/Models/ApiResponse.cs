@@ -39,4 +39,25 @@ namespace Clinic.API.Models
             Result = null
         };
     }
+
+    /// <summary>
+    /// Generic OpenAPI schema model representing the strongly-typed wire envelope returned by ApiResponseWrapperFilter.
+    /// </summary>
+    public class ApiResponse<T>
+    {
+        [JsonPropertyName("statusCode")]
+        public HttpStatusCode StatusCode { get; set; }
+
+        [JsonPropertyName("isSuccess")]
+        public bool IsSuccess { get; set; } = true;
+
+        [JsonPropertyName("errorMessages")]
+        public List<string> ErrorMessages { get; set; } = new();
+
+        [JsonPropertyName("result")]
+        public T? Result { get; set; }
+    }
+
+    public sealed record ApiMessageResult(string Message);
+    public sealed record ApiCreatedIdResult(System.Guid Id);
 }

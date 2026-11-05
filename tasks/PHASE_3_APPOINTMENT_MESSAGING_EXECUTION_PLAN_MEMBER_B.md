@@ -26,7 +26,7 @@ sequenceDiagram
     autonumber
     actor Patient as Bệnh Nhân Online
     participant GW as API Gateway
-    participant Sched as Scheduling Service
+    participant Sched as Staff & Scheduling Service
     participant Appt as Appointment Service
     participant ApptDB as ClinicAppointmentDB
     participant Broker as RabbitMQ (clinic.events)
@@ -50,7 +50,7 @@ sequenceDiagram
     Appt->>ApptDB: Ghi Outbox (AppointmentCancelled)
     Appt-->>GW: HTTP 200 OK
     ApptDB-->>Broker: Outbox Publisher gửi 'appointment.cancelled'
-    Broker->>SchedCons: Scheduling Service Consumer nhận 'appointment.cancelled'
+    Broker->>SchedCons: Staff & Scheduling Service Consumer nhận 'appointment.cancelled'
     SchedCons->>Sched: Giải phóng SlotReservation & Khôi phục capacity ca trực
 ```
 
@@ -67,7 +67,7 @@ sequenceDiagram
   - `AppointmentCheckedIn` (Routing key: `appointment.checked-in`): Bệnh nhân đã tới quầy tiếp đón check-in (làm dữ liệu đầu vào duy nhất cho Queue Service cấp số).
 
 ### 3.2. Triển Khai Hệ Thống Event Consumers
-1. **Consumer tại Scheduling Service (`q.scheduling.events`)**:
+1. **Consumer tại Staff & Scheduling Service (`q.scheduling.events`)**:
    - Lắng nghe `appointment.cancelled`: Tự động tìm `SlotReservation` tương ứng và thực hiện `ReleaseSlot`, tăng lại capacity cho bác sĩ.
    - Lắng nghe `user.updated`: Đồng bộ thông tin nhân sự.
 2. **Consumer tại Appointment Service (`q.appointment.events`)**:
@@ -76,7 +76,7 @@ sequenceDiagram
 
 ### 3.3. Kiểm Thử Khả Năng Bồi Hoàn (Saga Compensation & Resiliency)
 - **Kiểm thử Timeout khi gọi `CreateAppointment`**:
-  - Khi bước lưu lịch hẹn gặp lỗi cơ sở dữ liệu hoặc timeout, Gateway/Saga Coordinator lập tức kích hoạt nhánh bù trừ: gọi `POST /schedules/{id}/reservations/{resId}/release` sang Scheduling Service.
+  - Khi bước lưu lịch hẹn gặp lỗi cơ sở dữ liệu hoặc timeout, Gateway/Saga Coordinator lập tức kích hoạt nhánh bù trừ: gọi `POST /schedules/{id}/reservations/{resId}/release` sang Staff & Scheduling Service.
   - Kiểm tra xác nhận `SlotReservation` chuyển về `Released`, không bị treo slot rác.
 - **Kiểm thử Idempotency**:
   - Gửi lặp lại cùng một yêu cầu `POST /appointments` kèm cùng một header `Idempotency-Key`: Service trả về thông tin lịch hẹn đã tạo lần đầu, không sinh thêm bản ghi `Appointment` thứ hai.

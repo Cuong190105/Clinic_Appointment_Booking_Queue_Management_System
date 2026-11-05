@@ -1,4 +1,3 @@
-using Clinic.Domain.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace Clinic.API.Models

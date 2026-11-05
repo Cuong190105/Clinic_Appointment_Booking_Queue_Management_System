@@ -1,6 +1,5 @@
 using Clinic.API.Models;
 using Clinic.API.Services;
-using Clinic.Application.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

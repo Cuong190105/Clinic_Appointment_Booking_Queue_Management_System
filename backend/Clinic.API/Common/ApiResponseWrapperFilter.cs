@@ -28,7 +28,11 @@ namespace Clinic.API.Common
                     objectResult.Value = Build(objectResult.Value, objectResult.StatusCode ?? StatusCodes.Status200OK);
                     break;
 
-                // Không có body (NoContent, StatusCode(...), NotFound() không kèm dữ liệu).
+                // 204 No Content must have an empty body per HTTP RFC 7231/9110
+                case StatusCodeResult { StatusCode: StatusCodes.Status204NoContent }:
+                    break;
+
+                // Không có body (StatusCode(...), NotFound() không kèm dữ liệu).
                 case StatusCodeResult statusCodeResult:
                     context.Result = new ObjectResult(Build(null, statusCodeResult.StatusCode))
                     {

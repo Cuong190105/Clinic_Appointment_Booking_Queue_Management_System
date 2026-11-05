@@ -149,8 +149,8 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 ### Phạm vi đã chuyển & Nghiệm thu
 
-- Outbox publisher tích hợp với bảng `OutboxMessages` của Scheduling Service, hỗ trợ các event `WorkScheduleCreated`, `WorkScheduleUpdated`, `WorkScheduleCancelled`.
-- Consumer cập nhật projection nhân viên `UserProfileUpdated` từ Identity Service sang Scheduling Service (`Employees`).
+- Outbox publisher tích hợp với bảng `OutboxMessages` của Staff & Scheduling Service, hỗ trợ các event `WorkScheduleCreated`, `WorkScheduleUpdated`, `WorkScheduleCancelled`.
+- Consumer cập nhật projection nhân viên `UserProfileUpdated` từ Identity Service sang Staff & Scheduling Service (`Employees`).
 - Background worker `ReservationExpirationWorker` tự động quét và thu hồi các slot `Reserved` đã hết hạn mỗi 30 giây.
 - Tinh chỉnh giao diện người dùng (Frontend):
   - Chuyển đổi và format mốc thời gian khám của Bác sĩ (`DoctorExaminationView.vue`) theo múi giờ địa phương (GMT+7) thay vì hiển thị UTC thô.
@@ -168,7 +168,7 @@ Thành viên B phụ trách message broker, outbox/inbox, consumer, testing, obs
 
 1. Tích hợp Appointment events (`AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCancelled`, `AppointmentCheckedIn`) từ `ClinicAppointmentDB.OutboxMessages` vào broker.
 2. Tạo và tích hợp các consumer theo quyết định kiến trúc GĐ 3:
-   - Consumer tại Scheduling Service lắng nghe `AppointmentCancelled` để giải phóng `SlotReservation` và phục hồi capacity.
+   - Consumer tại Staff & Scheduling Service lắng nghe `AppointmentCancelled` để giải phóng `SlotReservation` và phục hồi capacity.
    - Consumer tại Monolith lắng nghe `AppointmentCheckedIn` để cấp số thứ tự và tạo `QueueTicket` trong `ClinicDB`.
    - Consumer tại Appointment Service lắng nghe `ExamCompleted` (chuyển lịch hẹn sang `Completed`) và `UserProfileUpdated` (cập nhật `PatientProjections`).
 3. Viết contract test cho booking, confirm, cancel, reschedule và check-in.

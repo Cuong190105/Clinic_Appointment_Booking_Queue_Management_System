@@ -11,7 +11,7 @@ groups:
           description: "{{ $labels.job }} has been unreachable for more than 30 seconds."
 
       - alert: LowApiAvailability
-        expr: (sum(rate(http_requests_total{status!~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) * 100 < 99
+        expr: (sum(rate(http_server_request_duration_seconds_count{http_response_status_code!~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m]))) * 100 < 99
         for: 2m
         labels:
           severity: critical
@@ -20,7 +20,7 @@ groups:
           description: "Current API availability is {{ $value }}%, violating the Phase 8 SLO target of 99%."
 
       - alert: HighApiLatencyP95
-        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+        expr: histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le)) > 0.5
         for: 1m
         labels:
           severity: warning
@@ -29,7 +29,7 @@ groups:
           description: "p95 response time is {{ $value }}s on job {{ $labels.job }}."
 
       - alert: HighApiLatencyP99
-        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1.5
+        expr: histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le)) > 1.5
         for: 1m
         labels:
           severity: critical
@@ -38,7 +38,7 @@ groups:
           description: "p99 response time is {{ $value }}s on job {{ $labels.job }}."
 
       - alert: HighErrorRate5xx
-        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) * 100 > 1.0
+        expr: (sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m]))) * 100 > 1.0
         for: 1m
         labels:
           severity: critical
@@ -46,20 +46,20 @@ groups:
           summary: "HTTP 5xx server error rate exceeds 1% SLO"
           description: "HTTP 5xx rate is {{ $value }}%, exceeding the 1% maximum error budget."
 
-      - alert: NotificationDlqNotEmpty
-        expr: rabbitmq_queue_messages{queue="q.notification.dlq"} > 0
+      - alert: QueueConsumerLagHigh
+        expr: histogram_quantile(0.95, sum(rate(clinic_queue_consumer_lag_seconds_bucket[5m])) by (le)) > 5.0
         for: 1m
         labels:
           severity: warning
         annotations:
-          summary: "Notification DLQ has dead-lettered messages"
-          description: "Messages detected in q.notification.dlq. Manual review or replay required."
+          summary: "Queue consumer event lag exceeds 5.0s SLO"
+          description: "p95 event lag is {{ $value }}s in queue consumer."
 
-      - alert: RabbitMqQueueLag
-        expr: rabbitmq_queue_messages_unacknowledged > 100
+      - alert: QueueBacklogExcessive
+        expr: clinic_queue_length > 50
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "RabbitMQ consumer lag is high"
-          description: "More than 100 unacknowledged messages pending in queue {{ $labels.queue }}."
+          summary: "Queue ticket backlog is excessively high"
+          description: "More than 50 waiting tickets pending in clinic queue."

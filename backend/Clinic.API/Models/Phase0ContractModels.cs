@@ -27,7 +27,7 @@ public sealed record ReservationActionResponse(
 public sealed class DraftMedicalRecordRequest
 {
     [Required]
-    public Guid EncounterId { get; set; }
+    public Guid AppointmentId { get; set; }
 
     public string? Symptoms { get; set; }
     public string? Diagnosis { get; set; }
@@ -47,7 +47,7 @@ public sealed class AmendmentMedicalRecordRequest
 
 public sealed record MedicalRecordContractResponse(
     Guid ReportId,
-    Guid VisitId,
+    Guid AppointmentId,
     string Status,
     DateTime UpdatedAt);
 
@@ -63,6 +63,6 @@ public sealed record JwkKeyResponse(
 
 public sealed record CheckInContractResponse(
     Guid AppointmentId,
-    Guid VisitId,
+    Guid QueueTicketId,
     string Status,
     DateTime CheckedInAt);

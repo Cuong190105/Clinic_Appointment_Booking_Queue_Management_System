@@ -31,7 +31,7 @@ Trong Giai đoạn 0, Thành viên B chịu trách nhiệm thiết lập toàn b
 ```mermaid
 flowchart LR
     subgraph Producers ["Event Producers"]
-        P1["Scheduling Service"]
+        P1["Staff & Scheduling Service"]
         P2["Appointment Service"]
         P3["Queue Service"]
         P4["Medical Records Service"]

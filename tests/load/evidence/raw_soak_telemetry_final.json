@@ -1,0 +1,534 @@
+﻿{
+    "metadata":  {
+                     "test":  "k6_soak_telemetry",
+                     "timestamp":  "2026-11-04T14:06:00.6254620Z",
+                     "durationSeconds":  60,
+                     "cooldownSeconds":  15,
+                     "k6ExitCode":  0,
+                     "overallPassed":  true
+                 },
+    "telemetry":  {
+                      "T0":  {
+                                 "stage":  "T0_Baseline",
+                                 "timestamp":  "2026-11-04T14:04:36.3301716Z",
+                                 "sqlConnections":  25,
+                                 "activeRabbitConsumers":  5,
+                                 "containers":  [
+                                                    {
+                                                        "name":  "clinic_scheduling_service",
+                                                        "cpuPerc":  "0.21%",
+                                                        "memUsage":  "163.9MiB / 5.787GiB",
+                                                        "memUsageMb":  163.9,
+                                                        "memPerc":  "2.77%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_appointment_service",
+                                                        "cpuPerc":  "0.44%",
+                                                        "memUsage":  "180.7MiB / 5.787GiB",
+                                                        "memUsageMb":  180.7,
+                                                        "memPerc":  "3.05%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_medical_records_service",
+                                                        "cpuPerc":  "0.02%",
+                                                        "memUsage":  "130.8MiB / 5.787GiB",
+                                                        "memUsageMb":  130.8,
+                                                        "memPerc":  "2.21%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_notification_service",
+                                                        "cpuPerc":  "3.14%",
+                                                        "memUsage":  "147.8MiB / 5.787GiB",
+                                                        "memUsageMb":  147.8,
+                                                        "memPerc":  "2.49%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_appointment_booking_queue_management_system-identity-service-1",
+                                                        "cpuPerc":  "0.70%",
+                                                        "memUsage":  "150.3MiB / 5.787GiB",
+                                                        "memUsageMb":  150.3,
+                                                        "memPerc":  "2.54%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+                                                        "cpuPerc":  "1.74%",
+                                                        "memUsage":  "170.5MiB / 5.787GiB",
+                                                        "memUsageMb":  170.5,
+                                                        "memPerc":  "2.88%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_appointment_booking_queue_management_system-mssql-exporter-1",
+                                                        "cpuPerc":  "0.00%",
+                                                        "memUsage":  "52.41MiB / 5.787GiB",
+                                                        "memUsageMb":  52.41,
+                                                        "memPerc":  "0.88%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_prometheus",
+                                                        "cpuPerc":  "0.11%",
+                                                        "memUsage":  "112MiB / 5.787GiB",
+                                                        "memUsageMb":  112,
+                                                        "memPerc":  "1.89%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_backend",
+                                                        "cpuPerc":  "3.90%",
+                                                        "memUsage":  "178.4MiB / 5.787GiB",
+                                                        "memUsageMb":  178.4,
+                                                        "memPerc":  "3.01%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_queue_service",
+                                                        "cpuPerc":  "3.92%",
+                                                        "memUsage":  "146.1MiB / 5.787GiB",
+                                                        "memUsageMb":  146.1,
+                                                        "memPerc":  "2.47%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_frontend",
+                                                        "cpuPerc":  "0.00%",
+                                                        "memUsage":  "17.5MiB / 5.787GiB",
+                                                        "memUsageMb":  17.5,
+                                                        "memPerc":  "0.30%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_jaeger",
+                                                        "cpuPerc":  "0.04%",
+                                                        "memUsage":  "88.82MiB / 5.787GiB",
+                                                        "memUsageMb":  88.82,
+                                                        "memPerc":  "1.50%"
+                                                    },
+                                                    {
+                                                        "name":  "clinic_sql_server",
+                                                        "cpuPerc":  "2.56%",
+                                                        "memUsage":  "1.343GiB / 5.787GiB",
+                                                        "memUsageMb":  1375.23,
+                                                        "memPerc":  "23.20%"
+                                                    }
+                                                ]
+                             },
+                      "T30s":  {
+                                   "stage":  "T30s_MidRun",
+                                   "timestamp":  "2026-11-04T14:05:09.4787849Z",
+                                   "sqlConnections":  25,
+                                   "containers":  [
+                                                      {
+                                                          "name":  "clinic-soak-runner",
+                                                          "cpuPerc":  "1.59%",
+                                                          "memUsage":  "15.91MiB / 5.787GiB",
+                                                          "memUsageMb":  15.91,
+                                                          "memPerc":  "0.27%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_scheduling_service",
+                                                          "cpuPerc":  "0.34%",
+                                                          "memUsage":  "167.5MiB / 5.787GiB",
+                                                          "memUsageMb":  167.5,
+                                                          "memPerc":  "2.83%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_appointment_service",
+                                                          "cpuPerc":  "0.52%",
+                                                          "memUsage":  "181.6MiB / 5.787GiB",
+                                                          "memUsageMb":  181.6,
+                                                          "memPerc":  "3.06%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_medical_records_service",
+                                                          "cpuPerc":  "2.97%",
+                                                          "memUsage":  "131.1MiB / 5.787GiB",
+                                                          "memUsageMb":  131.1,
+                                                          "memPerc":  "2.21%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_notification_service",
+                                                          "cpuPerc":  "0.17%",
+                                                          "memUsage":  "147.2MiB / 5.787GiB",
+                                                          "memUsageMb":  147.2,
+                                                          "memPerc":  "2.48%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_appointment_booking_queue_management_system-identity-service-1",
+                                                          "cpuPerc":  "0.42%",
+                                                          "memUsage":  "150.1MiB / 5.787GiB",
+                                                          "memUsageMb":  150.1,
+                                                          "memPerc":  "2.53%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+                                                          "cpuPerc":  "0.32%",
+                                                          "memUsage":  "173.6MiB / 5.787GiB",
+                                                          "memUsageMb":  173.6,
+                                                          "memPerc":  "2.93%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_appointment_booking_queue_management_system-mssql-exporter-1",
+                                                          "cpuPerc":  "0.00%",
+                                                          "memUsage":  "52.21MiB / 5.787GiB",
+                                                          "memUsageMb":  52.21,
+                                                          "memPerc":  "0.88%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_prometheus",
+                                                          "cpuPerc":  "0.02%",
+                                                          "memUsage":  "113.5MiB / 5.787GiB",
+                                                          "memUsageMb":  113.5,
+                                                          "memPerc":  "1.91%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_backend",
+                                                          "cpuPerc":  "1.59%",
+                                                          "memUsage":  "183MiB / 5.787GiB",
+                                                          "memUsageMb":  183,
+                                                          "memPerc":  "3.09%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_queue_service",
+                                                          "cpuPerc":  "0.29%",
+                                                          "memUsage":  "145.7MiB / 5.787GiB",
+                                                          "memUsageMb":  145.7,
+                                                          "memPerc":  "2.46%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_frontend",
+                                                          "cpuPerc":  "0.00%",
+                                                          "memUsage":  "17.24MiB / 5.787GiB",
+                                                          "memUsageMb":  17.24,
+                                                          "memPerc":  "0.29%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_jaeger",
+                                                          "cpuPerc":  "0.11%",
+                                                          "memUsage":  "90.61MiB / 5.787GiB",
+                                                          "memUsageMb":  90.61,
+                                                          "memPerc":  "1.53%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_sql_server",
+                                                          "cpuPerc":  "2.15%",
+                                                          "memUsage":  "1.342GiB / 5.787GiB",
+                                                          "memUsageMb":  1374.21,
+                                                          "memPerc":  "23.20%"
+                                                      }
+                                                  ]
+                               },
+                      "T60s":  {
+                                   "stage":  "T60s_Peak",
+                                   "timestamp":  "2026-11-04T14:05:42.0384489Z",
+                                   "sqlConnections":  25,
+                                   "containers":  [
+                                                      {
+                                                          "name":  "clinic_scheduling_service",
+                                                          "cpuPerc":  "4.05%",
+                                                          "memUsage":  "168.3MiB / 5.787GiB",
+                                                          "memUsageMb":  168.3,
+                                                          "memPerc":  "2.84%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_appointment_service",
+                                                          "cpuPerc":  "0.56%",
+                                                          "memUsage":  "181.9MiB / 5.787GiB",
+                                                          "memUsageMb":  181.9,
+                                                          "memPerc":  "3.07%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_medical_records_service",
+                                                          "cpuPerc":  "0.24%",
+                                                          "memUsage":  "131.2MiB / 5.787GiB",
+                                                          "memUsageMb":  131.2,
+                                                          "memPerc":  "2.21%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_notification_service",
+                                                          "cpuPerc":  "0.28%",
+                                                          "memUsage":  "147MiB / 5.787GiB",
+                                                          "memUsageMb":  147,
+                                                          "memPerc":  "2.48%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_appointment_booking_queue_management_system-identity-service-1",
+                                                          "cpuPerc":  "0.45%",
+                                                          "memUsage":  "150.1MiB / 5.787GiB",
+                                                          "memUsageMb":  150.1,
+                                                          "memPerc":  "2.53%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+                                                          "cpuPerc":  "0.38%",
+                                                          "memUsage":  "172MiB / 5.787GiB",
+                                                          "memUsageMb":  172,
+                                                          "memPerc":  "2.90%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_appointment_booking_queue_management_system-mssql-exporter-1",
+                                                          "cpuPerc":  "0.00%",
+                                                          "memUsage":  "52.25MiB / 5.787GiB",
+                                                          "memUsageMb":  52.25,
+                                                          "memPerc":  "0.88%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_prometheus",
+                                                          "cpuPerc":  "0.19%",
+                                                          "memUsage":  "114.3MiB / 5.787GiB",
+                                                          "memUsageMb":  114.3,
+                                                          "memPerc":  "1.93%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_backend",
+                                                          "cpuPerc":  "0.83%",
+                                                          "memUsage":  "180.6MiB / 5.787GiB",
+                                                          "memUsageMb":  180.6,
+                                                          "memPerc":  "3.05%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_queue_service",
+                                                          "cpuPerc":  "0.53%",
+                                                          "memUsage":  "144.8MiB / 5.787GiB",
+                                                          "memUsageMb":  144.8,
+                                                          "memPerc":  "2.44%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_frontend",
+                                                          "cpuPerc":  "0.00%",
+                                                          "memUsage":  "17.24MiB / 5.787GiB",
+                                                          "memUsageMb":  17.24,
+                                                          "memPerc":  "0.29%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_jaeger",
+                                                          "cpuPerc":  "0.02%",
+                                                          "memUsage":  "92.02MiB / 5.787GiB",
+                                                          "memUsageMb":  92.02,
+                                                          "memPerc":  "1.55%"
+                                                      },
+                                                      {
+                                                          "name":  "clinic_sql_server",
+                                                          "cpuPerc":  "2.65%",
+                                                          "memUsage":  "1.343GiB / 5.787GiB",
+                                                          "memUsageMb":  1375.23,
+                                                          "memPerc":  "23.20%"
+                                                      }
+                                                  ]
+                               },
+                      "T_cooldown":  {
+                                         "stage":  "T_cooldown",
+                                         "timestamp":  "2026-11-04T14:06:00.5845096Z",
+                                         "sqlConnections":  25,
+                                         "activeRabbitConsumers":  5,
+                                         "containers":  [
+                                                            {
+                                                                "name":  "clinic_scheduling_service",
+                                                                "cpuPerc":  "0.28%",
+                                                                "memUsage":  "168MiB / 5.787GiB",
+                                                                "memUsageMb":  168,
+                                                                "memPerc":  "2.83%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_appointment_service",
+                                                                "cpuPerc":  "3.42%",
+                                                                "memUsage":  "182.4MiB / 5.787GiB",
+                                                                "memUsageMb":  182.4,
+                                                                "memPerc":  "3.08%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_medical_records_service",
+                                                                "cpuPerc":  "3.45%",
+                                                                "memUsage":  "131.6MiB / 5.787GiB",
+                                                                "memUsageMb":  131.6,
+                                                                "memPerc":  "2.22%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_notification_service",
+                                                                "cpuPerc":  "0.20%",
+                                                                "memUsage":  "147.1MiB / 5.787GiB",
+                                                                "memUsageMb":  147.1,
+                                                                "memPerc":  "2.48%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_appointment_booking_queue_management_system-identity-service-1",
+                                                                "cpuPerc":  "0.57%",
+                                                                "memUsage":  "150.3MiB / 5.787GiB",
+                                                                "memUsageMb":  150.3,
+                                                                "memPerc":  "2.54%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+                                                                "cpuPerc":  "373.84%",
+                                                                "memUsage":  "172.1MiB / 5.787GiB",
+                                                                "memUsageMb":  172.1,
+                                                                "memPerc":  "2.90%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_appointment_booking_queue_management_system-mssql-exporter-1",
+                                                                "cpuPerc":  "1.61%",
+                                                                "memUsage":  "53.82MiB / 5.787GiB",
+                                                                "memUsageMb":  53.82,
+                                                                "memPerc":  "0.91%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_prometheus",
+                                                                "cpuPerc":  "0.07%",
+                                                                "memUsage":  "114MiB / 5.787GiB",
+                                                                "memUsageMb":  114,
+                                                                "memPerc":  "1.92%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_backend",
+                                                                "cpuPerc":  "0.59%",
+                                                                "memUsage":  "180.6MiB / 5.787GiB",
+                                                                "memUsageMb":  180.6,
+                                                                "memPerc":  "3.05%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_queue_service",
+                                                                "cpuPerc":  "0.32%",
+                                                                "memUsage":  "144.5MiB / 5.787GiB",
+                                                                "memUsageMb":  144.5,
+                                                                "memPerc":  "2.44%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_frontend",
+                                                                "cpuPerc":  "0.00%",
+                                                                "memUsage":  "17.24MiB / 5.787GiB",
+                                                                "memUsageMb":  17.24,
+                                                                "memPerc":  "0.29%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_jaeger",
+                                                                "cpuPerc":  "0.04%",
+                                                                "memUsage":  "91.85MiB / 5.787GiB",
+                                                                "memUsageMb":  91.85,
+                                                                "memPerc":  "1.55%"
+                                                            },
+                                                            {
+                                                                "name":  "clinic_sql_server",
+                                                                "cpuPerc":  "1.92%",
+                                                                "memUsage":  "1.343GiB / 5.787GiB",
+                                                                "memUsageMb":  1375.23,
+                                                                "memPerc":  "23.21%"
+                                                            }
+                                                        ]
+                                     }
+                  },
+    "reconciliation":  {
+                           "sqlConnectionBaseline":  25,
+                           "sqlConnectionPeak":  25,
+                           "sqlConnectionCooldown":  25,
+                           "sqlConnectionReturnedToBaseline":  true,
+                           "noConnectionLeak":  true,
+                           "rabbitConsumersBaseline":  5,
+                           "rabbitConsumersCooldown":  5,
+                           "noWorkerDegradation":  true,
+                           "memoryThresholds":  "Growth \u003c= 15% or \u003c= 30MB buffer",
+                           "isMemoryLeakFree":  true,
+                           "leakingContainers":  [
+
+                                                 ],
+                           "containerAnalysis":  [
+                                                     {
+                                                         "container":  "clinic_scheduling_service",
+                                                         "baselineT0Mb":  163.9,
+                                                         "cooldownMb":  168,
+                                                         "growthMb":  4.1,
+                                                         "growthPercentage":  2.5,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_appointment_service",
+                                                         "baselineT0Mb":  180.7,
+                                                         "cooldownMb":  182.4,
+                                                         "growthMb":  1.7,
+                                                         "growthPercentage":  0.94,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_medical_records_service",
+                                                         "baselineT0Mb":  130.8,
+                                                         "cooldownMb":  131.6,
+                                                         "growthMb":  0.8,
+                                                         "growthPercentage":  0.61,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_notification_service",
+                                                         "baselineT0Mb":  147.8,
+                                                         "cooldownMb":  147.1,
+                                                         "growthMb":  -0.7,
+                                                         "growthPercentage":  -0.47,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_appointment_booking_queue_management_system-identity-service-1",
+                                                         "baselineT0Mb":  150.3,
+                                                         "cooldownMb":  150.3,
+                                                         "growthMb":  0,
+                                                         "growthPercentage":  0,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+                                                         "baselineT0Mb":  170.5,
+                                                         "cooldownMb":  172.1,
+                                                         "growthMb":  1.6,
+                                                         "growthPercentage":  0.94,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_appointment_booking_queue_management_system-mssql-exporter-1",
+                                                         "baselineT0Mb":  52.41,
+                                                         "cooldownMb":  53.82,
+                                                         "growthMb":  1.41,
+                                                         "growthPercentage":  2.69,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_prometheus",
+                                                         "baselineT0Mb":  112,
+                                                         "cooldownMb":  114,
+                                                         "growthMb":  2,
+                                                         "growthPercentage":  1.79,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_backend",
+                                                         "baselineT0Mb":  178.4,
+                                                         "cooldownMb":  180.6,
+                                                         "growthMb":  2.2,
+                                                         "growthPercentage":  1.23,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_queue_service",
+                                                         "baselineT0Mb":  146.1,
+                                                         "cooldownMb":  144.5,
+                                                         "growthMb":  -1.6,
+                                                         "growthPercentage":  -1.1,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_frontend",
+                                                         "baselineT0Mb":  17.5,
+                                                         "cooldownMb":  17.24,
+                                                         "growthMb":  -0.26,
+                                                         "growthPercentage":  -1.49,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_jaeger",
+                                                         "baselineT0Mb":  88.82,
+                                                         "cooldownMb":  91.85,
+                                                         "growthMb":  3.03,
+                                                         "growthPercentage":  3.41,
+                                                         "isLeakFree":  true
+                                                     },
+                                                     {
+                                                         "container":  "clinic_sql_server",
+                                                         "baselineT0Mb":  1375.23,
+                                                         "cooldownMb":  1375.23,
+                                                         "growthMb":  0,
+                                                         "growthPercentage":  0,
+                                                         "isLeakFree":  true
+                                                     }
+                                                 ]
+                       }
+}

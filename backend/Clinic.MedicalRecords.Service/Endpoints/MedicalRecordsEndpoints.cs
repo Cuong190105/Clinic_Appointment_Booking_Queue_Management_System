@@ -37,6 +37,8 @@ public static class MedicalRecordsEndpoints
         // Medical Report endpoints
         app.MapPost("/medical-records", SaveReportHandler)
            .RequireAuthorization("ReportCreate");
+        app.MapPost("/medical-records/encounters/{appointmentId:guid}/draft", SaveAppointmentDraftHandler)
+           .RequireAuthorization("ReportCreate");
 
         app.MapPut("/medical-records/{id:guid}", UpdateDraftReportHandler)
            .RequireAuthorization("ReportCreate");
@@ -46,6 +48,8 @@ public static class MedicalRecordsEndpoints
 
         app.MapPost("/medical-records/appointments/{appointmentId:guid}/amendments", CreateAmendmentHandler)
            .RequireAuthorization("ReportCreate");
+        app.MapPost("/medical-records/{appointmentId:guid}/amendments", CreateAmendmentHandler)
+           .RequireAuthorization("ReportCreate");
 
         app.MapGet("/medical-records", GetPagedReportsHandler)
            .RequireAuthorization("ReportView");
@@ -54,6 +58,8 @@ public static class MedicalRecordsEndpoints
            .RequireAuthorization("ReportView");
 
         app.MapGet("/medical-records/appointment/{appointmentId:guid}", GetReportByAppointmentHandler)
+           .RequireAuthorization("ReportView");
+        app.MapGet("/medical-records/encounters/{appointmentId:guid}", GetReportByAppointmentHandler)
            .RequireAuthorization("ReportView");
 
         app.MapGet("/patients/{patientId:guid}/medical-history", GetPatientMedicalHistoryHandler)
@@ -241,6 +247,20 @@ public static class MedicalRecordsEndpoints
     #endregion
 
     #region Medical Report Handlers
+
+    private static Task<IResult> SaveAppointmentDraftHandler(
+        Guid appointmentId,
+        [FromBody] SaveMedicalReportRequest request,
+        ClaimsPrincipal user,
+        HttpContext httpContext,
+        IMedicalRecordsManager manager,
+        CancellationToken ct)
+    {
+        var effectiveRequest = request.AppointmentId == Guid.Empty
+            ? request with { AppointmentId = appointmentId }
+            : request;
+        return SaveReportHandler(effectiveRequest, user, httpContext, manager, ct);
+    }
 
     private static async Task<IResult> SaveReportHandler(
         [FromBody] SaveMedicalReportRequest request,

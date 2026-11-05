@@ -1,0 +1,97 @@
+{
+  "metadata": {
+    "timestamp": "2026-11-04T08:56:40.513Z",
+    "baseUrl": "http://localhost:5000",
+    "concurrency": 10,
+    "requestsPerPass": 100,
+    "testRunId": "PH9-FINAL",
+    "workScheduleId": "40402af8-e115-b4a1-35c6-71f51885b6ee",
+    "nodeVersion": "v24.19.0"
+  },
+  "passes": {
+    "readBaseline": {
+      "name": "Read Baseline (Specialties, Doctors, History)",
+      "totalRequests": 100,
+      "durationSeconds": 0.741,
+      "throughputRps": 134.95,
+      "percentiles": {
+        "min": 22.63,
+        "p50": 44.2,
+        "p90": 119.5,
+        "p95": 193.62,
+        "p99": 237.4,
+        "max": 237.4,
+        "avg": 61.88
+      },
+      "successPercentiles": {
+        "min": 22.63,
+        "p50": 44.2,
+        "p90": 119.5,
+        "p95": 193.62,
+        "p99": 237.4,
+        "max": 237.4,
+        "avg": 61.88
+      },
+      "conflictPercentiles": null,
+      "statusCodes": {
+        "200": 100
+      },
+      "server5xxCount": 0,
+      "client4xxCount": 0,
+      "successCount": 100,
+      "conflictCount": 0,
+      "isSloMet": true
+    },
+    "writeBaseline": {
+      "name": "Business Write Baseline (Online SAGA Booking POST /appointments)",
+      "totalRequests": 50,
+      "durationSeconds": 6.298,
+      "throughputRps": 7.94,
+      "percentiles": {
+        "min": 64.33,
+        "p50": 154.97,
+        "p90": 225.36,
+        "p95": 259.97,
+        "p99": 637.81,
+        "max": 637.81,
+        "avg": 179.31
+      },
+      "successPercentiles": {
+        "min": 119.29,
+        "p50": 154.97,
+        "p90": 213.88,
+        "p95": 254.45,
+        "p99": 637.81,
+        "max": 637.81,
+        "avg": 174.95
+      },
+      "conflictPercentiles": {
+        "min": 64.33,
+        "p50": 504.03,
+        "p90": 504.03,
+        "p95": 504.03,
+        "p99": 504.03,
+        "max": 504.03,
+        "avg": 284.18
+      },
+      "statusCodes": {
+        "201": 48,
+        "409": 2
+      },
+      "server5xxCount": 0,
+      "client4xxCount": 0,
+      "successCount": 48,
+      "conflictCount": 2,
+      "isSloMet": true
+    }
+  },
+  "combinedSlo": {
+    "availabilityTarget": ">= 99%",
+    "readLatencyP95Target": "<= 500ms",
+    "writeLatencyP95Target": "<= 1500ms (Distributed SAGA)",
+    "serverError5xxTarget": "<= 1%",
+    "readPassed": true,
+    "writePassed": true,
+    "allPassed": true
+  }
+}

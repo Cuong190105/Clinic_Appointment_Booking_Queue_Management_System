@@ -1,3 +1,10 @@
+extern alias IdentityServiceApp;
+extern alias SchedulingServiceApp;
+extern alias AppointmentServiceApp;
+extern alias QueueServiceApp;
+extern alias MedicalRecordsServiceApp;
+extern alias NotificationServiceApp;
+
 using System.Net;
 using System.Data.Common;
 using System.Security.Claims;
@@ -11,8 +18,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Clinic.Infrastructure.Sqlserver.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Clinic.IntegrationTests.Fixtures;
@@ -24,32 +29,9 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
     public static readonly Guid PatientId = Guid.Parse("a0000005-0000-0000-0000-000000000001");
     public static readonly Guid DoctorId = Guid.Parse("a0000004-0000-0000-0000-000000000001");
 
-    private readonly string _databaseName = $"ClinicBaselineTests_{Environment.ProcessId}_{Guid.NewGuid():N}";
-    private string? _testConnectionString;
-    private bool _databaseInitialized;
-    private static int _cleanedUpOrphans;
-
     public ApiContractFactory()
     {
-        var appSettingsPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "..", "..", "..", "..", "Clinic.API", "appsettings.json"));
-        var sourceConnectionString = Environment.GetEnvironmentVariable("CLINIC_BASELINE_TEST_CONNECTION_STRING")
-            ?? new ConfigurationBuilder()
-                .AddJsonFile(appSettingsPath, optional: false)
-                .Build()
-                .GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("DefaultConnection is required for SQL Server baseline tests.");
-
-        var connectionBuilder = new DbConnectionStringBuilder { ConnectionString = sourceConnectionString };
-        connectionBuilder.Remove("Initial Catalog");
-        connectionBuilder["Database"] = _databaseName;
-        _testConnectionString = connectionBuilder.ConnectionString;
-
-        CleanupOrphanTestDatabases(sourceConnectionString);
     }
-
-    public string TestConnectionString => _testConnectionString
-        ?? throw new InvalidOperationException("The baseline test connection has not been configured.");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -58,10 +40,14 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["SkipDatabaseInitialization"] = "true",
-                ["SkipBackgroundWorkers"] = "true",
                 ["Identity:ServiceToken"] = "integration-test-service-token",
-                ["ConnectionStrings:DefaultConnection"] = TestConnectionString
+                ["Services:InternalToken"] = "integration-test-service-token",
+                ["Identity:Authority"] = "http://clinic-identity-service:8080",
+                ["Scheduling:Authority"] = "http://clinic-scheduling-service:8080",
+                ["Appointment:Authority"] = "http://clinic-appointment-service:8080",
+                ["Queue:Authority"] = "http://clinic-queue-service:8080",
+                ["MedicalRecords:Authority"] = "http://clinic-medicalrecords-service:8080",
+                ["Notification:Authority"] = "http://clinic-notification-service:8080"
             });
         });
 
@@ -69,10 +55,6 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<IHttpClientFactory>();
             services.AddSingleton<IHttpClientFactory, TestIdentityHttpClientFactory>();
-            services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
-            services.RemoveAll<ApplicationDbContext>();
-            services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(_testConnectionString!).ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
             services.AddAuthentication(options =>
             {
@@ -88,6 +70,21 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         AllowAutoRedirect = false
     });
 
+    public HttpClient CreateStrictlyAnonymousClient()
+    {
+        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Test-Anonymous", "true");
+        return client;
+    }
+
+    public HttpClient CreateRoleClient(string role, Guid? userId = null)
+    {
+        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Test-User-Id", (userId ?? PatientUserId).ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Role", role);
+        return client;
+    }
+
     public HttpClient CreateAuthenticatedClient(
         Guid? userId = null,
         Guid? doctorId = null,
@@ -100,154 +97,203 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         return client;
     }
 
-    public async Task InitializeDatabaseAsync()
-    {
-        if (_databaseInitialized)
-            return;
-
-        await using var dbContext = CreateDbContext();
-        if (!string.Equals(dbContext.Database.GetDbConnection().Database, _databaseName, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Baseline tests resolved a database other than their dedicated test database.");
-        }
-
-        await dbContext.Database.MigrateAsync();
-
-        _databaseInitialized = true;
-    }
-
-    public ApplicationDbContext CreateDbContext()
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer(TestConnectionString)
-            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
-            .Options;
-        return new ApplicationDbContext(options);
-    }
-
-    public async Task DeleteTestDatabaseAsync()
-    {
-        if (!_databaseInitialized)
-            return;
-
-        try
-        {
-            Microsoft.Data.SqlClient.SqlConnection.ClearAllPools();
-
-            var masterBuilder = new DbConnectionStringBuilder { ConnectionString = _testConnectionString };
-            masterBuilder.Remove("Initial Catalog");
-            masterBuilder["Database"] = "master";
-
-            await using var connection = new Microsoft.Data.SqlClient.SqlConnection(masterBuilder.ConnectionString);
-            await connection.OpenAsync();
-
-            var dropSql = $@"
-IF EXISTS (SELECT 1 FROM sys.databases WHERE name = '{_databaseName}')
-BEGIN
-    ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    DROP DATABASE [{_databaseName}];
-END";
-            await using var command = new Microsoft.Data.SqlClient.SqlCommand(dropSql, connection);
-            await command.ExecuteNonQueryAsync();
-        }
-        catch
-        {
-            try
-            {
-                await using var dbContext = CreateDbContext();
-                await dbContext.Database.EnsureDeletedAsync();
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-        finally
-        {
-            _databaseInitialized = false;
-        }
-    }
-
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
-        await DeleteTestDatabaseAsync();
+    }
+}
+
+/// <summary>
+/// Boots real in-process WebApplicationFactory hosts for all 6 microservices so contract/drift tests
+/// fetch real runtime OpenAPI documents rather than hardcoded mock JSON.
+/// </summary>
+public static class RealMicroserviceOpenApiRegistry
+{
+    public const string InternalServiceToken = "integration-test-service-token";
+
+    private static readonly object SyncLock = new();
+    private static WebApplicationFactory<IdentityServiceApp::Program>? _identityHost;
+    private static WebApplicationFactory<SchedulingServiceApp::Program>? _schedulingHost;
+    private static WebApplicationFactory<AppointmentServiceApp::Program>? _appointmentHost;
+    private static WebApplicationFactory<QueueServiceApp::Program>? _queueHost;
+    private static WebApplicationFactory<MedicalRecordsServiceApp::Program>? _medicalRecordsHost;
+    private static WebApplicationFactory<NotificationServiceApp::Program>? _notificationHost;
+
+    private static WebApplicationFactory<IdentityServiceApp::Program> GetIdentityHost()
+    {
+        lock (SyncLock)
+        {
+            return _identityHost ??= new WebApplicationFactory<IdentityServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken,
+                    ["ConnectionStrings:IdentityConnection"] = "Server=(localdb)\\mssqllocaldb;Database=IdentityOpenApiSpec;Trusted_Connection=True;TrustServerCertificate=True;"
+                }));
+            });
+        }
     }
 
-    private static void CleanupOrphanTestDatabases(string connectionString)
+    private static WebApplicationFactory<SchedulingServiceApp::Program> GetSchedulingHost()
     {
-        if (Interlocked.Exchange(ref _cleanedUpOrphans, 1) != 0)
-            return;
-
-        try
+        lock (SyncLock)
         {
-            var masterBuilder = new DbConnectionStringBuilder { ConnectionString = connectionString };
-            masterBuilder.Remove("Initial Catalog");
-            masterBuilder["Database"] = "master";
-
-            using var connection = new Microsoft.Data.SqlClient.SqlConnection(masterBuilder.ConnectionString);
-            connection.Open();
-
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT name FROM sys.databases WHERE name LIKE 'ClinicBaselineTests_%'";
-            using var reader = cmd.ExecuteReader();
-            var staleDatabases = new List<string>();
-            while (reader.Read())
+            return _schedulingHost ??= new WebApplicationFactory<SchedulingServiceApp::Program>().WithWebHostBuilder(b =>
             {
-                var dbName = reader.GetString(0);
-                var parts = dbName.Split('_');
-                if (parts.Length >= 2 && int.TryParse(parts[1], out var pid))
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    bool isRunning = false;
-                    try
-                    {
-                        var proc = System.Diagnostics.Process.GetProcessById(pid);
-                        isRunning = !proc.HasExited;
-                    }
-                    catch
-                    {
-                        isRunning = false;
-                    }
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
 
-                    if (!isRunning)
-                    {
-                        staleDatabases.Add(dbName);
-                    }
-                }
-            }
-            reader.Close();
+    private static WebApplicationFactory<AppointmentServiceApp::Program> GetAppointmentHost()
+    {
+        lock (SyncLock)
+        {
+            return _appointmentHost ??= new WebApplicationFactory<AppointmentServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
 
-            foreach (var staleDb in staleDatabases)
+    private static WebApplicationFactory<QueueServiceApp::Program> GetQueueHost()
+    {
+        lock (SyncLock)
+        {
+            return _queueHost ??= new WebApplicationFactory<QueueServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
+
+    private static WebApplicationFactory<MedicalRecordsServiceApp::Program> GetMedicalRecordsHost()
+    {
+        lock (SyncLock)
+        {
+            return _medicalRecordsHost ??= new WebApplicationFactory<MedicalRecordsServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
+
+    private static WebApplicationFactory<NotificationServiceApp::Program> GetNotificationHost()
+    {
+        lock (SyncLock)
+        {
+            return _notificationHost ??= new WebApplicationFactory<NotificationServiceApp::Program>().WithWebHostBuilder(b =>
+            {
+                b.UseEnvironment("Testing");
+                b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["SkipDatabaseInitialization"] = "true",
+                    ["SkipBackgroundWorkers"] = "true",
+                    ["Identity:ServiceToken"] = InternalServiceToken,
+                    ["Services:InternalToken"] = InternalServiceToken
+                }));
+            });
+        }
+    }
+
+    public static HttpClient CreateAnonymousServiceClient(string serviceName) => serviceName.ToLowerInvariant() switch
+    {
+        "identity" => GetIdentityHost().CreateClient(),
+        "scheduling" => GetSchedulingHost().CreateClient(),
+        "appointment" => GetAppointmentHost().CreateClient(),
+        "queue" => GetQueueHost().CreateClient(),
+        "medicalrecords" or "medical-records" or "medical records" => GetMedicalRecordsHost().CreateClient(),
+        "notification" => GetNotificationHost().CreateClient(),
+        _ => throw new ArgumentOutOfRangeException(nameof(serviceName), $"Unknown microservice '{serviceName}'.")
+    };
+
+    public static HttpClient CreateServiceClient(string serviceName)
+    {
+        var client = CreateAnonymousServiceClient(serviceName);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Clinic-Service-Token", InternalServiceToken);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Identity-Service-Token", InternalServiceToken);
+        return client;
+    }
+
+    public static async ValueTask DisposeAllAsync()
+    {
+        IAsyncDisposable?[] hosts;
+        lock (SyncLock)
+        {
+            hosts =
+            [
+                _identityHost,
+                _schedulingHost,
+                _appointmentHost,
+                _queueHost,
+                _medicalRecordsHost,
+                _notificationHost
+            ];
+            _identityHost = null;
+            _schedulingHost = null;
+            _appointmentHost = null;
+            _queueHost = null;
+            _medicalRecordsHost = null;
+            _notificationHost = null;
+        }
+
+        foreach (var host in hosts)
+        {
+            if (host is not null)
             {
                 try
                 {
-                    using var dropCmd = connection.CreateCommand();
-                    dropCmd.CommandText = $@"
-ALTER DATABASE [{staleDb}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-DROP DATABASE [{staleDb}];";
-                    dropCmd.ExecuteNonQuery();
+                    await host.DisposeAsync();
                 }
                 catch
                 {
-                    // ignore
+                    // Ignore shutdown errors during test cleanup
                 }
             }
-        }
-        catch
-        {
-            // ignore
         }
     }
 }
 
 public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
 {
-    public HttpClient CreateClient(string name) => new(new TestIdentityHandler())
+    public HttpClient CreateClient(string name) => new(new TestIdentityHandler(name))
     {
         BaseAddress = new Uri("http://identity.test")
     };
 
-    private sealed class TestIdentityHandler : HttpMessageHandler
+    private sealed class TestIdentityHandler(string clientName) : HttpMessageHandler
     {
         private static readonly HashSet<string> _reservedSlots = new();
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -255,13 +301,24 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
             var path = request.RequestUri?.AbsolutePath ?? string.Empty;
             if (path.Equals("/employees", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
             {
-                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
-                var root = body.RootElement;
-                var employeeId = root.TryGetProperty("id", out var requestedId) && requestedId.ValueKind == JsonValueKind.String
-                    && Guid.TryParse(requestedId.GetString(), out var parsedId) && parsedId != Guid.Empty
-                    ? parsedId
-                    : Guid.NewGuid();
-                return Json(HttpStatusCode.Created, JsonSerializer.Serialize(new { id = employeeId, fullName = root.GetProperty("fullName").GetString() }));
+                var contentStr = request.Content != null ? await request.Content.ReadAsStringAsync(cancellationToken) : null;
+                string fullName = "Identity Employee Test";
+                Guid employeeId = Guid.NewGuid();
+                if (!string.IsNullOrWhiteSpace(contentStr))
+                {
+                    using var body = JsonDocument.Parse(contentStr);
+                    var root = body.RootElement;
+                    if (root.TryGetProperty("id", out var requestedId) && requestedId.ValueKind == JsonValueKind.String
+                        && Guid.TryParse(requestedId.GetString(), out var parsedId) && parsedId != Guid.Empty)
+                    {
+                        employeeId = parsedId;
+                    }
+                    if (root.TryGetProperty("fullName", out var fnProp) && fnProp.ValueKind == JsonValueKind.String)
+                    {
+                        fullName = fnProp.GetString() ?? fullName;
+                    }
+                }
+                return Json(HttpStatusCode.Created, JsonSerializer.Serialize(new { id = employeeId, fullName = fullName }));
             }
             if (path.Contains("/doctors/dashboard-stats", StringComparison.OrdinalIgnoreCase))
             {
@@ -314,7 +371,7 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
                         doctorName = "Doctor Name",
                         workScheduleId = schedId,
                         specialtyName = "Cardiology",
-                        date = new Clinic.Domain.Common.TimeConverter().Today.AddDays(2).ToString("yyyy-MM-dd"),
+                        date = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2).ToString("yyyy-MM-dd"),
                         timeSlot = timeSlot,
                         status = "Pending",
                         reason = "baseline booking"
@@ -370,7 +427,7 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
                     doctorId = ApiContractFactory.DoctorId,
                     doctorName = "Doctor Name",
                     specialtyName = "Cardiology",
-                    scheduleDate = new Clinic.Domain.Common.TimeConverter().Today.AddDays(2).ToString("yyyy-MM-dd")
+                    scheduleDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2).ToString("yyyy-MM-dd")
                 });
                 return Json(HttpStatusCode.OK, res);
             }
@@ -453,6 +510,38 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             if (path.EndsWith("/v1/auth/me", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
                 return Json(HttpStatusCode.OK, "{\"userId\":\"b0000001-0000-0000-0000-000000000001\",\"personId\":\"b0000002-0000-0000-0000-000000000001\",\"username\":\"identity-admin-user\",\"fullName\":\"Identity Admin User\",\"phoneNumber\":\"09000000000\",\"email\":\"admin-user@example.test\",\"gender\":\"Other\",\"address\":\"Address\",\"dateOfBirth\":\"1990-01-01\",\"roles\":[\"Patient\"],\"isActive\":true,\"createdAt\":\"2026-01-01T00:00:00Z\"}");
+            if (path.EndsWith("/v1/auth/forgot-password", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
+                return Json(HttpStatusCode.OK, "{\"found\":false,\"personId\":null,\"resetToken\":null}");
+            if (path.Equals("/specialties", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"isSuccess\":true,\"result\":{\"items\":[{\"id\":\"c0000001-0000-0000-0000-000000000001\",\"name\":\"Cardiology\",\"description\":\"Heart care\",\"establishedDate\":\"2020-01-01\"}],\"pageNumber\":1,\"pageSize\":20,\"totalCount\":1,\"totalPages\":1,\"hasPrevious\":false,\"hasNext\":false}}");
+            if (path.StartsWith("/specialties/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/status", StringComparison.OrdinalIgnoreCase) && request.Method.Method == "PATCH")
+                return path.Contains(Guid.Empty.ToString(), StringComparison.OrdinalIgnoreCase)
+                    ? Json(HttpStatusCode.NotFound, "{\"error\":\"Specialty not found\"}")
+                    : new HttpResponseMessage(HttpStatusCode.NoContent);
+            if (path.Equals("/doctors", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"isSuccess\":true,\"result\":{\"items\":[{\"id\":\"a0000004-0000-0000-0000-000000000001\",\"fullName\":\"Dr. Cardiology\",\"phoneNumber\":\"0901234567\",\"email\":\"doc@clinic.test\",\"licenseNumber\":\"LIC-001\",\"qualification\":\"MD\",\"experienceYears\":10,\"biography\":\"Senior Doctor\",\"status\":\"Active\",\"currentSpecialty\":\"Cardiology\"}],\"pageNumber\":1,\"pageSize\":10,\"totalCount\":1,\"totalPages\":1,\"hasPrevious\":false,\"hasNext\":false}}");
+            if (path.Equals("/doctors/available", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "[{\"id\":\"a0000004-0000-0000-0000-000000000001\",\"fullName\":\"Dr. Cardiology\",\"qualification\":\"MD\",\"experienceYears\":10,\"specialtyId\":\"c0000001-0000-0000-0000-000000000001\"}]");
+            if (path.Equals("/schedules/availability", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"isSuccess\":true,\"result\":[{\"scheduleId\":\"d0000001-0000-0000-0000-000000000001\",\"doctorId\":\"a0000004-0000-0000-0000-000000000001\",\"doctorName\":\"Dr. Cardiology\",\"specialtyName\":\"Cardiology\",\"date\":\"2026-11-10\",\"timeSlot\":\"09:00:00\",\"shiftStart\":\"08:00:00\",\"shiftEnd\":\"12:00:00\",\"recommendedCapacity\":10,\"remainingCapacity\":8}],\"totalCount\":1}");
+            if (path.Equals("/patients/me", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"id\":\"a0000005-0000-0000-0000-000000000001\",\"fullName\":\"Patient Name\",\"phoneNumber\":\"0909999999\",\"email\":\"patient@clinic.test\",\"gender\":\"Female\",\"dateOfBirth\":\"1995-05-15\",\"address\":\"HCMC\"}");
+            if (path.Equals("/notifications/unread-count", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Get)
+                return Json(HttpStatusCode.OK, "{\"unreadCount\":2}");
+            if (path.EndsWith("openapi/v1.json", StringComparison.OrdinalIgnoreCase))
+            {
+                using var serviceClient = RealMicroserviceOpenApiRegistry.CreateAnonymousServiceClient(clientName);
+                using var forwardReq = new HttpRequestMessage(HttpMethod.Get, "/openapi/v1.json");
+                if (request.Headers.TryGetValues("X-Clinic-Service-Token", out var cst))
+                    forwardReq.Headers.TryAddWithoutValidation("X-Clinic-Service-Token", cst);
+                if (request.Headers.TryGetValues("X-Identity-Service-Token", out var ist))
+                    forwardReq.Headers.TryAddWithoutValidation("X-Identity-Service-Token", ist);
+                if (request.Headers.TryGetValues("Authorization", out var auth))
+                    forwardReq.Headers.TryAddWithoutValidation("Authorization", auth);
+                var realSpecResponse = await serviceClient.SendAsync(forwardReq, cancellationToken);
+                var specContent = await realSpecResponse.Content.ReadAsStringAsync(cancellationToken);
+                return Json(realSpecResponse.StatusCode, specContent);
+            }
             var content = path.EndsWith("jwks.json", StringComparison.OrdinalIgnoreCase)
                 ? "{\"keys\":[]}"
                 : path.EndsWith("/v1/internal/roles", StringComparison.OrdinalIgnoreCase)
@@ -486,29 +575,44 @@ public sealed class TestAuthenticationHandler : AuthenticationHandler<Authentica
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (string.Equals(Request.Headers["X-Test-Anonymous"].FirstOrDefault(), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
+
         var userId = Request.Headers["X-Test-User-Id"].FirstOrDefault()
             ?? ApiContractFactory.PatientUserId.ToString();
         var doctorId = Request.Headers["X-Test-Doctor-Id"].FirstOrDefault()
             ?? ApiContractFactory.DoctorId.ToString();
         var patientId = Request.Headers["X-Test-Patient-Id"].FirstOrDefault()
             ?? ApiContractFactory.PatientId.ToString();
+        var role = Request.Headers["X-Test-Role"].FirstOrDefault() ?? "Admin";
 
-        var identity = new ClaimsIdentity(
-            new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId),
-                new Claim(ClaimTypes.Role, "Admin"),
-                new Claim("doctorId", doctorId),
-                new Claim("patientId", patientId),
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Role, role),
+            new("doctorId", doctorId),
+            new("patientId", patientId)
+        };
+
+        if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            claims.AddRange(
+            [
                 new Claim("permission", "queue.start-exam.any"),
                 new Claim("permission", "queue.complete-exam.any"),
                 new Claim("permission", "medical-report.view.any"),
                 new Claim("permission", "user.manage"),
                 new Claim("permission", "employee.create"),
                 new Claim("permission", "doctor.create"),
-                new Claim("permission", "role.manage")
-            },
-            Scheme);
+                new Claim("permission", "role.manage"),
+                new Claim("permission", "queue.check-in"),
+                new Claim("permission", "appointment.create")
+            ]);
+        }
+
+        var identity = new ClaimsIdentity(claims, Scheme);
         return Task.FromResult(AuthenticateResult.Success(
             new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme)));
     }
