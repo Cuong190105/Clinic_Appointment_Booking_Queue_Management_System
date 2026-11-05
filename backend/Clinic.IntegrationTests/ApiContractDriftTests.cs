@@ -90,7 +90,7 @@ public sealed class ApiContractDriftTests : IClassFixture<ApiContractFactory>
 
         var byName = services.ToDictionary(s => s.GetProperty("name").GetString()!, s => s);
         Assert.Contains("Clinic.Identity.Service", byName.Keys);
-        Assert.Contains("Clinic.Scheduling.Service", byName.Keys);
+        Assert.Contains("Clinic.StaffScheduling.Service", byName.Keys);
         Assert.Contains("Clinic.Appointment.Service", byName.Keys);
         Assert.Contains("Clinic.Queue.Service", byName.Keys);
         Assert.Contains("Clinic.MedicalRecords.Service", byName.Keys);
@@ -115,7 +115,7 @@ public sealed class ApiContractDriftTests : IClassFixture<ApiContractFactory>
         var expectedAuthorityConfigKeys = new Dictionary<string, string>
         {
             ["Clinic.Identity.Service"] = "Identity:Authority",
-            ["Clinic.Scheduling.Service"] = "Scheduling:Authority",
+            ["Clinic.StaffScheduling.Service"] = "Scheduling:Authority",
             ["Clinic.Appointment.Service"] = "Appointment:Authority",
             ["Clinic.Queue.Service"] = "Queue:Authority",
             ["Clinic.MedicalRecords.Service"] = "MedicalRecords:Authority",
@@ -262,7 +262,7 @@ public sealed class ApiContractDriftTests : IClassFixture<ApiContractFactory>
 
     [Theory]
     [InlineData("Identity", "/identity/openapi.json", "identity-openapi-v1.json", "Clinic Identity Service API (Internal)", "/v1/auth/login", "/v1/internal/users")]
-    [InlineData("Scheduling", "/scheduling/openapi.json", "scheduling-openapi-v1.json", "Clinic Scheduling Service API (Internal)", "/doctors", "/internal/events/user-profile-updated")]
+    [InlineData("Scheduling", "/scheduling/openapi.json", "scheduling-openapi-v1.json", "Clinic Staff & Scheduling Service API (Internal)", "/doctors", "/internal/events/user-profile-updated")]
     [InlineData("Appointment", "/appointment/openapi.json", "appointment-openapi-v1.json", "Clinic Appointment Service API (Internal)", "/appointments", "/internal/events/exam-completed")]
     [InlineData("Queue", "/queue/openapi.json", "queue-openapi-v1.json", "Clinic Queue Service API (Internal)", "/queue/call-next/{doctorId}", "/admin/dashboard-metrics")]
     [InlineData("MedicalRecords", "/medical-records/openapi.json", "medical-records-openapi-v1.json", "Clinic Medical Records Service API (Internal)", "/patients", "/internal/patients/resolve-registration")]

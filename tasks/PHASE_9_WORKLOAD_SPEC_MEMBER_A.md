@@ -58,7 +58,7 @@
 ---
 
 ### 2.2. Workload 2: Đặt lịch khám thành công (End-to-End Successful Booking)
-- **Mục tiêu:** Đo lường luồng Saga điều phối (Orchestration) giữa Gateway -> Appointment Service -> Scheduling Service (Reserve Slot) -> Outbox Event `appointment.scheduled` -> Notification Service.
+- **Mục tiêu:** Đo lường luồng Saga điều phối (Orchestration) giữa Gateway -> Appointment Service -> Staff & Scheduling Service (Reserve Slot) -> Outbox Event `appointment.scheduled` -> Notification Service.
 - **Vai trò thực hiện:** Bệnh nhân (`Patient`) hoặc Lễ tân (`Receptionist`).
 - **Luồng tuần tự:**
   1. `POST /auth/login`

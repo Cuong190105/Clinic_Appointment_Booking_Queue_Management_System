@@ -1,9 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using Clinic.Application.Contracts;
 using Clinic.IntegrationTests.Fixtures;
-using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -331,9 +329,6 @@ public class GatewayAuthTestFactory : WebApplicationFactory<Program>
             services.RemoveAll<IHttpClientFactory>();
             services.AddSingleton<IHttpClientFactory>(new GatewayMockHttpClientFactory(this));
 
-            services.RemoveAll<ISender>();
-            services.AddSingleton<ISender>(new DummyMediatRSender());
-
             services.PostConfigure<JwtBearerOptions>("IdentityJwt", options =>
             {
                 options.Configuration = new OpenIdConnectConfiguration();
@@ -342,32 +337,6 @@ public class GatewayAuthTestFactory : WebApplicationFactory<Program>
                     KeyRing.GetValidationKeys(kid);
             });
         });
-    }
-
-    private sealed class DummyMediatRSender : ISender
-    {
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
-        {
-            if (typeof(TResponse) == typeof(SpecialtyDto))
-            {
-                var dto = new SpecialtyDto
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "Cardiology",
-                    Description = "Heart care"
-                };
-                return Task.FromResult((TResponse)(object)dto);
-            }
-            return Task.FromResult(default(TResponse)!);
-        }
-
-        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => Task.CompletedTask;
-
-        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => Task.FromResult<object?>(null);
-
-        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-
-        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     private sealed class GatewayMockHttpClientFactory : IHttpClientFactory

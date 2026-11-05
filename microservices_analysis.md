@@ -6,6 +6,8 @@
 > **Ngày phân tích**: 2026-10-12 | **Phiên bản**: Định hướng microservices
 >
 > **Cập nhật theo quyết định 2026-10-26:** các mô tả ở Phần 1–2 là baseline lịch sử trước khi hoàn tất các cutover Phase 1–4; không dùng các flow monolith ở đó làm trạng thái runtime hiện tại. Các quyết định Medical Records chuẩn hiện nằm ở Phần 3.5, 4.4 và Giai đoạn 5 bên dưới: AppointmentId là encounter key; Patient và MedicalReport cùng Medical Records Service/DB; không có Patient Service riêng.
+>
+> **Cập nhật 2026-11-04 (Gateway Decoupling & Staff Scheduling Full Ownership):** Toàn bộ monolith layers (`Clinic.Domain`, `Clinic.Application`, `Clinic.Infrastructure.Sqlserver`) đã được gỡ bỏ khỏi solution. `Clinic.API` chuyển đổi thành pure API Gateway (chỉ phụ thuộc HTTP downstream services, không còn `DbContext`, direct SQL connection, MediatR, hay Outbox background worker). `Clinic.StaffScheduling.Service` sở hữu hoàn toàn vòng đời của Employee, Doctor, Specialty, WorkHistory, WorkSchedule, ShiftRequest và trực tiếp điều phối account provisioning với Identity và patient projection với Medical Records.
 
 ---
 
@@ -194,7 +196,7 @@ Không dùng flow nguy hiểm `CheckAvailability` rồi `CreateAppointment`. Dù
 
 ```text
 Appointment Service -> ReserveSlot(idempotencyKey)
-Scheduling Service -> giữ capacity trong local transaction
+Staff & Scheduling Service -> giữ capacity trong local transaction
 Appointment Service -> tạo appointment
 Appointment Service -> ConfirmReservation hoặc ReleaseReservation
 ```

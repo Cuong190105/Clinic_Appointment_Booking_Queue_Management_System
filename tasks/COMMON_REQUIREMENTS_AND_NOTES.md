@@ -130,7 +130,7 @@ ReleaseReservation
 Yêu cầu:
 
 - Không dùng `CheckAvailability` rồi mới tạo appointment.
-- Reservation phải atomic trong Scheduling Service.
+- Reservation phải atomic trong Staff & Scheduling Service.
 - Saga phải retry được và resume được sau restart.
 - Có timeout cho reservation chưa hoàn tất.
 

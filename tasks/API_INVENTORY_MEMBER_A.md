@@ -1,6 +1,6 @@
 # API Inventory & Contract Specification — Member A (Phase 7)
 
-Tài liệu này tổng hợp toàn bộ các HTTP route thực tế trong hệ thống bao gồm **Clinic API Gateway / BFF** (`Clinic.API`) và **6 microservices** (`Clinic.Identity.Service`, `Clinic.Scheduling.Service`, `Clinic.Appointment.Service`, `Clinic.Queue.Service`, `Clinic.MedicalRecords.Service`, `Clinic.Notification.Service`).
+Tài liệu này tổng hợp toàn bộ các HTTP route thực tế trong hệ thống bao gồm **Clinic API Gateway / BFF** (`Clinic.API`) và **6 microservices** (`Clinic.Identity.Service`, `Clinic.StaffScheduling.Service`, `Clinic.Appointment.Service`, `Clinic.Queue.Service`, `Clinic.MedicalRecords.Service`, `Clinic.Notification.Service`).
 
 ---
 
@@ -67,7 +67,7 @@ Tài liệu này tổng hợp toàn bộ các HTTP route thực tế trong hệ 
 | `/employees/me` | GET | Scheduling | `/employees/me` | Enriched JSON (Middleware Proxy) | Bearer (`StaffOnly`) | `X-Correlation-ID` |
 | `/employees/{id}` | GET | Scheduling | `/employees/{id}` | Enriched JSON (Middleware Proxy) | Bearer (Authenticated) | `X-Correlation-ID` |
 | `/employees` | POST | Scheduling | `/employees` | Downstream JSON (`ContentResult` / `ApiResponse` error) | Bearer (`Permission:employee.create`) | `X-Correlation-ID` |
-| `/employees/from-user` | POST | Scheduling | `/employees` | Downstream JSON (`ContentResult` / `ApiResponse` error) | Bearer (`Permission:employee.create`) | `X-Correlation-ID` |
+| `/employees/from-user` | POST | Scheduling | `/employees/from-user` | Downstream JSON (`ContentResult` / `ApiResponse` error) | Bearer (`Permission:employee.create`) | `X-Correlation-ID` |
 | `/employees/{employeeId}` | PUT | Identity | `/v1/internal/users/{userId}/profile` | `ApiResponse` (204) | Bearer (`Admin` + `Permission:employee.edit.any`) | `X-Correlation-ID` |
 | `/employees/me` | PUT | Identity | `/v1/internal/users/{userId}/profile` | `ApiResponse` (204) | Bearer (`Permission:employee.edit.own`) | `X-Correlation-ID` |
 | `/employees/{id}/status` | POST | Scheduling | `/employees/{id}/status` | Downstream JSON (Middleware Proxy) | Bearer (`AdminOnly`) | `X-Correlation-ID` |
@@ -82,7 +82,7 @@ Tài liệu này tổng hợp toàn bộ các HTTP route thực tế trong hệ 
 | `/doctors/{doctorId}/suggestions` | GET | Scheduling | `/doctors/{doctorId}/suggestions` | Downstream JSON (Middleware Proxy) | Bearer (`AdminOnly`) | `X-Correlation-ID` |
 | `/doctors/dashboard-stats` | GET | Scheduling | `/doctors/dashboard-stats` | Downstream JSON (Middleware Proxy) | Anonymous | `X-Correlation-ID` |
 | `/doctors` | POST | Scheduling | `/doctors` | Downstream JSON (`ContentResult` / `ApiResponse` error) | Bearer (`Permission:doctor.create`) | `X-Correlation-ID` |
-| `/doctors/from-user` | POST | Scheduling | `/doctors` | Downstream JSON (`ContentResult` / `ApiResponse` error) | Bearer (`Permission:doctor.create`) | `X-Correlation-ID` |
+| `/doctors/from-user` | POST | Scheduling | `/doctors/from-user` | Downstream JSON (`ContentResult` / `ApiResponse` error) | Bearer (`Permission:doctor.create`) | `X-Correlation-ID` |
 | `/doctors/{doctorId}` | PUT | Scheduling | `/doctors/{id}` | Downstream/Wrapped 204 | Bearer (`Permission:doctor.edit.any`) | `X-Correlation-ID` |
 | `/doctors/me` | PUT | Scheduling | `/doctors/me` | Downstream/Wrapped 204 | Bearer (`Permission:doctor.edit.own`) | `X-Correlation-ID` |
 | `/doctors/{id}/status` | PATCH | Scheduling | `/doctors/{id}/status` | Downstream JSON (Middleware Proxy) | Bearer (`AdminOnly`) | `X-Correlation-ID` |
@@ -201,6 +201,7 @@ Bảng dưới đây ghi nhận **đầy đủ 100% các HTTP route/method** xu�
 | `Scheduling` | `/me` | GET | Operational | Bearer (Authenticated) |
 | `Scheduling` | `/employees` | GET | Downstream | Bearer (`StaffOnly`) |
 | `Scheduling` | `/employees` | POST | Downstream | Bearer (`AdminOnly`) |
+| `Scheduling` | `/employees/from-user` | POST | Downstream | Bearer (`AdminOnly`) |
 | `Scheduling` | `/employees/me` | GET | Downstream | Bearer (`StaffOnly`) |
 | `Scheduling` | `/employees/me` | PUT | Downstream | Bearer (Authenticated) |
 | `Scheduling` | `/employees/{id}` | GET | Downstream | Bearer (Authenticated) |
@@ -212,6 +213,7 @@ Bảng dưới đây ghi nhận **đầy đủ 100% các HTTP route/method** xu�
 | `Scheduling` | `/specialties/{id}` | PUT | Downstream | Bearer (`SpecialtyManage`) |
 | `Scheduling` | `/specialties/{id}/status` | PATCH | Downstream | Bearer (`SpecialtyManage`) |
 | `Scheduling` | `/doctors` | POST | Downstream | Bearer (`AdminOnly`) |
+| `Scheduling` | `/doctors/from-user` | POST | Downstream | Bearer (`AdminOnly`) |
 | `Scheduling` | `/doctors` | GET | Downstream | Anonymous |
 | `Scheduling` | `/doctors/{id}` | PUT | Downstream | Bearer (Authenticated) |
 | `Scheduling` | `/doctors/{id}` | GET | Downstream | Anonymous |
@@ -384,7 +386,7 @@ Tất cả các baseline contract đã được review và lưu cố định tro
 1. `tasks/contracts/api-catalog-baseline.json` — Snapshot của `GET /api/catalog`.
 2. `tasks/contracts/gateway-openapi-v1.json` — Snapshot OpenAPI v1 của `Clinic.API` (Public Gateway).
 3. `tasks/contracts/identity-openapi-v1.json` — Snapshot OpenAPI v1 của `Clinic.Identity.Service` (Internal).
-4. `tasks/contracts/scheduling-openapi-v1.json` — Snapshot OpenAPI v1 của `Clinic.Scheduling.Service` (Internal).
+4. `tasks/contracts/scheduling-openapi-v1.json` — Snapshot OpenAPI v1 của `Clinic.StaffScheduling.Service` (Internal).
 5. `tasks/contracts/appointment-openapi-v1.json` — Snapshot OpenAPI v1 của `Clinic.Appointment.Service` (Internal).
 6. `tasks/contracts/queue-openapi-v1.json` — Snapshot OpenAPI v1 của `Clinic.Queue.Service` (Internal).
 7. `tasks/contracts/medical-records-openapi-v1.json` — Snapshot OpenAPI v1 của `Clinic.MedicalRecords.Service` (Internal).

@@ -1,4 +1,3 @@
-using Clinic.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 
 namespace Clinic.API.Middlewares;

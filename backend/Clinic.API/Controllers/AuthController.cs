@@ -1,7 +1,4 @@
 using Clinic.API.Models;
-using Clinic.Application.Features.Auth.Commands;
-using Clinic.Application.Interfaces;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Json;
@@ -15,7 +12,6 @@ namespace Clinic.API.Controllers
     [Route("/auth")]
     public class AuthController : ControllerBase
     {
-        private readonly ISender _sender;
         private readonly HttpClient _identityClient;
         private readonly string? _identityServiceToken;
         private readonly int _refreshTokenDays;
@@ -25,14 +21,12 @@ namespace Clinic.API.Controllers
         private readonly NotificationServiceClient _notificationClient;
 
         public AuthController(
-            ISender sender,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
             ILogger<AuthController> logger,
             MedicalRecordsServiceClient medicalRecordsClient,
             NotificationServiceClient notificationClient)
         {
-            _sender = sender;
             _identityClient = httpClientFactory.CreateClient("Identity");
             _identityServiceToken = configuration["Identity:ServiceToken"];
             _refreshTokenDays = configuration.GetValue("Jwt:RefreshTokenDays", 7);

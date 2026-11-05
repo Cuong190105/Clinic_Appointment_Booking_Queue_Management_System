@@ -1,4 +1,4 @@
-﻿# Báo cáo rà soát tải — Phase 9 (Member B)
+# Báo cáo rà soát tải — Phase 9 (Member B)
 
 **Ngày rà soát:** 04/11/2026
 **Trạng thái:** **PHASE 9 ĐỦ ĐIỀU KIỆN ĐÓNG** sau khi bổ sung secondary workload runtime acceptance và đối soát invariants/DLQ.
@@ -85,7 +85,7 @@ Image Appointment Service đã được rebuild và migration `AddAsyncAppointme
 - Read workload: 30 request, concurrency 5, toàn bộ `200`, 0 lỗi 5xx, p95 **347.53 ms**, p99 **374.14 ms** — **ĐẠT**.
 - Write workload: 20 request, concurrency 5, `7` response `201`, `13` response `409`, 0 lỗi 5xx; p95 successful write **7467.37 ms** — **KHÔNG ĐẠT SLO**.
 - Đối soát DB sau benchmark: 7 booking thành công đã chuyển `Pending -> Confirmed` qua worker; không còn Appointment `Pending` hoặc dữ liệu namespace sau cleanup.
-- Phân tích log Scheduling Service vẫn ghi nhận SQL Server deadlock `1205` dưới contention. Vì vậy thay đổi async đã loại bỏ việc giữ Appointment transaction qua network, nhưng chưa giải quyết contention trong `ReserveSlot` của Scheduling Service.
+- Phân tích log Staff & Scheduling Service vẫn ghi nhận SQL Server deadlock `1205` dưới contention. Vì vậy thay đổi async đã loại bỏ việc giữ Appointment transaction qua network, nhưng chưa giải quyết contention trong `ReserveSlot` của Staff & Scheduling Service.
 - Degradation RabbitMQ sau thay đổi: **PASS**, API trả `201 Pending` khi broker pause, outbox chờ và publisher gửi tiếp sau recovery.
 - Soak 60 giây sau thay đổi: **PASS**, SQL connections `21 -> 20 -> 20 -> 20`, Rabbit consumers `5 -> 5`, không phát hiện leak.
 

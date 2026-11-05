@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "title": "Clinic Scheduling Service API (Internal)",
-    "description": "Internal OpenAPI specification for Clinic.Scheduling.Service (doctors, employees, specialties, shifts, schedules, and slot reservations).",
+    "title": "Clinic Staff \u0026 Scheduling Service API (Internal)",
+    "description": "Internal OpenAPI specification for Clinic.StaffScheduling.Service (doctors, employees, specialties, shifts, schedules, and slot reservations).",
     "version": "1.0.0"
   },
   "servers": [
@@ -14,7 +14,7 @@
     "/healthz": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -36,7 +36,7 @@
     "/readyz": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -58,7 +58,7 @@
     "/": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -80,7 +80,7 @@
     "/me": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -107,7 +107,7 @@
     "/employees": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -184,7 +184,7 @@
       },
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -221,7 +221,7 @@
     "/employees/me": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -246,7 +246,7 @@
       },
       "put": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -283,7 +283,7 @@
     "/employees/{id}": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -317,7 +317,7 @@
       },
       "put": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -342,7 +342,44 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateEmployeeRequest"
+                "$ref": "#/components/schemas/AdminUpdateEmployeeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/employees/from-user": {
+      "post": {
+        "tags": [
+          "Clinic.StaffScheduling.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEmployeeFromUserRequest"
               }
             }
           },
@@ -363,7 +400,7 @@
     "/employees/{id}/status": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -409,7 +446,7 @@
     "/specialties": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -486,7 +523,7 @@
       },
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -523,7 +560,7 @@
     "/specialties/{id}": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -552,7 +589,7 @@
       },
       "put": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -598,7 +635,7 @@
     "/specialties/{id}/status": {
       "patch": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -634,7 +671,7 @@
     "/doctors": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -669,7 +706,7 @@
       },
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -762,10 +799,47 @@
         }
       }
     },
+    "/doctors/from-user": {
+      "post": {
+        "tags": [
+          "Clinic.StaffScheduling.Service"
+        ],
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "description": "Distributed correlation identifier",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDoctorFromUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/doctors/{id}": {
       "put": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -809,7 +883,7 @@
       },
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -840,7 +914,7 @@
     "/doctors/me": {
       "put": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -875,7 +949,7 @@
       },
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -902,7 +976,7 @@
     "/doctors/{id}/status": {
       "patch": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -946,7 +1020,7 @@
       },
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -992,7 +1066,7 @@
     "/doctors/{id}/specialty": {
       "patch": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1036,7 +1110,7 @@
       },
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1082,7 +1156,7 @@
     "/doctors/{id}/available": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1121,7 +1195,7 @@
     "/doctors/available": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1151,7 +1225,7 @@
     "/doctors/{id}/staff-link": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1187,7 +1261,7 @@
     "/doctors/brief": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1214,7 +1288,7 @@
     "/doctors/shifts": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1296,7 +1370,7 @@
     "/doctors/{doctorId}/suggestions": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1348,7 +1422,7 @@
     "/doctors/{doctorId}/shifts": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1392,7 +1466,7 @@
       },
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1439,7 +1513,7 @@
     "/shifts": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1482,7 +1556,7 @@
     "/shifts/suggestions": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1517,7 +1591,7 @@
       },
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1560,7 +1634,7 @@
     "/shifts/{id}": {
       "put": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1606,7 +1680,7 @@
     "/shifts/{id}/cancel": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1652,7 +1726,7 @@
     "/shifts/suggestions/{id}": {
       "patch": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1698,7 +1772,7 @@
     "/doctors/dashboard-stats": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1720,7 +1794,7 @@
     "/schedules/availability": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1774,7 +1848,7 @@
     "/slots": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1836,7 +1910,7 @@
     "/schedules/{scheduleId}/reservations": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1884,7 +1958,7 @@
     "/schedules/{scheduleId}/reservations/{reservationId}/confirm": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1924,7 +1998,7 @@
     "/schedules/{scheduleId}/reservations/{reservationId}/release": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -1964,7 +2038,7 @@
     "/shifts/suggestions/{id}/approve": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2000,7 +2074,7 @@
     "/shifts/suggestions/{id}/reject": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2036,7 +2110,7 @@
     "/shifts/suggestions/{id}/cancel": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2072,7 +2146,7 @@
     "/schedules": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2123,7 +2197,7 @@
     "/schedules/walk-in-candidates": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2171,7 +2245,7 @@
     "/schedules/{id}": {
       "get": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2200,7 +2274,7 @@
       },
       "put": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2241,7 +2315,7 @@
     "/schedules/{id}/cancel": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2282,7 +2356,7 @@
     "/internal/events/user-profile-updated": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2326,7 +2400,7 @@
     "/internal/events/appointment-cancelled": {
       "post": {
         "tags": [
-          "Clinic.Scheduling.Service"
+          "Clinic.StaffScheduling.Service"
         ],
         "parameters": [
           {
@@ -2363,6 +2437,64 @@
   },
   "components": {
     "schemas": {
+      "AdminUpdateEmployeeRequest": {
+        "required": [
+          "fullName",
+          "phoneNumber",
+          "email",
+          "gender",
+          "dateOfBirth",
+          "address"
+        ],
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "gender": {},
+          "dateOfBirth": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roles": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "managerId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "AppointmentCancelled": {
         "type": "object",
         "properties": {
@@ -2434,15 +2566,9 @@
           }
         }
       },
-      "CreateDoctorRequest": {
+      "CreateDoctorFromUserRequest": {
         "required": [
-          "employeeId",
-          "personId",
-          "identityUserId",
-          "fullName",
-          "phoneNumber",
-          "email",
-          "gender",
+          "userId",
           "hireDate",
           "licenseNumber",
           "qualification",
@@ -2453,37 +2579,10 @@
         ],
         "type": "object",
         "properties": {
-          "employeeId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "personId": {
+          "userId": {
             "type": "string",
             "format": "uuid"
           },
-          "identityUserId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "fullName": {
-            "type": "string"
-          },
-          "phoneNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "email": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "gender": {},
           "hireDate": {
             "type": "string",
             "format": "date"
@@ -2514,6 +2613,90 @@
           "specialtyId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "CreateDoctorRequest": {
+        "type": "object",
+        "properties": {
+          "employeeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "identityUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string",
+            "default": ""
+          },
+          "phoneNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "gender": {},
+          "hireDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "licenseNumber": {
+            "type": "string",
+            "default": ""
+          },
+          "qualification": {
+            "type": "string",
+            "default": ""
+          },
+          "biography": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "experienceYears": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 0
+          },
+          "status": {
+            "type": "string",
+            "default": "Active"
+          },
+          "specialtyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "dateOfBirth": {
             "type": [
@@ -2534,32 +2717,67 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateEmployeeFromUserRequest": {
+        "required": [
+          "userId",
+          "hireDate"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hireDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "roles": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
       "CreateEmployeeRequest": {
-        "required": [
-          "personId",
-          "identityUserId",
-          "fullName",
-          "phoneNumber",
-          "email",
-          "gender",
-          "hireDate",
-          "status"
-        ],
         "type": "object",
         "properties": {
           "personId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "identityUserId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "fullName": {
-            "type": "string"
+            "type": "string",
+            "default": ""
           },
           "phoneNumber": {
             "type": [
@@ -2575,7 +2793,10 @@
           },
           "gender": {},
           "hireDate": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "date"
           },
           "status": {
@@ -2607,6 +2828,27 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roles": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -2724,7 +2966,8 @@
           "Active",
           "OnLeave",
           "Resigned"
-        ]
+        ],
+        "default": "Active"
       },
       "JsonElement": {},
       "UpdateDoctorRequest": {
@@ -3054,7 +3297,7 @@
   },
   "tags": [
     {
-      "name": "Clinic.Scheduling.Service"
+      "name": "Clinic.StaffScheduling.Service"
     }
   ]
 }

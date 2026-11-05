@@ -487,7 +487,7 @@
    - `Clinic.MedicalRecords.Service.Tests`: **46/46 tests PASS**
    - `Clinic.Queue.Service.Tests`: **50/50 tests PASS**
    - `Clinic.Appointment.Service.Tests`: **33/33 tests PASS**
-   - `Clinic.Scheduling.Service.Tests`: **38/38 tests PASS**
+   - `Clinic.StaffScheduling.Service.Tests`: **38/38 tests PASS**
    - `Clinic.Domain.UnitTests`: **20/20 tests PASS**
    - `Clinic.Contracts.UnitTests`: **6/6 tests PASS**
    - `Clinic.Application.UnitTests`: **24/24 tests PASS**
@@ -670,4 +670,4 @@ Các tài khoản `phase5e2e_*` cùng dữ liệu tổng hợp được giữ tr
 - Onboarding bác sĩ/nhân viên vẫn cần tạo Person trong Clinic. Việc resolve/provision PatientId chuyển qua internal API của Medical Records; thao tác retry trả lại PatientId Identity đã lưu để tránh tạo lệch liên kết.
 - EF snapshot Clinic đã bỏ hai entity. Migration 20261026145047_RemoveLegacyPatientMedicalReportModel cố ý không chạy SQL: các bảng dbo.Patients/dbo.MedicalReports cùng dữ liệu hiện có được giữ làm archive/import source. Không áp dụng thao tác drop bảng trong lần cleanup này.
 - SampleData không còn seed Patient/MedicalReport Clinic; lịch sử migration cũ và importer/verifier vẫn được giữ để tái lập/kiểm toán việc cutover.
-- Build solution thành công (0 lỗi). Medical Records Service **52/52**, Infrastructure **17/17**, Identity **4/4**, Application **5/5**, Domain **16/16** đều pass. API Integration sau khi chốt authorization cho Scheduling proxy **28/28 PASS**; Scheduling Service **38/38 PASS**. Gateway kiểm tra `specialty.manage` trước khi proxy và Scheduling Service xác thực cùng permission; các test thiếu quyền bị từ chối, test có quyền nhận `201 Created`. EF xác nhận không còn pending model changes.
+- Build solution thành công (0 lỗi). Medical Records Service **52/52**, Infrastructure **17/17**, Identity **4/4**, Application **5/5**, Domain **16/16** đều pass. API Integration sau khi chốt authorization cho Scheduling proxy **28/28 PASS**; Staff & Scheduling Service **38/38 PASS**. Gateway kiểm tra `specialty.manage` trước khi proxy và Staff & Scheduling Service xác thực cùng permission; các test thiếu quyền bị từ chối, test có quyền nhận `201 Created`. EF xác nhận không còn pending model changes.

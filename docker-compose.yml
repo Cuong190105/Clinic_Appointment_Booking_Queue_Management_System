@@ -68,7 +68,6 @@ services:
         ports:
             - "5000:8080"
         environment:
-            - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
             - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
@@ -85,27 +84,20 @@ services:
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__PublicBaseUrl=${IDENTITY_PUBLIC_BASE_URL:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
-            - Jwt__Key=${JWT_KEY}
             - Jwt__RefreshTokenDays=${IDENTITY_REFRESH_TOKEN_DAYS:-7}
-            - Email__Username=${SMTP_USERNAME}
-            - Email__Password=${SMTP_PASSWORD}
-            - RabbitMq__Host=rabbitmq
-            - RabbitMq__Port=5672
-            - RabbitMq__Username=clinic
-            - RabbitMq__Password=${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
-            - RabbitMq__VirtualHost=/
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-            - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
         depends_on:
-            notification-service:
-                condition: service_healthy
             identity-service:
                 condition: service_healthy
             scheduling-service:
                 condition: service_healthy
-            rabbitmq:
+            appointment-service:
                 condition: service_healthy
-            db:
+            queue-service:
+                condition: service_healthy
+            medical-records-service:
+                condition: service_healthy
+            notification-service:
                 condition: service_healthy
             jaeger:
                 condition: service_started
@@ -161,7 +153,7 @@ services:
     scheduling-service:
         build:
             context: ./backend
-            dockerfile: Clinic.Scheduling.Service/Dockerfile
+            dockerfile: Clinic.StaffScheduling.Service/Dockerfile
         container_name: clinic_scheduling_service
         ports:
             - "5002:8080"
@@ -170,6 +162,8 @@ services:
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Services__InternalToken=${IDENTITY_SERVICE_TOKEN}
+            - MedicalRecords__Authority=http://medical-records-service:8080
+            - Services__MedicalRecords__BaseUrl=http://medical-records-service:8080
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - RabbitMq__Host=rabbitmq
@@ -186,6 +180,8 @@ services:
             rabbitmq:
                 condition: service_healthy
             identity-service:
+                condition: service_healthy
+            medical-records-service:
                 condition: service_healthy
         healthcheck:
             test:
@@ -242,8 +238,8 @@ services:
         environment:
             DB_SA_PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
         volumes:
-            - ./backend/Clinic.Scheduling.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
-            - ./backend/Clinic.Scheduling.Service/Persistence/verify-scheduling-import.sql:/verify.sql:ro
+            - ./backend/Clinic.StaffScheduling.Service/Persistence/import-from-clinicdb.sql:/migration.sql:ro
+            - ./backend/Clinic.StaffScheduling.Service/Persistence/verify-scheduling-import.sql:/verify.sql:ro
         depends_on:
             backend:
                 condition: service_healthy

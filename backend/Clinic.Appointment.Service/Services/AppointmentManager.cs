@@ -549,7 +549,7 @@ public class AppointmentManager : IAppointmentManager
 
             await _db.SaveChangesAsync(ct);
 
-            // Best-effort direct release on Scheduling Service alongside Outbox event
+            // Best-effort direct release on Staff & Scheduling Service alongside Outbox event
             _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
                 app.Id,
                 app.WorkScheduleId,
@@ -653,7 +653,7 @@ public class AppointmentManager : IAppointmentManager
             await _db.SaveChangesAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);
 
-            // Best-effort direct release of old slot on Scheduling Service alongside Outbox event
+            // Best-effort direct release of old slot on Staff & Scheduling Service alongside Outbox event
             _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
                 app.Id,
                 oldScheduleId,

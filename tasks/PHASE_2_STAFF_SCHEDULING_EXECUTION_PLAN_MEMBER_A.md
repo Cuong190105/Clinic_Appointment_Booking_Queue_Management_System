@@ -14,7 +14,7 @@
 
 ### 1.1. Mục tiêu cốt lõi
 
-Giai đoạn 2 tập trung vào việc tách toàn bộ chức năng quản lý nhân sự y tế, bác sĩ, chuyên khoa, lịch làm việc và năng lực phục vụ (capacity) ra khỏi Monolith để hình thành một microservice độc lập: **Staff & Scheduling Service** (`Clinic.Scheduling.Service`).
+Giai đoạn 2 tập trung vào việc tách toàn bộ chức năng quản lý nhân sự y tế, bác sĩ, chuyên khoa, lịch làm việc và năng lực phục vụ (capacity) ra khỏi Monolith để hình thành một microservice độc lập: **Staff & Scheduling Service** (`Clinic.StaffScheduling.Service`).
 
 Dịch vụ này sở hữu cơ sở dữ liệu riêng biệt (`ClinicSchedulingDB`), không chia sẻ bảng, không liên kết khóa ngoại (Foreign Key) và không thực hiện truy vấn trực tiếp xuyên database với bất kỳ dịch vụ nào khác.
 
@@ -26,7 +26,7 @@ Kiến trúc thống nhất như sau:
 
 1. **Identity Service làm Nguồn sự thật duy nhất (Single Source of Truth - SSOT)** cho tài khoản và nhân thân cơ bản: Sở hữu bảng `Users` và `Persons` (`PersonProfile` gồm `FullName`, `PhoneNumber`, `Email`, `DateOfBirth`, `Gender`, `Address`) trong `ClinicIdentityDB`.
 2. **Các Business Services (Scheduling, Appointment, Medical Records) sử dụng Projection (Bản chiếu)**:
-    - Trong `Clinic.Scheduling.Service`: `Employee` và `Doctor` lưu projection các trường nhân thân (`PersonId`, `IdentityUserId`, `FullName`, `PhoneNumber`, `Email`, `Gender`) để phục vụ truy vấn tại chỗ siêu tốc mà không cần gọi RPC sang Identity.
+    - Trong `Clinic.StaffScheduling.Service`: `Employee` và `Doctor` lưu projection các trường nhân thân (`PersonId`, `IdentityUserId`, `FullName`, `PhoneNumber`, `Email`, `Gender`) để phục vụ truy vấn tại chỗ siêu tốc mà không cần gọi RPC sang Identity.
     - `Patient` thuộc cùng bounded context và database với Medical Records; lưu projection nhân thân tối thiểu từ Identity cùng dữ liệu hồ sơ bệnh nhân. Không có Patient Service riêng.
 3. **Đồng bộ hóa qua Event-Driven**: Khi người dùng cập nhật thông tin tại Identity Service, sự kiện `UserProfileUpdated` được phát qua Message Broker để các service tự cập nhật bản chiếu của mình.
 4. **Bệnh nhân vãng lai (Walk-in)**: Lễ tân tạo hồ sơ Patient trong hệ thống Medical Records với `IdentityUserId = null`. Nếu bệnh nhân đăng ký tài khoản online sau này, hồ sơ nhân thân đồng bộ từ Identity qua event theo quy trình liên kết đã định nghĩa.
@@ -34,7 +34,7 @@ Kiến trúc thống nhất như sau:
 
 ### 1.3. Các Aggregate và Entity chuyển giao quyền sở hữu
 
-| Entity / Aggregate               | Vai trò nghiệp vụ trong Scheduling Service                                                                                                             |
+| Entity / Aggregate               | Vai trò nghiệp vụ trong Staff & Scheduling Service                                                                                                             |
 | :------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Employee`                       | Quản lý thông tin nghề nghiệp, ngày vào làm, cấp trên, kèm **bản chiếu nhân thân** (`PersonId`, `IdentityUserId`, `FullName`, `PhoneNumber`, `Email`). |
 | `Doctor`                         | Quản lý thông tin chuyên môn bác sĩ, số CCHN, học vị, kinh nghiệm, liên kết `EmployeeId`.                                                              |
@@ -66,9 +66,9 @@ flowchart TD
 
 - **Nguồn sự thật (SSOT)**: `Clinic.Identity.Service` (`ClinicIdentityDB`) sở hữu bảng `Persons` (`PersonProfile`).
 - **Liên kết**: `IdentityUser` lưu `PersonId`, `PatientId`, `DoctorId`, `EmployeeId` và nhúng trực tiếp vào Claims của Access Token (`sub`, `personId`, `roles`, `patientId`, `doctorId`, `employeeId`).
-- **Bản chiếu (Projection)**: `Clinic.Scheduling.Service` lưu thông tin nhân sự `Employee` có sẵn các cột projection: `IdentityUserId`, `PersonId`, `FullName`, `PhoneNumber`, `Email`, `Gender`. Khi truy vấn danh sách bác sĩ, lịch trực, service đọc trực tiếp từ DB của mình.
+- **Bản chiếu (Projection)**: `Clinic.StaffScheduling.Service` lưu thông tin nhân sự `Employee` có sẵn các cột projection: `IdentityUserId`, `PersonId`, `FullName`, `PhoneNumber`, `Email`, `Gender`. Khi truy vấn danh sách bác sĩ, lịch trực, service đọc trực tiếp từ DB của mình.
 - **Bệnh nhân vãng lai**: Lễ tân tạo hồ sơ Patient trong Medical Records Service với `IdentityUserId = null`; không có Patient Service riêng.
-- **Đồng bộ Event**: Khi đổi thông tin cá nhân, Identity Service phát `UserProfileUpdated` để Scheduling Service cập nhật bản chiếu.
+- **Đồng bộ Event**: Khi đổi thông tin cá nhân, Identity Service phát `UserProfileUpdated` để Staff & Scheduling Service cập nhật bản chiếu.
 
 ---
 
@@ -80,7 +80,7 @@ flowchart TD
     3. Cập nhật các câu query lịch hẹn đọc trực tiếp từ các cột denormalized, không còn navigation property `WorkSchedule`.
 - **Triển khai Booking Saga sớm trong Monolith (`Clinic.API`)**:
     - Tại `CreateAppointmentCommandHandler`:
-        1. Gọi HTTP API `POST /schedules/{id}/reservations` sang `Clinic.Scheduling.Service` để giữ chỗ (kèm `Idempotency-Key`).
+        1. Gọi HTTP API `POST /schedules/{id}/reservations` sang `Clinic.StaffScheduling.Service` để giữ chỗ (kèm `Idempotency-Key`).
         2. Nếu thành công, lưu `Appointment` mới vào `ClinicDB` với trạng thái `Pending`.
         3. Gọi HTTP API `POST .../confirm` để chốt giữ chỗ $\rightarrow$ Chuyển `Appointment.Status = Confirmed`.
         4. Nếu bước lưu `Appointment` thất bại, gọi `POST .../release` để giải phóng slot ngay lập tức.
@@ -122,7 +122,7 @@ Thống nhất quy tắc quản lý năng lực ca trực và sinh slot giữa 2
 ### 2.4. Quyết định 4: Cơ chế thu hồi Reservation khi hết hạn (Hybrid Expiration)
 
 - **Passive Expiration (Thời gian thực)**: Trong query `GetAvailability` và command `ReserveSlot`, bất kỳ reservation nào có `Status == Reserved && ExpiresAt <= UtcNow` được tự động coi là đã hết hạn và không chiếm capacity.
-- **Active Expiration (Background Worker)**: Một `IHostedService` (`ReservationExpirationWorker`) chạy định kỳ mỗi 30 giây trong Scheduling Service để cập nhật trạng thái các reservation quá hạn thành `Expired` và ghi log/metrics cho Thành viên B theo dõi.
+- **Active Expiration (Background Worker)**: Một `IHostedService` (`ReservationExpirationWorker`) chạy định kỳ mỗi 30 giây trong Staff & Scheduling Service để cập nhật trạng thái các reservation quá hạn thành `Expired` và ghi log/metrics cho Thành viên B theo dõi.
 
 ---
 
@@ -141,8 +141,8 @@ Thống nhất quy tắc quản lý năng lực ca trực và sinh slot giữa 2
 
 ### 3.1. Cấu trúc Project
 
-- **Project**: `backend/Clinic.Scheduling.Service/Clinic.Scheduling.Service.csproj` (.NET 10.0 Web API).
-- **Test Project**: `backend/Clinic.Scheduling.Service.Tests/Clinic.Scheduling.Service.Tests.csproj` (xUnit).
+- **Project**: `backend/Clinic.StaffScheduling.Service/Clinic.StaffScheduling.Service.csproj` (.NET 10.0 Web API).
+- **Test Project**: `backend/Clinic.StaffScheduling.Service.Tests/Clinic.StaffScheduling.Service.Tests.csproj` (xUnit).
 - **Dependencies**: Tham chiếu `Clinic.Contracts` (để dùng chung `EventEnvelope<T>` và `WorkScheduleEvents`). Không phụ thuộc vào `Clinic.Domain` hay `Clinic.Infrastructure.Sqlserver` của Monolith.
 
 ### 3.2. Thiết Kế Cơ Sở Dữ Liệu `ClinicSchedulingDB`
@@ -331,7 +331,7 @@ sequenceDiagram
     actor User as Bác sĩ / Bệnh nhân
     participant Identity as Identity Service (SSOT)
     participant Broker as RabbitMQ (Thành viên B)
-    participant Scheduling as Scheduling Service (Projection)
+    participant Scheduling as Staff & Scheduling Service (Projection)
     participant Medical as Medical Records Service (Patient + report)
 
     User->>Identity: Đổi Họ tên / SĐT / Email
@@ -354,10 +354,10 @@ sequenceDiagram
 ### Bước 1: Khởi Tạo Service & Thiết Lập Hạ Tầng Cơ Bản
 
 1. **Tạo Project mới**:
-    - `dotnet new webapi -n Clinic.Scheduling.Service -o backend/Clinic.Scheduling.Service`.
-    - `dotnet new xunit -n Clinic.Scheduling.Service.Tests -o backend/Clinic.Scheduling.Service.Tests`.
+    - `dotnet new webapi -n Clinic.StaffScheduling.Service -o backend/Clinic.StaffScheduling.Service`.
+    - `dotnet new xunit -n Clinic.StaffScheduling.Service.Tests -o backend/Clinic.StaffScheduling.Service.Tests`.
     - Thêm vào `backend/Clinic.sln`.
-    - Tham chiếu `Clinic.Contracts` vào `Clinic.Scheduling.Service`.
+    - Tham chiếu `Clinic.Contracts` vào `Clinic.StaffScheduling.Service`.
 2. **Cài đặt thư viện**:
     - `Microsoft.EntityFrameworkCore.SqlServer` (10.x).
     - `Microsoft.EntityFrameworkCore.Design` (10.x).
@@ -366,7 +366,7 @@ sequenceDiagram
 3. **Cấu hình Xác thực JWT độc lập qua JWKS (Identity Service)**:
     - Trong `Program.cs`, cấu hình `JwtBearer` sử dụng `MetadataAddress` hoặc `IssuerSigningKeyResolver` trỏ tới discovery endpoint `http://identity-service:8080/.well-known/jwks.json`. Không truy cập `ClinicIdentityDB`.
 4. **Cấu hình Docker & Docker Compose**:
-    - Tạo `backend/Clinic.Scheduling.Service/Dockerfile`.
+    - Tạo `backend/Clinic.StaffScheduling.Service/Dockerfile`.
     - Thêm service `scheduling-service` vào `docker-compose.yml`:
         - Cổng host: `5002:8080`.
         - Biến môi trường: `ConnectionStrings__SchedulingConnection`, `Jwt__Issuer`, `Jwt__Audience`, v.v.
@@ -399,13 +399,13 @@ sequenceDiagram
 ### Bước 3: Viết Kịch Bản Di Chuyển & Đối Soát Dữ Liệu
 
 1. **Tạo kịch bản Import Dữ liệu**:
-    - Tạo tệp `backend/Clinic.Scheduling.Service/Persistence/import-from-clinicdb.sql`:
+    - Tạo tệp `backend/Clinic.StaffScheduling.Service/Persistence/import-from-clinicdb.sql`:
         - Copy an toàn các bản ghi từ `ClinicDB.dbo.Specialties`, `ClinicDB.dbo.WorkHistories`, `ClinicDB.dbo.WorkSchedules`, `ClinicDB.dbo.ShiftRequests`.
         - Nạp dữ liệu vào `Employees`: JOIN giữa `ClinicDB.dbo.Employees`, `ClinicDB.dbo.Persons` và `ClinicIdentityDB.dbo.Users` để nạp đủ các trường projection nhân thân (`FullName`, `PhoneNumber`, `Email`, `Gender`, `IdentityUserId`).
         - Nạp dữ liệu vào `Doctors` từ `ClinicDB.dbo.Doctors`.
         - Script được thiết kế idempotent (chạy nhiều lần không gây trùng khóa).
 2. **Tạo kịch bản Đối soát Dữ liệu**:
-    - Tạo tệp `backend/Clinic.Scheduling.Service/Persistence/verify-scheduling-import.sql`:
+    - Tạo tệp `backend/Clinic.StaffScheduling.Service/Persistence/verify-scheduling-import.sql`:
         - Đối soát tổng số lượng bản ghi giữa 2 database (Yêu cầu `MismatchCount = 0`).
         - Kiểm tra toàn vẹn các cặp liên kết `Doctor -> Employee`.
 3. **Thêm container `scheduling-data-importer` vào `docker-compose.yml`** (tương tự như `identity-data-importer` ở Phase 1).
@@ -427,7 +427,7 @@ sequenceDiagram
             - Sinh danh sách các khung giờ 15 phút phủ kín từ `ShiftStart` đến `ShiftEnd` (ví dụ `08:00`, `08:15`, `08:30`...).
             - Đánh dấu hoặc loại bỏ các khung giờ đã có người giữ chỗ (`Reserved` chưa hết hạn) hoặc đã xác nhận (`Confirmed`).
             - Trả về danh sách các slot trống còn lại để bệnh nhân tự do lựa chọn.
-    - **Cam kết**: Tính toán hoàn toàn trên ca trực và reservations nội bộ của Scheduling Service, tuyệt đối không query sang `Appointments` table hay `ClinicDB`.
+    - **Cam kết**: Tính toán hoàn toàn trên ca trực và reservations nội bộ của Staff & Scheduling Service, tuyệt đối không query sang `Appointments` table hay `ClinicDB`.
 
 2. **Cụm API Reservation (Giữ chỗ - Xác nhận - Bồi hoàn)**:
     - `POST /schedules/{scheduleId}/reservations`:
@@ -459,7 +459,7 @@ sequenceDiagram
     - Sử dụng `EventEnvelope<WorkScheduleCreated>`, `EventEnvelope<WorkScheduleUpdated>`, `EventEnvelope<WorkScheduleCancelled>` từ `Clinic.Contracts`.
 2. **Cài đặt `IOutboxWriter`**:
     - Service ghi dữ liệu outbox trực tiếp vào `SchedulingDbContext.OutboxMessages`.
-    - Đảm bảo `producer = "Clinic.Scheduling.Service"`, `schemaVersion = 1`.
+    - Đảm bảo `producer = "Clinic.StaffScheduling.Service"`, `schemaVersion = 1`.
 3. **Phối hợp với Thành viên B**:
     - Cung cấp schema bảng `OutboxMessages` và các event types để Thành viên B cấu hình RabbitMQ publisher worker.
     - Chuẩn bị consumer đón nhận sự kiện `UserProfileUpdated` từ Identity Service để cập nhật projection trong `Employees`.
@@ -473,7 +473,7 @@ sequenceDiagram
     - Chạy script data backfill để điền thông tin các cột này từ `WorkSchedules` và `Doctors` hiện có.
     - **Xóa bỏ Foreign Key** `FK_Appointments_WorkSchedules_WorkScheduleId` trong `ClinicDB`.
 2. **Tích hợp Quy trình Đặt Lịch tại `CreateAppointmentCommandHandler`**:
-    - Đăng ký `HttpClient` gọi tới `Clinic.Scheduling.Service`.
+    - Đăng ký `HttpClient` gọi tới `Clinic.StaffScheduling.Service`.
     - **Trường hợp 1: Bệnh nhân Đặt lịch Online (`IsWalkIn = false`)**:
         1. Gọi `POST /schedules/{id}/reservations` (ReserveSlot) kèm `Idempotency-Key` (bị ràng buộc bởi `RecommendedCapacity` và slot 15p).
         2. Nếu thành công, lưu `Appointment` mới vào `ClinicDB` với trạng thái `Pending` (`IsWalkIn = false`).
@@ -485,7 +485,7 @@ sequenceDiagram
         - Lưu trực tiếp `Appointment` vào `ClinicDB` với `IsWalkIn = true`, `Status = Confirmed` (hoặc `CheckedIn`), gán `WorkScheduleId`, `DoctorId` và thời điểm tiếp nhận thực tế.
         - Không tính vào `OnlineCount`, đảm bảo không ảnh hưởng đến hạn mức và trải nghiệm của các bệnh nhân đặt online.
 3. **Chuyển hướng API Gateway**:
-    - Cấu hình các route `/doctors/**`, `/shifts/**`, `/specialties/**`, `/employees/**`, `/schedules/**` chuyển tiếp sang `Clinic.Scheduling.Service`.
+    - Cấu hình các route `/doctors/**`, `/shifts/**`, `/specialties/**`, `/employees/**`, `/schedules/**` chuyển tiếp sang `Clinic.StaffScheduling.Service`.
 4. **Áp dụng Migration Dọn Dẹp (`RemoveSchedulingEntitiesFromClinicDb`)**:
     - Sau khi đối soát dữ liệu và kiểm thử phát hành thành công, áp dụng migration xóa các bảng `ShiftRequests`, `WorkSchedules`, `WorkHistories`, `Doctors`, `Employees`, `Specialties` khỏi `ClinicDB`.
 
@@ -493,7 +493,7 @@ sequenceDiagram
 
 ### Bước 7: Kiểm Thử Tự Động & Tiêu Chí Nghiệm Thu (Acceptance)
 
-1. **Unit Tests (`Clinic.Scheduling.Service.Tests`)**:
+1. **Unit Tests (`Clinic.StaffScheduling.Service.Tests`)**:
     - Test logic duyệt ca: Không cho duyệt ca đã bắt đầu hoặc ca có khung giờ chồng lấn với ca khác của bác sĩ.
     - Test logic tính slot khả dụng dựa trên khoảng cách 15 phút.
     - Test vòng đời trạng thái của `SlotReservation` (`Reserved -> Confirmed`, `Reserved -> Released`, `Reserved -> Expired`).
@@ -511,7 +511,7 @@ sequenceDiagram
 ## 5. Kế Hoạch Rollback Dự Phòng (Rollback Strategy)
 
 1. **Giai đoạn trước khi xóa bảng legacy ở `ClinicDB`**:
-    - Nếu `Clinic.Scheduling.Service` gặp lỗi nghiêm trọng trong quá trình cutover:
+    - Nếu `Clinic.StaffScheduling.Service` gặp lỗi nghiêm trọng trong quá trình cutover:
         - Giữ nguyên dữ liệu trong `ClinicSchedulingDB` để điều tra log.
         - Cấu hình API Gateway chuyển ngược các route `/doctors`, `/shifts`, `/schedules` về Monolith.
         - Phục hồi lại code gọi trực tiếp trong Monolith.
@@ -525,7 +525,7 @@ sequenceDiagram
 
 | Nội dung công việc                                           | Thành viên A (Backend & Data) | Thành viên B (Broker, QA & Obs) |
 | :----------------------------------------------------------- | :---------------------------: | :-----------------------------: |
-| Tạo service `Clinic.Scheduling.Service` & cấu hình JWKS      |          **Chủ trì**          |            Phối hợp             |
+| Tạo service `Clinic.StaffScheduling.Service` & cấu hình JWKS      |          **Chủ trì**          |            Phối hợp             |
 | Thiết kế Schema `ClinicSchedulingDB` & EF Migrations         |          **Chủ trì**          |          Hỗ trợ review          |
 | Xây dựng API `GetAvailability`, `ReserveSlot`, `ReleaseSlot` |          **Chủ trì**          |          Hỗ trợ review          |
 | Triển khai logic Atomic Capacity, Concurrency Lock & Timeout |          **Chủ trì**          |        Kiểm thử độc lập         |
@@ -544,7 +544,7 @@ sequenceDiagram
 
 Các hạng mục nền tảng, reservation/availability và Booking Saga trong kế hoạch ban đầu đã được triển khai và có bằng chứng kiểm thử. Báo cáo triển khai cutover quản lý Staff & Scheduling ngày 2026-10-24 được ghi ở mục 8.7. Route cutover đã thực hiện; việc gỡ model/schema Clinic và nhập/đối soát dữ liệu cũ vẫn còn mở.
 
-1. **Bước 1 (Hạ tầng)**: Đã tạo `Clinic.Scheduling.Service` (.NET 10 Web API), thiết lập JWT Bearer qua discovery/JWKS của Identity Service (`/.well-known/jwks.json`), cấu hình Docker và Docker Compose.
+1. **Bước 1 (Hạ tầng)**: Đã tạo `Clinic.StaffScheduling.Service` (.NET 10 Web API), thiết lập JWT Bearer qua discovery/JWKS của Identity Service (`/.well-known/jwks.json`), cấu hình Docker và Docker Compose.
 2. **Bước 2 (Domain & Database)**: Thiết lập schema `ClinicSchedulingDB` với các bảng độc lập (`Employees`, `Doctors`, `Specialties`, `WorkHistories`, `WorkSchedules`, `ShiftRequests`, `SlotReservations`, `OutboxMessages`).
 3. **Bước 3 (Di chuyển dữ liệu)**: Kịch bản import `import-from-clinicdb.sql` và kịch bản đối soát `verify-scheduling-import.sql` bảo đảm dữ liệu toàn vẹn giữa `ClinicDB` và `ClinicSchedulingDB`.
 4. **Bước 4 (API nghiệp vụ cốt lõi)**:
@@ -561,17 +561,17 @@ Các hạng mục nền tảng, reservation/availability và Booking Saga trong 
     - Xóa bỏ hoàn toàn entity và bảng thừa `BookingSlot` khỏi `ClinicDB`.
     - Cài đặt Booking Saga trong `CreateAppointmentCommandHandler` (`ReserveSlot -> CreateAppointment -> ConfirmSlot / ReleaseSlot`).
 7. **Bước 7 (Kiểm thử & Nghiệm thu)**:
-    - `Clinic.Scheduling.Service.Tests`: 100% passed.
+    - `Clinic.StaffScheduling.Service.Tests`: 100% passed.
     - `Clinic.IntegrationTests` (`BaselineBusinessWorkflowTests`): 3/3 passed.
-    - Không còn foreign key hoặc join xuyên database giữa Monolith và Scheduling Service.
+    - Không còn foreign key hoặc join xuyên database giữa Monolith và Staff & Scheduling Service.
 
 ### 7.2. Các Điểm Điều Chỉnh Kỹ Thuật Thực Tế So Với Thiết Kế Ban Đầu
 
 Trong quá trình phát triển, kiểm thử và tích hợp thực tế, 6 nội dung kỹ thuật sau đã được tinh chỉnh:
 
 1. **Xóa Bỏ Hoàn Toàn Entity & Bảng `BookingSlot` Trong Monolith (`ClinicDB`)**:
-    - _Thực tế_: Trước đây trong Monolith tồn tại bảng `BookingSlots` được sinh trước. Khi quyền sở hữu lịch trực và năng lực phục vụ chuyển giao sang Scheduling Service, việc duy trì bảng `BookingSlots` trong `ClinicDB` trở nên dư thừa và gây phân mảnh dữ liệu.
-    - _Điều chỉnh_: Toàn bộ entity `BookingSlot`, cấu hình `BookingSlotConfiguration` và bảng tương ứng trong `ClinicDB` đã được xóa bỏ hoàn toàn. Việc tính toán slot và giữ chỗ được ủy quyền 100% cho `Clinic.Scheduling.Service` qua cơ chế sinh slot động và bảng `SlotReservations`.
+    - _Thực tế_: Trước đây trong Monolith tồn tại bảng `BookingSlots` được sinh trước. Khi quyền sở hữu lịch trực và năng lực phục vụ chuyển giao sang Staff & Scheduling Service, việc duy trì bảng `BookingSlots` trong `ClinicDB` trở nên dư thừa và gây phân mảnh dữ liệu.
+    - _Điều chỉnh_: Toàn bộ entity `BookingSlot`, cấu hình `BookingSlotConfiguration` và bảng tương ứng trong `ClinicDB` đã được xóa bỏ hoàn toàn. Việc tính toán slot và giữ chỗ được ủy quyền 100% cho `Clinic.StaffScheduling.Service` qua cơ chế sinh slot động và bảng `SlotReservations`.
 
 2. **Bổ Sung Quy Tắc Chặn Slot Trong Quá Khứ & Giới Hạn Tối Thiểu 30 Phút (`>= UtcNow + 30m`)**:
     - _Thực tế_: Thuật toán ban đầu sinh tất cả các slot từ `ShiftStart` đến `ShiftEnd` trong ngày, dẫn đến việc người dùng có thể thấy và đặt các slot thuộc ca trực của ngày hiện tại nhưng giờ khám đã trôi qua.
@@ -599,14 +599,14 @@ Trong quá trình phát triển, kiểm thử và tích hợp thực tế, 6 n�
 
 ### 8.1. Kết luận hiện trạng
 
-Scheduling Service đã có schema độc lập và các năng lực cốt lõi cho availability, giữ/chốt/nhả reservation, cùng một phần API đọc/ghi lịch và xử lý đề xuất. Booking Saga đã gọi Scheduling Service, đồng thời Clinic đã bỏ FK từ Appointment sang WorkSchedule.
+Staff & Scheduling Service đã có schema độc lập và các năng lực cốt lõi cho availability, giữ/chốt/nhả reservation, cùng một phần API đọc/ghi lịch và xử lý đề xuất. Booking Saga đã gọi Staff & Scheduling Service, đồng thời Clinic đã bỏ FK từ Appointment sang WorkSchedule.
 
 Tuy nhiên, các controller `EmployeesController`, `DoctorsController`, `SpecialtiesController` và `ShiftsController` trong Clinic vẫn gửi nhiều thao tác vào MediatR handlers của Clinic. `ApplicationDbContext` vẫn khai báo các DbSet Employee, Doctor, Specialty, WorkSchedule, WorkHistory và ShiftRequest. `GET /doctors/{doctorId}/available` còn dùng `GetDoctorSchedulesForBooking` đọc WorkSchedule local. Scheduling endpoints hiện tại chưa thay thế đủ các route ghi/tạo/danh sách. Vì vậy Scheduling DB chưa phải nguồn dữ liệu duy nhất cho toàn bộ Staff & Scheduling.
 
 ### 8.2. Quyền sở hữu dữ liệu mục tiêu
 
 - **Identity Service** sở hữu tài khoản, mật khẩu, role/permission, IdentityUser và hồ sơ nhân thân cơ bản (PersonProfile). Identity không sở hữu thông tin nghề nghiệp hoặc lịch làm việc.
-- **Scheduling Service** là nguồn sự thật cho Employee, Doctor, Specialty, WorkHistory, WorkSchedule, ShiftRequest và reservation liên quan.
+- **Staff & Scheduling Service** là nguồn sự thật cho Employee, Doctor, Specialty, WorkHistory, WorkSchedule, ShiftRequest và reservation liên quan.
 - **Patient/Clinic hiện tại** tiếp tục sở hữu Patient và dữ liệu y tế theo phạm vi các giai đoạn sau. `Person` legacy trong Clinic chỉ được giữ tạm nếu còn use case cụ thể; không tiếp tục là nguồn sự thật cho hồ sơ Employee/Doctor sau cutover.
 - Scheduling lưu projection tại chỗ cho các trường nhân thân cần truy vấn (ví dụ PersonId, IdentityUserId, FullName, PhoneNumber, Email, Gender), cập nhật qua event Identity; không join/truy vấn trực tiếp sang database khác.
 - Appointment/Queue chỉ giữ ID và snapshot cần cho nghiệp vụ của chính service đó; không phụ thuộc FK hoặc query trực tiếp Scheduling DB.

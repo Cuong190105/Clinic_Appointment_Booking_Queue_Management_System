@@ -30,7 +30,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Clinic.API\Clinic.API.csproj" />
     <ProjectReference Include="..\Clinic.Identity.Service\Clinic.Identity.Service.csproj" Aliases="IdentityServiceApp" />
-    <ProjectReference Include="..\Clinic.Scheduling.Service\Clinic.Scheduling.Service.csproj" Aliases="SchedulingServiceApp" />
+    <ProjectReference Include="..\Clinic.StaffScheduling.Service\Clinic.StaffScheduling.Service.csproj" Aliases="SchedulingServiceApp" />
     <ProjectReference Include="..\Clinic.Appointment.Service\Clinic.Appointment.Service.csproj" Aliases="AppointmentServiceApp" />
     <ProjectReference Include="..\Clinic.Queue.Service\Clinic.Queue.Service.csproj" Aliases="QueueServiceApp" />
     <ProjectReference Include="..\Clinic.MedicalRecords.Service\Clinic.MedicalRecords.Service.csproj" Aliases="MedicalRecordsServiceApp" />

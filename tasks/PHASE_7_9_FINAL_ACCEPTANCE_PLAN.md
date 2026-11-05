@@ -6,7 +6,7 @@
 
 Kế hoạch thực thi riêng Phase 8 của A: [`PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md`](PHASE_8_SLA_SLO_QOS_EXECUTION_PLAN_MEMBER_A.md).
 
-**Phạm vi hệ thống:** `Clinic.Identity.Service`, `Clinic.Scheduling.Service`, `Clinic.Appointment.Service`, `Clinic.Queue.Service`, `Clinic.MedicalRecords.Service`, `Clinic.Notification.Service` và `Clinic.API` (Gateway/BFF). SQL Server và RabbitMQ được tính là dependency vận hành cần quan sát khi tải.
+**Phạm vi hệ thống:** `Clinic.Identity.Service`, `Clinic.StaffScheduling.Service`, `Clinic.Appointment.Service`, `Clinic.Queue.Service`, `Clinic.MedicalRecords.Service`, `Clinic.Notification.Service` và `Clinic.API` (Gateway/BFF). SQL Server và RabbitMQ được tính là dependency vận hành cần quan sát khi tải.
 
 **Nguyên tắc:** Không mở lại sáu phase nghiệp vụ đã nghiệm thu. Đây là đợt hoàn thiện hợp đồng, vận hành và bằng chứng hiệu năng. Mục tiêu SLA/SLO bên dưới là mục tiêu cho môi trường Docker phục vụ môn học, không phải cam kết production hay cam kết pháp lý.
 

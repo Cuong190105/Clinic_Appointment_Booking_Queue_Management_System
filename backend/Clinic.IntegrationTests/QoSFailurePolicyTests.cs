@@ -419,6 +419,11 @@ public sealed class QoSFailurePolicyTests : IClassFixture<QoSFailurePolicyTests.
             builder.ConfigureTestServices(services =>
             {
                 services.AddTransient<IStartupFilter, TestRemoteIpStartupFilter>();
+                services.PostConfigure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>("IdentityJwt", options =>
+                {
+                    options.Configuration = new Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration();
+                    options.TokenValidationParameters.IssuerSigningKey = _signingKey;
+                });
 
                 services.ConfigureHttpClientDefaults(clientBuilder =>
                 {

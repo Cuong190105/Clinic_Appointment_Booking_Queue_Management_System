@@ -51,7 +51,7 @@ if (!builder.Environment.IsEnvironment("Testing") && !builder.Configuration.GetV
     builder.Services.AddHostedService<AppointmentEventConsumer>();
 }
 
-// HTTP Client for Scheduling Service
+// HTTP Client for Staff & Scheduling Service
 builder.Services.AddHttpClient<ISchedulingClient, SchedulingClient>(client =>
 {
     client.BaseAddress = new Uri(schedulingBaseUrl);

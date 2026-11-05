@@ -18,8 +18,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Clinic.Infrastructure.Sqlserver.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Clinic.IntegrationTests.Fixtures;
@@ -31,32 +29,9 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
     public static readonly Guid PatientId = Guid.Parse("a0000005-0000-0000-0000-000000000001");
     public static readonly Guid DoctorId = Guid.Parse("a0000004-0000-0000-0000-000000000001");
 
-    private readonly string _databaseName = $"ClinicBaselineTests_{Environment.ProcessId}_{Guid.NewGuid():N}";
-    private string? _testConnectionString;
-    private bool _databaseInitialized;
-    private static int _cleanedUpOrphans;
-
     public ApiContractFactory()
     {
-        var appSettingsPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "..", "..", "..", "..", "Clinic.API", "appsettings.json"));
-        var sourceConnectionString = Environment.GetEnvironmentVariable("CLINIC_BASELINE_TEST_CONNECTION_STRING")
-            ?? new ConfigurationBuilder()
-                .AddJsonFile(appSettingsPath, optional: false)
-                .Build()
-                .GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("DefaultConnection is required for SQL Server baseline tests.");
-
-        var connectionBuilder = new DbConnectionStringBuilder { ConnectionString = sourceConnectionString };
-        connectionBuilder.Remove("Initial Catalog");
-        connectionBuilder["Database"] = _databaseName;
-        _testConnectionString = connectionBuilder.ConnectionString;
-
-        CleanupOrphanTestDatabases(sourceConnectionString);
     }
-
-    public string TestConnectionString => _testConnectionString
-        ?? throw new InvalidOperationException("The baseline test connection has not been configured.");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -65,8 +40,6 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["SkipDatabaseInitialization"] = "true",
-                ["SkipBackgroundWorkers"] = "true",
                 ["Identity:ServiceToken"] = "integration-test-service-token",
                 ["Services:InternalToken"] = "integration-test-service-token",
                 ["Identity:Authority"] = "http://clinic-identity-service:8080",
@@ -74,8 +47,7 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
                 ["Appointment:Authority"] = "http://clinic-appointment-service:8080",
                 ["Queue:Authority"] = "http://clinic-queue-service:8080",
                 ["MedicalRecords:Authority"] = "http://clinic-medicalrecords-service:8080",
-                ["Notification:Authority"] = "http://clinic-notification-service:8080",
-                ["ConnectionStrings:DefaultConnection"] = TestConnectionString
+                ["Notification:Authority"] = "http://clinic-notification-service:8080"
             });
         });
 
@@ -83,10 +55,6 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<IHttpClientFactory>();
             services.AddSingleton<IHttpClientFactory, TestIdentityHttpClientFactory>();
-            services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
-            services.RemoveAll<ApplicationDbContext>();
-            services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(_testConnectionString!).ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
             services.AddAuthentication(options =>
             {
@@ -129,144 +97,9 @@ public sealed class ApiContractFactory : WebApplicationFactory<Program>
         return client;
     }
 
-    public async Task InitializeDatabaseAsync()
-    {
-        if (_databaseInitialized)
-            return;
-
-        await using var dbContext = CreateDbContext();
-        if (!string.Equals(dbContext.Database.GetDbConnection().Database, _databaseName, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Baseline tests resolved a database other than their dedicated test database.");
-        }
-
-        await dbContext.Database.MigrateAsync();
-
-        _databaseInitialized = true;
-    }
-
-    public ApplicationDbContext CreateDbContext()
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer(TestConnectionString)
-            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
-            .Options;
-        return new ApplicationDbContext(options);
-    }
-
-    public async Task DeleteTestDatabaseAsync()
-    {
-        if (!_databaseInitialized)
-            return;
-
-        try
-        {
-            Microsoft.Data.SqlClient.SqlConnection.ClearAllPools();
-
-            var masterBuilder = new DbConnectionStringBuilder { ConnectionString = _testConnectionString };
-            masterBuilder.Remove("Initial Catalog");
-            masterBuilder["Database"] = "master";
-
-            await using var connection = new Microsoft.Data.SqlClient.SqlConnection(masterBuilder.ConnectionString);
-            await connection.OpenAsync();
-
-            var dropSql = $@"
-IF EXISTS (SELECT 1 FROM sys.databases WHERE name = '{_databaseName}')
-BEGIN
-    ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    DROP DATABASE [{_databaseName}];
-END";
-            await using var command = new Microsoft.Data.SqlClient.SqlCommand(dropSql, connection);
-            await command.ExecuteNonQueryAsync();
-        }
-        catch
-        {
-            try
-            {
-                await using var dbContext = CreateDbContext();
-                await dbContext.Database.EnsureDeletedAsync();
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-        finally
-        {
-            _databaseInitialized = false;
-        }
-    }
-
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
-        await RealMicroserviceOpenApiRegistry.DisposeAllAsync();
-        await DeleteTestDatabaseAsync();
-    }
-
-    private static void CleanupOrphanTestDatabases(string connectionString)
-    {
-        if (Interlocked.Exchange(ref _cleanedUpOrphans, 1) != 0)
-            return;
-
-        try
-        {
-            var masterBuilder = new DbConnectionStringBuilder { ConnectionString = connectionString };
-            masterBuilder.Remove("Initial Catalog");
-            masterBuilder["Database"] = "master";
-
-            using var connection = new Microsoft.Data.SqlClient.SqlConnection(masterBuilder.ConnectionString);
-            connection.Open();
-
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT name FROM sys.databases WHERE name LIKE 'ClinicBaselineTests_%'";
-            using var reader = cmd.ExecuteReader();
-            var staleDatabases = new List<string>();
-            while (reader.Read())
-            {
-                var dbName = reader.GetString(0);
-                var parts = dbName.Split('_');
-                if (parts.Length >= 2 && int.TryParse(parts[1], out var pid))
-                {
-                    bool isRunning = false;
-                    try
-                    {
-                        var proc = System.Diagnostics.Process.GetProcessById(pid);
-                        isRunning = !proc.HasExited;
-                    }
-                    catch
-                    {
-                        isRunning = false;
-                    }
-
-                    if (!isRunning)
-                    {
-                        staleDatabases.Add(dbName);
-                    }
-                }
-            }
-            reader.Close();
-
-            foreach (var staleDb in staleDatabases)
-            {
-                try
-                {
-                    using var dropCmd = connection.CreateCommand();
-                    dropCmd.CommandText = $@"
-ALTER DATABASE [{staleDb}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-DROP DATABASE [{staleDb}];";
-                    dropCmd.ExecuteNonQuery();
-                }
-                catch
-                {
-                    // ignore
-                }
-            }
-        }
-        catch
-        {
-            // ignore
-        }
     }
 }
 
@@ -468,13 +301,24 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
             var path = request.RequestUri?.AbsolutePath ?? string.Empty;
             if (path.Equals("/employees", StringComparison.OrdinalIgnoreCase) && request.Method == HttpMethod.Post)
             {
-                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
-                var root = body.RootElement;
-                var employeeId = root.TryGetProperty("id", out var requestedId) && requestedId.ValueKind == JsonValueKind.String
-                    && Guid.TryParse(requestedId.GetString(), out var parsedId) && parsedId != Guid.Empty
-                    ? parsedId
-                    : Guid.NewGuid();
-                return Json(HttpStatusCode.Created, JsonSerializer.Serialize(new { id = employeeId, fullName = root.GetProperty("fullName").GetString() }));
+                var contentStr = request.Content != null ? await request.Content.ReadAsStringAsync(cancellationToken) : null;
+                string fullName = "Identity Employee Test";
+                Guid employeeId = Guid.NewGuid();
+                if (!string.IsNullOrWhiteSpace(contentStr))
+                {
+                    using var body = JsonDocument.Parse(contentStr);
+                    var root = body.RootElement;
+                    if (root.TryGetProperty("id", out var requestedId) && requestedId.ValueKind == JsonValueKind.String
+                        && Guid.TryParse(requestedId.GetString(), out var parsedId) && parsedId != Guid.Empty)
+                    {
+                        employeeId = parsedId;
+                    }
+                    if (root.TryGetProperty("fullName", out var fnProp) && fnProp.ValueKind == JsonValueKind.String)
+                    {
+                        fullName = fnProp.GetString() ?? fullName;
+                    }
+                }
+                return Json(HttpStatusCode.Created, JsonSerializer.Serialize(new { id = employeeId, fullName = fullName }));
             }
             if (path.Contains("/doctors/dashboard-stats", StringComparison.OrdinalIgnoreCase))
             {
@@ -527,7 +371,7 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
                         doctorName = "Doctor Name",
                         workScheduleId = schedId,
                         specialtyName = "Cardiology",
-                        date = new Clinic.Domain.Common.TimeConverter().Today.AddDays(2).ToString("yyyy-MM-dd"),
+                        date = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2).ToString("yyyy-MM-dd"),
                         timeSlot = timeSlot,
                         status = "Pending",
                         reason = "baseline booking"
@@ -583,7 +427,7 @@ public sealed class TestIdentityHttpClientFactory : IHttpClientFactory
                     doctorId = ApiContractFactory.DoctorId,
                     doctorName = "Doctor Name",
                     specialtyName = "Cardiology",
-                    scheduleDate = new Clinic.Domain.Common.TimeConverter().Today.AddDays(2).ToString("yyyy-MM-dd")
+                    scheduleDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2).ToString("yyyy-MM-dd")
                 });
                 return Json(HttpStatusCode.OK, res);
             }

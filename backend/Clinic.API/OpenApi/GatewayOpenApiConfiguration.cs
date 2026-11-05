@@ -7,7 +7,6 @@ namespace Clinic.API.OpenApi;
 /// <summary>
 /// Configures the public Clinic API Gateway OpenAPI v1 specification, including:
 /// - Document metadata and Bearer security scheme
-/// - Public SchedulingProxyMiddleware routes (/specialties, /employees, /doctors, /shifts)
 /// - Operation security requirements (Bearer vs AllowAnonymous)
 /// - Distributed tracing (X-Correlation-ID) and idempotency (Idempotency-Key) headers
 /// </summary>
@@ -33,7 +32,6 @@ public static class GatewayOpenApiConfiguration
                 Description = "JWT Bearer access token issued by Clinic.Identity.Service"
             };
 
-            AddSchedulingProxyRoutes(document);
             return Task.CompletedTask;
         });
 
@@ -72,7 +70,7 @@ public static class GatewayOpenApiConfiguration
                 EnsureIdempotencyHeader(operation, required: IsRequiredIdempotencyCommand(httpMethod, relativePath));
             }
 
-            NormalizeWireResponseSchemas(operation, requiresAuth, context.Document);
+            NormalizeWireResponseSchemas(operation, httpMethod, relativePath, requiresAuth, context.Document);
 
             return Task.CompletedTask;
         });
@@ -80,6 +78,8 @@ public static class GatewayOpenApiConfiguration
 
     private static void NormalizeWireResponseSchemas(
         OpenApiOperation operation,
+        string httpMethod,
+        string relativePath,
         bool requiresAuth,
         OpenApiDocument document)
     {
@@ -110,49 +110,92 @@ public static class GatewayOpenApiConfiguration
                 continue;
             }
 
-            if (response.Content is null)
+            if (statusKey is "400" or "401" or "403" or "404" or "409" or "429" or "500" or "502" or "503" or "504")
             {
-                if (statusKey == "200" || statusKey == "201")
+                response.Content ??= new Dictionary<string, OpenApiMediaType>();
+                response.Content["application/json"] = new OpenApiMediaType
                 {
-                    response.Content = new Dictionary<string, OpenApiMediaType>
+                    Schema = new OpenApiSchema
                     {
-                        ["application/json"] = new OpenApiMediaType
+                        Type = JsonSchemaType.Object,
+                        Properties = new Dictionary<string, IOpenApiSchema>
                         {
-                            Schema = BuildGenericJsonPayloadSchema()
+                            ["statusCode"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
+                            ["isSuccess"] = new OpenApiSchema { Type = JsonSchemaType.Boolean },
+                            ["errorMessages"] = new OpenApiSchema { Type = JsonSchemaType.Array, Items = new OpenApiSchema { Type = JsonSchemaType.String } },
+                            ["result"] = new OpenApiSchema { Type = JsonSchemaType.Null | JsonSchemaType.Object }
                         }
-                    };
-                }
+                    }
+                };
                 continue;
             }
 
-            foreach (var (mediaTypeKey, mediaType) in response.Content.ToList())
+            if (statusKey is "200" or "201")
             {
-                if (mediaType.Schema is OpenApiSchemaReference schemaRef &&
-                    string.Equals(schemaRef.Reference.Id, "ProblemDetails", StringComparison.OrdinalIgnoreCase))
+                response.Content ??= new Dictionary<string, OpenApiMediaType>();
+                if (!response.Content.ContainsKey("application/json"))
                 {
-                    // ApiResponseWrapperFilter & GlobalExceptionHandler convert ProblemDetails/ValidationProblemDetails
-                    // into the standard ApiResponse wire envelope on Gateway controller errors.
-                    mediaType.Schema = document.Components?.Schemas is not null && document.Components.Schemas.ContainsKey("ApiResponse")
-                        ? new OpenApiSchemaReference("ApiResponse", document)
-                        : BuildApiResponseEnvelopeSchema();
+                    response.Content["application/json"] = new OpenApiMediaType
+                    {
+                        Schema = BuildGenericJsonPayloadSchema()
+                    };
+                }
+
+                if (httpMethod == "GET")
+                {
+                    if (relativePath.Equals("/specialties", StringComparison.OrdinalIgnoreCase) ||
+                        relativePath.Equals("/doctors", StringComparison.OrdinalIgnoreCase))
+                    {
+                        response.Content["application/json"].Schema = BuildPagedEnvelopeSchema();
+                    }
+                    else if (relativePath.Equals("/doctors/available", StringComparison.OrdinalIgnoreCase) ||
+                             relativePath.Equals("/doctors/{id}/available", StringComparison.OrdinalIgnoreCase))
+                    {
+                        response.Content["application/json"].Schema = new OpenApiSchema
+                        {
+                            Type = JsonSchemaType.Array,
+                            Items = new OpenApiSchema { Type = JsonSchemaType.Object }
+                        };
+                    }
+                    else if (relativePath.Equals("/doctors/dashboard-stats", StringComparison.OrdinalIgnoreCase))
+                    {
+                        response.Content["application/json"].Schema = new OpenApiSchema
+                        {
+                            Type = JsonSchemaType.Object,
+                            Properties = new Dictionary<string, IOpenApiSchema>
+                            {
+                                ["totalDoctors"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
+                                ["totalDoctorsChange"] = new OpenApiSchema { Type = JsonSchemaType.Number },
+                                ["activeDoctors"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
+                                ["activeDoctorsChange"] = new OpenApiSchema { Type = JsonSchemaType.Number }
+                            }
+                        };
+                    }
                 }
             }
         }
     }
 
-    private static OpenApiSchema BuildApiResponseEnvelopeSchema() => new()
+    private static OpenApiSchema BuildPagedEnvelopeSchema() => new()
     {
         Type = JsonSchemaType.Object,
         Properties = new Dictionary<string, IOpenApiSchema>
         {
-            ["statusCode"] = new OpenApiSchema { Type = JsonSchemaType.String },
             ["isSuccess"] = new OpenApiSchema { Type = JsonSchemaType.Boolean },
-            ["errorMessages"] = new OpenApiSchema
+            ["result"] = new OpenApiSchema
             {
-                Type = JsonSchemaType.Array,
-                Items = new OpenApiSchema { Type = JsonSchemaType.String }
-            },
-            ["result"] = new OpenApiSchema { Type = JsonSchemaType.Object | JsonSchemaType.Null }
+                Type = JsonSchemaType.Object,
+                Properties = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["items"] = new OpenApiSchema { Type = JsonSchemaType.Array, Items = new OpenApiSchema { Type = JsonSchemaType.Object } },
+                    ["pageNumber"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
+                    ["pageSize"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
+                    ["totalCount"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
+                    ["totalPages"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
+                    ["hasPrevious"] = new OpenApiSchema { Type = JsonSchemaType.Boolean },
+                    ["hasNext"] = new OpenApiSchema { Type = JsonSchemaType.Boolean }
+                }
+            }
         }
     };
 
@@ -161,23 +204,30 @@ public static class GatewayOpenApiConfiguration
         Type = JsonSchemaType.Object | JsonSchemaType.Array
     };
 
-    private static bool IsIdempotentCommand(string method, string path)
+    private static bool IsIdempotentCommand(string httpMethod, string path)
     {
-        if (method is not ("POST" or "PATCH")) return false;
-        return path.Equals("/appointments", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/appointments/{appointmentId}/check-in", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/appointments/{appointmentId}", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/receptionist/appointments/walk-in", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/receptionist/appointments", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/schedules/{scheduleId}/reservations", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/medical-records/reports/{reportId}/finalize", StringComparison.OrdinalIgnoreCase);
+        return httpMethod switch
+        {
+            "POST" when path.Equals("/appointments", StringComparison.OrdinalIgnoreCase) => true,
+            "POST" when path.Equals("/appointments/walk-in", StringComparison.OrdinalIgnoreCase) => true,
+            "POST" when path.Equals("/appointments/receptionist", StringComparison.OrdinalIgnoreCase) => true,
+            "POST" when path.EndsWith("/check-in", StringComparison.OrdinalIgnoreCase) => true,
+            "POST" when path.Equals("/schedules/reservations", StringComparison.OrdinalIgnoreCase) => true,
+            "POST" when path.Equals("/queue/check-in", StringComparison.OrdinalIgnoreCase) => true,
+            "POST" when path.StartsWith("/medical-records", StringComparison.OrdinalIgnoreCase) => true,
+            _ => false
+        };
     }
 
-    private static bool IsRequiredIdempotencyCommand(string method, string path) =>
-        method == "POST" && (
-            path.Equals("/appointments/{appointmentId}/check-in", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/schedules/{scheduleId}/reservations", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/medical-records/reports/{reportId}/finalize", StringComparison.OrdinalIgnoreCase));
+    private static bool IsRequiredIdempotencyCommand(string httpMethod, string path)
+    {
+        return httpMethod switch
+        {
+            "POST" when path.Equals("/schedules/reservations", StringComparison.OrdinalIgnoreCase) => true,
+            "POST" when path.EndsWith("/check-in", StringComparison.OrdinalIgnoreCase) => true,
+            _ => false
+        };
+    }
 
     private static void EnsureCorrelationHeader(OpenApiOperation operation)
     {
@@ -189,8 +239,8 @@ public static class GatewayOpenApiConfiguration
                 Name = "X-Correlation-ID",
                 In = ParameterLocation.Header,
                 Required = false,
-                Description = "Correlation ID for end-to-end distributed request tracing",
-                Schema = new OpenApiSchema { Type = JsonSchemaType.String }
+                Description = "Distributed correlation identifier propagated across all microservice hops",
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid" }
             });
         }
     }
@@ -219,209 +269,4 @@ public static class GatewayOpenApiConfiguration
             }
         }
     }
-
-    private static void AddSchedulingProxyRoutes(OpenApiDocument document)
-    {
-        document.Paths ??= new OpenApiPaths();
-
-        var pagedEnvelopeSchema = new OpenApiSchema
-        {
-            Type = JsonSchemaType.Object,
-            Properties = new Dictionary<string, IOpenApiSchema>
-            {
-                ["isSuccess"] = new OpenApiSchema { Type = JsonSchemaType.Boolean },
-                ["result"] = new OpenApiSchema
-                {
-                    Type = JsonSchemaType.Object,
-                    Properties = new Dictionary<string, IOpenApiSchema>
-                    {
-                        ["items"] = new OpenApiSchema { Type = JsonSchemaType.Array, Items = new OpenApiSchema { Type = JsonSchemaType.Object } },
-                        ["pageNumber"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                        ["pageSize"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                        ["totalCount"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                        ["totalPages"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                        ["hasPrevious"] = new OpenApiSchema { Type = JsonSchemaType.Boolean },
-                        ["hasNext"] = new OpenApiSchema { Type = JsonSchemaType.Boolean }
-                    }
-                }
-            }
-        };
-
-        var directPagedSchema = new OpenApiSchema
-        {
-            Type = JsonSchemaType.Object,
-            Properties = new Dictionary<string, IOpenApiSchema>
-            {
-                ["items"] = new OpenApiSchema { Type = JsonSchemaType.Array, Items = new OpenApiSchema { Type = JsonSchemaType.Object } },
-                ["pageNumber"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                ["pageSize"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                ["totalCount"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                ["totalPages"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                ["hasPrevious"] = new OpenApiSchema { Type = JsonSchemaType.Boolean },
-                ["hasNext"] = new OpenApiSchema { Type = JsonSchemaType.Boolean }
-            }
-        };
-
-        var objectArraySchema = new OpenApiSchema
-        {
-            Type = JsonSchemaType.Array,
-            Items = new OpenApiSchema { Type = JsonSchemaType.Object }
-        };
-
-        var dashboardStatsSchema = new OpenApiSchema
-        {
-            Type = JsonSchemaType.Object,
-            Properties = new Dictionary<string, IOpenApiSchema>
-            {
-                ["totalDoctors"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                ["totalDoctorsChange"] = new OpenApiSchema { Type = JsonSchemaType.Number },
-                ["activeDoctors"] = new OpenApiSchema { Type = JsonSchemaType.Integer },
-                ["activeDoctorsChange"] = new OpenApiSchema { Type = JsonSchemaType.Number }
-            }
-        };
-
-        // Specialties (proxied by SchedulingProxyMiddleware)
-        AddProxyOperation(document, "/specialties", HttpMethod.Get, "List clinical specialties", "Specialties", requiresAuth: false, responseSchema: pagedEnvelopeSchema);
-        AddProxyOperation(document, "/specialties", HttpMethod.Post, "Create a clinical specialty", "Specialties", requiresAuth: true, hasJsonBody: true, successStatus: "201");
-        AddProxyOperation(document, "/specialties/{id}", HttpMethod.Get, "Get specialty by ID", "Specialties", requiresAuth: false, pathParams: ["id"]);
-        AddProxyOperation(document, "/specialties/{id}", HttpMethod.Put, "Update specialty by ID", "Specialties", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-        AddProxyOperation(document, "/specialties/{id}/status", HttpMethod.Patch, "Deactivate specialty", "Specialties", requiresAuth: true, pathParams: ["id"], successStatus: "204");
-
-        // Employees (GET and status proxied by SchedulingProxyMiddleware; POST/PUT in EmployeesController)
-        AddProxyOperation(document, "/employees", HttpMethod.Get, "List employees (enriched with Identity roles)", "Employees", requiresAuth: true, responseSchema: directPagedSchema);
-        AddProxyOperation(document, "/employees/me", HttpMethod.Get, "Get current employee profile", "Employees", requiresAuth: true);
-        AddProxyOperation(document, "/employees/{id}", HttpMethod.Get, "Get employee by ID", "Employees", requiresAuth: true, pathParams: ["id"]);
-        AddProxyOperation(document, "/employees/{id}/status", HttpMethod.Post, "Update employee status", "Employees", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-
-        // Doctors (GET and shift/status/specialty routes proxied by SchedulingProxyMiddleware; POST/PUT/queue in DoctorsController)
-        AddProxyOperation(document, "/doctors", HttpMethod.Get, "List doctors", "Doctors", requiresAuth: false, responseSchema: pagedEnvelopeSchema);
-        AddProxyOperation(document, "/doctors/{id}", HttpMethod.Get, "Get doctor by ID", "Doctors", requiresAuth: false, pathParams: ["id"]);
-        AddProxyOperation(document, "/doctors/available", HttpMethod.Get, "List available active doctors", "Doctors", requiresAuth: false, responseSchema: objectArraySchema);
-        AddProxyOperation(document, "/doctors/{id}/available", HttpMethod.Get, "Get available slots for doctor", "Doctors", requiresAuth: false, pathParams: ["id"], responseSchema: objectArraySchema);
-        AddProxyOperation(document, "/doctors/me", HttpMethod.Get, "Get current doctor profile", "Doctors", requiresAuth: true);
-        AddProxyOperation(document, "/doctors/shifts", HttpMethod.Get, "List doctor work schedules (paged)", "Doctors", requiresAuth: true, responseSchema: directPagedSchema);
-        AddProxyOperation(document, "/doctors/{doctorId}/shifts", HttpMethod.Get, "List shifts for a specific doctor", "Doctors", requiresAuth: false, pathParams: ["doctorId"]);
-        AddProxyOperation(document, "/doctors/{doctorId}/shifts", HttpMethod.Post, "Create a work shift for a doctor", "Doctors", requiresAuth: true, pathParams: ["doctorId"], hasJsonBody: true, successStatus: "201");
-        AddProxyOperation(document, "/doctors/{doctorId}/suggestions", HttpMethod.Get, "List shift suggestions for a doctor", "Doctors", requiresAuth: true, pathParams: ["doctorId"]);
-        AddProxyOperation(document, "/doctors/dashboard-stats", HttpMethod.Get, "Get doctor count statistics", "Doctors", requiresAuth: false, responseSchema: dashboardStatsSchema);
-        AddProxyOperation(document, "/doctors/{id}/status", HttpMethod.Patch, "Update doctor status", "Doctors", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-        AddProxyOperation(document, "/doctors/{id}/status", HttpMethod.Post, "Update doctor status (POST alias)", "Doctors", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-        AddProxyOperation(document, "/doctors/{id}/specialty", HttpMethod.Patch, "Update doctor specialty", "Doctors", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-        AddProxyOperation(document, "/doctors/{id}/specialty", HttpMethod.Post, "Update doctor specialty (POST alias)", "Doctors", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-
-        // Shifts & Shift Suggestions (proxied by SchedulingProxyMiddleware)
-        AddProxyOperation(document, "/shifts", HttpMethod.Get, "List shifts for current doctor", "Shifts", requiresAuth: true);
-        AddProxyOperation(document, "/shifts/suggestions", HttpMethod.Get, "List shift suggestions for current doctor", "Shifts", requiresAuth: true);
-        AddProxyOperation(document, "/shifts/suggestions", HttpMethod.Post, "Create a shift suggestion", "Shifts", requiresAuth: true, hasJsonBody: true, successStatus: "201");
-        AddProxyOperation(document, "/shifts/suggestions/{id}", HttpMethod.Patch, "Update a pending shift suggestion", "Shifts", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-        AddProxyOperation(document, "/shifts/suggestions/{id}/cancel", HttpMethod.Post, "Cancel a shift suggestion", "Shifts", requiresAuth: true, pathParams: ["id"]);
-        AddProxyOperation(document, "/shifts/suggestions/{id}/approve", HttpMethod.Post, "Approve a shift suggestion", "Shifts", requiresAuth: true, pathParams: ["id"]);
-        AddProxyOperation(document, "/shifts/suggestions/{id}/reject", HttpMethod.Post, "Reject a shift suggestion", "Shifts", requiresAuth: true, pathParams: ["id"]);
-        AddProxyOperation(document, "/shifts/{id}", HttpMethod.Put, "Update a work shift", "Shifts", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-        AddProxyOperation(document, "/shifts/{id}/cancel", HttpMethod.Post, "Cancel a work shift", "Shifts", requiresAuth: true, pathParams: ["id"], hasJsonBody: true, successStatus: "204");
-    }
-
-    private static void AddProxyOperation(
-        OpenApiDocument document,
-        string path,
-        HttpMethod method,
-        string summary,
-        string tag,
-        bool requiresAuth,
-        string[]? pathParams = null,
-        bool hasJsonBody = false,
-        string successStatus = "200",
-        OpenApiSchema? responseSchema = null)
-    {
-        if (!document.Paths.TryGetValue(path, out var pathItemInterface) || pathItemInterface is not OpenApiPathItem pathItem)
-        {
-            pathItem = new OpenApiPathItem
-            {
-                Operations = new Dictionary<HttpMethod, OpenApiOperation>()
-            };
-            document.Paths[path] = pathItem;
-        }
-
-        pathItem.Operations ??= new Dictionary<HttpMethod, OpenApiOperation>();
-        if (pathItem.Operations.ContainsKey(method))
-        {
-            return;
-        }
-
-        var operation = new OpenApiOperation
-        {
-            Summary = summary,
-            Tags = new HashSet<OpenApiTagReference> { new(tag, document) },
-            Parameters = new List<IOpenApiParameter>(),
-            Responses = new OpenApiResponses
-            {
-                [successStatus] = new OpenApiResponse
-                {
-                    Description = successStatus == "204" ? "No Content" : "Success",
-                    Content = successStatus == "204"
-                        ? null
-                        : new Dictionary<string, OpenApiMediaType>
-                        {
-                            ["application/json"] = new OpenApiMediaType
-                            {
-                                Schema = responseSchema ?? new OpenApiSchema { Type = JsonSchemaType.Object }
-                            }
-                        }
-                }
-            }
-        };
-
-        if (pathParams is not null && pathParams.Length > 0)
-        {
-            operation.Responses["404"] = new OpenApiResponse { Description = "Not Found" };
-            foreach (var paramName in pathParams)
-            {
-                operation.Parameters.Add(new OpenApiParameter
-                {
-                    Name = paramName,
-                    In = ParameterLocation.Path,
-                    Required = true,
-                    Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid" }
-                });
-            }
-        }
-
-        EnsureCorrelationHeader(operation);
-
-        if (hasJsonBody)
-        {
-            operation.Responses["400"] = new OpenApiResponse { Description = "Bad Request" };
-            operation.RequestBody = new OpenApiRequestBody
-            {
-                Required = true,
-                Content = new Dictionary<string, OpenApiMediaType>
-                {
-                    ["application/json"] = new OpenApiMediaType
-                    {
-                        Schema = new OpenApiSchema { Type = JsonSchemaType.Object }
-                    }
-                }
-            };
-        }
-
-        if (requiresAuth)
-        {
-            operation.Security = new List<OpenApiSecurityRequirement>
-            {
-                new()
-                {
-                    [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
-                }
-            };
-            operation.Responses["401"] = new OpenApiResponse { Description = "Unauthorized" };
-            operation.Responses["403"] = new OpenApiResponse { Description = "Forbidden" };
-        }
-        else
-        {
-            operation.Security = new List<OpenApiSecurityRequirement>();
-        }
-
-        pathItem.Operations[method] = operation;
-    }
 }
-

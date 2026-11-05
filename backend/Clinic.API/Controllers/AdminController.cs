@@ -1,15 +1,10 @@
 using Clinic.API.Models;
 using Clinic.API.Services;
 using Clinic.Contracts.Analytics;
-using Clinic.Application.Contracts;
-using Clinic.Application.Features.Admin.Queries;
-using MapsterMapper;
-using MediatR;
-using Clinic.Application.Features;
-using Clinic.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Clinic.API.Controllers
 {
@@ -17,8 +12,6 @@ namespace Clinic.API.Controllers
     [Route("/admin")]
     public class AdminController : ControllerBase
     {
-        private readonly ISender _sender;
-        private readonly IMapper _mapper;
         private readonly HttpClient _identityClient;
         private readonly string? _identityServiceToken;
         private readonly IdentityAccountClient _identityAccounts;
@@ -28,10 +21,16 @@ namespace Clinic.API.Controllers
         private readonly MedicalRecordsServiceClient _medicalRecordsClient;
         private readonly NotificationServiceClient _notificationClient;
 
-        public AdminController(ISender sender, IMapper mapper, IHttpClientFactory httpClientFactory, IConfiguration configuration, IdentityAccountClient identityAccounts, AppointmentServiceClient appointmentClient, SchedulingManagementClient scheduling, QueueServiceClient queueClient, MedicalRecordsServiceClient medicalRecordsClient, NotificationServiceClient notificationClient)
+        public AdminController(
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            IdentityAccountClient identityAccounts,
+            AppointmentServiceClient appointmentClient,
+            SchedulingManagementClient scheduling,
+            QueueServiceClient queueClient,
+            MedicalRecordsServiceClient medicalRecordsClient,
+            NotificationServiceClient notificationClient)
         {
-            _sender = sender;
-            _mapper = mapper;
             _identityClient = httpClientFactory.CreateClient("Identity");
             _identityServiceToken = configuration["Identity:ServiceToken"];
             _identityAccounts = identityAccounts;
@@ -181,7 +180,54 @@ namespace Clinic.API.Controllers
                     Detail = "Appointment, Queue, or Medical Records service did not return dashboard metrics."
                 });
 
-            var result = await _sender.Send(new GetDashboardDataQuery(appointmentMetrics, queueMetrics, patientCount.Count), ct);
+            var schedResponse = await _scheduling.SendAsync(HttpContext, HttpMethod.Get, "doctors/dashboard-stats", null, ct);
+            DoctorDashboardStatsResult? doctorStats = null;
+            if (schedResponse.StatusCode == 200)
+            {
+                using var doc = schedResponse.ParseJson();
+                if (doc != null)
+                {
+                    var root = doc.RootElement;
+                    var resultEl = root.TryGetProperty("result", out var r) ? r : root;
+                    doctorStats = new DoctorDashboardStatsResult(
+                        resultEl.TryGetProperty("totalDoctors", out var td) && td.TryGetInt32(out var tdVal) ? tdVal : (int)(td.ValueKind == JsonValueKind.Number ? td.GetDouble() : 0),
+                        resultEl.TryGetProperty("totalDoctorsChange", out var tdc) && tdc.TryGetInt32(out var tdcVal) ? tdcVal : (int)(tdc.ValueKind == JsonValueKind.Number ? tdc.GetDouble() : 0),
+                        resultEl.TryGetProperty("activeDoctors", out var ad) && ad.TryGetInt32(out var adVal) ? adVal : (int)(ad.ValueKind == JsonValueKind.Number ? ad.GetDouble() : 0),
+                        resultEl.TryGetProperty("activeDoctorsChange", out var adc) && adc.TryGetInt32(out var adcVal) ? adcVal : (int)(adc.ValueKind == JsonValueKind.Number ? adc.GetDouble() : 0)
+                    );
+                }
+            }
+
+            var result = new DashboardDataDto
+            {
+                TotalAppointments = new ValueWithChange<int>
+                {
+                    Value = appointmentMetrics.TotalAppointments,
+                    Change = appointmentMetrics.TotalAppointmentsChange
+                },
+                TotalPatients = new ValueWithChange<int> { Value = patientCount.Count },
+                TotalDoctors = new ValueWithChange<int>
+                {
+                    Value = doctorStats?.TotalDoctors ?? 0,
+                    Change = doctorStats?.TotalDoctorsChange ?? 0
+                },
+                ActiveDoctor = new ValueWithChange<int>
+                {
+                    Value = doctorStats?.ActiveDoctors ?? 0,
+                    Change = doctorStats?.ActiveDoctorsChange ?? 0
+                },
+                CompletionRate = new ValueWithChange<double>
+                {
+                    Value = appointmentMetrics.CompletionRate,
+                    Change = appointmentMetrics.CompletionRateChange
+                },
+                AverageWaitingMinute = new ValueWithChange<double>
+                {
+                    Value = queueMetrics.AverageWaitingMinutes,
+                    Change = queueMetrics.Change
+                }
+            };
+
             return Ok(result);
         }
 
@@ -231,3 +277,4 @@ namespace Clinic.API.Controllers
 }
 
 internal sealed record PatientCountResponse(int Count);
+internal sealed record DoctorDashboardStatsResult(int TotalDoctors, int TotalDoctorsChange, int ActiveDoctors, int ActiveDoctorsChange);

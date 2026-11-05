@@ -1,6 +1,6 @@
 # Kế Hoạch Hoàn Tất Chuyển Đổi Giai Đoạn 2: Staff & Scheduling Service (Member A)
 
-> **Mục tiêu tài liệu:** Bản rà soát lịch sử đối chiếu [`TASK_MEMBER_A.md`](./TASK_MEMBER_A.md), [`PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md`](./PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md) (Mục 8) và source tại thời điểm lập kế hoạch; ghi nhận các phần còn sót để chuyển quyền sở hữu nghiệp vụ & dữ liệu Staff/Scheduling sang `Clinic.Scheduling.Service` và dọn code/schema legacy khỏi `ClinicDB`.
+> **Mục tiêu tài liệu:** Bản rà soát lịch sử đối chiếu [`TASK_MEMBER_A.md`](./TASK_MEMBER_A.md), [`PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md`](./PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md) (Mục 8) và source tại thời điểm lập kế hoạch; ghi nhận các phần còn sót để chuyển quyền sở hữu nghiệp vụ & dữ liệu Staff/Scheduling sang `Clinic.StaffScheduling.Service` và dọn code/schema legacy khỏi `ClinicDB`.
 
 > **Ghi chú trạng thái:** Mục 2.1–2.2 là ảnh chụp audit trước khi hoàn tất, không phải danh sách tồn đọng hiện hành. Giai đoạn 2 đã đóng; kết quả cuối và kiểm chứng tiếp nối nằm ở [`PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md`](./PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md), mục 8.7–8.8. Các số liệu/trạng thái cũ trong bảng 2.2 không được dùng làm blocker hiện tại.
 
@@ -9,7 +9,7 @@
 ## 1. Nguyên Tắc Kiến Trúc Bắt Buộc
 
 1. **Đơn nguồn sự thật (Single Source of Truth - SSOT):**
-    - `Clinic.Scheduling.Service` (`ClinicSchedulingDB`) sở hữu 100% nghiệp vụ và dữ liệu của `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`, `SlotReservation`.
+    - `Clinic.StaffScheduling.Service` (`ClinicSchedulingDB`) sở hữu 100% nghiệp vụ và dữ liệu của `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`, `SlotReservation`.
     - `Clinic.Identity.Service` (`ClinicIdentityDB`) sở hữu tài khoản (`IdentityUser`), mật khẩu, phân quyền (`Role`/`Permission`) và thông tin nhân thân gốc (`PersonProfile`).
     - `Clinic` (`ClinicDB`) **tuyệt đối không** lưu bản sao, không dual-write, không giữ bảng hoặc handler xử lý hộ cho `Staff & Scheduling`.
 2. **Không truy vấn/FK xuyên Database:**
@@ -23,7 +23,7 @@
 
 ### 2.1. Phần đã hoàn thành trong Working Tree
 
-1. **Tại `Clinic.Scheduling.Service`:**
+1. **Tại `Clinic.StaffScheduling.Service`:**
     - Đã mở rộng entity `Employee` thêm `DateOfBirth`, `Address` và tạo migration `20261024030812_AddEmployeeIdentityProfileFields`.
     - Đã bổ sung `StaffSchedulingEndpoints.cs` xử lý trực tiếp trên `ClinicSchedulingDB` cho toàn bộ các nhóm:
         - **Employee:** `GET /employees`, `GET /employees/me`, `GET /employees/{id}`, `POST /employees`, `PUT /employees/{id}`, `PUT /employees/me`, `POST /employees/{id}/status`.
@@ -33,7 +33,7 @@
     - Đã bổ sung `GET /schedules/walk-in-candidates` trong `SchedulingEndpoints.cs` và cập nhật `SchedulingManager.HandleUserProfileUpdatedAsync` đồng bộ cả `DateOfBirth`, `Address`.
 
 2. **Tại `Clinic.API` & `Clinic.Identity.Service`:**
-    - Đã thêm `SchedulingProxyMiddleware` chuyển tiếp các request `/employees/**`, `/doctors/**`, `/specialties/**`, `/shifts/**` sang `Clinic.Scheduling.Service` (ngoại trừ các route `/queue` và các route điều phối provisioning/profile update).
+    - Đã thêm `SchedulingProxyMiddleware` chuyển tiếp các request `/employees/**`, `/doctors/**`, `/specialties/**`, `/shifts/**` sang `Clinic.StaffScheduling.Service` (ngoại trừ các route `/queue` và các route điều phối provisioning/profile update).
     - Đã cập nhật `EmployeesController` và `DoctorsController` để điều phối các thao tác tạo mới (`POST /employees`, `POST /employees/from-user`, `POST /doctors`, `POST /doctors/from-user`) và cập nhật hồ sơ (`PUT /employees/{id}`, `PUT /employees/me`, `PUT /doctors/{id}`, `PUT /doctors/me`) giữa `Identity` và `Scheduling`.
     - Đã bổ sung `PUT /v1/internal/users/{userId}/profile` tại `Clinic.Identity.Service` để cập nhật hồ sơ nhân thân gốc trước khi đồng bộ projection sang `Scheduling`.
 
@@ -72,10 +72,10 @@
     - **`AppointmentRepository.cs` & `MedicalReportRepository.cs`:** Xóa toàn bộ `.Include(a => a.WorkSchedule).ThenInclude(...)` và thay điều kiện lọc theo `a.WorkSchedule.Date` / `a.WorkSchedule.DoctorId` bằng `a.ScheduleDate` / `a.DoctorId`.
     - **`PersonRepository.cs` & `ProvisionIdentityPatient.cs` (`EnsureIdentityRegistrationProfileHandler`):**
         - Xóa `.Include(p => p.Employee).ThenInclude(e => e.Doctor)` trong `PersonRepository.cs`.
-        - Cập nhật `EnsureIdentityRegistrationProfileHandler` chỉ tạo/lấy `Person` và `PatientId` cho hồ sơ bệnh nhân đi kèm tài khoản; việc kiểm tra tài khoản đã có hồ sơ `Employee`/`Doctor` hay chưa sẽ do `IdentityAccountClient` và `Clinic.Scheduling.Service` đảm nhiệm.
+        - Cập nhật `EnsureIdentityRegistrationProfileHandler` chỉ tạo/lấy `Person` và `PatientId` cho hồ sơ bệnh nhân đi kèm tài khoản; việc kiểm tra tài khoản đã có hồ sơ `Employee`/`Doctor` hay chưa sẽ do `IdentityAccountClient` và `Clinic.StaffScheduling.Service` đảm nhiệm.
 
-3. **Chuyển thống kê bác sĩ của `GET /admin/dashboard` sang `Clinic.Scheduling.Service`:**
-    - Bổ sung endpoint thống kê nội bộ/dashboard (hoặc mở rộng `ISchedulingServiceClient`) tại `Clinic.Scheduling.Service` trả về `TotalDoctors` và `ActiveDoctors`.
+3. **Chuyển thống kê bác sĩ của `GET /admin/dashboard` sang `Clinic.StaffScheduling.Service`:**
+    - Bổ sung endpoint thống kê nội bộ/dashboard (hoặc mở rộng `ISchedulingServiceClient`) tại `Clinic.StaffScheduling.Service` trả về `TotalDoctors` và `ActiveDoctors`.
     - Cập nhật `GetDashboardDataHandler` (`Features/Admin/Queries/GetDashboardData.cs`) gọi `ISchedulingServiceClient` thay vì `IDoctorRepository`, loại bỏ hoàn toàn phụ thuộc vào bảng `Doctors` trong `ClinicDB`.
 
 **Tiêu chí hoàn tất Bước 1:** Không còn bất kỳ file nào ngoài nhóm Staff/Scheduling legacy tham chiếu tới `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`.
@@ -133,8 +133,8 @@
 
 **Kết quả triển khai và đối soát ngày 2026-10-24:**
 
-- Đã nâng cấp [`import-from-clinicdb.sql`](../backend/Clinic.Scheduling.Service/Persistence/import-from-clinicdb.sql) thành kịch bản update-then-insert, chạy lại an toàn, giữ nguyên khóa và đồng bộ `PersonId`, `IdentityUserId`, `DateOfBirth`, `Address` cùng các trường nghiệp vụ.
-- Đã mở rộng [`verify-scheduling-import.sql`](../backend/Clinic.Scheduling.Service/Persistence/verify-scheduling-import.sql) để kiểm tra count của cả sáu bảng, source ID coverage, quan hệ nội bộ, projection Employee, liên kết `ClinicIdentityDB.Users.EmployeeId/DoctorId` và snapshot Appointment.
+- Đã nâng cấp [`import-from-clinicdb.sql`](../backend/Clinic.StaffScheduling.Service/Persistence/import-from-clinicdb.sql) thành kịch bản update-then-insert, chạy lại an toàn, giữ nguyên khóa và đồng bộ `PersonId`, `IdentityUserId`, `DateOfBirth`, `Address` cùng các trường nghiệp vụ.
+- Đã mở rộng [`verify-scheduling-import.sql`](../backend/Clinic.StaffScheduling.Service/Persistence/verify-scheduling-import.sql) để kiểm tra count của cả sáu bảng, source ID coverage, quan hệ nội bộ, projection Employee, liên kết `ClinicIdentityDB.Users.EmployeeId/DoctorId` và snapshot Appointment.
 - Đã cấu hình `scheduling-data-importer` chạy verifier ngay sau importer trong `docker-compose.yml`.
 - Kết quả chạy thực tế trên SQL Server: `Specialties 5/5`, `Doctors 15/15`, `WorkHistories 15/15`, `ShiftRequests 3/3`; toàn bộ source rows thiếu ở Scheduling là `0`, projection và liên kết Identity đều `0` mismatch, snapshot Appointment không đầy đủ là `0`.
 - Có `41 Employees` và `84 WorkSchedules` chỉ tồn tại ở Scheduling, được giữ lại vì là dữ liệu mới hơn do Scheduling sở hữu; verifier báo riêng nhóm `TargetOnlyRows`, không coi đây là dữ liệu nguồn bị mất. Lần chạy importer thứ hai không tạo thêm bản ghi, xác nhận tính idempotent.
@@ -187,8 +187,8 @@
 ### Bước 5: Cập nhật Tests, Kiểm thử E2E trên Docker/Frontend & Nghiệm thu đóng Phase 2
 
 1. **Cập nhật Unit Tests & Integration Tests:**
-    - Dọn dẹp các unit test của handlers/entities Staff & Scheduling cũ trong `Clinic.Application.UnitTests` và `Clinic.Domain.UnitTests` (đã chuyển sang `Clinic.Scheduling.Service.Tests`), cập nhật `TestDataFactory.cs`.
-    - Bổ sung các bài test còn thiếu trong `Clinic.Scheduling.Service.Tests` cho các endpoint trong `StaffSchedulingEndpoints.cs`.
+    - Dọn dẹp các unit test của handlers/entities Staff & Scheduling cũ trong `Clinic.Application.UnitTests` và `Clinic.Domain.UnitTests` (đã chuyển sang `Clinic.StaffScheduling.Service.Tests`), cập nhật `TestDataFactory.cs`.
+    - Bổ sung các bài test còn thiếu trong `Clinic.StaffScheduling.Service.Tests` cho các endpoint trong `StaffSchedulingEndpoints.cs`.
     - Chạy toàn bộ test suites trong solution đảm bảo pass 100%.
 
 2. **Kiểm thử thực tế trên Docker Compose & Frontend:**
@@ -208,7 +208,7 @@
 - Đã chuyển `Clinic.Application.UnitTests` sang fixture snapshot không phụ thuộc entity Staff/Scheduling; kết quả `84/84` pass.
 - Đã xóa các test domain Staff/Scheduling cũ và giữ lại test cho Appointment, Patient, Person, QueueTicket, MedicalReport; kết quả `40/40` pass.
 - `Clinic.Infrastructure.UnitTests` pass `18/18`; `Clinic.Contracts.UnitTests` pass `3/3`.
-- Scheduling Service test assembly pass `35/35`; sau khi ổn định thứ tự khởi động SQL Server bằng `docker compose up --wait`, các test HTTP không còn lỗi pre-login.
+- Staff & Scheduling Service test assembly pass `35/35`; sau khi ổn định thứ tự khởi động SQL Server bằng `docker compose up --wait`, các test HTTP không còn lỗi pre-login.
 - Full solution pass `271/271`, gồm Domain `40/40`, Application `84/84`, Contracts `3/3`, Infrastructure `18/18`, Scheduling `35/35`, Queue `44/44`, Identity `4/4`, Appointment `32/32` và Integration `11/11`.
 - `docker compose up -d --build --wait` thành công; frontend, SQL Server, backend, Scheduling, Identity, Appointment và Queue healthy. Smoke host trả HTTP `200` cho frontend, backend `/readyz`, `/doctors`, `/specialties` và Scheduling `/doctors`.
 

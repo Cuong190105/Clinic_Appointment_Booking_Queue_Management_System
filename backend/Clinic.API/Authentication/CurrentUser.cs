@@ -1,87 +1,98 @@
-﻿using Clinic.Application.Interfaces;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
-namespace Clinic.API.Authentication
+namespace Clinic.API.Authentication;
+
+public interface ICurrentUser
 {
-    public class CurrentUser : ICurrentUser
+    bool IsAuthenticated { get; }
+    Guid? UserId { get; }
+    Guid? PatientId { get; }
+    Guid? EmployeeId { get; }
+    Guid? DoctorId { get; }
+    Guid? PersonId { get; }
+    bool HasPermission(string permission);
+    bool HasRole(string role);
+}
+
+public class CurrentUser : ICurrentUser
+{
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    public CurrentUser(IHttpContextAccessor httpContextAccessor)
     {
-        private readonly IHttpContextAccessor _httpContextAccessor;
+        _httpContextAccessor = httpContextAccessor;
+    }
 
-        public CurrentUser(IHttpContextAccessor httpContextAccessor)
+    public bool IsAuthenticated =>
+        _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
+
+    public Guid? UserId
+    {
+        get
         {
-            _httpContextAccessor = httpContextAccessor;
+            var value = _httpContextAccessor.HttpContext?.User?
+                .FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                ?? _httpContextAccessor.HttpContext?.User?
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            return Guid.TryParse(value, out var id) ? id : null;
         }
+    }
 
-        public bool IsAuthenticated =>
-            _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
-
-        public Guid? UserId
+    public Guid? PatientId
+    {
+        get
         {
-            get
-            {
-                var value = _httpContextAccessor.HttpContext?.User?
-                    .FindFirst(JwtRegisteredClaimNames.Sub)?.Value
-                    ?? _httpContextAccessor.HttpContext?.User?
-                    .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var value = _httpContextAccessor.HttpContext?.User?
+                .FindFirst("patientId")?.Value;
 
-                return Guid.TryParse(value, out var id) ? id : null;
-            }
+            return Guid.TryParse(value, out var id) ? id : null;
         }
-        public Guid? PatientId
+    }
+
+    public Guid? EmployeeId
+    {
+        get
         {
-            get
-            {
-                var value = _httpContextAccessor.HttpContext?.User?
-                    .FindFirst("patientId")?.Value;
+            var value = _httpContextAccessor.HttpContext?.User?
+                .FindFirst("employeeId")?.Value;
 
-                return Guid.TryParse(value, out var id) ? id : null;
-            }
+            return Guid.TryParse(value, out var id) ? id : null;
         }
+    }
 
-        public Guid? EmployeeId
+    public Guid? DoctorId
+    {
+        get
         {
-            get
-            {
-                var value = _httpContextAccessor.HttpContext?.User?
-                    .FindFirst("employeeId")?.Value;
+            var value = _httpContextAccessor.HttpContext?.User?
+                .FindFirst("doctorId")?.Value;
 
-                return Guid.TryParse(value, out var id) ? id : null;
-            }
+            return Guid.TryParse(value, out var id) ? id : null;
         }
+    }
 
-        public Guid? DoctorId
+    public Guid? PersonId
+    {
+        get
         {
-            get
-            {
-                var value = _httpContextAccessor.HttpContext?.User?
-                    .FindFirst("doctorId")?.Value;
+            var value = _httpContextAccessor.HttpContext?.User?
+                .FindFirst("personId")?.Value;
 
-                return Guid.TryParse(value, out var id) ? id : null;
-            }
+            return Guid.TryParse(value, out var id) ? id : null;
         }
+    }
 
-        public Guid? PersonId
-        {
-            get
-            {
-                var value = _httpContextAccessor.HttpContext?.User?
-                    .FindFirst("personId")?.Value;
+    public bool HasPermission(string permission)
+    {
+        return _httpContextAccessor.HttpContext?.User?
+            .HasClaim(c => c.Type == "permission" && c.Value == permission)
+            ?? false;
+    }
 
-                return Guid.TryParse(value, out var id) ? id : null;
-            }
-        }
-
-        public bool HasPermission(string permission)
-        {
-            return _httpContextAccessor.HttpContext?.User?
-                .HasClaim(c => c.Type == "permission" && c.Value == permission)
-                ?? false;
-        }
-
-        public bool HasRole(string role)
-        {
-            return _httpContextAccessor.HttpContext?.User?.IsInRole(role) ?? false;
-        }
+    public bool HasRole(string role)
+    {
+        return _httpContextAccessor.HttpContext?.User?.IsInRole(role) ?? false;
     }
 }

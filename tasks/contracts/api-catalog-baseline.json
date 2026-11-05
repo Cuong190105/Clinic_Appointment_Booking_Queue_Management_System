@@ -55,7 +55,7 @@
         "openApiDocUrl": "/identity/openapi.json"
       },
       {
-        "name": "Clinic.Scheduling.Service",
+        "name": "Clinic.StaffScheduling.Service",
         "role": "Staff Scheduling, Doctor Shifts, Specialties, and Slot Allocation",
         "authority": "http://clinic-scheduling-service:8080",
         "authorityScope": "InternalClusterOnly",
@@ -242,7 +242,7 @@
       },
       {
         "name": "Clinic.Notification.Service",
-        "role": "Omnichannel Notifications (Email, SMS, In-App, SignalR), Retry \u0026 DLQ",
+        "role": "Email (SMTP), In-App, SignalR, Retry \u0026 DLQ; SMS is not implemented",
         "authority": "http://clinic-notification-service:8080",
         "authorityScope": "InternalClusterOnly",
         "healthEndpoint": "/readyz",

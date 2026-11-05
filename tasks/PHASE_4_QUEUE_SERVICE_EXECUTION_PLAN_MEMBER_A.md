@@ -396,15 +396,15 @@ Build vẫn cảnh báo transitive package `System.Security.Cryptography.Pkcs` 9
 Phần P1 về retry walk-in trong mục 9.3 được giải quyết bằng cách chuyển quyền tạo walk-in khỏi Clinic, thay vì thêm hàng đợi retry cho luồng đồng bộ cũ:
 
 - `POST /receptionist/appointments/walk-in` ở Clinic API chỉ proxy sang Appointment Service. Clinic không còn tạo Appointment trước rồi gọi `sync-walkin`.
-- Appointment Service lấy Patient từ `PatientProjection`, hỏi Scheduling Service các ca đang hoạt động trong ngày theo múi giờ phòng khám, lọc ca chưa kết thúc, rồi chọn ca ít Appointment nhất (hoặc giới hạn theo bác sĩ lễ tân chọn). Nếu không có hồ sơ Patient hoặc ca phù hợp, API trả lỗi và không tạo bản ghi.
+- Appointment Service lấy Patient từ `PatientProjection`, hỏi Staff & Scheduling Service các ca đang hoạt động trong ngày theo múi giờ phòng khám, lọc ca chưa kết thúc, rồi chọn ca ít Appointment nhất (hoặc giới hạn theo bác sĩ lễ tân chọn). Nếu không có hồ sơ Patient hoặc ca phù hợp, API trả lỗi và không tạo bản ghi.
 - Appointment và event `AppointmentCheckedIn` được lưu trong Appointment DB/outbox cùng transaction. Event mang snapshot tên bệnh nhân, tên bác sĩ và cờ urgent; Queue Service vẫn là nơi duy nhất cấp ticket.
 - `Idempotency-Key` được giữ ổn định khi giao diện gửi lại cùng payload sau lỗi mạng. Giao diện chờ Queue Service tạo vé, rồi chỉ cho in khi lấy được ticket thật; nút chờ chỉ truy vấn ticket, không còn kích hoạt đồng bộ Appointment.
-- `GET /receptionist/working-doctors` được proxy sang Appointment Service; Appointment Service lấy ca từ Scheduling Service. Patient/Person vẫn thuộc Clinic; luồng đồng bộ PatientProjection hiện có được giữ.
+- `GET /receptionist/working-doctors` được proxy sang Appointment Service; Appointment Service lấy ca từ Staff & Scheduling Service. Patient/Person vẫn thuộc Clinic; luồng đồng bộ PatientProjection hiện có được giữ.
 - Đã gỡ handler `CreateWalkInAppointment` và query `GetWorkingDoctorsForToday` khỏi Clinic Application; đã gỡ endpoint cùng DTO `sync-walkin` khỏi Appointment Service.
 
-Kiểm tra trong lượt chuyển đổi: `dotnet build` thành công cho Clinic API, Appointment Service, Scheduling Service và project Appointment Service.Tests (chỉ build, không chạy test); `npm run build` thành công, gồm Vue type-check và Vite production build. Còn các warning dependency `System.Security.Cryptography.Pkcs` 9.0.4 (NU1902/NU1903) và warning sẵn có trong Clinic API/Vite. Chưa chạy luồng chấp nhận trực tiếp trên Docker sau thay đổi này.
+Kiểm tra trong lượt chuyển đổi: `dotnet build` thành công cho Clinic API, Appointment Service, Staff & Scheduling Service và project Appointment Service.Tests (chỉ build, không chạy test); `npm run build` thành công, gồm Vue type-check và Vite production build. Còn các warning dependency `System.Security.Cryptography.Pkcs` 9.0.4 (NU1902/NU1903) và warning sẵn có trong Clinic API/Vite. Chưa chạy luồng chấp nhận trực tiếp trên Docker sau thay đổi này.
 
-Ghi chú: đây là kết quả build của source hiện tại. Cần build/recreate các container Clinic API, Appointment Service và Scheduling Service trước khi thử walk-in trên Docker; nếu patient mới vừa tạo nhưng projection chưa đồng bộ thành công, Appointment Service chủ động từ chối tạo lượt để tránh ticket thiếu tên bệnh nhân.
+Ghi chú: đây là kết quả build của source hiện tại. Cần build/recreate các container Clinic API, Appointment Service và Staff & Scheduling Service trước khi thử walk-in trên Docker; nếu patient mới vừa tạo nhưng projection chưa đồng bộ thành công, Appointment Service chủ động từ chối tạo lượt để tránh ticket thiếu tên bệnh nhân.
 
 ### 9.5. Điều chỉnh thiết kế thao tác hàng đợi sau nghiệm thu
 

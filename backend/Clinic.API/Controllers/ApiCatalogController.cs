@@ -88,7 +88,7 @@ public sealed class ApiCatalogController : ControllerBase
                 },
                 new()
                 {
-                    Name = "Clinic.Scheduling.Service",
+                    Name = "Clinic.StaffScheduling.Service",
                     Role = "Staff Scheduling, Doctor Shifts, Specialties, and Slot Allocation",
                     Authority = ResolveAuthority("Scheduling"),
                     AuthorityScope = "InternalClusterOnly",

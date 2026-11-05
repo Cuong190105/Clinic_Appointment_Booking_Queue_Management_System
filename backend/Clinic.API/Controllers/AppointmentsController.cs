@@ -1,6 +1,6 @@
+using System.Net;
 using Clinic.API.Models;
 using Clinic.API.Services;
-using Clinic.Application.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -72,17 +72,12 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CheckIn(
             [FromRoute] Guid appointmentId,
-            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+            [FromHeader(Name = "Idempotency-Key")] [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Idempotency-Key header is required.")] string idempotencyKey,
             [FromQuery] bool isUrgent = false)
         {
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
-                return BadRequest(new ProblemDetails
-                {
-                    Title = "Missing Idempotency-Key",
-                    Detail = "Idempotency-Key header is required.",
-                    Status = StatusCodes.Status400BadRequest
-                });
+                return BadRequest(ApiResponse.Fail(HttpStatusCode.BadRequest, "Idempotency-Key header is required."));
             }
 
             return await _appointmentClient.ProxyAsync(

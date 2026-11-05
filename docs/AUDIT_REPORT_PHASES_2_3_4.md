@@ -11,7 +11,7 @@
 ### 1. Phạm vi & Tiêu chí Thiết kế theo Yêu cầu
 Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md) và [`PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md`](../tasks/PHASE_2_STAFF_SCHEDULING_EXECUTION_PLAN_MEMBER_A.md):
 1. **Single Source of Truth (SSOT) & Database Boundary:**
-   - `Clinic.Scheduling.Service` (`ClinicSchedulingDB`) sở hữu 100% dữ liệu và nghiệp vụ của: `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`, `SlotReservation`, `OutboxMessage`.
+   - `Clinic.StaffScheduling.Service` (`ClinicSchedulingDB`) sở hữu 100% dữ liệu và nghiệp vụ của: `Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`, `SlotReservation`, `OutboxMessage`.
    - `ClinicDB` (Monolith) phải drop hoàn toàn 6 bảng trên; không còn Foreign Key hoặc navigation property từ `ClinicDB` sang Scheduling.
    - Các bảng `Appointments`, `MedicalReports`, `Notifications` chỉ lưu ID và các cột snapshot/denormalized (`WorkScheduleId`, `DoctorId`, `DoctorName`, `SpecialtyName`, `ScheduleDate`).
 2. **Nghiệp vụ Scheduling & Dual-Constraint Capacity Rule:**
@@ -29,7 +29,7 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md) và [`PHASE_2_S
 
 #### 2.1. Phía Cơ sở Dữ liệu & Clean Architecture
 - **`ClinicSchedulingDB`**:
-  - Đã có đầy đủ các entity và DbContext độc lập tại `Clinic.Scheduling.Service`.
+  - Đã có đầy đủ các entity và DbContext độc lập tại `Clinic.StaffScheduling.Service`.
   - Toàn bộ dữ liệu nguồn từ `ClinicDB` đã được import và đối soát bằng các script idempotent (`import-from-clinicdb.sql`, `verify-scheduling-import.sql`) với `MismatchCount = 0`.
 - **`ClinicDB` (Monolith)**:
   - Migration `20261024055019_RemoveLegacyStaffAndSchedulingSchema` đã drop toàn bộ 6 bảng legacy: `ShiftRequests`, `WorkSchedules`, `WorkHistories`, `Doctors`, `Employees`, `Specialties`.
@@ -38,15 +38,15 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md) và [`PHASE_2_S
 
 #### 2.2. Phía API Endpoints & Gateway Orchestration
 - Toàn bộ route `/employees/**`, `/doctors/**`, `/specialties/**`, `/shifts/**` được điều phối qua `SchedulingProxyMiddleware` và các Controller điều phối (`EmployeesController`, `DoctorsController`, `SlotsController`, `ReservationsController`).
-- Quá trình tạo mới và cập nhật hồ sơ (`POST /employees`, `POST /doctors`, `PUT /employees/{id}`, `PUT /doctors/{id}`) thực hiện orchestration chuẩn xác giữa `Clinic.Identity.Service` (sở hữu account, credentials, roles, person gốc) và `Clinic.Scheduling.Service` (sở hữu hồ sơ nghề nghiệp và lịch trực).
-- Endpoint `GET /admin/doctors/brief` đã chuyển sang gọi trực tiếp `Clinic.Scheduling.Service` (`GET /doctors/brief`), trả về `doctorId`, `employeeId`, `fullName`, `email` (từ Employee), loại bỏ hoàn toàn phụ thuộc vào Identity Service.
+- Quá trình tạo mới và cập nhật hồ sơ (`POST /employees`, `POST /doctors`, `PUT /employees/{id}`, `PUT /doctors/{id}`) thực hiện orchestration chuẩn xác giữa `Clinic.Identity.Service` (sở hữu account, credentials, roles, person gốc) và `Clinic.StaffScheduling.Service` (sở hữu hồ sơ nghề nghiệp và lịch trực).
+- Endpoint `GET /admin/doctors/brief` đã chuyển sang gọi trực tiếp `Clinic.StaffScheduling.Service` (`GET /doctors/brief`), trả về `doctorId`, `employeeId`, `fullName`, `email` (từ Employee), loại bỏ hoàn toàn phụ thuộc vào Identity Service.
 - Endpoint `GET /doctors/shifts` thực hiện query từ `db.Doctors` kết hợp left-join ca làm việc, đảm bảo bác sĩ chưa có ca trong tuần vẫn hiển thị trên bảng phân ca của Admin.
 
 #### 2.3. Rà soát 8 điểm xem xét (Audit Issues) đã giải quyết
 1. **Lỗi Crash & RecommendedCapacity trong DoctorScheduleView:** Đã bổ sung fallback an toàn `startTime`/`shiftStart` và chuẩn hóa hiển thị `RecommendedCapacity`.
 2. **Lỗi HTTP 400 khi Admin cập nhật Doctor Profile & thiếu DTO fields:** Đã bổ sung `SpecialtyId`, `DateOfBirth`, `Address`, `HireDate` vào `DoctorDto` & `UpdateDoctorRequest`, cấu hình `FlexibleGenderConverter`.
 3. **Lỗi HTTP 400 khi Toggle trạng thái Doctor / Specialty:** Đã hỗ trợ linh hoạt nhận `JsonElement` (number, boolean, string enum).
-4. **Endpoint `GET /admin/doctors/brief` phụ thuộc Identity Service:** Đã chuyển sang `Clinic.Scheduling.Service`, thay thế trường `username` bằng `email` từ `Employee` đồng bộ xuyên suốt từ backend tới frontend.
+4. **Endpoint `GET /admin/doctors/brief` phụ thuộc Identity Service:** Đã chuyển sang `Clinic.StaffScheduling.Service`, thay thế trường `username` bằng `email` từ `Employee` đồng bộ xuyên suốt từ backend tới frontend.
 5. **Lỗi cú pháp Null Coalescing `s.RecommendedCapacity` ở frontend:** Đã sửa thành `s.recommendedCapacity ?? s.RecommendedCapacity ?? 20`.
 6. **Lỗi mất trường `userId` trong response `GET /employees`:** Đã loại bỏ lệnh `employee.Remove("userId")` trong middleware để giữ nguyên `userId` cho `users.api.ts`.
 7. **Phân trang `GET /specialties`:** Đã hỗ trợ cả `page` lẫn `pageNumber` và giá trị mặc định an toàn.
@@ -56,7 +56,7 @@ Theo tài liệu [`TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md) và [`PHASE_2_S
 
 ### 3. Đánh giá Tiêu chuẩn Kiểm thử & Build của Giai đoạn 2
 - **Unit & Integration Tests**:
-  - `Clinic.Scheduling.Service.Tests`: **37/37 passed** (gồm test Availability, Concurrency, Capacity rule, Slot expiration, Outbox Publisher).
+  - `Clinic.StaffScheduling.Service.Tests`: **37/37 passed** (gồm test Availability, Concurrency, Capacity rule, Slot expiration, Outbox Publisher).
   - Toàn bộ solution: **273/273 tests passed (0 failed)**.
 - **Frontend Type Check & Build**:
   - `npm run type-check` (`vue-tsc --build`): **0 errors**.
@@ -261,7 +261,7 @@ Commit `3338c0c` còn bổ sung `GET /receptionist/queue-doctors` để lễ tâ
 
 #### 2.1. Phase 2 (Staff & Scheduling Service)
 - **Thực trạng**: 
-  - Toàn bộ 6 thực thể (`Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`) đã được chuyển dời hoàn toàn sang `Clinic.Scheduling.Service` và cơ sở dữ liệu `ClinicSchedulingDB`.
+  - Toàn bộ 6 thực thể (`Employee`, `Doctor`, `Specialty`, `WorkHistory`, `WorkSchedule`, `ShiftRequest`) đã được chuyển dời hoàn toàn sang `Clinic.StaffScheduling.Service` và cơ sở dữ liệu `ClinicSchedulingDB`.
   - Migration `20261024055019_RemoveLegacyStaffAndSchedulingSchema` đã drop triệt để 6 bảng trên khỏi `ClinicDB`.
   - Không còn tồn tại bất kỳ handler, repository, hay quan hệ foreign key/navigation nào trong monolith.
 - **Đánh giá**: **Hoàn tất 100%, không còn tàn dư.**
@@ -329,7 +329,7 @@ Commit `3338c0c` còn bổ sung `GET /receptionist/queue-doctors` để lễ tâ
 
 | Giai đoạn | Service phụ trách | Cơ sở Dữ liệu riêng | Trạng thái dọn dẹp trên Monolith (`ClinicDB`) | Saga / Concurrency / Idempotency | Cơ chế Outbox & Event-Driven | Kiểm thử tự động (Unit/Integration) | Trạng thái Nghiệm thu |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Phase 2** | `Clinic.Scheduling.Service` | `ClinicSchedulingDB` | ✅ **Sạch 100%** (Đã drop 6 bảng) | ✅ Đạt (Dual-Constraint capacity, 10m lease) | ✅ Đạt (`SchedulingOutboxPublisher`, 122/122 sent) | 37/37 tests pass | **HOÀN TẤT & ĐẠT 100%** |
+| **Phase 2** | `Clinic.StaffScheduling.Service` | `ClinicSchedulingDB` | ✅ **Sạch 100%** (Đã drop 6 bảng) | ✅ Đạt (Dual-Constraint capacity, 10m lease) | ✅ Đạt (`SchedulingOutboxPublisher`, 122/122 sent) | 37/37 tests pass | **HOÀN TẤT & ĐẠT 100%** |
 | **Phase 3** | `Clinic.Appointment.Service` | `ClinicAppointmentDB` | ✅ Appointment schema/runtime đã gỡ khỏi ClinicDB; MedicalReports vẫn là module Clinic và dùng snapshot/API | ✅ Booking/Reschedule Saga, compensation | ✅ Appointment outbox/consumer | 33/33 Appointment tests ở mốc sau cutover | **HOÀN TẤT**; MedicalReports Service riêng là giai đoạn sau |
 | **Phase 4** | `Clinic.Queue.Service` | `ClinicQueueDB` | ✅ Queue tables/runtime đã gỡ khỏi ClinicDB; migration lịch sử được giữ | ✅ Atomic counter, Inbox/idempotency, cancellation event | ✅ Queue Outbox/Appointment consumer | 50/50 Queue tests trước commit workflow vai trò | **Queue core đã tách**; workflow quyền/UX đã merge, chờ xác minh; P1 alert/replay vẫn mở |
 

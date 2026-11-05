@@ -26,7 +26,7 @@
   |---|---|---|---|---|
   | `clinic_backend` | API Gateway (Rebuilt Post-Change Image) | `5000:8080` | Healthy | ~165 MiB |
   | `clinic_identity_service` | Identity Service (Prometheus Instrumented) | `5001:8080` | Healthy | ~97 MiB |
-  | `clinic_scheduling_service` | Scheduling Service (Prometheus Instrumented) | `5002:8080` | Healthy | ~106 MiB |
+  | `clinic_scheduling_service` | Staff & Scheduling Service (Prometheus Instrumented) | `5002:8080` | Healthy | ~106 MiB |
   | `clinic_appointment_service` | Appointment Service (Prometheus Instrumented) | `5003:8080` | Healthy | ~116 MiB |
   | `clinic_queue_service` | Queue Service (Prometheus Instrumented) | `5004:8080` | Healthy | ~115 MiB |
   | `clinic_medical_records_service` | Medical Records Service (Prometheus Instrumented) | `5005:8080` | Healthy | ~108 MiB |
@@ -212,7 +212,7 @@ powershell -File scripts/validate-api-contracts.ps1
 | **API Gateway** | `http_server_request_duration_seconds_*` | **verified** (Prometheus `backend:8080`) | Member A | **ĐẠT:** Baseline 800 mẫu (6m 15s) đạt 100% 2xx, P95 ≤ 392.21ms, 0 429, 0 5xx. |
 | **Queue Service** | `clinic_queue_consumer_lag_seconds_bucket`<br>`clinic_queue_length`<br>RabbitMQ DLQs | **verified** (Prometheus `queue-service:8080` & RabbitMQ API) | Member A | **ĐẠT:** 60 samples event lag tính toán P95 = 4.75s (≤ 5.0s), queue depth = 5, 10/10 DLQ = 0. |
 | **Identity Service** | `http_server_request_duration_seconds_*` | **verified** (Prometheus `identity-service:8080`) | Tích hợp bởi Member A | **ĐẠT:** Đã bổ sung exporter, `/metrics` UP, baseline auth p95 ≤ 198.03ms. |
-| **Scheduling Service** | `http_server_request_duration_seconds_*` | **verified** (Prometheus `scheduling-service:8080`) | Tích hợp bởi Member A | **ĐẠT:** Đã bổ sung exporter, `/metrics` UP, baseline catalog p95 ≤ 308.58ms. |
+| **Staff & Scheduling Service** | `http_server_request_duration_seconds_*` | **verified** (Prometheus `scheduling-service:8080`) | Tích hợp bởi Member A | **ĐẠT:** Đã bổ sung exporter, `/metrics` UP, baseline catalog p95 ≤ 308.58ms. |
 | **Appointment Service** | `http_server_request_duration_seconds_*` | **verified** (Prometheus `appointment-service:8080`) | Tích hợp bởi Member A | **ĐẠT:** Đã bổ sung exporter, `/metrics` UP, 0 overbooking invariant. |
 | **Medical Records Service** | `http_server_request_duration_seconds_*` | **verified** (Prometheus `medical-records-service:8080`) | Tích hợp bởi Member A | **ĐẠT:** Đã bổ sung exporter, `/metrics` UP, PHI sanitization verified. |
 | **Notification Service** | `http_server_request_duration_seconds_*` | **verified** (Prometheus `notification-service:8080`) | Tích hợp bởi Member A | **ĐẠT:** Đã bổ sung exporter, `/metrics` UP, DLQ = 0. |
