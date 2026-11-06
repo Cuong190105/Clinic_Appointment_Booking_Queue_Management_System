@@ -357,3 +357,4 @@ public sealed class QoSPolicySummary
     public string CorrelationHeader { get; set; } = string.Empty;
     public string IdempotencyHeader { get; set; } = string.Empty;
 }
+
