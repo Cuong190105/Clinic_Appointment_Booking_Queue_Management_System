@@ -80,3 +80,4 @@ export function getAuthHeaders(token, idempotencyKey = null, correlationId = nul
   }
   return headers;
 }
+
