@@ -1,4 +1,4 @@
-﻿namespace Clinic.Domain.Common.Exceptions
+namespace Clinic.Domain.Common.Exceptions
 {
     public class ConflictException : Exception
     {

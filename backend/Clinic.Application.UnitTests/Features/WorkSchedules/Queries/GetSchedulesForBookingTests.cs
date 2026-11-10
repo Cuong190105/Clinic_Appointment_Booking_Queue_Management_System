@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Features.WorkSchedules.Queries;
+using Clinic.Application.Features.WorkSchedules.Queries;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Entities;
 
@@ -15,9 +15,9 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Queries
             var doctorRepository = new FakeDoctorRepository();
             var handler = new GetDoctorSchedulesForBookingQueryHandler(workScheduleRepository, doctorRepository);
             var doctor = TestDataFactory.CreateDoctor();
-            var now = new DateTime(2026, 9, 5, 7, 0, 0, DateTimeKind.Unspecified);
-            var schedule1 = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(1)), TimeOnly.FromDateTime(now), TimeOnly.FromDateTime(now.AddHours(2)), 5);
-            var schedule2 = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(1).AddHours(6)), TimeOnly.FromDateTime(now.AddDays(1).AddHours(2)), TimeOnly.FromDateTime(now.AddDays(1).AddHours(4)), 5);
+            var now = DateTime.UtcNow.AddDays(2);
+            var schedule1 = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(1)), new TimeOnly(8, 0), new TimeOnly(10, 0), 5);
+            var schedule2 = new WorkSchedule(doctor, DateOnly.FromDateTime(now.AddDays(1)), new TimeOnly(14, 0), new TimeOnly(16, 0), 5);
             await doctorRepository.AddAsync(doctor);
             doctor.AddWorkSchedule(schedule1);
             doctor.AddWorkSchedule(schedule2);
@@ -42,7 +42,7 @@ namespace Clinic.Application.UnitTests.Features.WorkSchedules.Queries
             var workScheduleRepository = new FakeWorkScheduleRepository();
             var doctorRepository = new FakeDoctorRepository();
             var handler = new GetDoctorSchedulesForBookingQueryHandler(workScheduleRepository, doctorRepository);
-            var now = new DateTime(2026, 9, 5, 7, 0, 0, DateTimeKind.Unspecified);
+            var now = DateTime.UtcNow.AddDays(2);
             // Act
             var query = new GetDoctorSchedulesForBookingQuery(Guid.NewGuid(), DateOnly.FromDateTime(now.AddDays(1)));
             await Assert.ThrowsAsync<ArgumentException>(() => handler.Handle(query, CancellationToken.None));

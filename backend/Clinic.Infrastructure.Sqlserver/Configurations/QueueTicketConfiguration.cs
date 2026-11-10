@@ -12,9 +12,9 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasKey(q => q.Id);
 
-            // AppointmentId bắt buộc + UNIQUE (Cách B):
-            // 1 Appointment sinh tối đa 1 QueueTicket, mọi QueueTicket đều
-            // phải xuất phát từ 1 Appointment (kể cả walk-in, xem Appointment.IsWalkIn).
+            // AppointmentId báº¯t buá»™c + UNIQUE (CÃ¡ch B):
+            // 1 Appointment sinh tá»‘i Ä‘a 1 QueueTicket, má»i QueueTicket Ä‘á»u
+            // pháº£i xuáº¥t phÃ¡t tá»« 1 Appointment (ká»ƒ cáº£ walk-in, xem Appointment.IsWalkIn).
             builder.HasOne(q => q.Appointment)
                 .WithOne(a => a.QueueTicket)
                 .HasForeignKey<QueueTicket>(q => q.AppointmentId)
@@ -23,6 +23,9 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
             builder.HasIndex(q => q.AppointmentId).IsUnique();
 
             builder.Property(q => q.QueueNumber).IsRequired();
+
+            builder.Property(q => q.PatientName).HasMaxLength(200);
+            builder.Property(q => q.DoctorName).HasMaxLength(200);
 
             builder.Property(q => q.CheckInTime).IsRequired();
 

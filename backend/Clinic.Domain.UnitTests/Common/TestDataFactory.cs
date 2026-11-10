@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Entities;
+using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 using System.Diagnostics.CodeAnalysis;
 
@@ -26,15 +26,15 @@ namespace Clinic.Domain.UnitTests.Common
         }
 
         /// <summary>
-        /// Tạo 1 Appointment hợp lệ (kèm WorkSchedule) để dùng cho test Confirm/CheckIn/Cancel.
-        /// Status mặc định là Pending; truyền confirmed = true / checkedIn = true để có sẵn
-        /// Appointment ở trạng thái tương ứng.
+        /// T?o 1 Appointment h?p l? (kèm WorkSchedule) d? dùng cho test Confirm/CheckIn/Cancel.
+        /// Status m?c d?nh là Pending; truy?n confirmed = true / checkedIn = true d? có s?n
+        /// Appointment ? tr?ng thái tuong ?ng.
         /// </summary>
         public static Appointment CreateAppointment(Guid? patientId = null, Guid? doctorId = null, bool confirmed = false, bool checkedIn = false, double? day = 0, TimeOnly? startTime = null, TimeOnly? endTime = null)
         {
-            // WorkSchedule giờ bắt buộc gắn với 1 Doctor object (không chỉ DoctorId), nên
-            // dựng 1 Doctor "giả" qua constructor reconstruct để giữ đúng Id đã truyền vào,
-            // tránh phải dựng cả Employee/Specialty chỉ để phục vụ test Appointment.
+            // WorkSchedule gi? b?t bu?c g?n v?i 1 Doctor object (không ch? DoctorId), nên
+            // d?ng 1 Doctor "gi?" qua constructor reconstruct d? gi? dúng Id dã truy?n vào,
+            // tránh ph?i d?ng c? Employee/Specialty ch? d? ph?c v? test Appointment.
             var doctor = new Doctor(
                 id: doctorId ?? Guid.NewGuid(),
                 employeeId: Guid.NewGuid(),
@@ -78,7 +78,7 @@ namespace Clinic.Domain.UnitTests.Common
         }
 
         /// <summary>
-        /// Tạo 1 QueueTicket hợp lệ, liên kết 2 chiều với appointment (giống CheckInHandler thật).
+        /// T?o 1 QueueTicket h?p l?, liên k?t 2 chi?u v?i appointment (gi?ng CheckInHandler th?t).
         /// </summary>
         public static QueueTicket CreateQueueTicket(Appointment appointment, int queueNumber = 1, bool priority = false)
         {

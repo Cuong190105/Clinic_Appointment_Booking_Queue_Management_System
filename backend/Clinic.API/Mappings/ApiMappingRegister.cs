@@ -8,7 +8,7 @@ using System;
 
 namespace Clinic.API.Mappings
 {
-    // Ánh xạ giữa model của tầng API (Request/Response) và Command/Query/DTO của tầng Application.
+    // Ãnh xáº¡ giá»¯a model cá»§a táº§ng API (Request/Response) vÃ  Command/Query/DTO cá»§a táº§ng Application.
     public class ApiMappingRegister : IRegister
     {
         public void Register(TypeAdapterConfig config)

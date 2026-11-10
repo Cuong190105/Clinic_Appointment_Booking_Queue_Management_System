@@ -1,11 +1,11 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using MediatR;
 
 namespace Clinic.Application.Features.Queue.Queries
 {
-    /// <summary>Date = null -> mặc định lấy hàng đợi của ngày hôm nay (UTC).</summary>
+    /// <summary>Date = null -> m?c d?nh l?y hàng d?i c?a ngày hôm nay (UTC).</summary>
     public record GetQueueByDoctorQuery(Guid DoctorId, DateTime? Date = null) : IRequest<List<QueueTicketDto>>;
 
     public class GetQueueByDoctorHandler : IRequestHandler<GetQueueByDoctorQuery, List<QueueTicketDto>>
@@ -23,9 +23,9 @@ namespace Clinic.Application.Features.Queue.Queries
 
         public async Task<List<QueueTicketDto>> Handle(GetQueueByDoctorQuery query, CancellationToken cancellationToken)
         {
-            // "queue.view" (Admin/Receptionist): được xem hàng đợi của bất kỳ bác sĩ nào.
-            // Nếu không có "queue.view", user chỉ được xem hàng đợi của chính mình
-            // (dựa vào "doctor.queue.view", dành cho Doctor).
+            // "queue.view" (Admin/Receptionist): du?c xem hàng d?i c?a b?t k? bác si nào.
+            // N?u không có "queue.view", user ch? du?c xem hàng d?i c?a chính mình
+            // (d?a vào "doctor.queue.view", dành cho Doctor).
             var hasAnyScope = _currentUser.HasPermission("queue.view");
             if (!hasAnyScope && query.DoctorId != _currentUser.DoctorId)
             {
@@ -45,7 +45,8 @@ namespace Clinic.Application.Features.Queue.Queries
                 Status = q.Status.ToString(),
                 CheckInTime = q.CheckInTime,
                 CalledAt = q.CalledAt,
-                PatientName = q.Appointment.Patient?.Person?.FullName
+                PatientName = q.PatientName ?? q.Appointment?.Patient?.Person?.FullName,
+                DoctorName = q.DoctorName ?? q.Appointment?.WorkSchedule?.Doctor?.Employee?.Person?.FullName
             }).ToList();
         }
     }

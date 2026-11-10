@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Models;
+using Clinic.Application.Common.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -14,30 +14,30 @@ namespace Clinic.Application.Notifications.Templates
                 <!DOCTYPE html>
                 <html>
                 <body style="font-family: Arial, sans-serif;">
-                    <h2 style="color: #333;">Xác nhận lịch khám</h2>
+                    <h2 style="color: #333;">Xác nh?n l?ch khám</h2>
 
                     <p>Xin chào {info.FullName},</p>
 
-                    <p>Chúng tôi vừa nhận được yêu cầu đặt lại mật khẩu của bạn.</p>
+                    <p>Chúng tôi v?a nh?n du?c yêu c?u d?t l?i m?t kh?u c?a b?n.</p>
 
                     <p>
-                        Mật khẩu mới của bạn là: <strong>{info.Password}</strong>
+                        M?t kh?u m?i c?a b?n là: <strong>{info.Password}</strong>
                     </p>
 
-                    <p>Vui lòng đến đúng giờ để đảm bảo lịch trình khám bệnh của bạn.</p>
+                    <p>Vui lòng d?n dúng gi? d? d?m b?o l?ch trình khám b?nh c?a b?n.</p>
 
-                    <p>Nếu quý khách muốn thay đổi hoặc hủy lịch hẹn, vui lòng thực hiện trước 24 giờ so với thời gian đã hẹn.</p>
+                    <p>N?u quý khách mu?n thay d?i ho?c h?y l?ch h?n, vui lòng th?c hi?n tru?c 24 gi? so v?i th?i gian dã h?n.</p>
 
-                    <p>Trân trọng,<br>Phòng khám của chúng tôi</p>
+                    <p>Trân tr?ng,<br>Phòng khám c?a chúng tôi</p>
                 </body>
                 </html>
                 """;
-            return new EmailContent("Đặt lại mật khẩu", body);
+            return new EmailContent("Ð?t l?i m?t kh?u", body);
         }
 
         public SmsContent RenderSms(Account info)
         {
-            var message = $"Mật khẩu mới của bạn là: {info.Password}";
+            var message = $"M?t kh?u m?i c?a b?n là: {info.Password}";
             return new SmsContent(message);
         }
     }

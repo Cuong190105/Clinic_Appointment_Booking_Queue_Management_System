@@ -1,4 +1,4 @@
-﻿namespace Clinic.Application.Contracts
+namespace Clinic.Application.Contracts
 {
     public class BookingDoctorDto
     {

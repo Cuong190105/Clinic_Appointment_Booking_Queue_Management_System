@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Enums;
+using Clinic.Domain.Enums;
 
 namespace Clinic.Application.Contracts
 {

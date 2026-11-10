@@ -21,7 +21,10 @@ namespace Clinic.Infrastructure.Sqlserver
             // Console.WriteLine($"Connection String: {JsonSerializer.Serialize(connectionString)}");
             Console.WriteLine($"Connection String: {connectionString}");
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(connectionString));
+            {
+                options.UseSqlServer(connectionString);
+                options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+            });
 
             //services.AddScoped<IFarmRepository, FarmRepository>();
             services.AddScoped<IUserRepository, UserRepository>();

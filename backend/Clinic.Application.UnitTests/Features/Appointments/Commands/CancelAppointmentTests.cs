@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Appointments.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Enums;
@@ -32,9 +32,9 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         // Cannot cancel an appointment within 24 hours before the appointment time. So these tests are commented out because they are not applicable in the current context.
 
         /// <summary>
-        /// Bug gốc: hủy 1 Appointment đã CheckedIn (vé đang Waiting) khiến Appointment=Cancelled
-        /// nhưng QueueTicket vẫn Waiting -> lễ tân vẫn gọi phải bệnh nhân "ảo". Sau fix, handler
-        /// phải cascade-hủy QueueTicket cùng lúc.
+        /// Bug g?c: h?y 1 Appointment dã CheckedIn (vé dang Waiting) khi?n Appointment=Cancelled
+        /// nhung QueueTicket v?n Waiting -> l? tân v?n g?i ph?i b?nh nhân "?o". Sau fix, handler
+        /// ph?i cascade-h?y QueueTicket cùng lúc.
         /// </summary>
         //[Fact]
         //public async Task Handle_CheckedInAppointmentWithWaitingTicket_ShouldCancelAppointmentAndQueueTicket()
@@ -56,7 +56,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         //    // Act
         //    await handler.Handle(new CancelAppointmentCommand(appointment.Id), CancellationToken.None);
 
-        //    // Assert: không còn "bệnh nhân ảo" nào ở trạng thái Waiting/Called/InProgress nữa.
+        //    // Assert: không còn "b?nh nhân ?o" nào ? tr?ng thái Waiting/Called/InProgress n?a.
         //    Assert.Equal(AppointmentStatus.Cancelled, appointment.Status);
         //    Assert.Equal(QueueStatus.Cancelled, queueTicket.Status);
         //}
@@ -87,7 +87,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
         //    Assert.Equal(QueueStatus.Cancelled, queueTicket.Status);
         //}
 
-        /// <summary>Bác sĩ đang khám dở (InProgress) -> phải chặn hủy, không được cascade.</summary>
+        /// <summary>Bác si dang khám d? (InProgress) -> ph?i ch?n h?y, không du?c cascade.</summary>
         //[Fact]
         //public async Task Handle_CheckedInAppointmentWithInProgressTicket_ShouldThrowArgumentException()
         //{
@@ -141,7 +141,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             var handler = new CancelAppointmentCommandHandler(appointmentRepository, currentUser, unitOfWork);
 
             var appointment = TestDataFactory.CreateAppointment();
-            currentUser.PatientId = Guid.NewGuid(); // khác với appointment.PatientId
+            currentUser.PatientId = Guid.NewGuid(); // khác v?i appointment.PatientId
             currentUser.UserId = Guid.NewGuid();
             await appointmentRepository.AddAsync(appointment);
 

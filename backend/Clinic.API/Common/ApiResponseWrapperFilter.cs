@@ -9,9 +9,9 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace Clinic.API.Common
 {
     /// <summary>
-    /// Tự động bọc MỌI kết quả trả về của controller vào envelope ApiResponse.
-    /// Nhờ đó controller chỉ cần trả về dữ liệu thô (Ok(data), Created(...), v.v.),
-    /// không phải tự dựng ApiResponse ở từng action.
+    /// Tá»± Ä‘á»™ng bá»c Má»ŒI káº¿t quáº£ tráº£ vá» cá»§a controller vÃ o envelope ApiResponse.
+    /// Nhá» Ä‘Ã³ controller chá»‰ cáº§n tráº£ vá» dá»¯ liá»‡u thÃ´ (Ok(data), Created(...), v.v.),
+    /// khÃ´ng pháº£i tá»± dá»±ng ApiResponse á»Ÿ tá»«ng action.
     /// </summary>
     public class ApiResponseWrapperFilter : IAsyncResultFilter
     {
@@ -19,16 +19,16 @@ namespace Clinic.API.Common
         {
             switch (context.Result)
             {
-                // Đã là ApiResponse thì giữ nguyên (ví dụ output của GlobalExceptionHandler).
+                // ÄÃ£ lÃ  ApiResponse thÃ¬ giá»¯ nguyÃªn (vÃ­ dá»¥ output cá»§a GlobalExceptionHandler).
                 case ObjectResult { Value: ApiResponse }:
                     break;
 
-                // Có body: bọc lại Value, giữ nguyên loại result (để không mất header Location của Created...).
+                // CÃ³ body: bá»c láº¡i Value, giá»¯ nguyÃªn loáº¡i result (Ä‘á»ƒ khÃ´ng máº¥t header Location cá»§a Created...).
                 case ObjectResult objectResult:
                     objectResult.Value = Build(objectResult.Value, objectResult.StatusCode ?? StatusCodes.Status200OK);
                     break;
 
-                // Không có body (NoContent, StatusCode(...), NotFound() không kèm dữ liệu).
+                // KhÃ´ng cÃ³ body (NoContent, StatusCode(...), NotFound() khÃ´ng kÃ¨m dá»¯ liá»‡u).
                 case StatusCodeResult statusCodeResult:
                     context.Result = new ObjectResult(Build(null, statusCodeResult.StatusCode))
                     {
@@ -61,7 +61,7 @@ namespace Clinic.API.Common
         {
             return value switch
             {
-                // Lỗi validation tự động của [ApiController] (ModelState).
+                // Lá»—i validation tá»± Ä‘á»™ng cá»§a [ApiController] (ModelState).
                 ValidationProblemDetails vpd => vpd.Errors.SelectMany(kvp => kvp.Value).ToArray(),
                 ProblemDetails pd => new[] { pd.Detail ?? pd.Title ?? DefaultMessage(statusCode) },
                 string s => new[] { s },

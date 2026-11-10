@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Vai trò: Admin, Doctor, Receptionist, Patient.
+    /// Vai trÃ²: Admin, Doctor, Receptionist, Patient.
     /// </summary>
     public class Role : BaseEntity
     {

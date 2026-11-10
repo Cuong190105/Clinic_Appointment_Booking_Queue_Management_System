@@ -1,12 +1,12 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 
 namespace Clinic.Application.UnitTests.Common
 {
     public class FakeUnitOfWork : IUnitOfWork
     {
-        // Test double chạy trong bộ nhớ, không có DB thật nên không có transaction thật -
-        // chỉ cần ghi nhận trạng thái để test có thể assert Begin/Commit/Rollback được gọi
-        // đúng cặp nếu cần.
+        // Test double ch?y trong b? nh?, không có DB th?t nên không có transaction th?t -
+        // ch? c?n ghi nh?n tr?ng thái d? test có th? assert Begin/Commit/Rollback du?c g?i
+        // dúng c?p n?u c?n.
         public bool TransactionOpen { get; private set; }
         public bool WasCommitted { get; private set; }
         public bool WasRolledBack { get; private set; }

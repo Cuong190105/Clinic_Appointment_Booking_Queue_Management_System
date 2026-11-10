@@ -1,10 +1,11 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using MediatR;
 using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.Features.Appointments.Queries
 {
@@ -12,15 +13,21 @@ namespace Clinic.Application.Features.Appointments.Queries
         Guid AppointmentId,
         Guid UserId
     ) : IRequest<AppointmentDetailDto>;
+
     public class GetAppointmentByIdQueryHandler : IRequestHandler<GetAppointmentByIdQuery, AppointmentDetailDto>
     {
         private readonly IAppointmentRepository _appointmentRepository;
         private readonly IUserRepository _userRepository;
+        private readonly ICurrentUser? _currentUser;
 
-        public GetAppointmentByIdQueryHandler(IAppointmentRepository appointmentRepository, IUserRepository userRepository)
+        public GetAppointmentByIdQueryHandler(
+            IAppointmentRepository appointmentRepository,
+            IUserRepository userRepository,
+            ICurrentUser? currentUser = null)
         {
             _appointmentRepository = appointmentRepository;
             _userRepository = userRepository;
+            _currentUser = currentUser;
         }
 
         public async Task<AppointmentDetailDto> Handle(GetAppointmentByIdQuery request, CancellationToken cancellationToken)
@@ -31,19 +38,24 @@ namespace Clinic.Application.Features.Appointments.Queries
                 throw new NotFoundException("Appointment not found.");
             }
 
-            // Only the receptionist, the patient who owns the appointment, or the doctor assigned to the appointment can access it
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
-            {
-                throw new UnauthorizedAccessException("Unauthorized.");
-            }
+            var isStaff = _currentUser != null && (_currentUser.IsInRole("Receptionist") || _currentUser.IsInRole("Admin"));
+            var isPatientOwner = _currentUser?.PatientId.HasValue == true && appointment.PatientId == _currentUser.PatientId.Value;
+            var isAssignedDoctor = _currentUser?.DoctorId.HasValue == true && appointment.WorkSchedule.DoctorId == _currentUser.DoctorId.Value;
 
-            if (!user.UserRoles.Any(ur => ur.Role.Name == "Receptionist" || ur.Role.Name == "Admin") && // Not a receptionist or admin
-                (!user.UserRoles.Any(ur => ur.Role.Name == "Patient") || user.Person.Patient.Id != appointment.PatientId) && // Not a patient, or not the patient who owns the appointment
-                (!user.UserRoles.Any(ur => ur.Role.Name == "Doctor") || user.Person.Employee.Doctor.Id != appointment.WorkSchedule.DoctorId) // Not a doctor, or not the doctor assigned to the appointment
-            )
+            if (!isStaff && !isPatientOwner && !isAssignedDoctor)
             {
-                throw new ForbiddenException("Forbidden.");
+                var user = await _userRepository.GetByIdAsync(request.UserId);
+                if (user == null)
+                {
+                    throw new UnauthorizedAccessException("Unauthorized.");
+                }
+
+                if (!user.UserRoles.Any(ur => ur.Role.Name == "Receptionist" || ur.Role.Name == "Admin") &&
+                    (!user.UserRoles.Any(ur => ur.Role.Name == "Patient") || user.Person.Patient?.Id != appointment.PatientId) &&
+                    (!user.UserRoles.Any(ur => ur.Role.Name == "Doctor") || user.Person.Employee?.Doctor?.Id != appointment.WorkSchedule.DoctorId))
+                {
+                    throw new ForbiddenException("Forbidden.");
+                }
             }
 
             return new AppointmentDetailDto

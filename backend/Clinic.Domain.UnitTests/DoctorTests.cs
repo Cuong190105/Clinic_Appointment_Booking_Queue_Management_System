@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Common.Exceptions;
+using Clinic.Domain.Common.Exceptions;
 using Clinic.Domain.Entities;
 using System;
 using System.Collections.Generic;

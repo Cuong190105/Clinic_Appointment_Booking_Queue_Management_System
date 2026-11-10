@@ -16,13 +16,13 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 .IsRequired()
                 .HasMaxLength(200);
 
-            // Cho phép bệnh nhân không có số điện thoại (vãng lai hoặc trẻ nhỏ, không đăng ký tài khoản).
+            // Cho phÃ©p bá»‡nh nhÃ¢n khÃ´ng cÃ³ sá»‘ Ä‘iá»‡n thoáº¡i (vÃ£ng lai hoáº·c tráº» nhá», khÃ´ng Ä‘Äƒng kÃ½ tÃ i khoáº£n).
             builder.Property(p => p.PhoneNumber)
                 //.IsRequired()
                 .HasMaxLength(20);
 
-            // UNIQUE: tránh tạo trùng hồ sơ Person khi khách vãng lai
-            // sau này tự đăng ký tài khoản (xem PersonId nullable ở User/Patient).
+            // UNIQUE: trÃ¡nh táº¡o trÃ¹ng há»“ sÆ¡ Person khi khÃ¡ch vÃ£ng lai
+            // sau nÃ y tá»± Ä‘Äƒng kÃ½ tÃ i khoáº£n (xem PersonId nullable á»Ÿ User/Patient).
             builder.HasIndex(p => p.PhoneNumber).IsUnique().HasFilter("[PhoneNumber] IS NOT NULL");
 
             builder.Property(p => p.Email).HasMaxLength(200);

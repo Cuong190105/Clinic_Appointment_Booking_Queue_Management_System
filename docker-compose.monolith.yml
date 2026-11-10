@@ -1,0 +1,64 @@
+name: clinic-monolith
+
+services:
+  mono-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: clinic_mono_sql_server
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=ClinicDev!2026StrongPw
+      - MSSQL_PID=Express
+    ports:
+      - "1434:1433"
+    volumes:
+      - mssql_mono_data:/var/opt/mssql
+    networks:
+      mono-network:
+        aliases:
+          - db
+    restart: always
+
+  mono-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: clinic-monolith-backend:latest
+    container_name: clinic_mono_backend
+    ports:
+      - "5100:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db,1433;Database=ClinicDB;User Id=sa;Password=ClinicDev!2026StrongPw;TrustServerCertificate=True;
+      - Jwt__Key=SuperR4nd0mK3yForJWTTokenGenerat!onUsedForDevelopmentPurposesOnly
+      - Email__Username=projectaccnt001@gmail.com
+      - Email__Password=twmc uipu uubx uhxx
+    depends_on:
+      - mono-db
+    networks:
+      mono-network:
+        aliases:
+          - backend
+    restart: always
+
+  mono-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: clinic-monolith-frontend:latest
+    container_name: clinic_mono_frontend
+    ports:
+      - "3100:80"
+    depends_on:
+      - mono-backend
+    networks:
+      - mono-network
+    restart: always
+
+volumes:
+  mssql_mono_data:
+    name: clinic_appointment_booking_queue_management_system_mssql_mono_data
+    external: true
+
+networks:
+  mono-network:
+    name: clinic_monolith_network

@@ -1,25 +1,27 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 import { ApiError } from '@/lib/api/http'
 import { doctorsApi } from '@/features/doctors/doctors.api'
+import { medicalRecordsApi } from '@/features/medical-records/medical-records.api'
 import type { AppointmentDetail, DoctorDetail, QueueTicket } from '@/features/doctors/doctors.types'
 
 const auth = useAuthStore()
+const router = useRouter()
 const doctor = ref<DoctorDetail | null>(null)
 const queue = ref<QueueTicket[]>([])
 const selected = ref<AppointmentDetail | null>(null)
 const loading = ref(true)
 const actionLoading = ref(false)
+const reportLoading = ref(false)
 const error = ref('')
 const notice = ref('')
 let timer: ReturnType<typeof setInterval> | undefined
 
 const doctorId = computed(() => doctor.value?.id ?? '')
-const activeTicket = computed(() =>
-  queue.value.find((x) => ['Called', 'InProgress'].includes(x.status)),
-)
 const waiting = computed(() => queue.value.filter((x) => x.status === 'Waiting'))
+const inProgress = computed(() => queue.value.filter((x) => x.status === 'InProgress'))
 const completed = computed(() => queue.value.filter((x) => x.status === 'Completed').length)
 
 function messageFromError(e: unknown) {
@@ -87,31 +89,74 @@ async function callNext() {
   await runAction(() => doctorsApi.callNext(doctorId.value), 'Đã gọi bệnh nhân tiếp theo.')
 }
 
-async function startExam() {
-  if (!activeTicket.value) return
-  await runAction(() => doctorsApi.startExam(activeTicket.value!.id), 'Đã bắt đầu khám.')
+async function startExam(ticket: QueueTicket) {
+  if (ticket.status !== 'Called') return
+  await runAction(() => doctorsApi.startExam(ticket.id), `Đã bắt đầu khám cho số ${ticket.queueNumber}.`)
 }
 
-async function completeExam() {
-  if (!activeTicket.value) return
-  await runAction(() => doctorsApi.completeExam(activeTicket.value!.id), 'Đã hoàn tất lượt khám.')
-  selected.value = null
+async function createOrOpenMedicalReport(ticket: QueueTicket) {
+  if (!ticket || ticket.status !== 'InProgress') return
+
+  reportLoading.value = true
+  error.value = ''
+  try {
+    let report
+    try {
+      report = await medicalRecordsApi.getByAppointment(ticket.appointmentId)
+    } catch (e: any) {
+      if (!(e instanceof ApiError) || e.status !== 404) throw e
+      report = await medicalRecordsApi.createDraft(ticket.appointmentId)
+    }
+    await router.push(`/doctor/medical-records/${report.id}`)
+  } catch (e) {
+    error.value = messageFromError(e)
+  } finally {
+    reportLoading.value = false
+  }
+}
+
+async function completeExam(ticket: QueueTicket) {
+  if (ticket.status !== 'InProgress') return
+  await runAction(() => doctorsApi.completeExam(ticket.id), `Đã hoàn tất lượt khám số ${ticket.queueNumber}.`)
+  if (selectedTicket.value?.id === ticket.id) selected.value = null
 }
 
 async function skip(ticket: QueueTicket) {
+  if (ticket.status !== 'Called') return
   if (!confirm(`Bỏ qua số ${ticket.queueNumber}?`)) return
   await runAction(() => doctorsApi.skip(ticket.id), `Đã bỏ qua số ${ticket.queueNumber}.`)
 }
 
-async function togglePriority(ticket: QueueTicket) {
-  await runAction(
-    () => doctorsApi.setPriority(ticket.id, !ticket.priority),
-    ticket.priority ? 'Đã bỏ ưu tiên.' : 'Đã đặt bệnh nhân vào diện ưu tiên.',
-  )
+const selectedTicket = computed(() => {
+  if (!selected.value) return null
+  return queue.value.find((x) => x.appointmentId === selected.value?.id) ?? null
+})
+
+function parseUtcDate(value?: string | Date | null): Date | null {
+  if (!value) return null
+  if (value instanceof Date) return value
+  const str = String(value).trim()
+  if (!str) return null
+  const isIsoWithoutTz = str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str)
+  const d = new Date(isIsoWithoutTz ? `${str}Z` : str)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function formatLocalTime(value?: string | Date | null): string {
+  const d = parseUtcDate(value)
+  if (!d) return '—'
+  return d.toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function formatDate(value?: string) {
   if (!value) return '—'
+  if (value.includes('T')) {
+    const d = parseUtcDate(value)
+    return d ? new Intl.DateTimeFormat('vi-VN').format(d) : value
+  }
   return new Intl.DateTimeFormat('vi-VN').format(new Date(`${value}T00:00:00`))
 }
 
@@ -192,7 +237,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
         </p>
 
         <p class="mt-2 text-3xl font-bold text-violet-600">
-          {{ activeTicket ? 1 : 0 }}
+          {{ inProgress.length }}
         </p>
       </div>
 
@@ -225,7 +270,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 
           <button
             class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
-            :disabled="!!activeTicket || waiting.length === 0 || actionLoading"
+            :disabled="waiting.length === 0 || actionLoading"
             @click="callNext"
           >
             Gọi số tiếp theo
@@ -242,7 +287,6 @@ onBeforeUnmount(() => timer && clearInterval(timer))
                 <th class="px-5 py-3">Số</th>
                 <th class="px-5 py-3">Bệnh nhân</th>
                 <th class="px-5 py-3">Trạng thái</th>
-                <th class="px-5 py-3">Ưu tiên</th>
                 <th class="px-5 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
@@ -268,15 +312,12 @@ onBeforeUnmount(() => timer && clearInterval(timer))
                   </button>
 
                   <p class="mt-1 text-xs text-slate-500">
-                    {{
-                      new Date(ticket.checkInTime).toLocaleTimeString(
-                        'vi-VN',
-                        {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        },
-                      )
-                    }}
+                    <span v-if="ticket.calledAt && ['Called', 'InProgress', 'Completed'].includes(ticket.status)">
+                      Khám: {{ formatLocalTime(ticket.calledAt) }} <span class="text-slate-400">(Check-in: {{ formatLocalTime(ticket.checkInTime) }})</span>
+                    </span>
+                    <span v-else>
+                      Check-in: {{ formatLocalTime(ticket.checkInTime) }}
+                    </span>
                   </p>
                 </td>
 
@@ -290,35 +331,21 @@ onBeforeUnmount(() => timer && clearInterval(timer))
                   </span>
                 </td>
 
-                <!-- Priority -->
-                <td class="px-5 py-4">
-                  <button
-                    class="text-xs font-semibold"
-                    :class="
-                      ticket.priority
-                        ? 'text-red-600'
-                        : 'text-slate-500 hover:text-slate-700'
-                    "
-                    :disabled="
-                      actionLoading ||
-                      ticket.status !== 'Waiting'
-                    "
-                    @click="togglePriority(ticket)"
-                  >
-                    {{
-                      ticket.priority
-                        ? '★ Ưu tiên'
-                        : '☆ Đặt ưu tiên'
-                    }}
-                  </button>
-                </td>
-
                 <!-- Actions -->
                 <td class="px-5 py-4 text-right">
                   <div class="flex justify-end gap-2">
 
                     <button
-                      v-if="ticket.status === 'Waiting'"
+                      v-if="ticket.status === 'Called'"
+                      class="rounded-md bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
+                      :disabled="actionLoading"
+                      @click="startExam(ticket)"
+                    >
+                      Bắt đầu khám
+                    </button>
+
+                    <button
+                      v-if="ticket.status === 'Called'"
                       class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                       :disabled="actionLoading"
                       @click="skip(ticket)"
@@ -327,19 +354,19 @@ onBeforeUnmount(() => timer && clearInterval(timer))
                     </button>
 
                     <button
-                      v-if="ticket.status === 'Called'"
-                      class="rounded-md bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
-                      :disabled="actionLoading"
-                      @click="startExam"
+                      v-if="ticket.status === 'InProgress'"
+                      class="rounded-md border border-violet-300 px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-50"
+                      :disabled="actionLoading || reportLoading"
+                      @click="createOrOpenMedicalReport(ticket)"
                     >
-                      Bắt đầu khám
+                      {{ reportLoading ? 'Đang mở hồ sơ...' : 'Tạo hồ sơ bệnh án' }}
                     </button>
 
                     <button
                       v-if="ticket.status === 'InProgress'"
                       class="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
                       :disabled="actionLoading"
-                      @click="completeExam"
+                      @click="completeExam(ticket)"
                     >
                       Hoàn tất
                     </button>
@@ -350,7 +377,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 
               <tr v-if="!loading && queue.length === 0">
                 <td
-                  colspan="5"
+                  colspan="4"
                   class="px-5 py-12 text-center text-slate-600"
                 >
                   Hôm nay chưa có bệnh nhân trong hàng đợi.
@@ -431,6 +458,16 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 
               <dd class="mt-1 font-semibold text-slate-800">
                 {{ selected.queueNumber || '—' }}
+              </dd>
+            </div>
+
+            <div v-if="selectedTicket">
+              <dt class="font-medium text-slate-500">
+                Thời gian vào khám
+              </dt>
+
+              <dd class="mt-1 font-semibold text-slate-800">
+                {{ formatLocalTime(selectedTicket.calledAt || selectedTicket.checkInTime) }}
               </dd>
             </div>
 

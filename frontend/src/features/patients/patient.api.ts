@@ -91,7 +91,7 @@ function normalizeDoctorAvailableSlots(data: any): AvailableSlot[] {
   const slots: AvailableSlot[] = []
 
   for (const item of items) {
-    const wsId = item?.id ?? item?.Id ?? item?.workScheduleId ?? item?.WorkScheduleId ?? ''
+    const wsId = item?.scheduleId ?? item?.id ?? item?.Id ?? item?.workScheduleId ?? item?.WorkScheduleId ?? ''
     const timeSlots = item?.timeSlot ?? item?.TimeSlot ?? item?.timeSlots ?? []
 
     if (Array.isArray(timeSlots) && timeSlots.length > 0) {
@@ -107,12 +107,13 @@ function normalizeDoctorAvailableSlots(data: any): AvailableSlot[] {
         }
       }
     } else {
-      const rawTime = item?.shiftStart ?? item?.ShiftStart ?? item?.time ?? item?.startTime ?? item?.slotTime
+      const rawTime = item?.timeSlot ?? item?.time ?? item?.startTime ?? item?.slotTime ?? item?.shiftStart ?? item?.ShiftStart
       if (rawTime) {
+        const timeStr = toTimeString(rawTime)
         slots.push({
-          id: wsId,
+          id: `${wsId}-${timeStr}`,
           workScheduleId: wsId,
-          time: toTimeString(rawTime),
+          time: timeStr,
           available: true,
         })
       }
@@ -125,13 +126,14 @@ function normalizeDoctorAvailableSlots(data: any): AvailableSlot[] {
 function normalizeSlotList(data: any): AvailableSlot[] {
   const items = Array.isArray(data) ? data : data?.items ?? data?.result ?? data?.data ?? []
   return (Array.isArray(items) ? items : []).map((item: any) => {
-    const wsId = item?.workScheduleId ?? item?.WorkScheduleId ?? item?.id ?? item?.Id ?? ''
-    const rawTime = item?.shiftStart ?? item?.ShiftStart ?? item?.time ?? item?.startTime ?? item?.slotTime
+    const wsId = item?.scheduleId ?? item?.workScheduleId ?? item?.WorkScheduleId ?? item?.id ?? item?.Id ?? ''
+    const rawTime = item?.timeSlot ?? item?.time ?? item?.startTime ?? item?.slotTime ?? item?.shiftStart ?? item?.ShiftStart
+    const timeStr = toTimeString(rawTime)
     const capacity = item?.remainingCapacity ?? item?.RemainingCapacity ?? item?.available ?? 1
     return {
-      id: wsId,
+      id: `${wsId}-${timeStr}`,
       workScheduleId: wsId,
-      time: toTimeString(rawTime),
+      time: timeStr,
       available: Number(capacity) > 0,
     }
   })
@@ -141,6 +143,7 @@ async function callWithFallback<T>(
   call: () => Promise<T>,
   fallback: T,
   allowFallbackStatus: number[] = [401, 403, 404, 405],
+  allowServerFallback = true,
 ): Promise<T> {
   try {
     return await call()
@@ -156,7 +159,7 @@ async function callWithFallback<T>(
       return fallback
     }
 
-    if (status >= 500) {
+    if (status >= 500 && allowServerFallback) {
       logger.warn('[patientApi] Backend request failed (server error), using fallback data.', {
         status,
         error: details,
@@ -185,6 +188,25 @@ export const patientApi = {
   getAvailableSlots(doctorId?: string | number, date?: string): Promise<AvailableSlot[]> {
     return callWithFallback<AvailableSlot[]>(
       async () => {
+        const params: Record<string, any> = {}
+        if (doctorId && doctorId !== '0' && doctorId !== 0) {
+          params.doctorId = String(doctorId)
+        }
+        if (date) {
+          const cleanDate = date.includes('T') ? date.split('T')[0] : date
+          params.fromDate = cleanDate
+          params.toDate = cleanDate
+          params.date = cleanDate
+        }
+
+        try {
+          const res = await http.get<any>('/slots', { params })
+          const list = normalizeSlotList(res.data)
+          if (list.length > 0) return list
+        } catch {
+          // fallback to /doctors/{id}/available
+        }
+
         if (doctorId && doctorId !== '0' && doctorId !== 0) {
           try {
             const res = await http.get<any>(`/doctors/${doctorId}/available`, {
@@ -193,22 +215,11 @@ export const patientApi = {
             const list = normalizeDoctorAvailableSlots(res.data)
             if (list.length > 0) return list
           } catch {
-            // fallback to /slots if /doctors/{id}/available fails
+            // fallback
           }
         }
 
-        const params: Record<string, any> = {}
-        if (doctorId && doctorId !== '0' && doctorId !== 0) {
-          params.doctorId = String(doctorId)
-        }
-        if (date) {
-          params.fromDate = new Date(`${date}T00:00:00`).toISOString()
-          params.toDate = new Date(`${date}T23:59:59`).toISOString()
-        }
-
-        const res = await http.get<any>('/slots', { params })
-        const list = normalizeSlotList(res.data)
-        return list
+        return []
       },
       [],
     )
@@ -228,7 +239,11 @@ export const patientApi = {
           reason,
         }
 
-        const res = await http.post<any>('/appointments', body)
+        const res = await http.post<any>('/appointments', body, {
+          headers: {
+            'Idempotency-Key': crypto.randomUUID(),
+          },
+        })
         const created = res.data?.result ?? res.data
         const doctorName = created?.doctorName ?? 'BS. Chưa xác định'
         const specialty = created?.specialty ?? 'Khác'
@@ -254,6 +269,8 @@ export const patientApi = {
         status: 'Pending',
         queueNumber: `A-${Math.floor(10 + Math.random() * 90)}`,
       },
+      [],
+      false,
     )
   },
 
@@ -291,7 +308,7 @@ export const patientApi = {
           })
         } catch (error: any) {
           const status = Number(error?.response?.status ?? error?.status ?? 0)
-          if (status === 403 || status === 404) {
+          if (status === 403) {
             disableProtectedPatientEndpoints()
           }
           throw error
@@ -370,7 +387,7 @@ export const patientApi = {
           }
         } catch (error: any) {
           const status = Number(error?.response?.status ?? error?.status ?? 0)
-          if (status === 403 || status === 404) {
+          if (status === 403) {
             disableProtectedPatientEndpoints()
           }
           throw error
@@ -420,7 +437,7 @@ export const patientApi = {
           })
         } catch (error: any) {
           const status = Number(error?.response?.status ?? error?.status ?? 0)
-          if (status === 403 || status === 404) {
+          if (status === 403) {
             disableProtectedPatientEndpoints()
           }
           throw error
@@ -456,7 +473,7 @@ export const patientApi = {
             }
           } catch (e: any) {
             const status = e?.response?.status
-            if (status === 403 || status === 404) {
+            if (status === 403) {
               disableProtectedPatientEndpoints()
               return fallback
             }

@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Entities;
+using Clinic.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -10,8 +10,8 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
         {
             builder.ToTable("QueueCounters");
 
-            // Khóa chính composite (DoctorId, Date): tự đảm bảo duy nhất
-            // 1 dòng counter / bác sĩ / ngày, không cần thêm unique index riêng.
+            // Khóa chính composite (DoctorId, Date): t? d?m b?o duy nh?t
+            // 1 dòng counter / bác si / ngày, không c?n thêm unique index riêng.
             builder.HasKey(c => new { c.DoctorId, c.Date });
 
             builder.Property(c => c.Date)

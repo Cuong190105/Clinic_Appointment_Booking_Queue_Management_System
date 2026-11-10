@@ -1,8 +1,14 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
+using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 using MediatR;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.Features.MedicalReports.Queries
 {
@@ -28,18 +34,44 @@ namespace Clinic.Application.Features.MedicalReports.Queries
 
             var reports = await _medicalReportRepository.GetHistoryByPatientIdAsync(_currentUser.PatientId.Value);
 
-            // Chỉ hiển thị hồ sơ đã chốt (Finalized) - hồ sơ Draft là bác sĩ đang ghi dở, chưa chính thức.
             return reports
                 .Where(r => r.Status == MedicalReportStatus.Finalized)
-                .Select(r => new MedicalReportDto
+                .Select(r =>
                 {
-                    Id = r.Id,
-                    DoctorName = r.QueueTicket.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                    ExamDate = r.QueueTicket.Appointment.WorkSchedule.Date,
-                    Symptoms = r.Symptoms,
-                    Diagnosis = r.Diagnosis,
-                    Prescription = r.Prescription,
-                    Notes = r.Notes
+                    var appointment = r.Appointment ?? r.QueueTicket?.Appointment;
+                    var amendments = (r.Amendments ?? Enumerable.Empty<MedicalReportAmendment>())
+                        .Select(a => new MedicalReportAmendmentDto
+                        {
+                            Id = a.Id,
+                            MedicalReportId = a.MedicalReportId,
+                            Reason = a.Reason,
+                            Content = a.Content,
+                            CreatedByDoctorId = a.CreatedByDoctorId,
+                            DoctorName = a.DoctorName,
+                            CreatedAt = a.CreatedAt
+                        }).ToList();
+
+                    return new MedicalReportDto
+                    {
+                        Id = r.Id,
+                        AppointmentId = appointment?.Id ?? r.AppointmentId,
+                        QueueTicketId = r.QueueTicketId ?? appointment?.QueueTicket?.Id,
+                        PatientId = _currentUser.PatientId.Value,
+                        PatientName = appointment?.Patient?.Person?.FullName ?? string.Empty,
+                        DoctorId = appointment?.WorkSchedule?.DoctorId ?? Guid.Empty,
+                        DoctorName = appointment?.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                        SpecialtyName = string.Empty,
+                        ExamDate = appointment?.WorkSchedule?.Date ?? DateOnly.MinValue,
+                        Symptoms = r.Symptoms,
+                        Diagnosis = r.Diagnosis,
+                        Prescription = r.Prescription,
+                        Notes = r.Notes,
+                        ExamStartTime = r.ExamStartTime,
+                        ExamEndTime = r.ExamEndTime,
+                        Status = r.Status,
+                        CreatedAt = r.CreatedAt,
+                        Amendments = amendments
+                    };
                 }).ToList();
         }
     }

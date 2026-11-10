@@ -6,7 +6,7 @@ namespace Clinic.Domain.Entities
 {
     public class Patient : BaseEntity
     {
-        /// <summary>FK, UNIQUE. Cho phép Person chưa từng có User (khách vãng lai).</summary>
+        /// <summary>FK, UNIQUE. Cho phÃ©p Person chÆ°a tá»«ng cÃ³ User (khÃ¡ch vÃ£ng lai).</summary>
         public Guid PersonId { get; protected set; }
         public Person Person { get; protected set; } = null!;
 

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using Clinic.Application.Services;
 using Clinic.Domain.Entities;
 using MediatR;

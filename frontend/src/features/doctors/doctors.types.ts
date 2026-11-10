@@ -6,6 +6,7 @@ export interface Doctor {
   id: string
   fullName: string
   name?: string
+  username?: string
   phoneNumber: string
   email: string
   gender: number | Gender
@@ -152,7 +153,7 @@ export interface WorkSchedule {
   date: string
   startTime: string
   endTime: string
-  patientLimit: number
+  RecommendedCapacity: number
   status: string
 }
 
@@ -170,7 +171,7 @@ export interface RequestedShift {
   date: string
   startTime: string
   endTime: string
-  patientLimit: number
+  RecommendedCapacity: number
   reason?: string | null
   status: string
 }

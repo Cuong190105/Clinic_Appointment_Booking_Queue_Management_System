@@ -1,5 +1,6 @@
 using Clinic.Domain.Enums;
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Clinic.Application.Contracts
@@ -9,8 +10,11 @@ namespace Clinic.Application.Contracts
         [JsonPropertyName("id")]
         public Guid Id { get; set; }
 
+        [JsonPropertyName("appointmentId")]
+        public Guid AppointmentId { get; set; }
+
         [JsonPropertyName("queueTicketId")]
-        public Guid QueueTicketId { get; set; }
+        public Guid? QueueTicketId { get; set; }
 
         [JsonPropertyName("patientId")]
         public Guid PatientId { get; set; }
@@ -53,5 +57,8 @@ namespace Clinic.Application.Contracts
 
         [JsonPropertyName("createdAt")]
         public DateTime CreatedAt { get; set; }
+
+        [JsonPropertyName("amendments")]
+        public List<MedicalReportAmendmentDto> Amendments { get; set; } = new();
     }
 }

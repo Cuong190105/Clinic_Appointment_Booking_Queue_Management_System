@@ -5,11 +5,11 @@ using System;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Thông tin nghiệp vụ của nhân viên (Doctor/Receptionist/Admin).
+    /// ThÃ´ng tin nghiá»‡p vá»¥ cá»§a nhÃ¢n viÃªn (Doctor/Receptionist/Admin).
     /// </summary>
     public class Employee : BaseEntity
     {
-        private readonly TimeSpan VietnamTimeOffset = TimeSpan.FromHours(7); // Giờ Việt Nam (UTC+7)
+        private readonly TimeSpan VietnamTimeOffset = TimeSpan.FromHours(7); // Giá» Viá»‡t Nam (UTC+7)
         /// <summary>FK, UNIQUE.</summary>
         public Guid PersonId { get; protected set; }
         public Person Person { get; protected set; } = null!;
@@ -18,12 +18,14 @@ namespace Clinic.Domain.Entities
 
         public DateOnly HireDate { get; init; }
 
-        /// <summary>Tự tham chiếu, optional - quản lý cấp trên (nếu nhóm có dùng tính năng này).</summary>
+        /// <summary>Tá»± tham chiáº¿u, optional - quáº£n lÃ½ cáº¥p trÃªn (náº¿u nhÃ³m cÃ³ dÃ¹ng tÃ­nh nÄƒng nÃ y).</summary>
         public Guid? ManagerId { get; protected set; }
         public Employee? Manager { get; protected set; }
 
-        /// <summary>0..1 - chỉ có giá trị nếu nhân viên này là bác sĩ.</summary>
+        /// <summary>0..1 - chá»‰ cÃ³ giÃ¡ trá»‹ náº¿u nhÃ¢n viÃªn nÃ y lÃ  bÃ¡c sÄ©.</summary>
         public Doctor? Doctor { get; protected set; }
+
+        protected Employee() { }
 
         public Employee(Person person, DateOnly hireDate, Employee? manager = null, EmployeeStatus status = EmployeeStatus.Active)
         {

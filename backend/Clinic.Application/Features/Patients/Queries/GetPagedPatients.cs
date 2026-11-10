@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Contracts;
+using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using MediatR;
 

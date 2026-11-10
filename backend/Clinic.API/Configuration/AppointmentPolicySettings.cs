@@ -1,9 +1,9 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 
 namespace Clinic.API.Configuration
 {
     /// <summary>
-    /// Bind từ section "Appointment" trong appsettings.json. Đăng ký qua AddOptions trong Program.cs.
+    /// Bind t? section "Appointment" trong appsettings.json. Ðang ký qua AddOptions trong Program.cs.
     /// </summary>
     public class AppointmentPolicySettings : IAppointmentPolicySettings
     {

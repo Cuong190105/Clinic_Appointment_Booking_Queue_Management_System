@@ -5,8 +5,8 @@ using System.Text.Json.Serialization;
 namespace Clinic.Application.Contracts
 {
     /// <summary>
-    /// Kết quả phân trang trả về Client: danh sách bản ghi của trang hiện tại kèm metadata.
-    /// Được các Query handler dựng sẵn để tầng API chỉ việc trả về.
+    /// Káº¿t quáº£ phÃ¢n trang tráº£ vá» Client: danh sÃ¡ch báº£n ghi cá»§a trang hiá»‡n táº¡i kÃ¨m metadata.
+    /// ÄÆ°á»£c cÃ¡c Query handler dá»±ng sáºµn Ä‘á»ƒ táº§ng API chá»‰ viá»‡c tráº£ vá».
     /// </summary>
     public class PaginationResponse<T>
     {

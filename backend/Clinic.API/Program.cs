@@ -76,11 +76,11 @@ builder.Services.AddAuthorization();
 builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider, Clinic.API.Authorization.PermissionPolicyProvider>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, Clinic.API.Authorization.PermissionAuthorizationHandler>();
 
-// Register current-user accessor (đọc UserId từ ClaimsPrincipal của request hiện tại)
+// Register current-user accessor (Ä‘á»c UserId tá»« ClaimsPrincipal cá»§a request hiá»‡n táº¡i)
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Clinic.Application.Interfaces.ICurrentUser, Clinic.API.Authentication.CurrentUser>();
 
-// Cấu hình business rule của Appointment (vd: số giờ tối thiểu Patient phải đổi lịch trước hạn), đọc từ section "Appointment".
+// Cáº¥u hÃ¬nh business rule cá»§a Appointment (vd: sá»‘ giá» tá»‘i thiá»ƒu Patient pháº£i Ä‘á»•i lá»‹ch trÆ°á»›c háº¡n), Ä‘á»c tá»« section "Appointment".
 builder.Services.Configure<Clinic.API.Configuration.AppointmentPolicySettings>(
     builder.Configuration.GetSection(Clinic.API.Configuration.AppointmentPolicySettings.SectionName));
 builder.Services.AddScoped<Clinic.Application.Interfaces.IAppointmentPolicySettings>(sp =>
@@ -106,7 +106,7 @@ builder.Services.AddSwaggerGen(options =>
                 new List<string>()
         });
 
-    // Đọc file XML comment sinh ra từ bước 1, để Swagger UI hiện summary/description
+    // Äá»c file XML comment sinh ra tá»« bÆ°á»›c 1, Ä‘á»ƒ Swagger UI hiá»‡n summary/description
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
@@ -125,11 +125,24 @@ using (var scope = app.Services.CreateScope())
     var initializer = scope.ServiceProvider
         .GetRequiredService<DatabaseInitializer>();
 
-    await initializer.MigrateAsync();
-    await initializer.CreateInitialAdminAsync();
+    var maxRetries = 10;
+    for (var retry = 1; retry <= maxRetries; retry++)
+    {
+        try
+        {
+            await initializer.MigrateAsync();
+            await initializer.CreateInitialAdminAsync();
+            break;
+        }
+        catch (Exception ex) when (retry < maxRetries)
+        {
+            Console.WriteLine($"[DatabaseInitializer] Waiting for database to be ready (attempt {retry}/{maxRetries}): {ex.Message}");
+            await Task.Delay(3000);
+        }
+    }
 }
 
-// Bắt mọi exception chưa xử lý và trả về envelope ApiResponse (qua GlobalExceptionHandler).
+// Báº¯t má»i exception chÆ°a xá»­ lÃ½ vÃ  tráº£ vá» envelope ApiResponse (qua GlobalExceptionHandler).
 app.UseExceptionHandler();
 
 app.UseMiddleware<RequestLoggingMiddleware>();

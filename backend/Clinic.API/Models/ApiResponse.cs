@@ -5,8 +5,8 @@ using System.Text.Json.Serialization;
 namespace Clinic.API.Models
 {
     /// <summary>
-    /// Envelope chuẩn cho MỌI response của API.
-    /// Client luôn nhận được cùng một hình dạng: trạng thái, cờ thành công, danh sách lỗi và dữ liệu.
+    /// Envelope chuáº©n cho Má»ŒI response cá»§a API.
+    /// Client luÃ´n nháº­n Ä‘Æ°á»£c cÃ¹ng má»™t hÃ¬nh dáº¡ng: tráº¡ng thÃ¡i, cá» thÃ nh cÃ´ng, danh sÃ¡ch lá»—i vÃ  dá»¯ liá»‡u.
     /// </summary>
     public class ApiResponse
     {
@@ -22,7 +22,7 @@ namespace Clinic.API.Models
         [JsonPropertyName("result")]
         public object? Result { get; set; }
 
-        // ---- Factory helpers cho gọn ở controller ----
+        // ---- Factory helpers cho gá»n á»Ÿ controller ----
 
         public static ApiResponse Success(object? result, HttpStatusCode statusCode = HttpStatusCode.OK) => new()
         {

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Services;
+using Clinic.Application.Services;
 using Clinic.Application.UnitTests.Common;
 
 namespace Clinic.Application.UnitTests.Services

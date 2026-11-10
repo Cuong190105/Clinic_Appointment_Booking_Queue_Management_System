@@ -13,7 +13,7 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
     public class FinalizeMedicalReportTests
     {
         [Fact]
-        public async Task Handle_ValidReport_ShouldFinalizeReportAndCompleteTicketAndAppointment()
+        public async Task Handle_ValidReport_ShouldFinalizeReport()
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
@@ -28,9 +28,10 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             ticket.Call();
             ticket.StartExam();
 
-            var report = new MedicalReport(ticket.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
+            var report = new MedicalReport(appointment.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
             {
-                QueueTicket = ticket
+                QueueTicket = ticket,
+                Appointment = appointment
             };
             await medicalReportRepository.AddAsync(report);
 
@@ -43,12 +44,10 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             Assert.NotNull(result);
             Assert.Equal(MedicalReportStatus.Finalized, result.Status);
             Assert.NotNull(result.ExamEndTime);
-            Assert.Equal(QueueStatus.Completed, ticket.Status);
-            Assert.Equal(AppointmentStatus.Completed, appointment.Status);
         }
 
         [Fact]
-        public async Task Handle_TicketNotInProgress_ShouldThrowInvalidOperationException()
+        public async Task Handle_AlreadyFinalizedReport_ShouldBeIdempotent()
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
@@ -59,21 +58,21 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             var appointment = TestDataFactory.CreateAppointment(workSchedule: workSchedule, checkedIn: true);
             var currentUser = new FakeCurrentUser { DoctorId = doctor.Id, UserId = Guid.NewGuid() };
 
-            // Ticket is still in Waiting status
-            var ticket = TestDataFactory.CreateQueueTicket(appointment);
-
-            var report = new MedicalReport(ticket.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
+            var report = new MedicalReport(appointment.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
             {
-                QueueTicket = ticket
+                Appointment = appointment
             };
+            report.FinalizeReport();
             await medicalReportRepository.AddAsync(report);
 
             var handler = new FinalizeMedicalReportHandler(medicalReportRepository, currentUser, unitOfWork);
 
-            // Act & Assert
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                handler.Handle(new FinalizeMedicalReportCommand(report.Id), CancellationToken.None));
-            Assert.Contains("Examination must be in progress", ex.Message);
+            // Act
+            var result = await handler.Handle(new FinalizeMedicalReportCommand(report.Id), CancellationToken.None);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(MedicalReportStatus.Finalized, result.Status);
         }
 
         [Fact]
@@ -93,9 +92,10 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             ticket.Call();
             ticket.StartExam();
 
-            var report = new MedicalReport(ticket.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
+            var report = new MedicalReport(appointment.Id, "Chest pain", "Angina", "Nitroglycerin", "Rest")
             {
-                QueueTicket = ticket
+                QueueTicket = ticket,
+                Appointment = appointment
             };
             await medicalReportRepository.AddAsync(report);
 

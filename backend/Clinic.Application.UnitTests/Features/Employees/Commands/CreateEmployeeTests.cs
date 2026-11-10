@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Features.Employees.Commands;
+using Clinic.Application.Features.Employees.Commands;
 using Clinic.Application.Services;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Entities;

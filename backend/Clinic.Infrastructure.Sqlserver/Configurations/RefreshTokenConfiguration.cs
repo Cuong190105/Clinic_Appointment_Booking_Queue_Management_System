@@ -15,13 +15,13 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
             builder.HasOne(rt => rt.User)
                 .WithMany(u => u.RefreshTokens)
                 .HasForeignKey(rt => rt.UserId)
-                .OnDelete(DeleteBehavior.Cascade); // Xóa User -> xóa luôn token của họ, không có bảng nào phụ thuộc RefreshToken.
+                .OnDelete(DeleteBehavior.Cascade); // XÃ³a User -> xÃ³a luÃ´n token cá»§a há», khÃ´ng cÃ³ báº£ng nÃ o phá»¥ thuá»™c RefreshToken.
 
             builder.Property(rt => rt.TokenHash)
                 .IsRequired()
                 .HasMaxLength(500);
 
-            // Tra cứu nhanh khi refresh token gửi lên để xác thực.
+            // Tra cá»©u nhanh khi refresh token gá»­i lÃªn Ä‘á»ƒ xÃ¡c thá»±c.
             builder.HasIndex(rt => rt.TokenHash).IsUnique();
         }
     }

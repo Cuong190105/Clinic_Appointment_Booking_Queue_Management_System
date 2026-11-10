@@ -1,11 +1,14 @@
-﻿using Clinic.Application.Contracts;
+using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Common;
 using Clinic.Domain.Entities;
+using Clinic.Domain.Enums;
 using MediatR;
 using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.Features.WorkSchedules.Queries
 {
@@ -14,6 +17,7 @@ namespace Clinic.Application.Features.WorkSchedules.Queries
         Guid DoctorId,
         DateOnly Date
     ) : IRequest<List<WorkSchedulesBookingDto>>;
+
     public class GetDoctorSchedulesForBookingQueryHandler : IRequestHandler<GetDoctorSchedulesForBookingQuery, List<WorkSchedulesBookingDto>>
     {
         private readonly IWorkScheduleRepository _workScheduleRepository;
@@ -35,30 +39,54 @@ namespace Clinic.Application.Features.WorkSchedules.Queries
             {
                 throw new ArgumentException("Doctor not found.");
             }
+
             var workSchedules = await _workScheduleRepository.GetDoctorSchedulesWithAppointmentByDateAsync(request.DoctorId, request.Date);
             var appointmentSlots = new List<WorkSchedulesBookingDto>();
+
             foreach (var workSchedule in workSchedules)
             {
+                if (workSchedule.Status == WorkScheduleStatus.Cancelled)
+                {
+                    continue;
+                }
+
+                // Khi ca Ä‘Ã£ Ä‘áº¡t ngÆ°á»¡ng RecommendedCapacity cho online booking, khÃ´ng hiá»ƒn thá»‹ slot online cá»§a ca Ä‘Ã³ ná»¯a
+                var activeOnlineCount = workSchedule.Appointments.Count(a => !a.IsWalkIn && a.Status != AppointmentStatus.Cancelled && !a.IsDeleted);
+                if (activeOnlineCount >= workSchedule.RecommendedCapacity || workSchedule.Status == WorkScheduleStatus.Full)
+                {
+                    continue;
+                }
+
                 var workScheduleDto = new WorkSchedulesBookingDto
                 {
                     Id = workSchedule.Id,
                     StartTime = workSchedule.ShiftStart,
                     EndTime = workSchedule.ShiftEnd,
                 };
+
                 var slotTime = workSchedule.ShiftStart;
                 var slotTimeUtc = new TimeConverter().ConvertToUtc(new DateTime(workSchedule.Date, slotTime));
+
                 while (slotTime < workSchedule.ShiftEnd)
                 {
-                    // Check if the slot is available for booking (not in the past and not already booked)
-                    if (slotTimeUtc >= DateTime.UtcNow.AddHours(2) && !workSchedule.Appointments.Any(a => a.TimeSlot == slotTime))
+                    // Check if the slot is available for booking: at least 30 minutes in the future and not occupied by an active online booking
+                    var isBooked = workSchedule.Appointments.Any(a => !a.IsWalkIn && a.TimeSlot == slotTime && a.Status != AppointmentStatus.Cancelled && !a.IsDeleted);
+
+                    if (slotTimeUtc >= DateTime.UtcNow.AddMinutes(30) && !isBooked)
                     {
                         workScheduleDto.TimeSlot.Add(slotTime);
                     }
+
                     slotTime = slotTime.AddMinutes(WorkSchedule.SlotIntervalMinutes);
                     slotTimeUtc = slotTimeUtc.AddMinutes(WorkSchedule.SlotIntervalMinutes);
                 }
-                appointmentSlots.Add(workScheduleDto);
+
+                if (workScheduleDto.TimeSlot.Count > 0)
+                {
+                    appointmentSlots.Add(workScheduleDto);
+                }
             }
+
             return appointmentSlots;
         }
     }

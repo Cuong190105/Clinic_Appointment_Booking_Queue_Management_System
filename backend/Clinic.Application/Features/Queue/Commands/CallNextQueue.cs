@@ -1,8 +1,11 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Common.Exceptions;
 using MediatR;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.Features.Queue.Commands
 {
@@ -25,18 +28,7 @@ namespace Clinic.Application.Features.Queue.Commands
 
         public async Task<QueueTicketDto> Handle(CallNextQueueCommand command, CancellationToken cancellationToken)
         {
-            // Ràng buộc nghiệp vụ: mỗi bác sĩ chỉ được có tối đa 1 vé Called/InProgress
-            // tại 1 thời điểm. Bấm "gọi số tiếp theo" liên tục khi bệnh nhân trước chưa
-            // StartExam/Complete phải bị chặn ngay ở đây, không cho tạo thêm vé Called thứ 2.
-            var activeTicket = await _queueTicketRepository.GetActiveTicketAsync(command.DoctorId, DateTime.UtcNow);
-            if (activeTicket != null)
-            {
-                throw new ConflictException(
-                    $"Bác sĩ đang có bệnh nhân số {activeTicket.QueueNumber} ở trạng thái " +
-                    $"'{activeTicket.Status}'. Cần hoàn tất (Complete) hoặc bỏ qua (Skip) vé này " +
-                    "trước khi gọi số tiếp theo.");
-            }
-
+            // Bác sĩ được gọi lần lượt nhiều số mà không cần hoàn tất lượt trước mới gọi số tiếp theo.
             for (var attempt = 0; attempt < MaxRetries; attempt++)
             {
                 var queueTicket = await _queueTicketRepository.GetNextWaitingAsync(command.DoctorId, DateTime.UtcNow)
@@ -64,12 +56,11 @@ namespace Clinic.Application.Features.Queue.Commands
                     Status = queueTicket.Status.ToString(),
                     CheckInTime = queueTicket.CheckInTime,
                     CalledAt = queueTicket.CalledAt,
-                    PatientName = queueTicket.Appointment.Patient?.Person?.FullName
+                    PatientName = queueTicket.PatientName ?? queueTicket.Appointment?.Patient?.Person?.FullName
                 };
             }
 
-            throw new ConflictException(
-                "Không thể gọi số do xung đột dữ liệu liên tục, vui lòng thử lại.");
+            throw new ConflictException("Không thể gọi số do xung đột dữ liệu liên tục, vui lòng thử lại.");
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Queue.Commands;
 using Clinic.Application.UnitTests.Common;
 
@@ -60,7 +60,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
         [Fact]
         public async Task Handle_AlreadyCalledTicket_ShouldThrowArgumentException()
         {
-            // Arrange: ưu tiên chỉ còn ý nghĩa khi vé còn đang chờ, không áp dụng sau khi đã gọi.
+            // Arrange: uu tiên ch? còn ý nghia khi vé còn dang ch?, không áp d?ng sau khi dã g?i.
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
             var handler = new SetQueuePriorityHandler(queueTicketRepository, unitOfWork);

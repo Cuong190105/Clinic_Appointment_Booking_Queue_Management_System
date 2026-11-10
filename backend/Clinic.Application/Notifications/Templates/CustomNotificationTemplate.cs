@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -19,15 +19,15 @@ namespace Clinic.Application.Notifications.Templates
                 <!DOCTYPE html>
                 <html>
                 <body style="font-family: Arial, sans-serif;">
-                    <h2 style="color: #333;">Xác nhận lịch khám</h2>
+                    <h2 style="color: #333;">Xác nh?n l?ch khám</h2>
 
                     <p>Xin chào {data.FullName},</p>
 
-                    <p>Phòng khám của chúng tôi xin thông báo:</p>
+                    <p>Phòng khám c?a chúng tôi xin thông báo:</p>
 
                     <p>{data.Message}</p>
 
-                    <p>Trân trọng,<br>Phòng khám của chúng tôi</p>
+                    <p>Trân tr?ng,<br>Phòng khám c?a chúng tôi</p>
                 </body>
                 </html>
                 """;

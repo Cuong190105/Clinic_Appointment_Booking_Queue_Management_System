@@ -40,7 +40,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             Assert.Equal(patient.Id, created.PatientId);
             Assert.Equal(workSchedule.Id, created.WorkScheduleId);
             Assert.Equal(timeSlot, created.TimeSlot);
-            Assert.Equal(AppointmentStatus.Pending, created.Status);
+            Assert.Equal(AppointmentStatus.Confirmed, created.Status);
         }
 
         [Fact]
@@ -159,7 +159,7 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
 
             // Fill capacity
             var app1 = new Appointment(patient1, workSchedule, workSchedule.ShiftStart, "Reason", patient1.Person.User.Id, false);
-            var app2 = new Appointment(patient2, workSchedule, workSchedule.ShiftStart, "Reason", Guid.NewGuid(), true);
+            var app2 = new Appointment(patient2, workSchedule, workSchedule.ShiftStart.AddMinutes(15), "Reason", Guid.NewGuid(), false);
             workSchedule.AddAppointment(app1);
             workSchedule.AddAppointment(app2);
 

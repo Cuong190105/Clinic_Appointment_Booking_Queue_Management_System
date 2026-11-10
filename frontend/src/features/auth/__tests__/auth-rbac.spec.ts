@@ -16,6 +16,7 @@ vi.mock('vue-router', async () => {
 })
 
 import { useAuthStore } from '@/stores/auth'
+import { usePatientStore } from '@/stores/patient'
 import { authApi } from '@/features/auth/auth.api'
 import { http } from '@/lib/api/http'
 import { tokenStorage } from '@/lib/api/token-storage'
@@ -24,6 +25,7 @@ import type { UserRole } from '@/features/auth/auth.types'
 
 describe('auth complete flow', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     setActivePinia(createPinia())
     localStorage.clear()
     sessionStorage.clear()
@@ -58,6 +60,28 @@ describe('auth complete flow', () => {
     expect(result.roles).toEqual(['Admin'])
     expect(result.user.role).toBe('Admin')
     expect(result.user.roles).toEqual(['Admin'])
+  })
+
+  it('maps the Identity /auth/me profile contract', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue({
+      data: {
+        result: {
+          userId: 'identity-user-id',
+          username: 'patient1',
+          fullName: 'Patient One',
+          email: 'patient@example.test',
+          roles: ['Patient'],
+        },
+      },
+    } as any)
+
+    await expect(authApi.getMe()).resolves.toMatchObject({
+      id: 'identity-user-id',
+      name: 'Patient One',
+      email: 'patient@example.test',
+      role: 'Patient',
+      roles: ['Patient'],
+    })
   })
 
   it('login success stores user and tokens', async () => {
@@ -115,6 +139,7 @@ describe('auth complete flow', () => {
   })
 
   it('register success stores auth state and tokens', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue({ data: [] } as any)
     vi.spyOn(authApi, 'register').mockResolvedValue({
       accessToken: 'register-access-token',
       refreshToken: 'register-refresh-token',
@@ -328,6 +353,9 @@ describe('auth complete flow', () => {
 
   it('logout clears local storage and resets auth state', () => {
     const auth = useAuthStore()
+    const patient = usePatientStore()
+    patient.profile = { id: 1, fullName: 'Patient Old' } as any
+
     auth.setUser({
       id: 5,
       name: 'Bác sĩ Hoàng',
@@ -345,5 +373,35 @@ describe('auth complete flow', () => {
     expect(tokenStorage.getAccess()).toBeNull()
     expect(tokenStorage.getRefresh()).toBeNull()
     expect(localStorage.getItem('auth.user')).toBeNull()
+    expect(patient.profile).toBeNull()
+  })
+
+  it('switching user automatically resets patient store state', () => {
+    const auth = useAuthStore()
+    const patient = usePatientStore()
+
+    auth.setUser({
+      id: 1,
+      name: 'User 1',
+      email: 'u1@example.com',
+      role: 'Patient',
+      roles: ['Patient'],
+      activeRole: 'Patient',
+    })
+    patient.profile = { id: 1, fullName: 'Patient 1' } as any
+
+    // Switching to user 2
+    auth.setUser({
+      id: 2,
+      name: 'User 2',
+      email: 'u2@example.com',
+      role: 'Doctor',
+      roles: ['Doctor', 'Receptionist', 'Patient'],
+      activeRole: 'Doctor',
+    })
+
+    expect(patient.profile).toBeNull()
+    expect(auth.user?.name).toBe('User 2')
+    expect(auth.user?.activeRole).toBe('Doctor')
   })
 })

@@ -30,8 +30,8 @@ namespace Clinic.Application.Interfaces
         Task<Patient?> GetPatientByUserIdAsync(Guid userId);
 
         /// <summary>
-        /// Lấy Patient theo PersonId. Dùng để kiểm tra 1 Person đã có hồ sơ Patient hay chưa
-        /// trước khi tạo mới (tránh vi phạm UNIQUE index PersonId).
+        /// Láº¥y Patient theo PersonId. DÃ¹ng Ä‘á»ƒ kiá»ƒm tra 1 Person Ä‘Ã£ cÃ³ há»“ sÆ¡ Patient hay chÆ°a
+        /// trÆ°á»›c khi táº¡o má»›i (trÃ¡nh vi pháº¡m UNIQUE index PersonId).
         /// </summary>
         Task<Patient?> GetByPersonIdAsync(Guid personId);
         Task<Dictionary<string, IValueWithChange>> GetDashboardData();

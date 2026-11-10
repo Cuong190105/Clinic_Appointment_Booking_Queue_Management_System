@@ -31,8 +31,8 @@ namespace Clinic.API.Controllers
             _currentUser = currentUser;
         }
 
-        // Public: bệnh nhân (kể cả chưa đăng nhập) cần xem được danh sách bác sĩ/chuyên khoa
-        // để chọn bác sĩ trước khi đặt lịch - cùng cách SpecialtiesController đang làm.
+        // Public: bá»‡nh nhÃ¢n (ká»ƒ cáº£ chÆ°a Ä‘Äƒng nháº­p) cáº§n xem Ä‘Æ°á»£c danh sÃ¡ch bÃ¡c sÄ©/chuyÃªn khoa
+        // Ä‘á»ƒ chá»n bÃ¡c sÄ© trÆ°á»›c khi Ä‘áº·t lá»‹ch - cÃ¹ng cÃ¡ch SpecialtiesController Ä‘ang lÃ m.
         [HttpGet]
         [AllowAnonymous]
         [ProducesResponseType(typeof(PaginationResponse<DoctorSummaryDto>), StatusCodes.Status200OK)]
@@ -65,12 +65,12 @@ namespace Clinic.API.Controllers
             return Ok(result);
         }
 
-        // Endpoint này cho phép anonymous truy cập (bệnh nhân chưa đăng nhập cần xem thông tin
-        // bác sĩ trước khi đặt lịch), nên KHÔNG được trả các trường nhạy cảm/nội bộ của bác sĩ
-        // như DateOfBirth, Address, HireDate (những trường này chỉ có trong DoctorDetailDto).
-        // Vì vậy phải map sang DoctorPublicDetailDto (loại bỏ các trường trên) trước khi trả về.
-        // Thông tin đầy đủ (DoctorDetailDto) chỉ được trả qua GET /doctors/me, endpoint yêu cầu
-        // đăng nhập và chỉ trả về hồ sơ của chính bác sĩ đó.
+        // Endpoint nÃ y cho phÃ©p anonymous truy cáº­p (bá»‡nh nhÃ¢n chÆ°a Ä‘Äƒng nháº­p cáº§n xem thÃ´ng tin
+        // bÃ¡c sÄ© trÆ°á»›c khi Ä‘áº·t lá»‹ch), nÃªn KHÃ”NG Ä‘Æ°á»£c tráº£ cÃ¡c trÆ°á»ng nháº¡y cáº£m/ná»™i bá»™ cá»§a bÃ¡c sÄ©
+        // nhÆ° DateOfBirth, Address, HireDate (nhá»¯ng trÆ°á»ng nÃ y chá»‰ cÃ³ trong DoctorDetailDto).
+        // VÃ¬ váº­y pháº£i map sang DoctorPublicDetailDto (loáº¡i bá» cÃ¡c trÆ°á»ng trÃªn) trÆ°á»›c khi tráº£ vá».
+        // ThÃ´ng tin Ä‘áº§y Ä‘á»§ (DoctorDetailDto) chá»‰ Ä‘Æ°á»£c tráº£ qua GET /doctors/me, endpoint yÃªu cáº§u
+        // Ä‘Äƒng nháº­p vÃ  chá»‰ tráº£ vá» há»“ sÆ¡ cá»§a chÃ­nh bÃ¡c sÄ© Ä‘Ã³.
         [HttpGet("{doctorId}")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(DoctorPublicDetailDto), StatusCodes.Status200OK)]
@@ -213,7 +213,7 @@ namespace Clinic.API.Controllers
         public async Task<IActionResult> CreateShift([FromRoute] Guid doctorId, [FromBody] CreateShiftRequest request)
         {
             // In another branch
-            var command = new AddDoctorScheduleCommand(doctorId, request.Date, request.StartTime, request.EndTime, request.PatientLimit);
+            var command = new AddDoctorScheduleCommand(doctorId, request.Date, request.StartTime, request.EndTime, request.EffectiveCapacity);
             var result = await _sender.Send(command);
             return Created((string?)null, result);
         }

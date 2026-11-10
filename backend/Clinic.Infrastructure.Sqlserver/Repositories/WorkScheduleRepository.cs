@@ -22,7 +22,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             _context = context;
         }
 
-        // ===== Nhóm chức năng: đặt lịch khám (booking) =====
+        // ===== NhÃ³m chá»©c nÄƒng: Ä‘áº·t lá»‹ch khÃ¡m (booking) =====
 
         public async Task<WorkSchedule?> GetByIdAsync(Guid id)
         {
@@ -36,14 +36,14 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task LockAsync(Guid workScheduleId, CancellationToken cancellationToken = default)
         {
-            // Khóa ghi (UPDLOCK, HOLDLOCK) đúng 1 dòng WorkSchedule, giữ tới khi transaction
-            // hiện tại COMMIT/ROLLBACK. Request thứ 2 cũng gọi LockAsync cho cùng
-            // workScheduleId sẽ bị chặn ngay tại câu SELECT này cho tới khi request thứ 1
-            // xong, nên GetByIdAsync gọi ngay sau đó luôn thấy đúng số Appointments mới nhất -
-            // không còn cửa sổ "đếm rồi mới insert" để 2 request cùng lọt qua như trước.
-            // Cột output phải đặt tên "Value" vì SqlQuery<int> map theo quy ước này.
+            // KhÃ³a ghi (UPDLOCK, HOLDLOCK) Ä‘Ãºng 1 dÃ²ng WorkSchedule, giá»¯ tá»›i khi transaction
+            // hiá»‡n táº¡i COMMIT/ROLLBACK. Request thá»© 2 cÅ©ng gá»i LockAsync cho cÃ¹ng
+            // workScheduleId sáº½ bá»‹ cháº·n ngay táº¡i cÃ¢u SELECT nÃ y cho tá»›i khi request thá»© 1
+            // xong, nÃªn GetByIdAsync gá»i ngay sau Ä‘Ã³ luÃ´n tháº¥y Ä‘Ãºng sá»‘ Appointments má»›i nháº¥t -
+            // khÃ´ng cÃ²n cá»­a sá»• "Ä‘áº¿m rá»“i má»›i insert" Ä‘á»ƒ 2 request cÃ¹ng lá»t qua nhÆ° trÆ°á»›c.
+            // Cá»™t output pháº£i Ä‘áº·t tÃªn "Value" vÃ¬ SqlQuery<int> map theo quy Æ°á»›c nÃ y.
             await _context.Database
-                .SqlQuery<int>($"SELECT 1 AS Value FROM WorkSchedules WITH (UPDLOCK, HOLDLOCK) WHERE Id = {workScheduleId}")
+                .SqlQuery<int>($"SELECT 1 AS Value FROM WorkSchedules WITH (UPDLOCK, ROWLOCK) WHERE Id = {workScheduleId}")
                 .ToListAsync(cancellationToken);
         }
 
@@ -86,13 +86,13 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 query = query.Where(w => w.Date < toDateOnly || (w.Date == toDateOnly && w.ShiftStart <= toTimeOnly));
             }
 
-            // Chỉ lấy khung giờ còn chỗ trống (số lịch hẹn chưa hủy < giới hạn/khung giờ).
-            query = query.Where(w => w.Appointments.Count(a => a.Status != AppointmentStatus.Cancelled) < w.PatientLimit);
+            // Chá»‰ láº¥y khung giá» cÃ²n chá»— trá»‘ng (sá»‘ lá»‹ch háº¹n chÆ°a há»§y < giá»›i háº¡n/khung giá»).
+            query = query.Where(w => w.Appointments.Count(a => !a.IsWalkIn && a.Status != AppointmentStatus.Cancelled && !a.IsDeleted) < w.RecommendedCapacity);
 
             return await query.OrderBy(w => w.ShiftStart).ToListAsync();
         }
 
-        // ===== Nhóm chức năng: quản lý ca trực bác sĩ (shift request) =====
+        // ===== NhÃ³m chá»©c nÄƒng: quáº£n lÃ½ ca trá»±c bÃ¡c sÄ© (shift request) =====
 
         public async Task AddShiftRequestAsync(ShiftRequest shiftRequest)
         {
@@ -192,7 +192,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                     .ThenInclude(e => e.Person)
                 .Include(d => d.WorkHistories.Where(wh => wh.IsDeleted == false && wh.EndDate == null))
                     .ThenInclude(wh => wh.Specialty)
-                .Include(d => d.WorkSchedules.Where(ws => ws.IsDeleted == false && ws.Status == WorkScheduleStatus.Active && ws.Date >= startDate && ws.Date <= endDate))
+                .Include(d => d.WorkSchedules.Where(ws => ws.IsDeleted == false && ws.Date >= startDate && ws.Date <= endDate))
                 .Where(d => d.IsDeleted == false);
             Console.WriteLine(startDate);
             if (specialtyId != Guid.Empty)

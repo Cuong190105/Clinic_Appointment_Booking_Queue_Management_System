@@ -1,17 +1,22 @@
 using Clinic.Domain.Common;
 using Clinic.Domain.Enums;
 using System;
+using System.Collections.Generic;
 
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Hồ sơ khám bệnh gắn với 1 lượt khám (QueueTicket)
+    /// Há»“ sÆ¡ khÃ¡m bá»‡nh gáº¯n vá»›i 1 lá»‹ch háº¹n (Appointment)
     /// </summary>
     public class MedicalReport : BaseEntity
     {
-        /// <summary>FK - đường dẫn duy nhất tới Doctor là QueueTicket.Appointment.WorkSchedule.Doctor.</summary>
-        public Guid QueueTicketId { get; set; }
-        public QueueTicket QueueTicket { get; set; } = null!;
+        /// <summary>FK - liÃªn káº¿t duy nháº¥t cho há»“ sÆ¡ cá»§a lÆ°á»£t khÃ¡m lÃ  AppointmentId.</summary>
+        public Guid AppointmentId { get; set; }
+        public Appointment Appointment { get; set; } = null!;
+
+        /// <summary>Optional legacy link to QueueTicket for backward compatibility.</summary>
+        public Guid? QueueTicketId { get; set; }
+        public QueueTicket? QueueTicket { get; set; }
 
         public string? Symptoms { get; set; }
 
@@ -21,20 +26,22 @@ namespace Clinic.Domain.Entities
 
         public string? Notes { get; set; }
 
-        /// <summary>Thời điểm bác sĩ bắt đầu khám (khi bấm "bắt đầu" trên UI, khác với QueueTicket.CalledAt là lúc gọi số).</summary>
+        /// <summary>Thá»i Ä‘iá»ƒm bÃ¡c sÄ© báº¯t Ä‘áº§u khÃ¡m.</summary>
         public DateTime? ExamStartTime { get; set; }
 
-        /// <summary>Thời điểm khám xong - dùng để tính thời gian khám thực tế cho báo cáo hiệu suất bác sĩ.</summary>
+        /// <summary>Thá»i Ä‘iá»ƒm khÃ¡m xong.</summary>
         public DateTime? ExamEndTime { get; set; }
 
-        /// <summary>Draft trong lúc bác sĩ đang ghi, Finalized khi đã chốt (không cho sửa nữa qua PUT /medical-reports/{id}).</summary>
+        /// <summary>Draft trong lÃºc bÃ¡c sÄ© Ä‘ang ghi, Finalized khi Ä‘Ã£ chá»‘t (khÃ´ng cho sá»­a trá»±c tiáº¿p, pháº£i qua amendments).</summary>
         public MedicalReportStatus Status { get; set; } = MedicalReportStatus.Draft;
+
+        public ICollection<MedicalReportAmendment> Amendments { get; set; } = new List<MedicalReportAmendment>();
 
         public MedicalReport() { }
 
         public MedicalReport(
             Guid id,
-            Guid queueTicketId,
+            Guid appointmentId,
             string? symptoms,
             string? diagnosis,
             string? prescription,
@@ -47,7 +54,7 @@ namespace Clinic.Domain.Entities
             bool isDeleted)
             : base(id, createdAt, updatedAt, isDeleted)
         {
-            QueueTicketId = queueTicketId;
+            AppointmentId = appointmentId;
             Symptoms = symptoms;
             Diagnosis = diagnosis;
             Prescription = prescription;
@@ -57,9 +64,9 @@ namespace Clinic.Domain.Entities
             Status = status;
         }
 
-        public MedicalReport(Guid queueTicketId, string? symptoms, string? diagnosis, string? prescription, string? notes, DateTime? examStartTime = null)
+        public MedicalReport(Guid appointmentId, string? symptoms, string? diagnosis, string? prescription, string? notes, DateTime? examStartTime = null)
         {
-            QueueTicketId = queueTicketId;
+            AppointmentId = appointmentId;
             Symptoms = symptoms;
             Diagnosis = diagnosis;
             Prescription = prescription;
@@ -72,7 +79,7 @@ namespace Clinic.Domain.Entities
         {
             if (Status == MedicalReportStatus.Finalized)
             {
-                throw new InvalidOperationException("Cannot update a finalized medical report.");
+                throw new InvalidOperationException("Cannot update a finalized medical report. Use amendments instead.");
             }
 
             Symptoms = symptoms;
@@ -89,6 +96,21 @@ namespace Clinic.Domain.Entities
             Status = MedicalReportStatus.Finalized;
             ExamEndTime = examEndTime ?? DateTime.UtcNow;
             MarkUpdated();
+        }
+
+        public MedicalReportAmendment AddAmendment(string reason, string content, Guid doctorId, string doctorName)
+        {
+            if (Status != MedicalReportStatus.Finalized)
+            {
+                throw new InvalidOperationException("Amendments can only be added to finalized medical reports.");
+            }
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Amendment reason is required.", nameof(reason));
+            if (string.IsNullOrWhiteSpace(content)) throw new ArgumentException("Amendment content is required.", nameof(content));
+
+            var amendment = new MedicalReportAmendment(Id, reason, content, doctorId, doctorName);
+            Amendments.Add(amendment);
+            MarkUpdated();
+            return amendment;
         }
     }
 }

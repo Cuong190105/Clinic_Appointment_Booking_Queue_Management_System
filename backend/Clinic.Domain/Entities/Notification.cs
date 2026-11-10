@@ -5,13 +5,13 @@ using System;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Gắn theo PersonId (không phải UserId) để gửi được cho cả khách vãng lai
-    /// chưa từng tạo tài khoản đăng nhập.
+    /// Gáº¯n theo PersonId (khÃ´ng pháº£i UserId) Ä‘á»ƒ gá»­i Ä‘Æ°á»£c cho cáº£ khÃ¡ch vÃ£ng lai
+    /// chÆ°a tá»«ng táº¡o tÃ i khoáº£n Ä‘Äƒng nháº­p.
     /// </summary>
     public class Notification : BaseEntity
     {
         public Guid PersonId { get; protected set; }
-        public Person Person { get; protected set; } = null!;
+        public Person Person { get; set; } = null!;
 
         public NotificationType Type { get; protected set; }
 
@@ -27,6 +27,12 @@ namespace Clinic.Domain.Entities
         public NotificationStatus Status { get; protected set; } = NotificationStatus.Pending;
 
         public DateTimeOffset? ScheduledAt { get; protected set; }
+
+        public int DeliveryAttempts { get; protected set; } = 0;
+
+        public string? FailureReason { get; protected set; }
+
+        public string? IdempotencyKey { get; set; }
 
         public Notification(Guid personId, NotificationType type, string title, string message, NotificationChannel channel, DateTimeOffset? scheduledTime = null)
         {
@@ -52,9 +58,22 @@ namespace Clinic.Domain.Entities
             SendTime = DateTime.UtcNow;
         }
 
-        public void MarkAsFailed()
+        public void MarkAsFailed(string? failureReason = null)
         {
             Status = NotificationStatus.Failed;
+            FailureReason = failureReason;
+            MarkUpdated();
+        }
+
+        public void IncrementDeliveryAttempts(string? failureReason = null)
+        {
+            DeliveryAttempts++;
+            FailureReason = failureReason;
+            if (DeliveryAttempts >= 3)
+            {
+                Status = NotificationStatus.Failed;
+            }
+            MarkUpdated();
         }
 
         public void CancelSchedule()

@@ -10,7 +10,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
         {
             builder.ToTable("RolePermissions");
 
-            // Khóa chính kép (RoleId, PermissionId)
+            // KhÃ³a chÃ­nh kÃ©p (RoleId, PermissionId)
             builder.HasKey(rp => new { rp.RoleId, rp.PermissionId });
 
             builder.HasOne(rp => rp.Role)
@@ -102,6 +102,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
                 new { RoleId = Guid.Parse("00000000-0000-0000-0000-000000000004"), PermissionId = Guid.Parse("20000000-0000-0000-0000-00000000000E") },
                 new { RoleId = Guid.Parse("00000000-0000-0000-0000-000000000004"), PermissionId = Guid.Parse("20000000-0000-0000-0000-000000000005") },
                 new { RoleId = Guid.Parse("00000000-0000-0000-0000-000000000004"), PermissionId = Guid.Parse("20000000-0000-0000-0000-000000000006") },
+                new { RoleId = Guid.Parse("00000000-0000-0000-0000-000000000004"), PermissionId = Guid.Parse("20000000-0000-0000-0000-000000000008") }, // queue.skip
                 new { RoleId = Guid.Parse("00000000-0000-0000-0000-000000000004"), PermissionId = Guid.Parse("2000000A-0000-0000-0000-000000000004") },
 
                 new { RoleId = Guid.Parse("00000000-0000-0000-0000-000000000004"), PermissionId = Guid.Parse("2000000B-0000-0000-0000-000000000005") }, // queue.start-exam.own

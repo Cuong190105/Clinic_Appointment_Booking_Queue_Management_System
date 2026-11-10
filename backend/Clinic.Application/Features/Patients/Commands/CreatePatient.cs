@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Contracts;
+using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;

@@ -5,11 +5,11 @@ using System;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Số thứ tự hàng đợi khám bệnh.
+    /// Sá»‘ thá»© tá»± hÃ ng Ä‘á»£i khÃ¡m bá»‡nh.
     /// </summary>
     public class QueueTicket : BaseEntity
     {
-        /// <summary>FK, NOT NULL, UNIQUE - 1 Appointment chỉ sinh tối đa 1 QueueTicket.</summary>
+        /// <summary>FK, NOT NULL, UNIQUE - 1 Appointment chá»‰ sinh tá»‘i Ä‘a 1 QueueTicket.</summary>
         public Guid AppointmentId { get; set; }
         public Appointment Appointment { get; set; } = null!;
 
@@ -19,19 +19,25 @@ namespace Clinic.Domain.Entities
 
         public QueueStatus Status { get; private set; } = QueueStatus.Waiting;
 
-        /// <summary>Thời điểm bệnh nhân check-in, sinh số thứ tự.</summary>
+        public DateOnly QueueDate { get; set; }
+
+        public string? PatientName { get; set; }
+
+        public string? DoctorName { get; set; }
+
+        /// <summary>Thá»i Ä‘iá»ƒm bá»‡nh nhÃ¢n check-in, sinh sá»‘ thá»© tá»±.</summary>
         public DateTime CheckInTime { get; set; } = DateTime.UtcNow;
 
         public DateTime? CalledAt { get; set; }
 
         /// <summary>
-        /// Concurrency token (SQL Server rowversion) - EF Core tự động kiểm tra giá trị này
-        /// chưa đổi trước khi UPDATE. Nếu request khác đã ghi đè bản ghi này trước,
-        /// SaveChangesAsync sẽ ném DbUpdateConcurrencyException thay vì ghi đè âm thầm.
+        /// Concurrency token (SQL Server rowversion) - EF Core tá»± Ä‘á»™ng kiá»ƒm tra giÃ¡ trá»‹ nÃ y
+        /// chÆ°a Ä‘á»•i trÆ°á»›c khi UPDATE. Náº¿u request khÃ¡c Ä‘Ã£ ghi Ä‘Ã¨ báº£n ghi nÃ y trÆ°á»›c,
+        /// SaveChangesAsync sáº½ nÃ©m DbUpdateConcurrencyException thay vÃ¬ ghi Ä‘Ã¨ Ã¢m tháº§m.
         /// </summary>
         public byte[] RowVersion { get; set; } = null!;
 
-        /// <summary>0..1 - chỉ có sau khi bác sĩ khám xong.</summary>
+        /// <summary>0..1 - chá»‰ cÃ³ sau khi bÃ¡c sÄ© khÃ¡m xong.</summary>
         public MedicalReport? MedicalReport { get; set; }
 
         public QueueTicket() { }
@@ -58,8 +64,8 @@ namespace Clinic.Domain.Entities
         }
 
         /// <summary>
-        /// Gọi bệnh nhân vào khám. Chỉ cho phép gọi khi đang ở trạng thái Waiting
-        /// (chưa được gọi lần nào, hoặc đã reset lại từ 1 lượt gọi trước).
+        /// Gá»i bá»‡nh nhÃ¢n vÃ o khÃ¡m. Chá»‰ cho phÃ©p gá»i khi Ä‘ang á»Ÿ tráº¡ng thÃ¡i Waiting
+        /// (chÆ°a Ä‘Æ°á»£c gá»i láº§n nÃ o, hoáº·c Ä‘Ã£ reset láº¡i tá»« 1 lÆ°á»£t gá»i trÆ°á»›c).
         /// </summary>
         /// <exception cref="ArgumentException"></exception>
         public void Call()
@@ -75,10 +81,10 @@ namespace Clinic.Domain.Entities
         }
 
         /// <summary>
-        /// Bỏ qua lượt khám (bệnh nhân không có mặt khi được gọi, hoặc lễ tân chủ động bỏ qua
-        /// trong khi vẫn đang chờ). Chỉ cho phép khi vé đang ở Waiting hoặc Called.
-        /// Không cho phép bỏ qua khi đang khám (InProgress) - trường hợp này phải dùng Complete();
-        /// cũng không cho phép khi đã khám xong (Completed) hoặc đã bị bỏ qua trước đó (Skipped).
+        /// Bá» qua lÆ°á»£t khÃ¡m (bá»‡nh nhÃ¢n khÃ´ng cÃ³ máº·t khi Ä‘Æ°á»£c gá»i, hoáº·c lá»… tÃ¢n chá»§ Ä‘á»™ng bá» qua
+        /// trong khi váº«n Ä‘ang chá»). Chá»‰ cho phÃ©p khi vÃ© Ä‘ang á»Ÿ Waiting hoáº·c Called.
+        /// KhÃ´ng cho phÃ©p bá» qua khi Ä‘ang khÃ¡m (InProgress) - trÆ°á»ng há»£p nÃ y pháº£i dÃ¹ng Complete();
+        /// cÅ©ng khÃ´ng cho phÃ©p khi Ä‘Ã£ khÃ¡m xong (Completed) hoáº·c Ä‘Ã£ bá»‹ bá» qua trÆ°á»›c Ä‘Ã³ (Skipped).
         /// </summary>
         /// <exception cref="ArgumentException"></exception>
         public void Skip()
@@ -92,9 +98,20 @@ namespace Clinic.Domain.Entities
             MarkUpdated();
         }
 
+        public void RetrySkipped()
+        {
+            if (Status != QueueStatus.Skipped)
+            {
+                throw new InvalidOperationException($"Cannot retry a ticket with status '{Status}'. Only skipped tickets can be retried.");
+            }
+
+            Status = QueueStatus.Waiting;
+            MarkUpdated();
+        }
+
         /// <summary>
-        /// Bắt đầu khám cho bệnh nhân vừa được gọi. Chỉ hợp lệ khi vé đang ở trạng thái Called
-        /// (đã gọi số nhưng chưa bắt đầu khám).
+        /// Báº¯t Ä‘áº§u khÃ¡m cho bá»‡nh nhÃ¢n vá»«a Ä‘Æ°á»£c gá»i. Chá»‰ há»£p lá»‡ khi vÃ© Ä‘ang á»Ÿ tráº¡ng thÃ¡i Called
+        /// (Ä‘Ã£ gá»i sá»‘ nhÆ°ng chÆ°a báº¯t Ä‘áº§u khÃ¡m).
         /// </summary>
         /// <exception cref="ArgumentException"></exception>
         public void StartExam()
@@ -109,8 +126,8 @@ namespace Clinic.Domain.Entities
         }
 
         /// <summary>
-        /// Hoàn tất lượt khám. Chỉ hợp lệ khi vé đang ở trạng thái InProgress (đang khám).
-        /// Sau bước này, bác sĩ được coi là "rảnh" và có thể gọi số tiếp theo.
+        /// HoÃ n táº¥t lÆ°á»£t khÃ¡m. Chá»‰ há»£p lá»‡ khi vÃ© Ä‘ang á»Ÿ tráº¡ng thÃ¡i InProgress (Ä‘ang khÃ¡m).
+        /// Sau bÆ°á»›c nÃ y, bÃ¡c sÄ© Ä‘Æ°á»£c coi lÃ  "ráº£nh" vÃ  cÃ³ thá»ƒ gá»i sá»‘ tiáº¿p theo.
         /// </summary>
         /// <exception cref="ArgumentException"></exception>
         public void Complete()
@@ -125,12 +142,12 @@ namespace Clinic.Domain.Entities
         }
 
         /// <summary>
-        /// Hủy vé hàng đợi vì Appointment tương ứng bị hủy sau khi bệnh nhân đã check-in.
-        /// Chỉ cho phép khi vé còn Waiting (chưa từng được gọi) hoặc Called (đã gọi nhưng
-        /// bệnh nhân chưa vào phòng khám) - đây là 2 trạng thái mà việc hủy còn ý nghĩa và
-        /// không làm gián đoạn 1 lượt khám đang diễn ra.
-        /// Không cho phép hủy khi InProgress (bác sĩ đang khám dở dang - hủy lúc này vô nghĩa
-        /// và có thể làm mất dữ liệu khám đang thực hiện) hoặc khi vé đã ở trạng thái kết thúc
+        /// Há»§y vÃ© hÃ ng Ä‘á»£i vÃ¬ Appointment tÆ°Æ¡ng á»©ng bá»‹ há»§y sau khi bá»‡nh nhÃ¢n Ä‘Ã£ check-in.
+        /// Chá»‰ cho phÃ©p khi vÃ© cÃ²n Waiting (chÆ°a tá»«ng Ä‘Æ°á»£c gá»i) hoáº·c Called (Ä‘Ã£ gá»i nhÆ°ng
+        /// bá»‡nh nhÃ¢n chÆ°a vÃ o phÃ²ng khÃ¡m) - Ä‘Ã¢y lÃ  2 tráº¡ng thÃ¡i mÃ  viá»‡c há»§y cÃ²n Ã½ nghÄ©a vÃ 
+        /// khÃ´ng lÃ m giÃ¡n Ä‘oáº¡n 1 lÆ°á»£t khÃ¡m Ä‘ang diá»…n ra.
+        /// KhÃ´ng cho phÃ©p há»§y khi InProgress (bÃ¡c sÄ© Ä‘ang khÃ¡m dá»Ÿ dang - há»§y lÃºc nÃ y vÃ´ nghÄ©a
+        /// vÃ  cÃ³ thá»ƒ lÃ m máº¥t dá»¯ liá»‡u khÃ¡m Ä‘ang thá»±c hiá»‡n) hoáº·c khi vÃ© Ä‘Ã£ á»Ÿ tráº¡ng thÃ¡i káº¿t thÃºc
         /// (Completed/Skipped/Cancelled).
         /// </summary>
         /// <exception cref="ArgumentException"></exception>
@@ -146,9 +163,9 @@ namespace Clinic.Domain.Entities
         }
 
         /// <summary>
-        /// Đánh dấu (hoặc gỡ đánh dấu) ưu tiên khẩn cấp. Chỉ áp dụng khi vé còn đang chờ (Waiting) -
-        /// ưu tiên chỉ có ý nghĩa thay đổi thứ tự của lượt gọi tiếp theo, không còn tác dụng
-        /// khi đã được gọi/đang khám/khám xong/bị bỏ qua.
+        /// ÄÃ¡nh dáº¥u (hoáº·c gá»¡ Ä‘Ã¡nh dáº¥u) Æ°u tiÃªn kháº©n cáº¥p. Chá»‰ Ã¡p dá»¥ng khi vÃ© cÃ²n Ä‘ang chá» (Waiting) -
+        /// Æ°u tiÃªn chá»‰ cÃ³ Ã½ nghÄ©a thay Ä‘á»•i thá»© tá»± cá»§a lÆ°á»£t gá»i tiáº¿p theo, khÃ´ng cÃ²n tÃ¡c dá»¥ng
+        /// khi Ä‘Ã£ Ä‘Æ°á»£c gá»i/Ä‘ang khÃ¡m/khÃ¡m xong/bá»‹ bá» qua.
         /// </summary>
         /// <exception cref="ArgumentException"></exception>
         public void SetPriority(bool priority)

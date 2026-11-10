@@ -12,8 +12,8 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasKey(p => p.Id);
 
-            // Quan hệ 0..1 - 0..1 với Person: cho phép khách vãng lai
-            // chưa từng có User vẫn có Patient hợp lệ.
+            // Quan há»‡ 0..1 - 0..1 vá»›i Person: cho phÃ©p khÃ¡ch vÃ£ng lai
+            // chÆ°a tá»«ng cÃ³ User váº«n cÃ³ Patient há»£p lá»‡.
             builder.HasOne(p => p.Person)
                 .WithOne(pe => pe.Patient)
                 .HasForeignKey<Patient>(p => p.PersonId)

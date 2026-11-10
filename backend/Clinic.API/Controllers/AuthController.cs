@@ -1,4 +1,4 @@
-﻿using Clinic.API.Models;
+using Clinic.API.Models;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.Auth.Commands;
 using Clinic.Application.Features.Users.NewFolder;
@@ -7,7 +7,11 @@ using Clinic.Application.Interfaces;
 using MapsterMapper;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Clinic.API.Controllers
 {
@@ -30,7 +34,6 @@ namespace Clinic.API.Controllers
         [AllowAnonymous]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        // The login body exposes only client-safe session metadata; the refresh token stays in the HttpOnly cookie.
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             var command = _mapper.Map<LoginCommand>(request);
@@ -43,10 +46,19 @@ namespace Clinic.API.Controllers
                 Expires = DateTimeOffset.UtcNow.AddDays(7),
                 Path = "/auth"
             });
+
+            var primaryRole = response.Roles.FirstOrDefault() ?? "Patient";
             return Ok(new
             {
                 accessToken = response.AccessToken,
-                roles = response.Roles
+                refreshToken = response.RefreshToken,
+                role = primaryRole,
+                roles = response.Roles,
+                user = new
+                {
+                    role = primaryRole,
+                    roles = response.Roles
+                }
             });
         }
 
@@ -91,13 +103,20 @@ namespace Clinic.API.Controllers
         [AllowAnonymous]
         [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Refresh()
+        public async Task<IActionResult> Refresh([FromBody] RefreshRequest? body = null)
         {
-            if (!Request.Cookies.TryGetValue("refreshToken", out var refreshToken))
+            string? refreshToken = null;
+            if (!Request.Cookies.TryGetValue("refreshToken", out refreshToken) || string.IsNullOrWhiteSpace(refreshToken))
+            {
+                refreshToken = body?.RefreshToken;
+            }
+
+            if (string.IsNullOrWhiteSpace(refreshToken))
             {
                 return Unauthorized(new { message = "Refresh token is missing." });
             }
-            var command = _mapper.Map<RefreshCommand>(new RefreshRequest { RefreshToken = refreshToken });
+
+            var command = new RefreshCommand(refreshToken);
             var response = await _sender.Send(command);
             Response.Cookies.Append("refreshToken", response.RefreshToken, new CookieOptions
             {
@@ -109,7 +128,8 @@ namespace Clinic.API.Controllers
             });
             return Ok(new
             {
-                accessToken = response.AccessToken
+                accessToken = response.AccessToken,
+                refreshToken = response.RefreshToken
             });
         }
 
@@ -119,7 +139,6 @@ namespace Clinic.API.Controllers
         public async Task<IActionResult> GetUserInfo()
         {
             var userId = _currentUser.UserId ?? throw new UnauthorizedAccessException("User not found.");
-            
             var command = new GetUserQuery(userId);
             var response = await _sender.Send(command);
             return Ok(response);
@@ -146,6 +165,5 @@ namespace Clinic.API.Controllers
             await _sender.Send(command);
             return Ok(new { message = "Password updated successfully." });
         }
-
     }
 }

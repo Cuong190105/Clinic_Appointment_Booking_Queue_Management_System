@@ -14,6 +14,8 @@ namespace Clinic.Domain.Entities
 
         public ICollection<WorkHistory> WorkHistories { get; protected set; } = new List<WorkHistory>();
 
+        protected Specialty() { }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="Specialty"/> class with the specified name and description.
         /// </summary>

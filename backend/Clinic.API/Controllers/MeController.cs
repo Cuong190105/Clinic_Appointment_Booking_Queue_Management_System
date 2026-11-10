@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Features.MedicalReports.Queries;
+using Clinic.Application.Features.MedicalReports.Queries;
 using Clinic.Application.Features.Queue.Queries;
 using Clinic.Application.Features.Users.Queries;
 using MediatR;
@@ -8,8 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Clinic.API.Controllers
 {
     /// <summary>
-    /// Các API tự-phục-vụ (self-service) cho bệnh nhân đang đăng nhập: theo dõi vị trí hàng đợi
-    /// và tra cứu lịch sử khám bệnh của chính mình.
+    /// Các API t?-ph?c-v? (self-service) cho b?nh nhân dang dang nh?p: theo dõi v? trí hàng d?i
+    /// và tra c?u l?ch s? khám b?nh c?a chính mình.
     /// </summary>
     [ApiController]
     [Route("/me")]
@@ -24,9 +24,9 @@ namespace Clinic.API.Controllers
         }
 
         /// <summary>
-        /// Trạng thái hàng đợi hiện tại của bệnh nhân (vị trí, thời gian chờ ước tính).
-        /// Trả về mảng - có thể có nhiều phần tử nếu bệnh nhân đã check-in nhiều hơn 1 lịch hẹn
-        /// trong cùng ngày. Trả về 204 nếu bệnh nhân chưa check-in lịch hẹn nào trong ngày hôm nay.
+        /// Tr?ng thái hàng d?i hi?n t?i c?a b?nh nhân (v? trí, th?i gian ch? u?c tính).
+        /// Tr? v? m?ng - có th? có nhi?u ph?n t? n?u b?nh nhân dã check-in nhi?u hon 1 l?ch h?n
+        /// trong cùng ngày. Tr? v? 204 n?u b?nh nhân chua check-in l?ch h?n nào trong ngày hôm nay.
         /// </summary>
         [HttpGet("queue-status")]
         public async Task<IActionResult> GetMyQueueStatus()
@@ -35,7 +35,7 @@ namespace Clinic.API.Controllers
             return result.Count == 0 ? NoContent() : Ok(result);
         }
 
-        /// <summary>Lịch sử khám bệnh (các hồ sơ đã chốt) của bệnh nhân đang đăng nhập.</summary>
+        /// <summary>L?ch s? khám b?nh (các h? so dã ch?t) c?a b?nh nhân dang dang nh?p.</summary>
         [HttpGet("medical-history")]
         public async Task<IActionResult> GetMyMedicalHistory()
         {

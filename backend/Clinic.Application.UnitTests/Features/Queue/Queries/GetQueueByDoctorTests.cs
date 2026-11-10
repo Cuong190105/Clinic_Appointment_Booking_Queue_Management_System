@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Queue.Queries;
 using Clinic.Application.UnitTests.Common;
 
@@ -9,8 +9,8 @@ namespace Clinic.Application.UnitTests.Features.Queue.Queries
         [Fact]
         public async Task Handle_UserHasQueueViewPermission_ShouldReturnAnyDoctorsQueue()
         {
-            // Arrange: Receptionist/Admin có "queue.view" -> xem được hàng đợi của bác sĩ bất kỳ,
-            // kể cả khi không phải bác sĩ đó (DoctorId của current user khác/null).
+            // Arrange: Receptionist/Admin có "queue.view" -> xem du?c hàng d?i c?a bác si b?t k?,
+            // k? c? khi không ph?i bác si dó (DoctorId c?a current user khác/null).
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser();
             currentUser.GrantPermission("queue.view");
@@ -34,7 +34,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Queries
         [Fact]
         public async Task Handle_DoctorViewingOwnQueue_ShouldSucceed()
         {
-            // Arrange: Doctor không có "queue.view" nhưng DoctorId khớp với bác sĩ được truy vấn.
+            // Arrange: Doctor không có "queue.view" nhung DoctorId kh?p v?i bác si du?c truy v?n.
             var queueTicketRepository = new FakeQueueTicketRepository();
             var doctor = TestDataFactory.CreateDoctor();
             var ws = TestDataFactory.CreateWorkSchedule(doctor, date: DateOnly.FromDateTime(DateTime.Today));
@@ -55,7 +55,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Queries
         [Fact]
         public async Task Handle_DoctorViewingAnotherDoctorsQueue_ShouldThrowForbiddenException()
         {
-            // Arrange: Doctor A cố xem hàng đợi của Doctor B, không có "queue.view" -> bị chặn.
+            // Arrange: Doctor A c? xem hàng d?i c?a Doctor B, không có "queue.view" -> b? ch?n.
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser { DoctorId = Guid.NewGuid() };
             var handler = new GetQueueByDoctorHandler(queueTicketRepository, currentUser);
@@ -93,7 +93,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Queries
             // Act
             var result = await handler.Handle(new GetQueueByDoctorQuery(doctor.Id), CancellationToken.None);
 
-            // Assert: vé ưu tiên (số 2) phải đứng đầu, dù số thứ tự không nhỏ nhất.
+            // Assert: vé uu tiên (s? 2) ph?i d?ng d?u, dù s? th? t? không nh? nh?t.
             Assert.Equal(3, result.Count);
             Assert.Equal(ticket2Priority.Id, result[0].Id);
             Assert.Equal(ticket1.Id, result[1].Id);

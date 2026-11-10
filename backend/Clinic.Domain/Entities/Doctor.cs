@@ -8,7 +8,7 @@ namespace Clinic.Domain.Entities
 {
     public class Doctor : BaseEntity
     {
-        /// <summary>FK, UNIQUE - mỗi Doctor gắn với đúng 1 Employee.</summary>
+        /// <summary>FK, UNIQUE - má»—i Doctor gáº¯n vá»›i Ä‘Ãºng 1 Employee.</summary>
         public Guid EmployeeId { get; protected set; }
         public Employee Employee { get; protected set; } = null!;
 
@@ -26,6 +26,8 @@ namespace Clinic.Domain.Entities
         public ICollection<WorkHistory> WorkHistories { get; protected set; } = new List<WorkHistory>();
 
         public ICollection<ShiftRequest> ShiftRequests { get; protected set; } = new List<ShiftRequest>();
+
+        protected Doctor() { }
 
         public Doctor(Employee employee, string licenseNumber, string qualification, Specialty specialty = null, int experienceYears = 0, string? biography = null, DoctorStatus status = DoctorStatus.Active)
         {

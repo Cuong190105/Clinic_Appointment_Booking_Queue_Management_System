@@ -4,20 +4,15 @@ import QueueStatusBadge from './QueueStatusBadge.vue'
 
 defineProps<{
   queue: QueuePatient[]
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{
-  call: [no: string]
-  complete: [no: string]
+  call: [ticketId: string]
+  skip: [ticketId: string]
+  retry: [ticketId: string]
+  priority: [ticketId: string, value: boolean]
 }>()
-
-function handleAction(patient: QueuePatient) {
-  if (patient.status === 'waiting') {
-    emit('call', patient.no)
-  } else if (patient.status === 'examining') {
-    emit('complete', patient.no)
-  }
-}
 </script>
 
 <template>
@@ -89,7 +84,7 @@ function handleAction(patient: QueuePatient) {
 
         <tr
           v-for="patient in queue"
-          :key="patient.no"
+          :key="patient.id || patient.no"
           class="hover:bg-slate-50 transition-colors"
         >
 
@@ -133,35 +128,47 @@ function handleAction(patient: QueuePatient) {
           <td class="py-3 px-4">
 
             <button
-              v-if="patient.status === 'waiting'"
+              v-if="patient.status === 'waiting' && patient.id"
               type="button"
-              class="text-xs px-3 py-1
-                     bg-violet-600 text-white
-                     rounded hover:bg-violet-700
-                     transition-colors"
-              @click="handleAction(patient)"
+              class="mr-1 rounded bg-violet-600 px-3 py-1 text-xs text-white transition-colors hover:bg-violet-700 disabled:opacity-50"
+              :disabled="loading"
+              @click="emit('call', patient.id!)"
             >
               Gọi số
             </button>
 
             <button
-              v-else-if="patient.status === 'examining'"
+              v-if="patient.status === 'waiting' && patient.id"
               type="button"
-              class="text-xs px-3 py-1
-                     bg-violet-600 text-white
-                     rounded hover:bg-violet-700
-                     transition-colors"
-              @click="handleAction(patient)"
+              class="mr-1 rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50"
+              :disabled="loading"
+              @click="emit('skip', patient.id!)"
             >
-              Hoàn thành
+              Bỏ qua
             </button>
 
-            <span
-              v-else
-              class="text-xs text-slate-400"
+            <button
+              v-if="patient.status === 'waiting' && patient.id"
+              type="button"
+              class="rounded px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-50"
+              :class="patient.priority ? 'text-amber-700 hover:bg-amber-50' : 'text-slate-500 hover:bg-slate-100'"
+              :disabled="loading"
+              @click="emit('priority', patient.id!, !patient.priority)"
             >
-              —
-            </span>
+              {{ patient.priority ? '★ Ưu tiên' : '☆ Ưu tiên' }}
+            </button>
+
+            <button
+              v-else-if="patient.status === 'skipped' && patient.id"
+              type="button"
+              class="rounded bg-rose-600 px-3 py-1 text-xs text-white transition-colors hover:bg-rose-700 disabled:opacity-50"
+              :disabled="loading"
+              @click="emit('retry', patient.id!)"
+            >
+              Gọi lại
+            </button>
+
+            <span v-else class="text-xs text-slate-400">—</span>
 
           </td>
 

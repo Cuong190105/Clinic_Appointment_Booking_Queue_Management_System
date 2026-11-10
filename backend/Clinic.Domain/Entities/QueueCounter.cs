@@ -1,13 +1,13 @@
-﻿using System;
+using System;
 
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Bộ đếm số thứ tự hàng đợi, theo từng bác sĩ và từng ngày.
-    /// Dùng để sinh QueueNumber tăng dần một cách atomic bằng câu lệnh
+    /// B? d?m s? th? t? hàng d?i, theo t?ng bác si và t?ng ngày.
+    /// Dùng d? sinh QueueNumber tang d?n m?t cách atomic b?ng câu l?nh
     /// MERGE trong QueueTicketRepository.GetNextQueueNumberAsync, tránh
-    /// trùng số khi nhiều bệnh nhân check-in đồng thời cho cùng 1 bác sĩ/ngày.
-    /// Khóa chính composite (DoctorId, Date) - mỗi bác sĩ/ngày chỉ có đúng 1 dòng.
+    /// trùng s? khi nhi?u b?nh nhân check-in d?ng th?i cho cùng 1 bác si/ngày.
+    /// Khóa chính composite (DoctorId, Date) - m?i bác si/ngày ch? có dúng 1 dòng.
     /// </summary>
     public class QueueCounter
     {
@@ -15,7 +15,7 @@ namespace Clinic.Domain.Entities
 
         public DateOnly Date { get; set; }
 
-        /// <summary>Số thứ tự lớn nhất đã cấp cho bác sĩ này trong ngày này.</summary>
+        /// <summary>S? th? t? l?n nh?t dã c?p cho bác si này trong ngày này.</summary>
         public int CurrentNumber { get; set; }
     }
 }

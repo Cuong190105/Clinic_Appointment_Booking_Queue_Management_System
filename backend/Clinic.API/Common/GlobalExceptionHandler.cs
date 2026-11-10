@@ -4,7 +4,7 @@ using Clinic.API.Models;
 using Clinic.Application.Common.Exceptions;
 using Clinic.Domain.Common.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
-
+using Microsoft.EntityFrameworkCore;
 
 namespace Clinic.API.Common
 {
@@ -27,7 +27,9 @@ namespace Clinic.API.Common
             {
                 NotFoundException => (HttpStatusCode.NotFound, new[] { exception.Message }),
                 ForbiddenException => (HttpStatusCode.Forbidden, new[] { exception.Message }),
-                // Vi phạm business rule (vd: đổi lịch quá sát giờ hẹn) - request hợp lệ nhưng không thể xử lý ở trạng thái hiện tại.
+                // Vi phạm business rule hoặc xung đột phiên bản
+                ConcurrencyConflictException => (HttpStatusCode.Conflict, new[] { exception.Message }),
+                DbUpdateConcurrencyException => (HttpStatusCode.Conflict, new[] { "Dữ liệu đã bị thay đổi bởi thao tác khác, vui lòng thử lại." }),
                 ConflictException => (HttpStatusCode.Conflict, new[] { exception.Message }),
                 // Domain ném ArgumentException khi dữ liệu đầu vào không hợp lệ.
                 ArgumentException => (HttpStatusCode.BadRequest, new[] { exception.Message }),

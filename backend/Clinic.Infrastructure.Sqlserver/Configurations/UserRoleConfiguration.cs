@@ -10,7 +10,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
         {
             builder.ToTable("UserRoles");
 
-            // Khóa chính kép (UserId, RoleId)
+            // KhÃ³a chÃ­nh kÃ©p (UserId, RoleId)
             builder.HasKey(ur => new { ur.UserId, ur.RoleId });
 
             builder.HasOne(ur => ur.User)

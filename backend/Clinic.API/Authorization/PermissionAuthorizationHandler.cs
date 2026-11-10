@@ -16,7 +16,7 @@ namespace Clinic.API.Authorization
                 return Task.CompletedTask;
             }
 
-            // Check permission claim - pass nếu có BẤT KỲ permission nào trong requirement (OR).
+            // Check permission claim - pass náº¿u cÃ³ Báº¤T Ká»² permission nÃ o trong requirement (OR).
             if (context.User.HasClaim(c => c.Type == "permission" && requirement.Permissions.Contains(c.Value)))
             {
                 context.Succeed(requirement);

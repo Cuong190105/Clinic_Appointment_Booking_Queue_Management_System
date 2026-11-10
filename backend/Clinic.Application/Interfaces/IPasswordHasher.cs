@@ -1,4 +1,4 @@
-﻿namespace Clinic.Application.Interfaces
+namespace Clinic.Application.Interfaces
 {
     public interface IPasswordHasher
     {

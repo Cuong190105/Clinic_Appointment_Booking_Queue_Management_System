@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -16,38 +16,38 @@ namespace Clinic.Application.Notifications.Templates
                 <!DOCTYPE html>
                 <html>
                 <body style="font-family: Arial, sans-serif;">
-                    <h2 style="color: #333;">Xác nhận lịch khám</h2>
+                    <h2 style="color: #333;">Xác nh?n l?ch khám</h2>
 
                     <p>Xin chào {appointment.Patient.Person.FullName},</p>
 
-                    <p>Lịch khám của bạn đã được xác nhận.</p>
+                    <p>L?ch khám c?a b?n dã du?c xác nh?n.</p>
 
                     <p>
-                        <strong>Bác sĩ:</strong> {appointment.WorkSchedule.Doctor.Employee.Person.FullName}<br>
+                        <strong>Bác si:</strong> {appointment.WorkSchedule.Doctor.Employee.Person.FullName}<br>
                         <strong>Ngày:</strong> {appointment.WorkSchedule.Date}<br>
-                        <strong>Thời gian:</strong> {appointment.TimeSlot}
+                        <strong>Th?i gian:</strong> {appointment.TimeSlot}
                     </p>
 
-                    <p>Vui lòng đến đúng giờ để đảm bảo lịch trình khám bệnh của bạn.</p>
+                    <p>Vui lòng d?n dúng gi? d? d?m b?o l?ch trình khám b?nh c?a b?n.</p>
 
-                    <p>Nếu quý khách muốn thay đổi hoặc hủy lịch hẹn, vui lòng thực hiện trước 24 giờ so với thời gian đã hẹn.</p>
+                    <p>N?u quý khách mu?n thay d?i ho?c h?y l?ch h?n, vui lòng th?c hi?n tru?c 24 gi? so v?i th?i gian dã h?n.</p>
 
-                    <p>Trân trọng,<br>Phòng khám của chúng tôi</p>
+                    <p>Trân tr?ng,<br>Phòng khám c?a chúng tôi</p>
                 </body>
                 </html>
                 """;
-            return new EmailContent("Xác nhận lịch khám", body);
+            return new EmailContent("Xác nh?n l?ch khám", body);
         }
 
         public InAppContent RenderInApp(Appointment appointment)
         {
-            var message = $"Lịch khám của khách hàng {appointment.Patient.Person.FullName} với bác sĩ {appointment.WorkSchedule.Doctor.Employee.Person.FullName} vào ngày {appointment.WorkSchedule.Date} lúc {appointment.TimeSlot} đã được xác nhận thành công.";
-            return new InAppContent("Xác nhận lịch khám", message);
+            var message = $"L?ch khám c?a khách hàng {appointment.Patient.Person.FullName} v?i bác si {appointment.WorkSchedule.Doctor.Employee.Person.FullName} vào ngày {appointment.WorkSchedule.Date} lúc {appointment.TimeSlot} dã du?c xác nh?n thành công.";
+            return new InAppContent("Xác nh?n l?ch khám", message);
         }
 
         public SmsContent RenderSms(Appointment data)
         {
-            var message = $"Lịch khám của bạn với bác sĩ {data.WorkSchedule.Doctor.Employee.Person.FullName} vào ngày {data.WorkSchedule.Date} lúc {data.TimeSlot} đã được xác nhận thành công.";
+            var message = $"L?ch khám c?a b?n v?i bác si {data.WorkSchedule.Doctor.Employee.Person.FullName} vào ngày {data.WorkSchedule.Date} lúc {data.TimeSlot} dã du?c xác nh?n thành công.";
             return new SmsContent(message);
         }
     }

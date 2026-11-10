@@ -1,4 +1,4 @@
-﻿namespace Clinic.API.Models
+namespace Clinic.API.Models
 {
     public class PendingAppointmentRequest
     {

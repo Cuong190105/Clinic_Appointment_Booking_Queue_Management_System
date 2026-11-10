@@ -65,13 +65,16 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             return await _context.QueueTickets
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.WorkSchedule)
+                        .ThenInclude(w => w.Doctor)
+                            .ThenInclude(d => d.Employee)
+                                .ThenInclude(e => e.Person)
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.Patient)
                         .ThenInclude(p => p.Person)
                 .FirstOrDefaultAsync(q => q.Id == id);
         }
 
-        public async Task<List<QueueTicket>> GetByDoctorAsync(Guid doctorId, DateTime date)
+        public async Task<QueueTicket?> GetByAppointmentIdAsync(Guid appointmentId)
         {
             return await _context.QueueTickets
                 .Include(q => q.Appointment)
@@ -82,7 +85,22 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.Patient)
                         .ThenInclude(p => p.Person)
-                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId && q.CheckInTime.Date == date.Date)
+                .FirstOrDefaultAsync(q => q.AppointmentId == appointmentId);
+        }
+
+        public async Task<List<QueueTicket>> GetByDoctorAsync(Guid doctorId, DateTime date)
+        {
+            var targetDate = DateOnly.FromDateTime(date);
+            return await _context.QueueTickets
+                .Include(q => q.Appointment)
+                    .ThenInclude(a => a.WorkSchedule)
+                        .ThenInclude(w => w.Doctor)
+                            .ThenInclude(d => d.Employee)
+                                .ThenInclude(e => e.Person)
+                .Include(q => q.Appointment)
+                    .ThenInclude(a => a.Patient)
+                        .ThenInclude(p => p.Person)
+                .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId && (q.QueueDate == targetDate || (q.QueueDate == default && q.CheckInTime.Date == date.Date)))
                 .OrderByDescending(q => q.Priority)
                 .ThenBy(q => q.QueueNumber)
                 .ToListAsync();
@@ -90,6 +108,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<List<QueueTicket>> GetActiveTicketsByPatientAsync(Guid patientId, DateTime date)
         {
+            var targetDate = DateOnly.FromDateTime(date);
             return await _context.QueueTickets
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.WorkSchedule)
@@ -97,7 +116,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                             .ThenInclude(d => d.Employee)
                                 .ThenInclude(e => e.Person)
                 .Where(q => q.Appointment.PatientId == patientId
-                    && q.CheckInTime.Date == date.Date
+                    && (q.QueueDate == targetDate || (q.QueueDate == default && q.CheckInTime.Date == date.Date))
                     && (q.Status == QueueStatus.Waiting || q.Status == QueueStatus.Called || q.Status == QueueStatus.InProgress))
                 .OrderBy(q => q.CheckInTime)
                 .ToListAsync();
@@ -105,6 +124,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<QueueTicket?> GetNextWaitingAsync(Guid doctorId, DateTime date)
         {
+            var targetDate = DateOnly.FromDateTime(date);
             return await _context.QueueTickets
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.WorkSchedule)
@@ -112,7 +132,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                     .ThenInclude(a => a.Patient)
                         .ThenInclude(p => p.Person)
                 .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId
-                    && q.CheckInTime.Date == date.Date
+                    && (q.QueueDate == targetDate || (q.QueueDate == default && q.CheckInTime.Date == date.Date))
                     && q.Status == QueueStatus.Waiting)
                 .OrderByDescending(q => q.Priority)
                 .ThenBy(q => q.QueueNumber)
@@ -126,6 +146,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<QueueTicket?> GetActiveTicketAsync(Guid doctorId, DateTime date)
         {
+            var targetDate = DateOnly.FromDateTime(date);
             return await _context.QueueTickets
                 .Include(q => q.Appointment)
                     .ThenInclude(a => a.WorkSchedule)
@@ -133,7 +154,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                     .ThenInclude(a => a.Patient)
                         .ThenInclude(p => p.Person)
                 .Where(q => q.Appointment.WorkSchedule.DoctorId == doctorId
-                    && q.CheckInTime.Date == date.Date
+                    && (q.QueueDate == targetDate || (q.QueueDate == default && q.CheckInTime.Date == date.Date))
                     && (q.Status == QueueStatus.Called || q.Status == QueueStatus.InProgress))
                 .FirstOrDefaultAsync();
         }

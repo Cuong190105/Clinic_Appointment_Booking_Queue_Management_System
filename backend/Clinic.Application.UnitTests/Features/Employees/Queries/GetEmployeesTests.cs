@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Features.Doctors.Queries;
+using Clinic.Application.Features.Doctors.Queries;
 using Clinic.Application.Features.Employees.Queries;
 using Clinic.Application.UnitTests.Common;
 

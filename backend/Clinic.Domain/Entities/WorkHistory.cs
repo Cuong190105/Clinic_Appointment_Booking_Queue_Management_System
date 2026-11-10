@@ -5,7 +5,7 @@ using System;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Sổ nhật ký lịch sử chuyển khoa của bác sĩ
+    /// Sá»• nháº­t kÃ½ lá»‹ch sá»­ chuyá»ƒn khoa cá»§a bÃ¡c sÄ©
     /// </summary>
     public class WorkHistory : BaseEntity
     {
@@ -38,7 +38,7 @@ namespace Clinic.Domain.Entities
 
         public DateOnly StartDate { get; protected set; }
 
-        /// <summary>NULL nếu đây là giai đoạn hiện tại (chưa kết thúc).</summary>
+        /// <summary>NULL náº¿u Ä‘Ã¢y lÃ  giai Ä‘oáº¡n hiá»‡n táº¡i (chÆ°a káº¿t thÃºc).</summary>
         public DateOnly? EndDate { get; protected set; }
 
         public void EndWorkHistory(DateOnly? endDate = null)

@@ -1,9 +1,13 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Common.Exceptions;
 using Clinic.Domain.Entities;
 using MediatR;
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.Features.Appointments.Commands
 {
@@ -15,36 +19,53 @@ namespace Clinic.Application.Features.Appointments.Commands
         TimeOnly TimeSlot,
         string Reason
     ) : IRequest<AppointmentDto>;
+
     public class UpdateAppointmentCommandHandler : IRequestHandler<UpdateAppointmentCommand, AppointmentDto>
     {
         private readonly IAppointmentRepository _appointmentRepository;
         private readonly IUserRepository _userRepository;
         private readonly IWorkScheduleRepository _workScheduleRepository;
         private readonly IUnitOfWork _unitOfWork;
-        public UpdateAppointmentCommandHandler(IAppointmentRepository appointmentRepository, IUserRepository userRepository, IWorkScheduleRepository workScheduleRepository, IUnitOfWork unitOfWork)
+        private readonly ICurrentUser? _currentUser;
+
+        public UpdateAppointmentCommandHandler(
+            IAppointmentRepository appointmentRepository,
+            IUserRepository userRepository,
+            IWorkScheduleRepository workScheduleRepository,
+            IUnitOfWork unitOfWork,
+            ICurrentUser? currentUser = null)
         {
             _appointmentRepository = appointmentRepository;
             _userRepository = userRepository;
             _workScheduleRepository = workScheduleRepository;
             _unitOfWork = unitOfWork;
+            _currentUser = currentUser;
         }
 
         public async Task<AppointmentDto> Handle(UpdateAppointmentCommand request, CancellationToken cancellationToken)
         {
-            var user = await _userRepository.GetByIdAsync(request.UserId);
-            if (user == null)
-            {
-                throw new UnauthorizedAccessException($"User not found.");
-            }
             var appointment = await _appointmentRepository.GetByIdAsync(request.AppointmentId);
             if (appointment == null)
             {
                 throw new NotFoundException($"Appointment not found.");
             }
-            if (!(user.UserRoles.Any(ur => ur.Role.Name == "Receptionist") || appointment.PatientId == user.Person.Patient?.Id))
+
+            var isReceptionist = _currentUser != null && _currentUser.IsInRole("Receptionist");
+            var isOwnerPatient = _currentUser?.PatientId.HasValue == true && appointment.PatientId == _currentUser.PatientId.Value;
+
+            if (!isReceptionist && !isOwnerPatient)
             {
-                throw new ForbiddenException($"You are not authorized to update this appointment.");
+                var user = await _userRepository.GetByIdAsync(request.UserId);
+                if (user == null)
+                {
+                    throw new UnauthorizedAccessException($"User not found.");
+                }
+                if (!(user.UserRoles.Any(ur => ur.Role.Name == "Receptionist") || appointment.PatientId == user.Person.Patient?.Id))
+                {
+                    throw new ForbiddenException($"You are not authorized to update this appointment.");
+                }
             }
+
             // Begin transaction
             await _unitOfWork.InitializeTransactionLockAsync(cancellationToken);
             try
@@ -74,7 +95,6 @@ namespace Clinic.Application.Features.Appointments.Commands
             }
             catch (Exception ex)
             {
-                // For unique constraint violations as 2 appointments cannot be created for the same time slot
                 await _unitOfWork.RollbackTransactionAsync(cancellationToken);
                 if (ex is ConflictException)
                 {

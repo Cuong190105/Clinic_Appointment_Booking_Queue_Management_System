@@ -6,7 +6,7 @@ export interface WorkSchedule {
   date: string
   startTime: string
   endTime: string
-  patientLimit: number
+  RecommendedCapacity: number
   status: 'Active' | 'Cancelled' | number | string
   remainingCapacity?: number
 }
@@ -39,19 +39,28 @@ export interface PagedDoctorSchedulesResponse {
   hasNext: boolean
 }
 
+export interface DoctorScheduleOption {
+  doctorId: string
+  employeeId?: string
+  fullName: string
+  email: string
+  username?: string
+  isActive: boolean
+}
+
 export interface CreateShiftPayload {
   doctorId: string
   date: string
   startTime: string
   endTime: string
-  patientLimit: number
+  RecommendedCapacity: number
 }
 
 export interface UpdateShiftPayload {
   date: string
   startTime: string
   endTime: string
-  patientLimitPerSlot: number
+  RecommendedCapacityPerSlot: number
 }
 
 export interface CancelShiftPayload {
@@ -73,7 +82,7 @@ export interface ShiftSuggestion {
   date: string
   startTime: string
   endTime: string
-  patientLimit: number
+  RecommendedCapacity: number
   reason?: string | null
   status: 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | string
 }

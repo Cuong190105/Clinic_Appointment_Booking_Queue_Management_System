@@ -1,9 +1,11 @@
-﻿import { defineStore } from 'pinia'
+import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { tokenStorage } from '@/lib/api/token-storage'
 import { authApi } from '@/features/auth/auth.api'
 import { ApiError, http } from '@/lib/api/http'
 import { logger } from '@/lib/logger'
+import { enableProtectedPatientEndpoints } from '@/features/patients/patient.api'
+import { usePatientStore } from '@/stores/patient'
 import type { AuthUser, LoginPayload, UserRole, RegisterPayload } from '@/features/auth/auth.types'
 
 const USER_KEY = 'auth.user'
@@ -31,12 +33,18 @@ function normalizeRoleArray(value: unknown): string[] {
   return [String(value)]
 }
 
-function normalizeRoles(roles?: (UserRole | undefined)[] | UserRole | null | unknown[]): UserRole[] {
+function normalizeRoles(
+  roles?: (UserRole | undefined)[] | UserRole | null | unknown[],
+): UserRole[] {
   if (!roles) return []
 
   const list = Array.isArray(roles) ? roles : [roles]
   const flattened = list.flatMap((role) => normalizeRoleArray(role))
-  return [...new Set(flattened.filter((role): role is UserRole => VALID_ROLES.includes(role as UserRole)))]
+  return [
+    ...new Set(
+      flattened.filter((role): role is UserRole => VALID_ROLES.includes(role as UserRole)),
+    ),
+  ]
 }
 
 function decodeJwtPayload(token: string): Record<string, any> {
@@ -68,6 +76,13 @@ function extractRolesFromJwtPayload(payload: Record<string, any>): UserRole[] {
   return normalizeRoles(flattened.length > 0 ? flattened : ['Patient'])
 }
 
+function extractStringValue(val: unknown, fallback = ''): string {
+  if (typeof val === 'string') return val
+  if (Array.isArray(val) && val.length > 0) return String(val[0])
+  if (val != null) return String(val)
+  return fallback
+}
+
 function buildUserFromToken(token?: string | null): AuthUser {
   const fallback: AuthUser = {
     id: 'user',
@@ -86,8 +101,8 @@ function buildUserFromToken(token?: string | null): AuthUser {
 
   return {
     id: payload.sub ?? 'user',
-    name: payload.name ?? payload.unique_name ?? payload.username ?? 'User',
-    email: payload.email ?? payload['email'] ?? '',
+    name: extractStringValue(payload.name ?? payload.unique_name ?? payload.username, 'User'),
+    email: extractStringValue(payload.email ?? payload['email'], ''),
     role: activeRole,
     roles,
     activeRole,
@@ -117,11 +132,11 @@ function normalizeUser(raw: Partial<AuthUser> | null | undefined): AuthUser | nu
     const coerced = Number(String(rawId))
     id = Number.isFinite(coerced) ? coerced : String(rawId)
   }
-  const email = raw.email ?? ''
+  const email = extractStringValue(raw.email, '')
 
   return {
     id,
-    name: raw.name ?? 'User',
+    name: extractStringValue(raw.name, 'User'),
     email,
     role: roleToUse,
     roles: (rolesSafe.length > 0 ? rolesSafe : [roleToUse]) as UserRole[],
@@ -142,18 +157,18 @@ function safeGetStoredUser(): Partial<AuthUser> | null {
 function safeSetStoredUser(u: AuthUser | null, persistent = false) {
   try {
     const storage = persistent ? localStorage : sessionStorage
-  const opposite = persistent ? sessionStorage : localStorage
+    const opposite = persistent ? sessionStorage : localStorage
 
-  if (u) {
-    storage.setItem(USER_KEY, JSON.stringify(u))
-    opposite.removeItem(USER_KEY)
-  } else {
-    localStorage.removeItem(USER_KEY)
-    sessionStorage.removeItem(USER_KEY)
+    if (u) {
+      storage.setItem(USER_KEY, JSON.stringify(u))
+      opposite.removeItem(USER_KEY)
+    } else {
+      localStorage.removeItem(USER_KEY)
+      sessionStorage.removeItem(USER_KEY)
+    }
+  } catch (e) {
+    logger.warn('safeSetStoredUser failed', e)
   }
-} catch (e) {
-  logger.warn('safeSetStoredUser failed', e)
-}
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -166,7 +181,9 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
 
   const isAuthenticated = computed(() => user.value !== null)
-  const currentUserRole = computed<UserRole | null>(() => user.value?.activeRole ?? user.value?.role ?? user.value?.roles?.[0] ?? null)
+  const currentUserRole = computed<UserRole | null>(
+    () => user.value?.activeRole ?? user.value?.role ?? user.value?.roles?.[0] ?? null,
+  )
 
   function hasRole(allowedRoles: UserRole[]): boolean {
     if (!user.value) return false
@@ -176,10 +193,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function setToken(accessToken: string, refreshToken?: string, persistent = false) {
-      tokenStorage.set(accessToken, refreshToken, persistent)
+    tokenStorage.set(accessToken, refreshToken, persistent)
   }
 
   function setUser(userData: AuthUser | null, persistent = tokenStorage.isPersistent()) {
+    if (
+      userData === null ||
+      (user.value && userData && String(user.value.id) !== String(userData.id))
+    ) {
+      try {
+        usePatientStore().reset()
+      } catch {
+        // ignore
+      }
+    }
     user.value = normalizeUser(userData)
     safeSetStoredUser(user.value, persistent)
   }
@@ -204,28 +231,33 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchMe() {
     try {
       const me = await authApi.getMe()
+      if (user.value?.activeRole) {
+        me.activeRole = user.value.activeRole
+        me.role = user.value.activeRole
+      }
       setUser(me)
       return me
     } catch (e: any) {
-      const statusCode = e instanceof Error && (e as any).status ? (e as any).status : e?.response?.status
+      const statusCode =
+        e instanceof Error && (e as any).status ? (e as any).status : e?.response?.status
       const accessToken = tokenStorage.getAccess()
       const fallbackUser = buildUserFromToken(accessToken)
       const hasUsefulTokenUser = Boolean(
         accessToken &&
-          accessToken.includes('.') &&
-          (fallbackUser.name && fallbackUser.name !== 'User' ||
-            fallbackUser.email ||
-            (fallbackUser.roles?.length ?? 0) > 1),
+        accessToken.includes('.') &&
+        ((fallbackUser.name && fallbackUser.name !== 'User') ||
+          fallbackUser.email ||
+          (fallbackUser.roles?.length ?? 0) > 1),
       )
 
-    if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
+      if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
         if (hasUsefulTokenUser) {
           setUser(fallbackUser, tokenStorage.isPersistent())
           return fallbackUser
         }
         tokenStorage.clear()
         safeSetStoredUser(null, false)
-      return fallbackUser
+        return fallbackUser
       }
 
       if (hasUsefulTokenUser) {
@@ -255,7 +287,10 @@ export const useAuthStore = defineStore('auth', () => {
       const status = Number(err?.response?.status ?? err?.status ?? 0)
 
       if (status === 403 || status === 404) {
-        logger.debug('[auth] Patient profile endpoint unavailable; skipping auto-create to avoid noisy forbidden requests.', { status })
+        logger.debug(
+          '[auth] Patient profile endpoint unavailable; skipping auto-create to avoid noisy forbidden requests.',
+          { status },
+        )
         return false
       }
 
@@ -266,7 +301,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (createPayload && status >= 400) {
         const candidate = createPayload ?? user.value ?? {}
         const body: Record<string, any> = {}
-        if (candidate.fullName || candidate.name) body.fullName = candidate.fullName ?? candidate.name
+        if (candidate.fullName || candidate.name)
+          body.fullName = candidate.fullName ?? candidate.name
         if (candidate.email) body.email = candidate.email
         if (candidate.phoneNumber) body.phoneNumber = candidate.phoneNumber
         if (candidate.address) body.address = candidate.address
@@ -295,17 +331,26 @@ export const useAuthStore = defineStore('auth', () => {
             logger.warn('ensurePatientProfile: create failed', createErr)
 
             const createStatus = Number(createErr?.response?.status ?? createErr?.status ?? 0)
-            const createMessage = String(createErr?.response?.data?.message ?? createErr?.message ?? '')
+            const createMessage = String(
+              createErr?.response?.data?.message ?? createErr?.message ?? '',
+            )
 
-            const alreadyAssociated = createStatus === 409 || /already associated/i.test(createMessage) || /already exists/i.test(createMessage)
+            const alreadyAssociated =
+              createStatus === 409 ||
+              /already associated/i.test(createMessage) ||
+              /already exists/i.test(createMessage)
 
             if (alreadyAssociated) {
               try {
                 await http.get('/me/appointments')
                 return true
               } catch (recheckErr: any) {
-                logger.warn('ensurePatientProfile: recheck after already-associated failed', recheckErr)
-                error.value = 'Tài khoản đã được liên kết với một hồ sơ bệnh nhân. Nếu bạn không thể truy cập, vui lòng liên hệ lễ tân.'
+                logger.warn(
+                  'ensurePatientProfile: recheck after already-associated failed',
+                  recheckErr,
+                )
+                error.value =
+                  'Tài khoản đã được liên kết với một hồ sơ bệnh nhân. Nếu bạn không thể truy cập, vui lòng liên hệ lễ tân.'
                 return false
               }
             }
@@ -335,12 +380,11 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const access = tokenStorage.getAccess()
       if (access) {
-        // Avoid an automatic network round-trip to /auth/me on app start which may be 404/403
-        // in some deployment states. Use the JWT payload to hydrate the user synchronously.
-        // This reduces noisy 404s and keeps the UI usable while still allowing explicit
-        // fetchMe() calls later when necessary (e.g., after login/register).
+        // Hydrate synchronously from the validated session token; fetchMe() can refresh the
+        // profile from Identity when a screen explicitly needs the current server-side data.
         const fallbackUser = buildUserFromToken(access)
         setUser(fallbackUser, tokenStorage.isPersistent())
+        void fetchMe().catch(() => undefined)
         return fallbackUser
       }
     } catch (e) {
@@ -358,14 +402,16 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authApi.login(payload)
       const fallbackUser = buildUserFromToken(res.accessToken)
-      const normalizedUser = normalizeUser({
-        ...res.user,
-        role: res.role ?? res.user?.role ?? fallbackUser.role,
-        roles: res.roles ?? res.user?.roles ?? fallbackUser.roles,
-        activeRole: res.role ?? res.user?.activeRole ?? fallbackUser.activeRole,
-      }) ?? fallbackUser
+      const normalizedUser =
+        normalizeUser({
+          ...res.user,
+          role: res.role ?? res.user?.role ?? fallbackUser.role,
+          roles: res.roles ?? res.user?.roles ?? fallbackUser.roles,
+          activeRole: res.role ?? res.user?.activeRole ?? fallbackUser.activeRole,
+        }) ?? fallbackUser
 
-      const activeRole = payload.role ?? normalizedUser.activeRole ?? normalizedUser.roles?.[0] ?? 'Patient'
+      const activeRole =
+        payload.role ?? normalizedUser.activeRole ?? normalizedUser.roles?.[0] ?? 'Patient'
       normalizedUser.activeRole = activeRole
       normalizedUser.role = activeRole
       normalizedUser.roles = normalizeRoles(normalizedUser.roles ?? [activeRole])
@@ -375,11 +421,29 @@ export const useAuthStore = defineStore('auth', () => {
 
       const persistent = payload.rememberMe === true
       setToken(res.accessToken, res.refreshToken, persistent)
+      try {
+        usePatientStore().reset()
+      } catch {
+        // ignore
+      }
       setUser(normalizedUser, persistent)
 
-      // Do not aggressively fetch /auth/me during login when this backend does not expose it.
-      // The JWT payload already contains the user identity, and the app can fall back gracefully
-      // when the server-side profile endpoints are unavailable or forbidden.
+      // Ensure patient protected endpoints are enabled on fresh login
+      enableProtectedPatientEndpoints()
+
+      try {
+        if (!normalizedUser.name || normalizedUser.name === 'User') {
+          const fetched = await fetchMe()
+          if (fetched) {
+            normalizedUser.name = fetched.name || normalizedUser.name
+            normalizedUser.email = fetched.email || normalizedUser.email
+          }
+        }
+      } catch (err) {
+        logger.warn('fetchMe after login failed', err)
+      }
+
+      // Keep login responsive from the token claims; fetchMe() can load the Identity profile on demand.
       status.value = 'idle'
       return normalizedUser
     } catch (e: any) {
@@ -387,7 +451,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (e instanceof ApiError) {
         error.value = e.message
       } else {
-        error.value = e?.response?.data?.message || (e instanceof Error ? e.message : 'Đăng nhập thất bại')
+        error.value =
+          e?.response?.data?.message || (e instanceof Error ? e.message : 'Đăng nhập thất bại')
       }
       throw e
     }
@@ -403,13 +468,15 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (res && token) {
         const fallbackUser = buildUserFromToken(token)
-        const normalizedUser = normalizeUser({
-          ...res.user,
-          role: res.role ?? res.user?.role ?? fallbackUser.role,
-          roles: res.roles ?? res.user?.roles ?? fallbackUser.roles,
-          activeRole: res.role ?? res.user?.activeRole ?? fallbackUser.activeRole,
-        }) ?? fallbackUser
-        const activeRole = normalizedUser.activeRole ?? normalizedUser.role ?? normalizedUser.roles?.[0] ?? 'Patient'
+        const normalizedUser =
+          normalizeUser({
+            ...res.user,
+            role: res.role ?? res.user?.role ?? fallbackUser.role,
+            roles: res.roles ?? res.user?.roles ?? fallbackUser.roles,
+            activeRole: res.role ?? res.user?.activeRole ?? fallbackUser.activeRole,
+          }) ?? fallbackUser
+        const activeRole =
+          normalizedUser.activeRole ?? normalizedUser.role ?? normalizedUser.roles?.[0] ?? 'Patient'
         normalizedUser.activeRole = activeRole
         normalizedUser.role = activeRole
         normalizedUser.roles = normalizeRoles(normalizedUser.roles ?? [activeRole])
@@ -418,8 +485,7 @@ export const useAuthStore = defineStore('auth', () => {
         setToken(token, res.refreshToken, persistent)
         setUser(normalizedUser, persistent)
 
-        // Avoid noisy /auth/me calls during register when the backend route is missing.
-        // Store the token-derived user directly and let explicit profile flows handle server-backed data.
+        // Registration provisions the Clinic Patient profile, while login establishes a session separately.
 
         // After registration, attempt to create patient profile using provided payload
         try {
@@ -428,7 +494,7 @@ export const useAuthStore = defineStore('auth', () => {
           // ensurePatientProfile reports friendly errors into auth.error
         }
       }
- 
+
       status.value = 'idle'
       return res
     } catch (e: any) {
@@ -436,17 +502,26 @@ export const useAuthStore = defineStore('auth', () => {
       if (e instanceof ApiError) {
         error.value = e.message
       } else {
-        error.value = e?.response?.data?.message || (e instanceof Error ? e.message : 'Đăng ký thất bại')
+        error.value =
+          e?.response?.data?.message || (e instanceof Error ? e.message : 'Đăng ký thất bại')
       }
       throw e
     }
   }
 
-  function logout() {
+  async function logout() {
+    const refreshToken = tokenStorage.getRefresh()
     tokenStorage.clear()
     setUser(null)
     status.value = 'idle'
     error.value = null
+    enableProtectedPatientEndpoints()
+    try {
+      await authApi.logout(refreshToken)
+      usePatientStore().reset()
+    } catch {
+      // ignore
+    }
   }
 
   return {

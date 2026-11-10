@@ -403,7 +403,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000003"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Cancel appointments (deprecated - dùng appointment.cancel.own/.any)",
+                            Description = "Cancel appointments (deprecated - dÃ¹ng appointment.cancel.own/.any)",
                             IsDeleted = true,
                             Name = "appointment.cancel"
                         },
@@ -443,7 +443,7 @@ namespace Clinic.Infrastructure.Sqlserver.Migrations
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000006"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Edit doctor profile (deprecated - dùng doctor.edit.own/.any)",
+                            Description = "Edit doctor profile (deprecated - dÃ¹ng doctor.edit.own/.any)",
                             IsDeleted = true,
                             Name = "doctor.edit"
                         },

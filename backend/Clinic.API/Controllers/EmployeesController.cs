@@ -1,4 +1,4 @@
-﻿using Clinic.API.Models;
+using Clinic.API.Models;
 using Clinic.Application.Contracts;
 using Clinic.Application.Features.Doctors.Commands;
 using Clinic.Application.Features.Doctors.Queries;

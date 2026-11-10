@@ -56,6 +56,113 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task MigrateAsync()
         {
             await _context.Database.MigrateAsync();
+
+            const string patchSql = @"
+                IF COL_LENGTH('WorkSchedules', 'PatientLimit') IS NOT NULL AND COL_LENGTH('WorkSchedules', 'RecommendedCapacity') IS NULL
+                BEGIN
+                    EXEC sp_rename 'WorkSchedules.PatientLimit', 'RecommendedCapacity', 'COLUMN';
+                END
+
+                IF COL_LENGTH('Appointments', 'IdempotencyKey') IS NULL
+                BEGIN
+                    ALTER TABLE Appointments ADD IdempotencyKey NVARCHAR(100) NULL;
+                END
+
+                IF COL_LENGTH('QueueTickets', 'QueueDate') IS NULL
+                BEGIN
+                    ALTER TABLE QueueTickets ADD QueueDate DATE NULL;
+                END
+
+                IF COL_LENGTH('QueueTickets', 'PatientName') IS NULL
+                BEGIN
+                    ALTER TABLE QueueTickets ADD PatientName NVARCHAR(200) NULL;
+                END
+
+                IF COL_LENGTH('QueueTickets', 'DoctorName') IS NULL
+                BEGIN
+                    ALTER TABLE QueueTickets ADD DoctorName NVARCHAR(200) NULL;
+                END
+
+                IF COL_LENGTH('MedicalReports', 'AppointmentId') IS NULL
+                BEGIN
+                    ALTER TABLE MedicalReports ADD AppointmentId UNIQUEIDENTIFIER NULL;
+                    EXEC('UPDATE m SET m.AppointmentId = q.AppointmentId FROM MedicalReports m JOIN QueueTickets q ON m.QueueTicketId = q.Id WHERE m.AppointmentId IS NULL');
+                END
+
+                IF OBJECT_ID('MedicalReportAmendments', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE MedicalReportAmendments (
+                        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                        MedicalReportId UNIQUEIDENTIFIER NOT NULL,
+                        Reason NVARCHAR(500) NOT NULL,
+                        Content NVARCHAR(2000) NOT NULL,
+                        CreatedByDoctorId UNIQUEIDENTIFIER NOT NULL,
+                        DoctorName NVARCHAR(200) NOT NULL,
+                        CreatedAt DATETIME2 NOT NULL,
+                        UpdatedAt DATETIME2 NULL,
+                        IsDeleted BIT NOT NULL DEFAULT 0,
+                        CONSTRAINT FK_MedicalReportAmendments_MedicalReports FOREIGN KEY (MedicalReportId) REFERENCES MedicalReports(Id) ON DELETE CASCADE
+                    );
+                END
+
+                IF OBJECT_ID('MedicalAccessAudits', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE MedicalAccessAudits (
+                        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                        MedicalReportId UNIQUEIDENTIFIER NOT NULL,
+                        UserId UNIQUEIDENTIFIER NOT NULL,
+                        Action NVARCHAR(50) NOT NULL,
+                        Details NVARCHAR(1000) NULL,
+                        Timestamp DATETIME2 NOT NULL,
+                        CreatedAt DATETIME2 NOT NULL,
+                        UpdatedAt DATETIME2 NULL,
+                        IsDeleted BIT NOT NULL DEFAULT 0
+                    );
+                END
+
+                IF COL_LENGTH('Notifications', 'DeliveryAttempts') IS NULL
+                BEGIN
+                    ALTER TABLE Notifications ADD DeliveryAttempts INT NOT NULL DEFAULT 0;
+                END
+
+                IF COL_LENGTH('Notifications', 'FailureReason') IS NULL
+                BEGIN
+                    ALTER TABLE Notifications ADD FailureReason NVARCHAR(500) NULL;
+                END
+
+                IF COL_LENGTH('Notifications', 'IdempotencyKey') IS NULL
+                BEGIN
+                    ALTER TABLE Notifications ADD IdempotencyKey NVARCHAR(100) NULL;
+                END
+
+                IF OBJECT_ID('Patients', 'U') IS NOT NULL
+                BEGIN
+                    INSERT INTO Patients (Id, PersonId, InsuranceNumber, EmergencyContact, CreatedAt, UpdatedAt, IsDeleted)
+                    SELECT NEWID(), p.Id, 'BHXH-' + SUBSTRING(CONVERT(NVARCHAR(36), p.Id), 1, 6), p.PhoneNumber, GETUTCDATE(), GETUTCDATE(), 0
+                    FROM Persons p
+                    JOIN Users u ON u.PersonId = p.Id
+                    JOIN UserRoles ur ON ur.UserId = u.Id
+                    JOIN Roles r ON r.Id = ur.RoleId AND r.Name = 'Patient'
+                    WHERE NOT EXISTS (SELECT 1 FROM Patients pt WHERE pt.PersonId = p.Id);
+                END
+
+                IF OBJECT_ID('RolePermissions', 'U') IS NOT NULL
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM RolePermissions WHERE RoleId = '00000000-0000-0000-0000-000000000004' AND PermissionId = '20000000-0000-0000-0000-000000000008')
+                    BEGIN
+                        INSERT INTO RolePermissions (RoleId, PermissionId) VALUES ('00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000008');
+                    END
+                END
+            ";
+
+            try
+            {
+                await _context.Database.ExecuteSqlRawAsync(patchSql);
+            }
+            catch
+            {
+                // Best-effort in-memory / relational compatibility
+            }
         }
     }
 }

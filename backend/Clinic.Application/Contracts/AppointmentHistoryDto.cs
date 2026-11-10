@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Enums;
+using Clinic.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Text;

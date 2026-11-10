@@ -4,9 +4,9 @@ using System;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Lưu refresh token dạng hash (không lưu token gốc) để có thể thu hồi
-    /// (RevokedAt) khi đăng xuất, và phát hiện token bị đánh cắp nếu dùng lại
-    /// một token đã bị thu hồi/hết hạn.
+    /// LÆ°u refresh token dáº¡ng hash (khÃ´ng lÆ°u token gá»‘c) Ä‘á»ƒ cÃ³ thá»ƒ thu há»“i
+    /// (RevokedAt) khi Ä‘Äƒng xuáº¥t, vÃ  phÃ¡t hiá»‡n token bá»‹ Ä‘Ã¡nh cáº¯p náº¿u dÃ¹ng láº¡i
+    /// má»™t token Ä‘Ã£ bá»‹ thu há»“i/háº¿t háº¡n.
     /// </summary>
     public class RefreshToken
     {
@@ -15,14 +15,14 @@ namespace Clinic.Domain.Entities
 
         public Guid Id { get; init; }
 
-        /// <summary>Hash của refresh token, không lưu giá trị gốc.</summary>
+        /// <summary>Hash cá»§a refresh token, khÃ´ng lÆ°u giÃ¡ trá»‹ gá»‘c.</summary>
         public string TokenHash { get; init; } = string.Empty;
 
         public DateTime IssuedAt { get; init; } = DateTime.UtcNow;
 
         public DateTime ExpiresAt { get; init; }
 
-        /// <summary>NULL nếu token vẫn còn hiệu lực; có giá trị khi đã bị thu hồi (logout, refresh 1 lần...).</summary>
+        /// <summary>NULL náº¿u token váº«n cÃ²n hiá»‡u lá»±c; cÃ³ giÃ¡ trá»‹ khi Ä‘Ã£ bá»‹ thu há»“i (logout, refresh 1 láº§n...).</summary>
         public DateTime? RevokedAt { get; protected set; }
 
         /// <summary>

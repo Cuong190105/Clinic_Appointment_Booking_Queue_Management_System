@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Features.Doctors.Commands;
+using Clinic.Application.Features.Doctors.Commands;
 using Clinic.Application.UnitTests.Common;
 using System;
 using System.Collections.Generic;

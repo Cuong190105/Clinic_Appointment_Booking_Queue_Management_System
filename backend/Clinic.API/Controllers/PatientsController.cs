@@ -8,7 +8,11 @@ using Clinic.Application.Interfaces;
 using MapsterMapper;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Clinic.API.Controllers
 {
@@ -50,6 +54,20 @@ namespace Clinic.API.Controllers
             var command = new GetPatientByIdQuery(patientId);
             var result = await _sender.Send(command);
             return Ok(result);
+        }
+
+        [HttpPost]
+        [HttpPost("add")]
+        [Authorize(Policy = "Permission:patient.create.any")]
+        [ProducesResponseType(typeof(PatientDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> CreatePatient([FromBody] ReceptionistCreatePatientRequest request)
+        {
+            var command = _mapper.Map<CreatePatientCommand>(request);
+            var result = await _sender.Send(command);
+            return StatusCode(StatusCodes.Status201Created, result);
         }
 
         [HttpGet("{patientId}/appointments")]

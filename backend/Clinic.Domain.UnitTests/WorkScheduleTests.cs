@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Common.Exceptions;
+using Clinic.Domain.Common.Exceptions;
 using Clinic.Domain.Entities;
 
 namespace Clinic.Domain.UnitTests

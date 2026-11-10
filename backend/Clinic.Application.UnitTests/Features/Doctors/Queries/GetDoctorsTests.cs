@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Features.Doctors.Queries;
+using Clinic.Application.Features.Doctors.Queries;
 using Clinic.Application.UnitTests.Common;
 using System;
 using System.Collections.Generic;

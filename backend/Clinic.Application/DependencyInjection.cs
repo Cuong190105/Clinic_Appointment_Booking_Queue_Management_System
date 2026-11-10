@@ -14,9 +14,9 @@ namespace Clinic.Application
     {
         public static IServiceCollection AddApplication(this IServiceCollection services)
         {
-            // Đăng ký toàn bộ Handler (IRequestHandler<...>) trong assembly này.
-            // Khi nhóm thêm Command/Query dưới Features/, MediatR sẽ tự tìm thấy,
-            // không cần đăng ký thủ công từng handler.
+            // ÄÄƒng kÃ½ toÃ n bá»™ Handler (IRequestHandler<...>) trong assembly nÃ y.
+            // Khi nhÃ³m thÃªm Command/Query dÆ°á»›i Features/, MediatR sáº½ tá»± tÃ¬m tháº¥y,
+            // khÃ´ng cáº§n Ä‘Äƒng kÃ½ thá»§ cÃ´ng tá»«ng handler.
             services.AddMediatR(cfg =>
                 cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
 
@@ -35,7 +35,7 @@ namespace Clinic.Application
             services.AddScoped<ICustomNotificationHandler, CustomNotificationHandler>();
             services.AddScoped<IDueNotificationHandler, DueNotificationHandler>();
             // Application services are registered via the infrastructure layer.
-            // TODO: nếu dùng Mapster theo pattern IRegister, quét cấu hình mapping tại đây:
+            // TODO: náº¿u dÃ¹ng Mapster theo pattern IRegister, quÃ©t cáº¥u hÃ¬nh mapping táº¡i Ä‘Ã¢y:
             // TypeAdapterConfig.GlobalSettings.Scan(Assembly.GetExecutingAssembly());
 
             return services;

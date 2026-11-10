@@ -34,7 +34,7 @@ namespace Clinic.Application.UnitTests.Common
         }
 
         /// <summary>
-        /// Tạo 1 QueueTicket hợp lệ, liên kết 2 chiều với appointment (giống CheckInHandler thật).
+        /// Táº¡o 1 QueueTicket há»£p lá»‡, liÃªn káº¿t 2 chiá»u vá»›i appointment (giá»‘ng CheckInHandler tháº­t).
         /// </summary>
         public static QueueTicket CreateQueueTicket(Appointment appointment, int queueNumber = 1, bool priority = false)
         {
@@ -107,10 +107,10 @@ namespace Clinic.Application.UnitTests.Common
 
             if (checkedIn)
             {
-                // Lưu ý: nếu truyền timeSlot khác ngày hôm nay kèm checkedIn: true, dòng này sẽ tự
-                // ném ConflictException ngay trong lúc dựng dữ liệu test (đúng theo domain rule mới) -
-                // muốn test case "check-in lịch ngày khác" thì dùng confirmed: true + timeSlot khác
-                // ngày, rồi tự gọi handler.Handle(...) để assert exception, không dùng checkedIn: true.
+                // LÆ°u Ã½: náº¿u truyá»n timeSlot khÃ¡c ngÃ y hÃ´m nay kÃ¨m checkedIn: true, dÃ²ng nÃ y sáº½ tá»±
+                // nÃ©m ConflictException ngay trong lÃºc dá»±ng dá»¯ liá»‡u test (Ä‘Ãºng theo domain rule má»›i) -
+                // muá»‘n test case "check-in lá»‹ch ngÃ y khÃ¡c" thÃ¬ dÃ¹ng confirmed: true + timeSlot khÃ¡c
+                // ngÃ y, rá»“i tá»± gá»i handler.Handle(...) Ä‘á»ƒ assert exception, khÃ´ng dÃ¹ng checkedIn: true.
                 app.CheckIn(DateTime.UtcNow, queueNumber);
             }
 

@@ -23,9 +23,13 @@ namespace Clinic.Domain.Entities
 
         public bool IsWalkIn { get; protected set; } = false;
 
+        public string? IdempotencyKey { get; set; }
+
+        public MedicalReport? MedicalReport { get; set; }
+
         public Guid UpdatedByUserId { get; protected set; }
 
-        /// <summary>0..1 - chỉ có sau khi bệnh nhân check-in.</summary>
+        /// <summary>0..1 - chá»‰ cÃ³ sau khi bá»‡nh nhÃ¢n check-in.</summary>
         public QueueTicket? QueueTicket { get; protected set; }
 
         public ICollection<AppointmentSnapshot> Snapshots { get; protected set; } = [];
@@ -100,16 +104,17 @@ namespace Clinic.Domain.Entities
         }
 
         /// <summary>
-        /// Check-in bệnh nhân tại quầy/vào hàng đợi.
+        /// Check-in bá»‡nh nhÃ¢n táº¡i quáº§y/vÃ o hÃ ng Ä‘á»£i.
         /// </summary>
-        /// <param name="checkInTime">Thời điểm check-in thực tế (giờ hệ thống).</param>
-        /// <exception cref="ArgumentException">Appointment chưa ở trạng thái Confirmed.</exception>
+        /// <param name="checkInTime">Thá»i Ä‘iá»ƒm check-in thá»±c táº¿ (giá» há»‡ thá»‘ng).</param>
+        /// <exception cref="ArgumentException">Appointment chÆ°a á»Ÿ tráº¡ng thÃ¡i Confirmed.</exception>
         /// <exception cref="ConflictException">
-        /// TimeSlot của appointment không cùng ngày với checkInTime - ví dụ lịch hẹn của
-        /// ngày mai không được phép vào hàng đợi của ngày hôm nay (và ngược lại).
+        /// TimeSlot cá»§a appointment khÃ´ng cÃ¹ng ngÃ y vá»›i checkInTime - vÃ­ dá»¥ lá»‹ch háº¹n cá»§a
+        /// ngÃ y mai khÃ´ng Ä‘Æ°á»£c phÃ©p vÃ o hÃ ng Ä‘á»£i cá»§a ngÃ y hÃ´m nay (vÃ  ngÆ°á»£c láº¡i).
         /// </exception>
         public QueueTicket CheckIn(DateTime checkInTime, int queueNumber)
         {
+            if (Status == AppointmentStatus.CheckedIn || QueueTicket != null) throw new ArgumentException("Lịch hẹn đã được check-in trước đó.");
             if (Status != AppointmentStatus.Confirmed)
             {
                 throw new ArgumentException($"Cannot check in an appointment with status '{Status}'. Appointment must be confirmed first.");
@@ -126,6 +131,9 @@ namespace Clinic.Domain.Entities
                 AppointmentId = Id,
                 QueueNumber = queueNumber,
                 CheckInTime = checkInTime,
+                QueueDate = WorkSchedule.Date,
+                PatientName = Patient?.Person?.FullName,
+                DoctorName = WorkSchedule.Doctor?.Employee?.Person?.FullName,
                 Appointment = this
             };
 

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using BCrypt.Net;
 
 namespace Clinic.Infrastructure.Sqlserver.Authentication

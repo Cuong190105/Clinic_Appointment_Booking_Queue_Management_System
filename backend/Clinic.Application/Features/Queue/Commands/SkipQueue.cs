@@ -1,19 +1,17 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
+using Clinic.Domain.Common.Exceptions;
 using Clinic.Domain.Enums;
 using MediatR;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.Features.Queue.Commands
 {
     public record SkipQueueCommand(Guid QueueTicketId) : IRequest<SkipQueueResult>;
 
-    /// <summary>
-    /// Kết quả bỏ qua 1 lượt khám. <see cref="NextCalledTicket"/> khác null khi vé bị bỏ qua
-    /// đang giữ chỗ bác sĩ (Status = Called) và hệ thống đã tự động gọi số tiếp theo để
-    /// "giải phóng bác sĩ" ngay sau đó; null nếu vé bị bỏ qua đang Waiting (bác sĩ chưa hề bận
-    /// với vé này) hoặc hàng đợi hiện không còn ai đang chờ.
-    /// </summary>
     public record SkipQueueResult(QueueTicketDto SkippedTicket, QueueTicketDto? NextCalledTicket);
 
     public class SkipQueueHandler : IRequestHandler<SkipQueueCommand, SkipQueueResult>
@@ -21,13 +19,23 @@ namespace Clinic.Application.Features.Queue.Commands
         private const int MaxRetries = 5;
 
         private readonly IQueueTicketRepository _queueTicketRepository;
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly ICurrentUser? _currentUser;
+        private readonly IUnitOfWork? _unitOfWork;
 
         public SkipQueueHandler(
             IQueueTicketRepository queueTicketRepository,
             IUnitOfWork unitOfWork)
+            : this(queueTicketRepository, null, unitOfWork)
+        {
+        }
+
+        public SkipQueueHandler(
+            IQueueTicketRepository queueTicketRepository,
+            ICurrentUser? currentUser,
+            IUnitOfWork? unitOfWork = null)
         {
             _queueTicketRepository = queueTicketRepository;
+            _currentUser = currentUser;
             _unitOfWork = unitOfWork;
         }
 
@@ -36,9 +44,20 @@ namespace Clinic.Application.Features.Queue.Commands
             var queueTicket = await _queueTicketRepository.GetByIdAsync(command.QueueTicketId)
                 ?? throw new NotFoundException($"Queue ticket '{command.QueueTicketId}' not found.");
 
-            // Chỉ vé đang ở Called mới thực sự đang "giữ chỗ" bác sĩ (đã StartExam thì Skip() đã bị
-            // chặn ở tầng Domain rồi). Vé Waiting bị skip thì bác sĩ chưa hề bận với vé này -> không
-            // cần/không nên tự động gọi số tiếp theo thay cho lễ tân.
+            // Bác sĩ chỉ được bỏ qua ticket đã Called và chưa bắt đầu khám; không được bỏ qua ticket chưa gọi (Waiting).
+            if (_currentUser != null && _currentUser.IsInRole("Doctor") && !_currentUser.IsInRole("Admin") && !_currentUser.IsInRole("Receptionist"))
+            {
+                if (queueTicket.Status != QueueStatus.Called)
+                {
+                    throw new ConflictException("Bác sĩ chỉ được bỏ qua lượt khám đã được gọi (Called) và chưa bắt đầu khám.");
+                }
+
+                if (queueTicket.Appointment.WorkSchedule.DoctorId != _currentUser.DoctorId)
+                {
+                    throw new ForbiddenException("Bác sĩ không thể bỏ qua lượt khám của bác sĩ khác.");
+                }
+            }
+
             var wasHoldingDoctor = queueTicket.Status == QueueStatus.Called;
             var doctorId = queueTicket.Appointment.WorkSchedule.DoctorId;
             var checkInDate = queueTicket.CheckInTime.Date;
@@ -46,7 +65,10 @@ namespace Clinic.Application.Features.Queue.Commands
             queueTicket.Skip();
 
             await _queueTicketRepository.UpdateAsync(queueTicket);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            if (_unitOfWork != null)
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
 
             var skippedDto = ToDto(queueTicket);
 
@@ -55,10 +77,6 @@ namespace Clinic.Application.Features.Queue.Commands
                 return new SkipQueueResult(skippedDto, null);
             }
 
-            // Bác sĩ vừa được giải phóng khỏi vé bị bỏ qua -> tự động gọi bệnh nhân tiếp theo (nếu còn).
-            // Đây là hành động best-effort: nếu bước này thất bại (hết hàng đợi, hoặc xung đột concurrency
-            // liên tục), việc Skip() ở trên vẫn được coi là thành công - lễ tân luôn có thể tự bấm
-            // "Call next" lại sau. Không throw ra ngoài để tránh làm rollback thao tác Skip đã commit.
             for (var attempt = 0; attempt < MaxRetries; attempt++)
             {
                 var nextTicket = await _queueTicketRepository.GetNextWaitingAsync(doctorId, checkInDate);
@@ -71,13 +89,16 @@ namespace Clinic.Application.Features.Queue.Commands
 
                 await _queueTicketRepository.UpdateAsync(nextTicket);
 
-                try
+                if (_unitOfWork != null)
                 {
-                    await _unitOfWork.SaveChangesAsync(cancellationToken);
-                }
-                catch (ConcurrencyConflictException)
-                {
-                    continue;
+                    try
+                    {
+                        await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    }
+                    catch (ConcurrencyConflictException)
+                    {
+                        continue;
+                    }
                 }
 
                 return new SkipQueueResult(skippedDto, ToDto(nextTicket));
@@ -95,7 +116,8 @@ namespace Clinic.Application.Features.Queue.Commands
             Status = queueTicket.Status.ToString(),
             CheckInTime = queueTicket.CheckInTime,
             CalledAt = queueTicket.CalledAt,
-            PatientName = queueTicket.Appointment.Patient?.Person?.FullName
+            PatientName = queueTicket.PatientName ?? queueTicket.Appointment.Patient?.Person?.FullName,
+            DoctorName = queueTicket.DoctorName ?? queueTicket.Appointment.WorkSchedule?.Doctor?.Employee?.Person?.FullName
         };
     }
 }

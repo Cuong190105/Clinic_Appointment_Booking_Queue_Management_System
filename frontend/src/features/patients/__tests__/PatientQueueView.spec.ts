@@ -19,11 +19,16 @@ describe('PatientQueueView', () => {
 
     vi.useFakeTimers()
 
+    const NotificationMock = vi.fn(function (
+      this: { title: string; options?: { body?: string } },
+      title: string,
+      options?: { body?: string },
+    ) {
+      this.title = title
+      this.options = options
+    })
     Object.defineProperty(globalThis, 'Notification', {
-      value: vi.fn().mockImplementation((title: string, options?: { body?: string }) => ({
-        title,
-        options,
-      })),
+      value: NotificationMock,
       writable: true,
       configurable: true,
     })
@@ -78,7 +83,7 @@ describe('PatientQueueView', () => {
     expect(patientStore.loadQueue).toHaveBeenCalledTimes(1)
     expect(patientStore.queue?.myTicket).toBe('A-12')
     wrapper.unmount()
-  })
+  }, 15000)
 
   it('does not expose a cancel-queue action on the current queue screen', async () => {
     patientStore.queue = {

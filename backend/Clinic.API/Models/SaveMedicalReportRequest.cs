@@ -5,8 +5,9 @@ namespace Clinic.API.Models
 {
     public class SaveMedicalReportRequest
     {
-        [Required(ErrorMessage = "QueueTicketId is required.")]
-        public Guid QueueTicketId { get; set; }
+        public Guid? AppointmentId { get; set; }
+
+        public Guid? QueueTicketId { get; set; }
 
         public string? Symptoms { get; set; }
 
@@ -17,5 +18,14 @@ namespace Clinic.API.Models
         public string? Notes { get; set; }
 
         public bool IsFinalize { get; set; } = false;
+    }
+
+    public class CreateAmendmentRequest
+    {
+        [Required(ErrorMessage = "Reason is required.")]
+        public string Reason { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Content is required.")]
+        public string Content { get; set; } = string.Empty;
     }
 }

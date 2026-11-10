@@ -3,8 +3,8 @@ using System;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Bảng trung gian N-N giữa User và Role.
-    /// Khóa chính kép (UserId, RoleId)
+    /// Báº£ng trung gian N-N giá»¯a User vÃ  Role.
+    /// KhÃ³a chÃ­nh kÃ©p (UserId, RoleId)
     /// </summary>
     public class UserRole
     {

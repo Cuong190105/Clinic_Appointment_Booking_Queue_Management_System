@@ -25,24 +25,24 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             }
             catch (DbUpdateConcurrencyException)
             {
-                // RowVersion không khớp - bản ghi đã bị request khác cập nhật trước.
-                // Dịch sang exception riêng của Application để Infrastructure (EF Core)
-                // không rò rỉ lên Handler, giữ đúng ranh giới Clean Architecture.
+                // RowVersion khÃ´ng khá»›p - báº£n ghi Ä‘Ã£ bá»‹ request khÃ¡c cáº­p nháº­t trÆ°á»›c.
+                // Dá»‹ch sang exception riÃªng cá»§a Application Ä‘á»ƒ Infrastructure (EF Core)
+                // khÃ´ng rÃ² rá»‰ lÃªn Handler, giá»¯ Ä‘Ãºng ranh giá»›i Clean Architecture.
                 throw new ConcurrencyConflictException(
-                    "Dữ liệu đã bị thay đổi bởi thao tác khác, vui lòng thử lại.");
+                    "Dá»¯ liá»‡u Ä‘Ã£ bá»‹ thay Ä‘á»•i bá»Ÿi thao tÃ¡c khÃ¡c, vui lÃ²ng thá»­ láº¡i.");
             }
         }
 
         public async Task InitializeTransactionLockAsync(CancellationToken cancellationToken = default)
         {
-            // Tránh mở đè 1 transaction khác lên transaction đang mở dở nếu handler lỡ gọi
-            // 2 lần - giữ nguyên transaction đầu tiên, không rò rỉ connection.
+            // TrÃ¡nh má»Ÿ Ä‘Ã¨ 1 transaction khÃ¡c lÃªn transaction Ä‘ang má»Ÿ dá»Ÿ náº¿u handler lá»¡ gá»i
+            // 2 láº§n - giá»¯ nguyÃªn transaction Ä‘áº§u tiÃªn, khÃ´ng rÃ² rá»‰ connection.
             if (_currentTransaction != null)
             {
                 return;
             }
 
-            _currentTransaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+            _currentTransaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken);
         }
 
         public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)

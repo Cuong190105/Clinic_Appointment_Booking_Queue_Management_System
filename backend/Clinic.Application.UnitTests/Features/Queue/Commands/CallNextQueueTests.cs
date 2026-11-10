@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Queue.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Common.Exceptions;
@@ -50,7 +50,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var priorityTicket = TestDataFactory.CreateQueueTicket(priorityAppointment, queueNumber: 2, priority: true);
             await queueTicketRepository.AddAsync(priorityTicket);
 
-            // Act: dù số thứ tự lớn hơn (2), vé ưu tiên vẫn phải được gọi trước vé số 1.
+            // Act: dù s? th? t? l?n hon (2), vé uu tiên v?n ph?i du?c g?i tru?c vé s? 1.
             var result = await handler.Handle(new CallNextQueueCommand(doctor.Id), CancellationToken.None);
 
             // Assert
@@ -75,7 +75,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
         [Fact]
         public async Task Handle_TicketAlreadyCalled_ShouldNotBeCalledAgain()
         {
-            // Arrange: vé đã Called không còn tính là "đang chờ" nên không được gọi lần 2.
+            // Arrange: vé dã Called không còn tính là "dang ch?" nên không du?c g?i l?n 2.
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
             var handler = new CallNextQueueHandler(queueTicketRepository, unitOfWork);
@@ -92,9 +92,9 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
         }
 
         [Fact]
-        public async Task Handle_DoctorHasActiveCalledTicket_ShouldThrowConflictException()
+        public async Task Handle_DoctorHasActiveCalledTicket_ShouldAllowCallingNextTicketSequentially()
         {
-            // Arrange: bác sĩ đang có 1 vé Called chưa StartExam/Complete
+            // Arrange: bác sĩ đang có 1 vé Called, nhưng được gọi lần lượt nhiều số mà không cần hoàn tất lượt trước
             var queueTicketRepository = new FakeQueueTicketRepository();
             var unitOfWork = new FakeUnitOfWork();
             var handler = new CallNextQueueHandler(queueTicketRepository, unitOfWork);
@@ -111,11 +111,12 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             var waitingTicket = TestDataFactory.CreateQueueTicket(waitingAppointment, queueNumber: 2);
             await queueTicketRepository.AddAsync(waitingTicket);
 
-            // Act & Assert: dù còn vé Waiting (số 2), vẫn phải bị chặn vì vé số 1 chưa xong.
-            await Assert.ThrowsAsync<ConflictException>(() =>
-                handler.Handle(new CallNextQueueCommand(doctor.Id), CancellationToken.None));
+            // Act: Bác sĩ gọi số tiếp theo
+            var result = await handler.Handle(new CallNextQueueCommand(doctor.Id), CancellationToken.None);
 
-            Assert.Equal(QueueStatus.Waiting, waitingTicket.Status); // chưa bị gọi
+            // Assert: Vé số 2 được gọi thành công mà không bị chặn
+            Assert.Equal(2, result.QueueNumber);
+            Assert.Equal(QueueStatus.Called, waitingTicket.Status);
         }
     }
 }

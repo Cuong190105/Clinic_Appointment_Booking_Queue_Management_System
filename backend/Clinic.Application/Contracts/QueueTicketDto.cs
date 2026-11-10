@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Clinic.Application.Contracts
 {
@@ -9,6 +9,9 @@ namespace Clinic.Application.Contracts
 
         [JsonPropertyName("appointmentId")]
         public Guid AppointmentId { get; set; }
+
+        [JsonPropertyName("doctorId")]
+        public Guid? DoctorId { get; set; }
 
         [JsonPropertyName("queueNumber")]
         public int QueueNumber { get; set; }
@@ -27,5 +30,8 @@ namespace Clinic.Application.Contracts
 
         [JsonPropertyName("patientName")]
         public string? PatientName { get; set; }
+
+        [JsonPropertyName("doctorName")]
+        public string? DoctorName { get; set; }
     }
 }

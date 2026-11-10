@@ -1,7 +1,9 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -21,31 +23,30 @@ namespace Clinic.Infrastructure.Authentication
         {
             var claims = new List<Claim>
             {
-                new(
-                    JwtRegisteredClaimNames.Sub,
-                    user.Id.ToString()),
-                new(
-                    JwtRegisteredClaimNames.Jti,
-                    Guid.NewGuid().ToString())
+                new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new("name", user.Person?.FullName ?? user.Username),
+                new(JwtRegisteredClaimNames.Email, user.Person?.Email ?? "")
             };
 
             foreach (var userRole in user.UserRoles)
             {
                 var role = userRole.Role;
                 claims.Add(new Claim(ClaimTypes.Role, role.Name));
+                claims.Add(new Claim("role", role.Name));
             }
 
             var personId = user.Person.Id;
             claims.Add(new Claim("personId", personId.ToString()));
 
-            // Nếu user là Patient, thêm claim patientId để dùng cho ownership check (vd: appointment.cancel.own).
+            // Nếu user là Patient, thêm claim patientId
             var patientId = user.Person?.Patient?.Id;
             if (patientId is not null)
             {
                 claims.Add(new Claim("patientId", patientId.Value.ToString()));
             }
 
-            // Nếu user là Doctor (qua Employee), thêm claim doctorId tương tự.
+            // Nếu user là Doctor (qua Employee), thêm claim doctorId
             var doctorId = user.Person?.Employee?.Doctor?.Id;
             if (doctorId is not null)
             {
@@ -91,9 +92,8 @@ namespace Clinic.Infrastructure.Authentication
                     issuer: _configuration["Jwt:Issuer"],
                     audience: _configuration["Jwt:Audience"],
                     claims: claims,
-                    expires: DateTime.UtcNow.AddMinutes(15),
+                    expires: DateTime.UtcNow.AddMinutes(60),
                     signingCredentials: credentials);
-
 
             return new JwtSecurityTokenHandler()
                 .WriteToken(token);

@@ -1,8 +1,9 @@
-export type QueueStatus = 'waiting' | 'examining' | 'completed' | 'skipped' | 'cancelled'
+export type QueueStatus = 'waiting' | 'called' | 'inprogress' | 'completed' | 'skipped' | 'cancelled'
 
 export interface QueuePatient {
   id?: string
   appointmentId?: string
+  doctorId?: string
   no: string
   name: string
   doctor: string
@@ -14,6 +15,7 @@ export interface QueuePatient {
 export interface QueueTicketDto {
   id: string
   appointmentId: string
+  doctorId?: string
   queueNumber: number | string
   patientName?: string
   doctorName?: string
@@ -30,6 +32,17 @@ export interface ReceptionistDoctor {
   specialtyName?: string
 }
 
+export interface WorkingDoctor {
+  doctorId: string
+  fullName: string
+  specialtyId?: string
+  specialtyName?: string
+  workScheduleId: string
+  shiftStart: string
+  shiftEnd: string
+  activeAppointmentsCount: number
+}
+
 export interface PatientSearchItem {
   id: string
   fullName: string
@@ -39,6 +52,41 @@ export interface PatientSearchItem {
   dateOfBirth?: string | null
   gender?: string | number | null
   address?: string | null
+  emergencyContact?: string | null
+}
+
+export interface CreatePatientPayload {
+  fullName: string
+  phoneNumber?: string
+  email?: string
+  dateOfBirth: string
+  gender: number
+  address: string
+  insuranceNumber?: string
+  emergencyContact?: string
+}
+
+export interface WalkInPayload {
+  patientId: string
+  specialtyId: string
+  doctorId?: string | null
+  reason?: string
+  isUrgent?: boolean
+}
+
+export interface WalkInResult {
+  appointmentId: string
+  patientId: string
+  patientName: string
+  doctorId: string
+  doctorName: string
+  specialtyName: string
+  queueTicketId?: string
+  queueNumber?: number
+  isUrgent: boolean
+  checkInTime: string
+  status: string
+  queueTicketPending?: boolean
 }
 
 export interface AppointmentItem {
@@ -68,4 +116,8 @@ export interface CheckInResponse {
   queueNumber: number | string
   appointmentId?: string
   checkInTime?: string
+  priority?: boolean
+  patientName?: string
+  doctorName?: string
+  status?: string
 }

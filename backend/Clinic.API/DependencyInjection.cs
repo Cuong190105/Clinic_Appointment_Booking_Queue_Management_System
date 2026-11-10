@@ -13,7 +13,7 @@ namespace Clinic.API
     {
         public static IServiceCollection AddPresentation(this IServiceCollection services)
         {
-            // Register API controllers + tự động bọc mọi kết quả vào ApiResponse.
+            // Register API controllers + tá»± Ä‘á»™ng bá»c má»i káº¿t quáº£ vÃ o ApiResponse.
             // Require authenticated users by default.
             services.AddControllers(options =>
             {
@@ -24,7 +24,7 @@ namespace Clinic.API
                 options.Filters.Add<ApiResponseWrapperFilter>();
             });
 
-            // Chuyển mọi exception chưa xử lý thành envelope ApiResponse.
+            // Chuyá»ƒn má»i exception chÆ°a xá»­ lÃ½ thÃ nh envelope ApiResponse.
             services.AddExceptionHandler<GlobalExceptionHandler>();
             services.AddProblemDetails();
 

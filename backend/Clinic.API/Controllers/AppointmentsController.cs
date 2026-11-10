@@ -49,10 +49,12 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Create([FromBody] CreateAppointmentRequest request)
+        public async Task<IActionResult> Create(
+            [FromBody] CreateAppointmentRequest request,
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey)
         {
             var userId = _currentUser.UserId;
-            var command = new CreateAppointmentCommand(userId, request.WorkScheduleId, request.TimeSlot, request.Reason, false);
+            var command = new CreateAppointmentCommand(userId, request.WorkScheduleId, request.TimeSlot, request.Reason, false, null, idempotencyKey);
             var result = await _sender.Send(command);
             return CreatedAtAction(nameof(GetAppointment), new { appointmentId = result.Id }, result);
         }

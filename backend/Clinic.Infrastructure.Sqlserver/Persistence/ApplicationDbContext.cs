@@ -26,6 +26,8 @@ namespace Clinic.Infrastructure.Sqlserver.Persistence
         public DbSet<QueueTicket> QueueTickets => Set<QueueTicket>();
         public DbSet<QueueCounter> QueueCounters => Set<QueueCounter>();
         public DbSet<MedicalReport> MedicalReports => Set<MedicalReport>();
+        public DbSet<MedicalReportAmendment> MedicalReportAmendments => Set<MedicalReportAmendment>();
+        public DbSet<MedicalAccessAudit> MedicalAccessAudits => Set<MedicalAccessAudit>();
         public DbSet<Notification> Notifications => Set<Notification>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
         public DbSet<WorkHistory> WorkHistories => Set<WorkHistory>();
@@ -39,6 +41,23 @@ namespace Clinic.Infrastructure.Sqlserver.Persistence
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
             base.OnModelCreating(modelBuilder);
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            foreach (var entry in ChangeTracker.Entries<WorkHistory>())
+            {
+                if (entry.State == EntityState.Modified)
+                {
+                    var exists = await WorkHistories.AsNoTracking().AnyAsync(wh => wh.Id == entry.Entity.Id, cancellationToken);
+                    if (!exists)
+                    {
+                        entry.State = EntityState.Added;
+                    }
+                }
+            }
+
+            return await base.SaveChangesAsync(cancellationToken);
         }
     }
 }

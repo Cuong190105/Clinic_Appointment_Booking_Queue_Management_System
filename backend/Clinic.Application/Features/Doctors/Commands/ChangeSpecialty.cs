@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using MediatR;
 using System;
 using System.Collections.Generic;

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Queue.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Enums;
@@ -10,8 +10,8 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
         [Fact]
         public async Task Handle_DoctorStartingOwnQueueTicket_ShouldSucceed()
         {
-            // Arrange: Doctor không có "queue.start-exam.any" nhưng DoctorId khớp với
-            // bác sĩ sở hữu vé (đã được gọi số - Called) -> được phép bắt đầu khám.
+            // Arrange: Doctor không có "queue.start-exam.any" nhung DoctorId kh?p v?i
+            // bác si s? h?u vé (dã du?c g?i s? - Called) -> du?c phép b?t d?u khám.
             var queueTicketRepository = new FakeQueueTicketRepository();
             var doctor = TestDataFactory.CreateDoctor();
             var ws = TestDataFactory.CreateWorkSchedule(doctor, date: DateOnly.FromDateTime(DateTime.Today));
@@ -34,8 +34,8 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
         [Fact]
         public async Task Handle_UserHasAnyScope_ShouldStartExamOnAnotherDoctorsQueue()
         {
-            // Arrange: Admin/Receptionist có "queue.start-exam.any" -> được thao tác trên
-            // hàng đợi của bất kỳ bác sĩ nào, kể cả khi không phải bác sĩ đó.
+            // Arrange: Admin/Receptionist có "queue.start-exam.any" -> du?c thao tác trên
+            // hàng d?i c?a b?t k? bác si nào, k? c? khi không ph?i bác si dó.
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser();
             currentUser.GrantPermission("queue.start-exam.any");
@@ -59,8 +59,8 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
         [Fact]
         public async Task Handle_DoctorStartingAnotherDoctorsQueueTicket_ShouldThrowForbiddenException()
         {
-            // Arrange: Doctor A cố bắt đầu khám cho vé thuộc hàng đợi của Doctor B,
-            // không có "queue.start-exam.any" -> phải bị chặn.
+            // Arrange: Doctor A c? b?t d?u khám cho vé thu?c hàng d?i c?a Doctor B,
+            // không có "queue.start-exam.any" -> ph?i b? ch?n.
             var queueTicketRepository = new FakeQueueTicketRepository();
             var currentUser = new FakeCurrentUser { DoctorId = Guid.NewGuid() };
             var unitOfWork = new FakeUnitOfWork();
@@ -77,7 +77,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             await Assert.ThrowsAsync<ForbiddenException>(() =>
                 handler.Handle(new StartExamCommand(queueTicket.Id), CancellationToken.None));
 
-            // Trạng thái vé không được đổi khi bị chặn.
+            // Tr?ng thái vé không du?c d?i khi b? ch?n.
             Assert.Equal(QueueStatus.Called, queueTicket.Status);
         }
 

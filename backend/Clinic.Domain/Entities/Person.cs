@@ -5,15 +5,15 @@ using System.Text.RegularExpressions;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Thông tin cá nhân dùng chung cho mọi actor.
-    /// Không bắt buộc phải có User -> cho phép lưu hồ sơ khách vãng lai (walk-in)
-    /// không cần tài khoản đăng nhập.
+    /// ThÃ´ng tin cÃ¡ nhÃ¢n dÃ¹ng chung cho má»i actor.
+    /// KhÃ´ng báº¯t buá»™c pháº£i cÃ³ User -> cho phÃ©p lÆ°u há»“ sÆ¡ khÃ¡ch vÃ£ng lai (walk-in)
+    /// khÃ´ng cáº§n tÃ i khoáº£n Ä‘Äƒng nháº­p.
     /// </summary>
     public class Person : BaseEntity
     {
         public string FullName { get; set; } = string.Empty;
 
-        /// <summary>UNIQUE. Dùng để tra cứu tránh tạo trùng hồ sơ khi khách vãng lai.</summary>
+        /// <summary>UNIQUE. DÃ¹ng Ä‘á»ƒ tra cá»©u trÃ¡nh táº¡o trÃ¹ng há»“ sÆ¡ khi khÃ¡ch vÃ£ng lai.</summary>
         public string? PhoneNumber { get; set; } = string.Empty;
 
         public string? Email { get; set; }
@@ -24,7 +24,7 @@ namespace Clinic.Domain.Entities
 
         public string? Address { get; set; }
 
-        // Navigation - quan hệ 0..1: không phải Person nào cũng có tài khoản/là nhân viên/là bệnh nhân
+        // Navigation - quan há»‡ 0..1: khÃ´ng pháº£i Person nÃ o cÅ©ng cÃ³ tÃ i khoáº£n/lÃ  nhÃ¢n viÃªn/lÃ  bá»‡nh nhÃ¢n
         public User? User { get; set; }
 
         public Employee? Employee { get; set; }

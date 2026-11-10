@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.Queue.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Enums;
@@ -28,7 +28,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             // Act
             await handler.Handle(new CompleteExamCommand(queueTicket.Id), CancellationToken.None);
 
-            // Assert: cả QueueTicket lẫn Appointment đều phải chuyển sang Completed.
+            // Assert: c? QueueTicket l?n Appointment d?u ph?i chuy?n sang Completed.
             Assert.Equal(QueueStatus.Completed, queueTicket.Status);
             Assert.Equal(AppointmentStatus.Completed, appointment.Status);
         }
@@ -77,7 +77,7 @@ namespace Clinic.Application.UnitTests.Features.Queue.Commands
             await Assert.ThrowsAsync<ForbiddenException>(() =>
                 handler.Handle(new CompleteExamCommand(queueTicket.Id), CancellationToken.None));
 
-            // Trạng thái không được đổi khi bị chặn.
+            // Tr?ng thái không du?c d?i khi b? ch?n.
             Assert.Equal(QueueStatus.InProgress, queueTicket.Status);
             Assert.Equal(AppointmentStatus.CheckedIn, appointment.Status);
         }

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Models;
+using Clinic.Application.Common.Models;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Common;
 using Clinic.Domain.Entities;

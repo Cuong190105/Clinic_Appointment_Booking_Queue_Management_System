@@ -1,8 +1,10 @@
 using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
+using Clinic.Domain.Entities;
 using MediatR;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,13 +16,16 @@ namespace Clinic.Application.Features.MedicalReports.Queries
     {
         private readonly IMedicalReportRepository _medicalReportRepository;
         private readonly ICurrentUser _currentUser;
+        private readonly IUnitOfWork? _unitOfWork;
 
         public GetMedicalReportByIdHandler(
             IMedicalReportRepository medicalReportRepository,
-            ICurrentUser currentUser)
+            ICurrentUser currentUser,
+            IUnitOfWork? unitOfWork = null)
         {
             _medicalReportRepository = medicalReportRepository;
             _currentUser = currentUser;
+            _unitOfWork = unitOfWork;
         }
 
         public async Task<MedicalReportDto> Handle(GetMedicalReportByIdQuery request, CancellationToken cancellationToken)
@@ -28,25 +33,52 @@ namespace Clinic.Application.Features.MedicalReports.Queries
             var report = await _medicalReportRepository.GetByIdWithOwnershipAsync(request.Id)
                 ?? throw new NotFoundException($"Medical report '{request.Id}' not found.");
 
-            var ticket = report.QueueTicket;
-            var isAssignedDoctor = ticket.Appointment.WorkSchedule.DoctorId == _currentUser.DoctorId;
-            var isOwnerPatient = ticket.Appointment.PatientId == _currentUser.PatientId;
-            var hasAnyScope = _currentUser.HasPermission("medical-report.view.any");
+            var appointment = report.Appointment ?? report.QueueTicket?.Appointment;
+            var doctorId = appointment?.WorkSchedule?.DoctorId;
+            var isAssignedDoctor = doctorId.HasValue && doctorId == _currentUser.DoctorId;
+            var isOwnerPatient = appointment?.PatientId == _currentUser.PatientId;
+            var hasAnyScope = _currentUser.HasPermission("medical-report.view.any") || _currentUser.IsInRole("Admin");
 
             if (!isAssignedDoctor && !isOwnerPatient && !hasAnyScope)
             {
                 throw new ForbiddenException("You do not have permission to view this medical report.");
             }
 
+            var audit = new MedicalAccessAudit(
+                report.Id,
+                _currentUser.UserId ?? Guid.Empty,
+                "View",
+                $"Viewed medical report {report.Id}"
+            );
+            await _medicalReportRepository.AddAuditAsync(audit);
+            if (_unitOfWork != null)
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            var amendments = (report.Amendments ?? Enumerable.Empty<MedicalReportAmendment>())
+                .Select(a => new MedicalReportAmendmentDto
+                {
+                    Id = a.Id,
+                    MedicalReportId = a.MedicalReportId,
+                    Reason = a.Reason,
+                    Content = a.Content,
+                    CreatedByDoctorId = a.CreatedByDoctorId,
+                    DoctorName = a.DoctorName,
+                    CreatedAt = a.CreatedAt
+                }).ToList();
+
             return new MedicalReportDto
             {
                 Id = report.Id,
-                QueueTicketId = report.QueueTicketId,
-                PatientId = ticket.Appointment.PatientId,
-                PatientName = ticket.Appointment.Patient?.Person?.FullName ?? string.Empty,
-                DoctorId = ticket.Appointment.WorkSchedule.DoctorId,
-                DoctorName = ticket.Appointment.WorkSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                ExamDate = ticket.Appointment.WorkSchedule.Date,
+                AppointmentId = appointment?.Id ?? report.AppointmentId,
+                QueueTicketId = report.QueueTicketId ?? appointment?.QueueTicket?.Id,
+                PatientId = appointment?.PatientId ?? Guid.Empty,
+                PatientName = appointment?.Patient?.Person?.FullName ?? string.Empty,
+                DoctorId = doctorId ?? Guid.Empty,
+                DoctorName = appointment?.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                SpecialtyName = string.Empty,
+                ExamDate = appointment?.WorkSchedule?.Date ?? DateOnly.MinValue,
                 Symptoms = report.Symptoms,
                 Diagnosis = report.Diagnosis,
                 Prescription = report.Prescription,
@@ -54,7 +86,8 @@ namespace Clinic.Application.Features.MedicalReports.Queries
                 ExamStartTime = report.ExamStartTime,
                 ExamEndTime = report.ExamEndTime,
                 Status = report.Status,
-                CreatedAt = report.CreatedAt
+                CreatedAt = report.CreatedAt,
+                Amendments = amendments
             };
         }
     }

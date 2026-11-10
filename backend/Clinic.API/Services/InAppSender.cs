@@ -1,4 +1,4 @@
-﻿using Clinic.API.Hubs;
+using Clinic.API.Hubs;
 using Clinic.Application.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 

@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Entities;
+using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 using Clinic.Domain.UnitTests.Common;
 
@@ -37,9 +37,9 @@ namespace Clinic.Domain.UnitTests
 
         // Cannot cancel appointment within 24 hours before the appointment time, so this test is commented out.
         /// <summary>
-        /// Bug gốc: Cancel() chỉ chặn Completed/Cancelled/NoShow, nên 1 Appointment CheckedIn
-        /// (vé đang Waiting) vẫn bị hủy được -> Appointment=Cancelled nhưng QueueTicket vẫn Waiting,
-        /// khiến lễ tân vẫn gọi phải bệnh nhân "ảo". Sau fix, cascade hủy QueueTicket khi vé còn Waiting.
+        /// Bug g?c: Cancel() ch? ch?n Completed/Cancelled/NoShow, nên 1 Appointment CheckedIn
+        /// (vé dang Waiting) v?n b? h?y du?c -> Appointment=Cancelled nhung QueueTicket v?n Waiting,
+        /// khi?n l? tân v?n g?i ph?i b?nh nhân "?o". Sau fix, cascade h?y QueueTicket khi vé còn Waiting.
         /// </summary>
         //[Fact]
         //public void Cancel_CheckedInAppointmentWithWaitingTicket_ShouldCancelAppointmentAndTicket()
@@ -54,7 +54,7 @@ namespace Clinic.Domain.UnitTests
         //}
 
         // Cannot cancel appointment within 24 hours before the appointment time, so this test is commented out.
-        /// <summary>Tương tự trường hợp Waiting, nhưng vé đã được lễ tân gọi số (Called).</summary>
+        /// <summary>Tuong t? tru?ng h?p Waiting, nhung vé dã du?c l? tân g?i s? (Called).</summary>
         //[Fact]
         //public void Cancel_CheckedInAppointmentWithCalledTicket_ShouldCancelAppointmentAndTicket()
         //{
@@ -68,7 +68,7 @@ namespace Clinic.Domain.UnitTests
         //    Assert.Equal(QueueStatus.Cancelled, queueTicket.Status);
         //}
 
-        /// <summary>Bác sĩ đang khám dở (InProgress) -> hủy Appointment lúc này vô nghĩa, phải chặn.</summary>
+        /// <summary>Bác si dang khám d? (InProgress) -> h?y Appointment lúc này vô nghia, ph?i ch?n.</summary>
         [Fact]
         public void Cancel_CheckedInAppointmentWithInProgressTicket_ShouldThrowArgumentException()
         {
@@ -79,12 +79,12 @@ namespace Clinic.Domain.UnitTests
 
             Assert.Throws<InvalidOperationException>(() => appointment.Cancel(Guid.NewGuid()));
 
-            // Trạng thái không bị thay đổi khi bị chặn.
+            // Tr?ng thái không b? thay d?i khi b? ch?n.
             Assert.Equal(AppointmentStatus.CheckedIn, appointment.Status);
             Assert.Equal(QueueStatus.InProgress, queueTicket.Status);
         }
 
-        /// <summary>Đã khám xong (Completed) -> hủy Appointment lúc này cũng vô nghĩa, phải chặn.</summary>
+        /// <summary>Ðã khám xong (Completed) -> h?y Appointment lúc này cung vô nghia, ph?i ch?n.</summary>
         [Fact]
         public void Cancel_CheckedInAppointmentWithCompletedTicket_ShouldThrowArgumentException()
         {
@@ -98,22 +98,22 @@ namespace Clinic.Domain.UnitTests
         }
 
         /// <summary>
-        /// Bảo vệ bất biến "CheckedIn => có QueueTicket": nếu tầng gọi (vd. repository thiếu
-        /// Include) không load QueueTicket, Cancel() phải báo lỗi rõ ràng thay vì âm thầm hủy
-        /// Appointment và để lại vé "mồ côi" trong DB - đúng nguyên nhân gốc của bug.
+        /// B?o v? b?t bi?n "CheckedIn => có QueueTicket": n?u t?ng g?i (vd. repository thi?u
+        /// Include) không load QueueTicket, Cancel() ph?i báo l?i rõ ràng thay vì âm th?m h?y
+        /// Appointment và d? l?i vé "m? côi" trong DB - dúng nguyên nhân g?c c?a bug.
         /// </summary>
         [Fact]
         public void Cancel_CheckedInAppointmentWithoutLoadedQueueTicket_ShouldThrowInvalidOperationException()
         {
             var appointment = TestDataFactory.CreateAppointment(checkedIn: true);
-            // Cố tình không gọi CreateQueueTicket - mô phỏng repository quên Include(a => a.QueueTicket).
+            // C? tình không g?i CreateQueueTicket - mô ph?ng repository quên Include(a => a.QueueTicket).
 
             Assert.Throws<InvalidOperationException>(() => appointment.Cancel(Guid.NewGuid()));
         }
 
         /// <summary>
-        /// Bug gốc: CompleteExamHandler chỉ gọi QueueTicket.Complete(Guid.NewGuid()) mà không đổi luôn
-        /// Appointment.Status, khiến Appointment kẹt ở CheckedIn dù đã khám xong.
+        /// Bug g?c: CompleteExamHandler ch? g?i QueueTicket.Complete(Guid.NewGuid()) mà không d?i luôn
+        /// Appointment.Status, khi?n Appointment k?t ? CheckedIn dù dã khám xong.
         /// </summary>
         [Fact]
         public void Complete_CheckedInAppointment_ShouldComplete()

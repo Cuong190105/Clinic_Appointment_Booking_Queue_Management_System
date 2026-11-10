@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Features.Auth.Commands;
+using Clinic.Application.Features.Auth.Commands;
 using Clinic.Application.UnitTests.Common;
 
 namespace Clinic.Application.UnitTests.Features.Auth.Commands

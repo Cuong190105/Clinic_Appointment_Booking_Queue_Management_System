@@ -3,8 +3,8 @@ using System;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Bảng trung gian N-N giữa Role và Permission.
-    /// Khóa chính kép (RoleId, PermissionId)
+    /// Báº£ng trung gian N-N giá»¯a Role vÃ  Permission.
+    /// KhÃ³a chÃ­nh kÃ©p (RoleId, PermissionId)
     /// </summary>
     public class RolePermission
     {

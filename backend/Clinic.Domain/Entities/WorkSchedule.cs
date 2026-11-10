@@ -7,10 +7,10 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Clinic.Domain.Entities
 {
-    /// <summary>Một khung giờ làm việc của bác sĩ, giới hạn số bệnh nhân tối đa.</summary>
+    /// <summary>Má»™t khung giá» lÃ m viá»‡c cá»§a bÃ¡c sÄ©, giá»›i háº¡n sá»‘ bá»‡nh nhÃ¢n tá»‘i Ä‘a.</summary>
     public class WorkSchedule : BaseEntity
     {
-        public const int SlotIntervalMinutes = 15; // Khoảng thời gian giữa các slot hẹn (15 phút)
+        public const int SlotIntervalMinutes = 15; // Khoáº£ng thá»i gian giá»¯a cÃ¡c slot háº¹n (15 phÃºt)
         public Guid DoctorId { get; protected set; }
         public Doctor Doctor { get; protected set; } = null!;
 
@@ -20,12 +20,21 @@ namespace Clinic.Domain.Entities
 
         public TimeOnly ShiftEnd { get; protected set; }
 
-        public int PatientLimit { get; protected set; }
+        public int RecommendedCapacity { get; protected set; }
+
+        public int PatientLimit
+        {
+            get => RecommendedCapacity;
+            protected set => RecommendedCapacity = value;
+        }
 
         public WorkScheduleStatus Status { get; protected set; } = WorkScheduleStatus.Active;
         public string? CancellationReason { get; protected set; }
 
         public ICollection<Appointment> Appointments { get; protected set; } = new List<Appointment>();
+
+        /// <summary>Constructor for EF Core materialization</summary>
+        protected WorkSchedule() { }
 
         public WorkSchedule(Doctor doctor, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int patientLimit)
         {
@@ -39,7 +48,7 @@ namespace Clinic.Domain.Entities
             Date = date;
             ShiftStart = shiftStart;
             ShiftEnd = shiftEnd;
-            PatientLimit = patientLimit;
+            RecommendedCapacity = patientLimit;
         }
 
         public WorkSchedule(Guid id, Guid doctorId, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int patientLimit, WorkScheduleStatus status, DateTime createdAt, DateTime? updatedAt, bool isDeleted)
@@ -49,7 +58,7 @@ namespace Clinic.Domain.Entities
             Date = date;
             ShiftStart = shiftStart;
             ShiftEnd = shiftEnd;
-            PatientLimit = patientLimit;
+            RecommendedCapacity = patientLimit;
             Status = status;
         }
 
@@ -65,7 +74,7 @@ namespace Clinic.Domain.Entities
             Date = newDate;
             ShiftStart = newShiftStart;
             ShiftEnd = newShiftEnd;
-            PatientLimit = newPatientLimit;
+            RecommendedCapacity = newPatientLimit;
             MarkUpdated();
         }
 
@@ -110,7 +119,7 @@ namespace Clinic.Domain.Entities
             {
                 if (Appointments.Any(a => !a.IsWalkIn && a.TimeSlot == appointment.TimeSlot && a.Status != AppointmentStatus.Cancelled && !a.IsDeleted && a.Id != appointment.Id))
                     throw new ConflictException("An appointment already exists for this time slot.");
-                if (Status == WorkScheduleStatus.Full)
+                if (Status == WorkScheduleStatus.Full || Appointments.Count(a => !a.IsWalkIn && a.Status != AppointmentStatus.Cancelled && !a.IsDeleted) >= RecommendedCapacity)
                 {
                     throw new ConflictException("Cannot add an appointment to a full work schedule.");
                 }
@@ -128,7 +137,7 @@ namespace Clinic.Domain.Entities
                 throw new InvalidOperationException("Cannot add an appointment to a cancelled work schedule.");
             }
             Appointments.Add(appointment);
-            if (Appointments.Count(a => a.Status != AppointmentStatus.Cancelled && a.IsDeleted == false) >= PatientLimit)
+            if (Appointments.Count(a => !a.IsWalkIn && a.Status != AppointmentStatus.Cancelled && a.IsDeleted == false) >= RecommendedCapacity)
             {
                 Status = WorkScheduleStatus.Full;
             }

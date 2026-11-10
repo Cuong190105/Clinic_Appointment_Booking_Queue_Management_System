@@ -19,8 +19,8 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasIndex(e => e.PersonId).IsUnique();
 
-            // Tự tham chiếu (quản lý cấp trên) - optional, không có navigation
-            // collection ngược lại (Subordinates) vì hiện chưa dùng đến.
+            // Tá»± tham chiáº¿u (quáº£n lÃ½ cáº¥p trÃªn) - optional, khÃ´ng cÃ³ navigation
+            // collection ngÆ°á»£c láº¡i (Subordinates) vÃ¬ hiá»‡n chÆ°a dÃ¹ng Ä‘áº¿n.
             builder.HasOne(e => e.Manager)
                 .WithMany()
                 .HasForeignKey(e => e.ManagerId)

@@ -35,9 +35,17 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasIndex(a => new { a.TimeSlot, a.WorkScheduleId }).IsUnique().HasFilter("[IsWalkIn] = 0 AND [Status] <> 'Cancelled' AND [IsDeleted] = 0");
 
-            // IsWalkIn: đánh dấu Appointment do Lễ tân tạo tại quầy cho khách
-            // vãng lai (Cách B) - dùng để loại khỏi thống kê tỷ lệ hủy lịch.
+            // IsWalkIn: Ä‘Ã¡nh dáº¥u Appointment do Lá»… tÃ¢n táº¡o táº¡i quáº§y cho khÃ¡ch
+            // vÃ£ng lai (CÃ¡ch B) - dÃ¹ng Ä‘á»ƒ loáº¡i khá»i thá»‘ng kÃª tá»· lá»‡ há»§y lá»‹ch.
             builder.Property(a => a.IsWalkIn).IsRequired();
+
+            builder.Property(a => a.IdempotencyKey).HasMaxLength(100);
+            builder.HasIndex(a => a.IdempotencyKey).IsUnique().HasFilter("[IdempotencyKey] IS NOT NULL");
+
+            builder.HasOne(a => a.MedicalReport)
+                .WithOne(m => m.Appointment)
+                .HasForeignKey<MedicalReport>(m => m.AppointmentId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasData(SampleData.Appointments);
         }

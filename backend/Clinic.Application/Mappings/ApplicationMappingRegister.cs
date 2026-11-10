@@ -8,7 +8,7 @@ namespace Clinic.Application.Mappings
     {
         public void Register(TypeAdapterConfig config)
         {
-            // Quan hệ 1 - N: Farm -> FarmDto (kèm danh sách Crop) và Crop -> CropDto.
+            // Quan há»‡ 1 - N: Farm -> FarmDto (kÃ¨m danh sÃ¡ch Crop) vÃ  Crop -> CropDto.
             //config.NewConfig<Farm, FarmDto>();
             //config.NewConfig<Crop, CropDto>();
 

@@ -20,7 +20,7 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.Property(u => u.PasswordHash).IsRequired();
 
-            // Quan hệ 0..1 - 0..1 với Person: 1 Person chỉ có tối đa 1 User.
+            // Quan há»‡ 0..1 - 0..1 vá»›i Person: 1 Person chá»‰ cÃ³ tá»‘i Ä‘a 1 User.
             builder.HasOne(u => u.Person)
                 .WithOne(p => p.User)
                 .HasForeignKey<User>(u => u.PersonId)

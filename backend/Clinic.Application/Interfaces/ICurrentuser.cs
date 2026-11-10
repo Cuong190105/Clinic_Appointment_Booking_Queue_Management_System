@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Clinic.Application.Interfaces
 {
@@ -9,10 +8,12 @@ namespace Clinic.Application.Interfaces
         bool IsAuthenticated { get; }
         Guid? PatientId { get; }
         Guid? DoctorId { get; }
-        /// <summary>Id của User hiện tại, lấy từ claim "sub". Null nếu chưa đăng nhập.</summary>
         Guid? UserId { get; }
         Guid? EmployeeId { get; }
         Guid? PersonId { get; }
         bool HasPermission(string permission);
+        bool IsInRole(string role);
+        IReadOnlyCollection<string> Roles { get; }
+        IReadOnlyCollection<string> Permissions { get; }
     }
 }

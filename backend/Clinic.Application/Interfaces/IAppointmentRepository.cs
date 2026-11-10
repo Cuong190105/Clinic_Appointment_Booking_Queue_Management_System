@@ -20,9 +20,9 @@ namespace Clinic.Application.Interfaces
         Task<Appointment?> GetByIdAsync(Guid appointmentId);
 
         /// <summary>
-        /// Kiểm tra bác sĩ có từng/đang phụ trách ca khám nào của bệnh nhân này không
-        /// (tồn tại Appointment mà WorkSchedule.DoctorId = doctorId và PatientId = patientId).
-        /// Dùng để scope "related" cho medical-report.view/patient-history.view của Doctor.
+        /// Kiá»ƒm tra bÃ¡c sÄ© cÃ³ tá»«ng/Ä‘ang phá»¥ trÃ¡ch ca khÃ¡m nÃ o cá»§a bá»‡nh nhÃ¢n nÃ y khÃ´ng
+        /// (tá»“n táº¡i Appointment mÃ  WorkSchedule.DoctorId = doctorId vÃ  PatientId = patientId).
+        /// DÃ¹ng Ä‘á»ƒ scope "related" cho medical-report.view/patient-history.view cá»§a Doctor.
         /// </summary>
         Task<bool> ExistsForDoctorAndPatientAsync(Guid doctorId, Guid patientId);
 
@@ -35,6 +35,7 @@ namespace Clinic.Application.Interfaces
         /// Gets the changelog of an appointment, including all snapshots of the appointment's state over time, doctor, patient, and updator information.
         /// </summary>
         Task<Appointment?> GetAppointmentChangelogAsync(Guid appointmentId);
+        Task<Appointment?> GetByIdempotencyKeyAsync(string idempotencyKey);
         Task AddAsync(Appointment appointment);
         Task<Dictionary<string, IValueWithChange>> GetDashboardData();
         Task<StatisticsDataDto> GetStatistics(bool isWeekPeriod);

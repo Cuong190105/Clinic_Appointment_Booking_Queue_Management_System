@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Clinic.Application.Contracts
 {
@@ -16,11 +16,11 @@ namespace Clinic.Application.Contracts
         [JsonPropertyName("doctorName")]
         public string DoctorName { get; set; } = string.Empty;
 
-        /// <summary>Vị trí của bệnh nhân trong hàng đợi (1 = sắp tới lượt).</summary>
+        /// <summary>V? trí c?a b?nh nhân trong hàng d?i (1 = s?p t?i lu?t).</summary>
         [JsonPropertyName("positionInQueue")]
         public int PositionInQueue { get; set; }
 
-        /// <summary>Thời gian chờ ước tính (phút), tính đơn giản theo số người đang chờ phía trước.</summary>
+        /// <summary>Th?i gian ch? u?c tính (phút), tính don gi?n theo s? ngu?i dang ch? phía tru?c.</summary>
         [JsonPropertyName("estimatedWaitMinutes")]
         public int EstimatedWaitMinutes { get; set; }
     }

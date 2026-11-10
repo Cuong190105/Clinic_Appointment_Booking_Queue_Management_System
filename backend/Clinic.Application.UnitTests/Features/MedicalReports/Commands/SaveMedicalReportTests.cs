@@ -105,7 +105,7 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
         }
 
         [Fact]
-        public async Task Handle_Finalize_ShouldCompleteTicketAndAppointment()
+        public async Task Handle_Finalize_ShouldFinalizeReport()
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
@@ -140,12 +140,10 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             Assert.NotNull(result);
             Assert.Equal(MedicalReportStatus.Finalized, result.Status);
             Assert.NotNull(result.ExamEndTime);
-            Assert.Equal(QueueStatus.Completed, ticket.Status);
-            Assert.Equal(AppointmentStatus.Completed, appointment.Status);
         }
 
         [Fact]
-        public async Task Handle_TicketNotInProgress_ShouldThrowInvalidOperationException()
+        public async Task Handle_DraftCreation_AllowsDoctorToCreateDraft()
         {
             // Arrange
             var medicalReportRepository = new FakeMedicalReportRepository();
@@ -157,7 +155,6 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             var appointment = TestDataFactory.CreateAppointment(workSchedule: workSchedule, checkedIn: true);
             var currentUser = new FakeCurrentUser { DoctorId = doctor.Id, UserId = Guid.NewGuid() };
 
-            // Ticket is in Waiting status, not InProgress
             var ticket = TestDataFactory.CreateQueueTicket(appointment);
             await queueTicketRepository.AddAsync(ticket);
 
@@ -172,10 +169,13 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
                 IsFinalize: false
             );
 
-            // Act & Assert
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                handler.Handle(command, CancellationToken.None));
-            Assert.Contains("Examination must be in progress", ex.Message);
+            // Act
+            var result = await handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(MedicalReportStatus.Draft, result.Status);
+            Assert.Equal("Diagnosis", result.Diagnosis);
         }
 
         [Fact]
@@ -260,6 +260,83 @@ namespace Clinic.Application.UnitTests.Features.MedicalReports.Commands
             // Act & Assert
             await Assert.ThrowsAsync<NotFoundException>(() =>
                 handler.Handle(command, CancellationToken.None));
+        }
+
+        [Fact]
+        public async Task Handle_UpdateById_ShouldUpdateDraftSuccessfully()
+        {
+            // Arrange
+            var medicalReportRepository = new FakeMedicalReportRepository();
+            var queueTicketRepository = new FakeQueueTicketRepository();
+            var unitOfWork = new FakeUnitOfWork();
+
+            var doctor = TestDataFactory.CreateDoctor();
+            var workSchedule = TestDataFactory.CreateWorkSchedule(doctor: doctor, date: DateOnly.FromDateTime(DateTime.Today));
+            var appointment = TestDataFactory.CreateAppointment(workSchedule: workSchedule, checkedIn: true);
+            var currentUser = new FakeCurrentUser { DoctorId = doctor.Id, UserId = Guid.NewGuid() };
+
+            var existingReport = new MedicalReport(appointment.Id, "Old symptoms", "Old diag", "Old rx", "Old notes");
+            existingReport.Appointment = appointment;
+            await medicalReportRepository.AddAsync(existingReport);
+
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+
+            var command = new SaveMedicalReportCommand(
+                Id: existingReport.Id,
+                Symptoms: "New symptoms",
+                Diagnosis: "New diag",
+                Prescription: "New rx",
+                Notes: "New notes",
+                IsFinalize: false
+            );
+
+            // Act
+            var result = await handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(existingReport.Id, result.Id);
+            Assert.Equal("New symptoms", result.Symptoms);
+            Assert.Equal("New diag", result.Diagnosis);
+            Assert.Equal(MedicalReportStatus.Draft, result.Status);
+        }
+
+        [Fact]
+        public async Task Handle_UpdateById_WithIsFinalizeTrue_ShouldFinalizeSuccessfully()
+        {
+            // Arrange
+            var medicalReportRepository = new FakeMedicalReportRepository();
+            var queueTicketRepository = new FakeQueueTicketRepository();
+            var unitOfWork = new FakeUnitOfWork();
+
+            var doctor = TestDataFactory.CreateDoctor();
+            var workSchedule = TestDataFactory.CreateWorkSchedule(doctor: doctor, date: DateOnly.FromDateTime(DateTime.Today));
+            var appointment = TestDataFactory.CreateAppointment(workSchedule: workSchedule, checkedIn: true);
+            var currentUser = new FakeCurrentUser { DoctorId = doctor.Id, UserId = Guid.NewGuid() };
+
+            var existingReport = new MedicalReport(appointment.Id, "Old symptoms", "Old diag", "Old rx", "Old notes");
+            existingReport.Appointment = appointment;
+            await medicalReportRepository.AddAsync(existingReport);
+
+            var handler = new SaveMedicalReportHandler(medicalReportRepository, queueTicketRepository, currentUser, unitOfWork);
+
+            var command = new SaveMedicalReportCommand(
+                Id: existingReport.Id,
+                Symptoms: "Final symptoms",
+                Diagnosis: "Final diag",
+                Prescription: "Final rx",
+                Notes: "Final notes",
+                IsFinalize: true
+            );
+
+            // Act
+            var result = await handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(existingReport.Id, result.Id);
+            Assert.Equal("Final diag", result.Diagnosis);
+            Assert.Equal(MedicalReportStatus.Finalized, result.Status);
         }
     }
 }

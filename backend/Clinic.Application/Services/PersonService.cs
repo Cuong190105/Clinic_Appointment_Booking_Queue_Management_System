@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 
@@ -57,7 +57,7 @@ namespace Clinic.Application.Services
             return person;
         }
 
-        // Method phía dưới chưa dùng đến/đã dùng thông qua Repo
+        // Method phía du?i chua dùng d?n/dã dùng thông qua Repo
         public Task DeletePersonAsync(Guid id)
         {
             throw new NotImplementedException();

@@ -6,11 +6,11 @@ using System.Security.Cryptography;
 namespace Clinic.Domain.Entities
 {
     /// <summary>
-    /// Tài khoản đăng nhập. Không phải mọi Person đều có User (VD: khách vãng lai).
+    /// TÃ i khoáº£n Ä‘Äƒng nháº­p. KhÃ´ng pháº£i má»i Person Ä‘á»u cÃ³ User (VD: khÃ¡ch vÃ£ng lai).
     /// </summary>
     public class User : BaseEntity
     {
-        /// <summary>FK, UNIQUE - 1 Person chỉ có tối đa 1 tài khoản.</summary>
+        /// <summary>FK, UNIQUE - 1 Person chá»‰ cÃ³ tá»‘i Ä‘a 1 tÃ i khoáº£n.</summary>
         public Guid PersonId { get; set; }
         public Person Person { get; set; } = null!;
 

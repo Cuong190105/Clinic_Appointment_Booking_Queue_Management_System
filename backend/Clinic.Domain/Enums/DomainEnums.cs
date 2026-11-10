@@ -22,7 +22,7 @@ namespace Clinic.Domain.Enums
     }
 
     /// <summary>
-    /// Pending -> Confirmed -> CheckedIn -> Completed, hoặc Cancelled / NoShow.
+    /// Pending -> Confirmed -> CheckedIn -> Completed, hoáº·c Cancelled / NoShow.
     /// </summary>
     public enum AppointmentStatus
     {
@@ -41,7 +41,7 @@ namespace Clinic.Domain.Enums
         InProgress,
         Completed,
         Skipped,
-        /// <summary>Vé bị hủy vì Appointment gốc bị hủy sau khi đã check-in (còn Waiting/Called).</summary>
+        /// <summary>VÃ© bá»‹ há»§y vÃ¬ Appointment gá»‘c bá»‹ há»§y sau khi Ä‘Ã£ check-in (cÃ²n Waiting/Called).</summary>
         Cancelled
     }
 
@@ -70,14 +70,14 @@ namespace Clinic.Domain.Enums
         Cancelled
     }
 
-    /// <summary>Trạng thái 1 giai đoạn trong lịch sử chuyển khoa của bác sĩ.</summary>
+    /// <summary>Tráº¡ng thÃ¡i 1 giai Ä‘oáº¡n trong lá»‹ch sá»­ chuyá»ƒn khoa cá»§a bÃ¡c sÄ©.</summary>
     public enum WorkHistoryStatus
     {
         Active,
         Ended
     }
 
-    /// <summary>Trạng thái duyệt yêu cầu ca làm việc của bác sĩ.</summary>
+    /// <summary>Tráº¡ng thÃ¡i duyá»‡t yÃªu cáº§u ca lÃ m viá»‡c cá»§a bÃ¡c sÄ©.</summary>
     public enum ShiftRequestStatus
     {
         Pending,

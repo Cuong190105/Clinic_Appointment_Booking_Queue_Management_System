@@ -12,8 +12,8 @@ namespace Clinic.Infrastructure.Sqlserver.Configurations
 
             builder.HasKey(n => n.Id);
 
-            // Gắn theo PersonId (không phải UserId) để gửi được cho cả
-            // khách vãng lai chưa từng tạo tài khoản.
+            // Gáº¯n theo PersonId (khÃ´ng pháº£i UserId) Ä‘á»ƒ gá»­i Ä‘Æ°á»£c cho cáº£
+            // khÃ¡ch vÃ£ng lai chÆ°a tá»«ng táº¡o tÃ i khoáº£n.
             builder.HasOne(n => n.Person)
                 .WithMany(p => p.Notifications)
                 .HasForeignKey(n => n.PersonId)

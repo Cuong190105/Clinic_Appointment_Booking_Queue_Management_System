@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Contracts;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
@@ -8,17 +8,17 @@ using MediatR;
 namespace Clinic.Application.Features.Queue.Queries
 {
     /// <summary>
-    /// Trả về danh sách rỗng nếu bệnh nhân chưa check-in trong ngày hôm nay (không có vé nào đang
-    /// "sống"). Có thể trả về NHIỀU phần tử nếu bệnh nhân đã check-in nhiều hơn 1 lịch hẹn trong
-    /// cùng ngày (vd. khám 2 chuyên khoa khác nhau) - mỗi vé active là 1 phần tử riêng, không được
-    /// gộp/rút gọn về 1 vé "mới nhất".
+    /// Tr? v? danh sách r?ng n?u b?nh nhân chua check-in trong ngày hôm nay (không có vé nào dang
+    /// "s?ng"). Có th? tr? v? NHI?U ph?n t? n?u b?nh nhân dã check-in nhi?u hon 1 l?ch h?n trong
+    /// cùng ngày (vd. khám 2 chuyên khoa khác nhau) - m?i vé active là 1 ph?n t? riêng, không du?c
+    /// g?p/rút g?n v? 1 vé "m?i nh?t".
     /// </summary>
     public record GetMyQueueStatusQuery : IRequest<List<MyQueueStatusDto>>;
 
     public class GetMyQueueStatusHandler : IRequestHandler<GetMyQueueStatusQuery, List<MyQueueStatusDto>>
     {
-        // Thời gian khám trung bình ước lượng - dùng tạm cho tới khi làm thuật toán ước tính
-        // dựa trên lịch sử thời gian khám thực tế (mục VIII - tính năng nâng cao, tuỳ chọn).
+        // Th?i gian khám trung bình u?c lu?ng - dùng t?m cho t?i khi làm thu?t toán u?c tính
+        // d?a trên l?ch s? th?i gian khám th?c t? (m?c VIII - tính nang nâng cao, tu? ch?n).
         private const int EstimatedMinutesPerPatient = 10;
 
         private readonly IQueueTicketRepository _queueTicketRepository;
@@ -47,8 +47,8 @@ namespace Clinic.Application.Features.Queue.Queries
 
             var result = new List<MyQueueStatusDto>(myTickets.Count);
 
-            // Các vé có thể thuộc nhiều bác sĩ khác nhau (bệnh nhân check-in nhiều lịch hẹn trong
-            // cùng ngày) -> cache hàng đợi theo từng bác sĩ để tránh query lặp lại cùng 1 bác sĩ.
+            // Các vé có th? thu?c nhi?u bác si khác nhau (b?nh nhân check-in nhi?u l?ch h?n trong
+            // cùng ngày) -> cache hàng d?i theo t?ng bác si d? tránh query l?p l?i cùng 1 bác si.
             var queueByDoctor = new Dictionary<Guid, List<QueueTicket>>();
 
             foreach (var myTicket in myTickets)
@@ -61,8 +61,8 @@ namespace Clinic.Application.Features.Queue.Queries
                     queueByDoctor[doctorId] = dayQueue;
                 }
 
-                // dayQueue đã được sắp theo Priority (ưu tiên trước) rồi QueueNumber tăng dần -
-                // đúng thứ tự sẽ được gọi. Đếm số vé đang chờ/đã gọi đứng trước vé của mình.
+                // dayQueue dã du?c s?p theo Priority (uu tiên tru?c) r?i QueueNumber tang d?n -
+                // dúng th? t? s? du?c g?i. Ð?m s? vé dang ch?/dã g?i d?ng tru?c vé c?a mình.
                 var waitingAhead = 0;
                 foreach (var ticket in dayQueue)
                 {

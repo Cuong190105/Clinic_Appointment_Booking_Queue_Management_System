@@ -5,7 +5,7 @@ namespace Clinic.Domain.Entities
 {
     public class Permission : BaseEntity
     {
-        /// <summary>UNIQUE. Ví dụ: "appointment.cancel", "queue.call-next".</summary>
+        /// <summary>UNIQUE. VÃ­ dá»¥: "appointment.cancel", "queue.call-next".</summary>
         public string Name { get; set; } = string.Empty;
 
         public string? Description { get; set; }

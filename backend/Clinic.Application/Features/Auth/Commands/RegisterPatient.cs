@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Interfaces;
 using Clinic.Application.Services;
 using Clinic.Domain.Entities;
@@ -61,9 +61,9 @@ namespace Clinic.Application.Features.Auth.Commands
             }
             existingUser.AssignRole(patientRole);
 
-            // Tạo hồ sơ Patient gắn với Person vừa tạo/tìm được. CreateOrGetPersonAsync có thể trả về
-            // 1 Person đã tồn tại từ trước (khách vãng lai từng khám nhưng chưa có tài khoản) - trường hợp
-            // đó Person có thể đã có Patient, nên phải kiểm tra tồn tại trước để tránh vi phạm UNIQUE (PersonId).
+            // T?o h? so Patient g?n v?i Person v?a t?o/tìm du?c. CreateOrGetPersonAsync có th? tr? v?
+            // 1 Person dã t?n t?i t? tru?c (khách vãng lai t?ng khám nhung chua có tài kho?n) - tru?ng h?p
+            // dó Person có th? dã có Patient, nên ph?i ki?m tra t?n t?i tru?c d? tránh vi ph?m UNIQUE (PersonId).
             if (newPerson.Patient is null)
             {
                 var newPatient = new Patient(newPerson, null, null);

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Features.Specialties.Queries;
+using Clinic.Application.Features.Specialties.Queries;
 using Clinic.Application.UnitTests.Common;
 using System.Runtime.InteropServices;
 

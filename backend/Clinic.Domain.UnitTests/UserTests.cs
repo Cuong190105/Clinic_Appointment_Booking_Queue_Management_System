@@ -1,4 +1,4 @@
-﻿using Clinic.Domain.Entities;
+using Clinic.Domain.Entities;
 using Clinic.Domain.UnitTests.Common;
 
 namespace Clinic.Domain.UnitTests

@@ -1,14 +1,14 @@
-﻿namespace Clinic.Application.Interfaces
+namespace Clinic.Application.Interfaces
 {
     /// <summary>
-    /// Các tham số cấu hình cho business rule của Appointment.
-    /// Interface đặt ở Application để handler không phụ thuộc trực tiếp vào Microsoft.Extensions.Configuration.
+    /// Các tham s? c?u hình cho business rule c?a Appointment.
+    /// Interface d?t ? Application d? handler không ph? thu?c tr?c ti?p vào Microsoft.Extensions.Configuration.
     /// </summary>
     public interface IAppointmentPolicySettings
     {
         /// <summary>
-        /// Số giờ tối thiểu Patient phải đổi lịch trước giờ hẹn hiện tại (rule "trước hạn").
-        /// Không áp dụng cho Admin/Receptionist.
+        /// S? gi? t?i thi?u Patient ph?i d?i l?ch tru?c gi? h?n hi?n t?i (rule "tru?c h?n").
+        /// Không áp d?ng cho Admin/Receptionist.
         /// </summary>
         int RescheduleMinNoticeHours { get; }
     }

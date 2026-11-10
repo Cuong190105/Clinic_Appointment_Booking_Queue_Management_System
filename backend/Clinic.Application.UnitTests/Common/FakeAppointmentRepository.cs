@@ -48,6 +48,12 @@ namespace Clinic.Application.UnitTests.Common
             return _appointments.FirstOrDefault(a => a.Id == appointmentId && !a.IsDeleted);
         }
 
+        public Task<Appointment?> GetByIdempotencyKeyAsync(string idempotencyKey)
+        {
+            var appt = _appointments.FirstOrDefault(a => a.IdempotencyKey == idempotencyKey && !a.IsDeleted);
+            return Task.FromResult(appt);
+        }
+
         public async Task<TotalAppointmentSummaryDto> GetTotalAppointmentSummaryAsync(DateOnly startDate, DateOnly endDate, Guid doctorId, Guid specialtyId)
         {
             var query = _appointments

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Models;
+using Clinic.Application.Common.Models;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
@@ -13,7 +13,7 @@ namespace Clinic.Application.UnitTests.Common
         private readonly List<WorkSchedule> _workSchedules = [];
         private readonly List<ShiftRequest> _shiftRequests = [];
 
-        // ===== Nhóm chức năng: đặt lịch khám (booking) =====
+        // ===== Nhóm ch?c nang: d?t l?ch khám (booking) =====
 
         public Task<WorkSchedule?> GetByIdAsync(Guid id)
         {
@@ -22,15 +22,15 @@ namespace Clinic.Application.UnitTests.Common
         }
 
         /// <summary>
-        /// Fake trong bộ nhớ, không có DB thật nên không thể lock thật - no-op để interface
-        /// biên dịch được và test có thể gọi CreateAppointmentHandler bình thường.
+        /// Fake trong b? nh?, không có DB th?t nên không th? lock th?t - no-op d? interface
+        /// biên d?ch du?c và test có th? g?i CreateAppointmentHandler bình thu?ng.
         /// </summary>
         public Task LockAsync(Guid workScheduleId, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
 
-        /// <summary>Helper cho test: seed sẵn 1 WorkSchedule để GetByIdAsync tìm thấy.</summary>
+        /// <summary>Helper cho test: seed s?n 1 WorkSchedule d? GetByIdAsync tìm th?y.</summary>
         public void Add(WorkSchedule workSchedule)
         {
             _workSchedules.Add(workSchedule);
@@ -68,7 +68,7 @@ namespace Clinic.Application.UnitTests.Common
             return Task.FromResult(result);
         }
 
-        // ===== Nhóm chức năng: quản lý ca trực bác sĩ (shift request) =====
+        // ===== Nhóm ch?c nang: qu?n lý ca tr?c bác si (shift request) =====
 
         public async Task AddShiftRequestAsync(ShiftRequest shiftRequest)
         {

@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Exceptions;
+using Clinic.Application.Common.Exceptions;
 using Clinic.Application.Features.WorkSchedules.Commands;
 using Clinic.Application.UnitTests.Common;
 using Clinic.Domain.Common.Exceptions;

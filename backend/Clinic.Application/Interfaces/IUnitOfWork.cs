@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Clinic.Application.Interfaces
 {
@@ -15,24 +15,24 @@ namespace Clinic.Application.Interfaces
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Mở 1 transaction DB tường minh. Dùng khi 1 use case cần gộp nhiều thao tác
-        /// (vd: khóa 1 dòng bằng raw SQL rồi INSERT/UPDATE bằng EF Core) vào chung 1
-        /// transaction, thay vì để SaveChangesAsync tự mở/đóng transaction ngầm riêng lẻ
-        /// cho từng lệnh. Bắt buộc gọi CommitTransactionAsync hoặc RollbackTransactionAsync
-        /// sau đó để đóng transaction, nếu không sẽ giữ khóa/connection lâu hơn cần thiết.
+        /// M? 1 transaction DB tu?ng minh. Dùng khi 1 use case c?n g?p nhi?u thao tác
+        /// (vd: khóa 1 dòng b?ng raw SQL r?i INSERT/UPDATE b?ng EF Core) vào chung 1
+        /// transaction, thay vì d? SaveChangesAsync t? m?/dóng transaction ng?m riêng l?
+        /// cho t?ng l?nh. B?t bu?c g?i CommitTransactionAsync ho?c RollbackTransactionAsync
+        /// sau dó d? dóng transaction, n?u không s? gi? khóa/connection lâu hon c?n thi?t.
         /// </summary>
         Task InitializeTransactionLockAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Commit transaction đã mở bằng BeginTransactionAsync. Không làm gì nếu chưa có
-        /// transaction nào đang mở.
+        /// Commit transaction dã m? b?ng BeginTransactionAsync. Không làm gì n?u chua có
+        /// transaction nào dang m?.
         /// </summary>
         Task CommitTransactionAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Rollback transaction đã mở bằng BeginTransactionAsync. Không làm gì nếu chưa có
-        /// transaction nào đang mở. Nên gọi trong catch-all của handler đã BeginTransactionAsync,
-        /// để giải phóng khóa/connection ngay khi có lỗi thay vì chờ hết request.
+        /// Rollback transaction dã m? b?ng BeginTransactionAsync. Không làm gì n?u chua có
+        /// transaction nào dang m?. Nên g?i trong catch-all c?a handler dã BeginTransactionAsync,
+        /// d? gi?i phóng khóa/connection ngay khi có l?i thay vì ch? h?t request.
         /// </summary>
         Task RollbackTransactionAsync(CancellationToken cancellationToken = default);
     }

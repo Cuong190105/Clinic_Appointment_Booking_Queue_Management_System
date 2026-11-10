@@ -16,7 +16,7 @@ namespace Clinic.API.Controllers
             _sender = sender;
         }
 
-        // Public: bệnh nhân cần xem khung giờ trống để chọn trước khi đăng nhập/đặt lịch.
+        // Public: bá»‡nh nhÃ¢n cáº§n xem khung giá» trá»‘ng Ä‘á»ƒ chá»n trÆ°á»›c khi Ä‘Äƒng nháº­p/Ä‘áº·t lá»‹ch.
         [HttpGet]
         [AllowAnonymous]
         public async Task<IActionResult> GetAll(

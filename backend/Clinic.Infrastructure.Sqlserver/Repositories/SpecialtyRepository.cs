@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Common.Models;
+using Clinic.Application.Common.Models;
 using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Clinic.Infrastructure.Sqlserver.Persistence;

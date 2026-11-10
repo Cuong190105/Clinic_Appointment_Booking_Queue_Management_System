@@ -1,4 +1,4 @@
-﻿using Clinic.Application.Interfaces;
+using Clinic.Application.Interfaces;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 
@@ -27,6 +27,11 @@ namespace Clinic.Application.UnitTests.Common
             return _queueTickets.FirstOrDefault(q => q.Id == id);
         }
 
+        public async Task<QueueTicket?> GetByAppointmentIdAsync(Guid appointmentId)
+        {
+            return _queueTickets.FirstOrDefault(q => q.AppointmentId == appointmentId);
+        }
+
         public async Task<List<QueueTicket>> GetByDoctorAsync(Guid doctorId, DateTime date)
         {
             return _queueTickets
@@ -52,7 +57,7 @@ namespace Clinic.Application.UnitTests.Common
             return;
         }
 
-        /// <summary>Giúp test kiểm tra QueueTicket vừa được lưu (số lượng, dữ liệu) mà không cần expose List thô.</summary>
+        /// <summary>Giúp test ki?m tra QueueTicket v?a du?c luu (s? lu?ng, d? li?u) mà không c?n expose List thô.</summary>
         public IReadOnlyList<QueueTicket> All => _queueTickets;
 
         public async Task<QueueTicket?> GetActiveTicketAsync(Guid doctorId, DateTime date)

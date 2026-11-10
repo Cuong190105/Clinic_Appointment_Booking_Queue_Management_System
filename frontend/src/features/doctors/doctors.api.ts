@@ -34,7 +34,10 @@ export const doctorsApi = {
           SortBy: params?.sortBy || 'fullName',
           OrderBy: params?.orderBy || 'asc',
           Gender: params?.gender,
-          Status: params?.status !== undefined && params?.status !== '' && params?.status !== 'all' ? params.status : undefined,
+          Status:
+            params?.status !== undefined && params?.status !== '' && params?.status !== 'all'
+              ? params.status
+              : undefined,
           PageNumber: params?.pageNumber ?? 1,
           PageSize: params?.pageSize ?? 10,
         },
@@ -59,7 +62,14 @@ export const doctorsApi = {
       biography: d.biography || d.Biography || '',
       status: d.status ?? d.Status ?? 0,
       dateOfBirth: d.dateOfBirth || d.DateOfBirth || '',
-      gender: typeof d.gender === 'string' ? (d.gender.toLowerCase() === 'female' ? 1 : 0) : (d.gender ?? 0),
+      address: d.address || d.Address || '',
+      hireDate: d.hireDate || d.HireDate || '',
+      gender:
+        typeof d.gender === 'string'
+          ? d.gender.toLowerCase() === 'female'
+            ? 1
+            : 0
+          : (d.gender ?? 0),
     }))
 
     const pageNumber = data?.pageNumber || data?.PageNumber || params?.pageNumber || 1
@@ -98,7 +108,12 @@ export const doctorsApi = {
       biography: d.biography || d.Biography || '',
       status: d.status ?? d.Status ?? 0,
       dateOfBirth: d.dateOfBirth || d.DateOfBirth || '',
-      gender: typeof d.gender === 'string' ? (d.gender.toLowerCase() === 'female' ? 1 : 0) : (d.gender ?? 0),
+      gender:
+        typeof d.gender === 'string'
+          ? d.gender.toLowerCase() === 'female'
+            ? 1
+            : 0
+          : (d.gender ?? 0),
       address: d.address || d.Address || '',
       hireDate: d.hireDate || d.HireDate || '',
     } as any
@@ -124,7 +139,12 @@ export const doctorsApi = {
       biography: d.biography || d.Biography || '',
       status: d.status ?? d.Status ?? 0,
       dateOfBirth: d.dateOfBirth || d.DateOfBirth || '',
-      gender: typeof d.gender === 'string' ? (d.gender.toLowerCase() === 'female' ? 1 : 0) : (d.gender ?? 0),
+      gender:
+        typeof d.gender === 'string'
+          ? d.gender.toLowerCase() === 'female'
+            ? 1
+            : 0
+          : (d.gender ?? 0),
       address: d.address || d.Address || '',
       hireDate: d.hireDate || d.HireDate || '',
     } as any
@@ -167,7 +187,11 @@ export const doctorsApi = {
       qualification: payload.qualification || 'Bác sĩ chuyên khoa',
       experienceYears: Number(payload.experienceYears) || 1,
       biography: payload.biography || null,
+      specialtyId: payload.specialtyId,
     })
+    if (payload.specialtyId) {
+      await http.patch(`/doctors/${id}/specialty`, payload.specialtyId).catch(() => null)
+    }
   },
 
   // DELETE /doctors/{doctorId} -> Inactive
@@ -201,14 +225,20 @@ export const doctorsApi = {
       .then((r) => unwrap(r.data)),
 
   // GET /shifts/suggestions
-  getOwnShiftRequests: (startDate: string, endDate: string): Promise<DoctorSchedule<RequestedShift>> =>
+  getOwnShiftRequests: (
+    startDate: string,
+    endDate: string,
+  ): Promise<DoctorSchedule<RequestedShift>> =>
     http
-      .get<ApiResponse<DoctorSchedule<RequestedShift>> | DoctorSchedule<RequestedShift>>('/shifts/suggestions', {
-        params: {
-          StartDate: startDate,
-          EndDate: endDate,
+      .get<ApiResponse<DoctorSchedule<RequestedShift>> | DoctorSchedule<RequestedShift>>(
+        '/shifts/suggestions',
+        {
+          params: {
+            StartDate: startDate,
+            EndDate: endDate,
+          },
         },
-      })
+      )
       .then((r) => unwrap(r.data)),
 
   // POST /shifts/suggestions
@@ -216,7 +246,7 @@ export const doctorsApi = {
     date: string
     startTime: string
     endTime: string
-    patientLimit: number
+    RecommendedCapacity: number
     reason: string
   }): Promise<RequestedShift> =>
     http
@@ -230,7 +260,7 @@ export const doctorsApi = {
       date: string
       startTime: string
       endTime: string
-      patientLimitPerSlot: number
+      RecommendedCapacityPerSlot: number
       reason: string
     },
   ): Promise<unknown> =>
@@ -246,19 +276,27 @@ export const doctorsApi = {
 
   // POST /doctors/{doctorId}/queue/next
   callNext: (doctorId: string): Promise<QueueTicket> =>
-    http.post<ApiResponse<QueueTicket>>(`/doctors/${doctorId}/queue/next`).then((r) => unwrap(r.data)),
+    http
+      .post<ApiResponse<QueueTicket>>(`/doctors/${doctorId}/queue/next`)
+      .then((r) => unwrap(r.data)),
 
   // POST /queue/{queueTicketId}/start-exam
   startExam: (queueTicketId: string): Promise<unknown> =>
-    http.post<ApiResponse<unknown>>(`/queue/${queueTicketId}/start-exam`).then((r) => unwrap(r.data)),
+    http
+      .post<ApiResponse<unknown>>(`/queue/${queueTicketId}/start-exam`)
+      .then((r) => unwrap(r.data)),
 
   // POST /queue/{queueTicketId}/complete-exam
   completeExam: (queueTicketId: string): Promise<unknown> =>
-    http.post<ApiResponse<unknown>>(`/queue/${queueTicketId}/complete-exam`).then((r) => unwrap(r.data)),
+    http
+      .post<ApiResponse<unknown>>(`/queue/${queueTicketId}/complete-exam`)
+      .then((r) => unwrap(r.data)),
 
   // POST /queue/{queueTicketId}/skip
   skip: (queueTicketId: string): Promise<SkipQueueResult> =>
-    http.post<ApiResponse<SkipQueueResult>>(`/queue/${queueTicketId}/skip`).then((r) => unwrap(r.data)),
+    http
+      .post<ApiResponse<SkipQueueResult>>(`/queue/${queueTicketId}/skip`)
+      .then((r) => unwrap(r.data)),
 
   // PATCH /queue/{queueTicketId}/priority
   setPriority: (queueTicketId: string, priority: boolean): Promise<unknown> =>
@@ -273,6 +311,5 @@ export const doctorsApi = {
       .then((r) => unwrap(r.data)),
 
   // Alias for compatibility
-  get: (id: string) =>
-    http.get<ApiResponse<Doctor>>(`/doctors/${id}`).then((r) => unwrap(r.data)),
+  get: (id: string) => http.get<ApiResponse<Doctor>>(`/doctors/${id}`).then((r) => unwrap(r.data)),
 }

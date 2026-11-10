@@ -289,5 +289,15 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
             // Return paged results
             return new PagedResult<Appointment>(items, count);
         }
+
+        public async Task<Appointment?> GetByIdempotencyKeyAsync(string idempotencyKey)
+        {
+            if (string.IsNullOrWhiteSpace(idempotencyKey)) return null;
+
+            return await _context.Appointments
+                .Include(a => a.Patient).ThenInclude(p => p.Person)
+                .Include(a => a.WorkSchedule).ThenInclude(w => w.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
+                .FirstOrDefaultAsync(a => a.IdempotencyKey == idempotencyKey && !a.IsDeleted);
+        }
     }
 }
