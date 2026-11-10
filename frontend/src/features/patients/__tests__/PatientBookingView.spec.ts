@@ -199,6 +199,7 @@ describe('PatientBookingView', () => {
     )
 
     expect(cancelButton).toBeTruthy()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     await cancelButton!.trigger('click')
 
     expect(patientStore.cancelAppointment).toHaveBeenCalledWith(99)

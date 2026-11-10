@@ -558,3 +558,9 @@ Artifact đã được sửa để phản ánh đúng semantics Docker: `ImageIn
 ### Kết luận cập nhật
 
 Các điểm JWT, event-lag, application scrape coverage, dependency telemetry, alert lifecycle và container inspect đã đạt hoặc có bằng chứng phù hợp. Phase 8 đủ điều kiện đóng ở phạm vi các acceptance gate đã được kiểm chứng; các mô tả lịch sử 7 target cần được hiểu là snapshot trước khi bổ sung dependency targets.
+
+## Kết quả kiểm chứng sau khi Docker được bật (2026-11-10)
+
+Bằng chứng mới sau cleanup legacy xác nhận baseline 800/800 thành công trong 327.38 giây, không có 401/429/5xx, p95 endpoint cao nhất 24.87 ms; API contract 13/13 và QoS 8/8 pass. Compose runtime có 9/9 Prometheus targets, 7/7 alert rules và 10 DLQ không có message. Phase 9 workflow, contention, broker recovery và soak cũng pass. Xem artifact tổng hợp [`../tests/load/evidence/postcleanup_acceptance_20261110.json`](../tests/load/evidence/postcleanup_acceptance_20261110.json) và báo cáo acceptance chung.
+
+Các đoạn số liệu ở trên mô tả các lượt đo lịch sử trước đó; dùng artifact mới cho trạng thái sau cleanup. Giới hạn: môi trường Compose cục bộ, không phải xác nhận SLA production.

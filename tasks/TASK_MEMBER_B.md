@@ -323,3 +323,11 @@ Các artifact Phase 7–9 đã được giữ lại. Trạng thái phase đượ
 - **Phase 9 — Chưa nghiệm thu:** k6/runner là nền tảng ban đầu; benchmark và C# invariant tests hiện chưa chứng minh hành vi tải nghiệp vụ. Cần lượt chạy cô lập có telemetry và báo cáo tái lập. Xem [`PHASE_9_LOAD_TESTING_EXECUTION_PLAN_MEMBER_B.md`](PHASE_9_LOAD_TESTING_EXECUTION_PLAN_MEMBER_B.md) và [`../docs/PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md`](../docs/PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md).
 
 Các trạng thái và tiêu chí trong phần rà soát này được ưu tiên hơn các checkmark hoặc kết luận hoàn tất ghi trước đó trong tài liệu.
+
+## Acceptance sau cleanup legacy (2026-11-10)
+
+Docker đã được bật và lượt nghiệm thu hồi quy hoàn tất. Solution backend pass **285/285**; API contracts **13/13**; QoS failure-policy **8/8**. Compose build/up thành công; Gateway health/readiness/catalog đều 200, Prometheus 9/9 target và 7/7 rule khỏe, 10 DLQ rỗng. Baseline 800 request pass toàn bộ; alert lifecycle và các kịch bản Phase 9 gồm workflow, booking/read contention, broker degradation, soak và cleanup đều đạt. Bằng chứng tổng hợp: [`../tests/load/evidence/postcleanup_acceptance_20261110.json`](../tests/load/evidence/postcleanup_acceptance_20261110.json), chi tiết tại [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
+
+Do đó các Phase 7–9 do B phụ trách có bằng chứng nghiệm thu sau cleanup, không còn bị treo bởi kết quả review cũ ngày 02/11. Ghi chú: acceptance seed script đã để `admin1` dùng mật khẩu dev `Password123!`; password hash cũ không được khôi phục. Frontend build vẫn báo 33 npm audit findings nhưng hoàn tất thành công.
+
+Bổ sung: frontend unit tests pass **176/176** sau khi test hủy lịch mock `window.confirm()` đúng hành vi.

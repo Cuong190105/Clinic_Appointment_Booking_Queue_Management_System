@@ -180,3 +180,43 @@ Có thể bắt đầu song song các phần khảo sát/tooling ở từng phas
 - Nhiệm vụ A: [`TASK_MEMBER_A.md`](TASK_MEMBER_A.md)
 - Nhiệm vụ B: [`TASK_MEMBER_B.md`](TASK_MEMBER_B.md)
 - Vận hành hiện có: [`../docs/PHASE_0_OPERATIONS_AND_ACCEPTANCE.md`](../docs/PHASE_0_OPERATIONS_AND_ACCEPTANCE.md)
+
+## 10. Rà soát tổng kết A/B sau cleanup legacy (2026-11-10; snapshot trước khi Docker được bật)
+
+### Phạm vi và bằng chứng
+
+- Nhánh hiện tại sạch tại thời điểm rà soát; `HEAD` là `52ebd9d` (`feat(cleanup): remove infra & features from gateway`, 2026-11-05). Commit xóa phần lớn Clinic monolith/application infrastructure cũ và cập nhật Gateway/service composition. Đây là thay đổi kiến trúc lớn sau các lượt acceptance Phase 8/9 được ghi ngày 2026-11-04.
+- Các báo cáo có bằng chứng Phase 8 (baseline, 9/9 targets, alert lifecycle, QoS) và Phase 9 (booking, contention, degradation, soak, secondary workflow) tồn tại. Nhưng phần lớn bằng chứng runtime trong tài liệu mang ngày 2026-11-04, trước commit cleanup; chưa thấy artifact runtime mới gắn với `52ebd9d` để chứng minh stack sau cleanup vẫn giữ nguyên kết quả.
+- Đã chạy `dotnet test backend/Clinic.slnx -c Debug --no-restore --logger "console;verbosity=minimal"` trên checkout hiện tại. Các suite Contracts (9), Medical Records (56), Queue (51), Integration (53) và Notification (30) pass. Toàn solution **không pass**: Identity integration tests không kết nối được SQL Server; nhiều StaffScheduling integration/readiness tests cũng lỗi vì SQL Server không truy cập được; Appointment có test hủy lịch thất bại do fixture bị ràng buộc quy tắc hủy trước 24 giờ. Vì môi trường test này không có kết nối DB hoạt động, các lỗi SQL không đủ để kết luận logic service sai, nhưng cũng không thể tính là test pass.
+- Tài liệu hiện tự mâu thuẫn: `TASK_MEMBER_B.md` vẫn giữ rà soát 02/11 đánh dấu Phase 7 chưa nghiệm thu, Phase 8 một phần, Phase 9 chưa nghiệm thu; các tài liệu/báo cáo mới hơn lại ghi Phase 7–9 đã đạt. Báo cáo Phase 9 của A/B cũng còn các phần lịch sử/checklist chưa đồng bộ với kết luận authoritative cuối.
+
+### Đánh giá trạng thái theo thành viên
+
+- **Thành viên A:** Phần nghiệp vụ và ownership của các Phase 1–6 đã có hồ sơ nghiệm thu trước đó; cleanup monolith ở `52ebd9d` là bước dọn kiến trúc bổ sung. Phase 7 có spec/inventory và contract tests; Phase 8 có ma trận, QoS tests và runtime telemetry/baseline; Phase 9 có kịch bản và evidence thực tế. Tuy vậy, chưa đủ cơ sở tuyên bố A đã hoàn tất *toàn bộ project sau cleanup*, do test solution hiện lỗi và chưa có runtime acceptance mới trên commit cleanup.
+- **Thành viên B:** Harness tải, telemetry, OpenAPI validation/catalog, dashboards/alerts và báo cáo runtime đã được triển khai; một số Phase 9 report ghi đủ điều kiện đóng. Tuy nhiên, `TASK_MEMBER_B.md` còn trạng thái rà soát cũ chưa nghiệm thu và cần được đồng bộ. B cũng chưa có bằng chứng chung sau cleanup cho Compose/runtime, contract catalog và observability.
+- **Project tổng thể:** **Chưa nên đánh dấu đóng hoàn toàn**. Đây là thiếu bằng chứng hồi quy sau thay đổi kiến trúc mới cùng lỗi trong lượt test hiện tại; không phải khẳng định các kết quả acceptance cũ đều sai.
+
+### Điều kiện còn lại để đóng project
+
+1. Chạy SQL Server/Compose test dependencies đúng cấu hình mà integration fixtures yêu cầu; chạy lại test solution và lưu summary pass/fail. Sửa fixture hủy lịch để dùng clock/future appointment xác định thay vì giờ thực tế.
+2. Build/recreate Compose từ `52ebd9d`, ghi commit/image IDs và xác nhận mọi service healthy. Chạy lại tối thiểu contract validation + QoS/alert smoke + Phase 9 read/write/contention/dependency recovery và secondary workflow; đối soát invariant sau cleanup.
+3. Cập nhật một nguồn trạng thái có thẩm quyền trong `TASK_MEMBER_A.md`, `TASK_MEMBER_B.md`, các Phase 7–9 reports: đánh dấu phần có bằng chứng, bỏ trạng thái audit cũ đã bị supersede, giữ lại kết quả fail/giới hạn và dùng cùng ngày/commit/run IDs.
+4. Chỉ đóng project sau khi các test/runtime checks sau cleanup đạt hoặc từng ngoại lệ được phân loại rõ (lỗi code, lỗi fixture, hay thiếu môi trường) và được chủ dự án chấp thuận như giới hạn còn mở.
+
+## 11. Cập nhật acceptance sau khi Docker được bật (2026-11-10; kết luận authoritative)
+
+Lượt kiểm tra này thay thế kết luận trước đó rằng chưa thể nghiệm thu vì SQL Server/Docker không kết nối được. Docker Compose đã build và khởi động thành công; toàn bộ backend solution **285/285 test pass**. Test hủy lịch của Appointment ban đầu phụ thuộc ngày cố định đã được chỉnh ở fixture để dùng ngày lịch sau 3 ngày, rồi chạy lại riêng và cả solution đều pass.
+
+- API contract validation: **13/13 pass**; QoS failure-policy: **8/8 pass**.
+- Gateway `/healthz`, `/readyz` và `/api/catalog`: HTTP 200. Compose services healthy; Prometheus **9/9 targets up**, **7/7 alert rules healthy**. Cả 10 DLQ đều rỗng.
+- Phase 8 baseline sau cleanup: 800/800 request thành công trong 327.38 giây, không có 401/429/5xx, 10 JWT subjects, p95 endpoint cao nhất 24.87 ms. Artifact: [`PHASE_8_BASELINE_MEASUREMENT_RAW.json`](PHASE_8_BASELINE_MEASUREMENT_RAW.json). Alert lifecycle inactive → firing → inactive/resolved đã chạy thành công.
+- Phase 9: secondary workflow check-in/queue/medical report/notification đạt; benchmark đọc 100/100 thành công (274.73 RPS, p95 105.09 ms); booking benchmark 48 tạo mới, 2 conflict nghiệp vụ, 0 lỗi 5xx; contention 15 người cùng slot cho đúng 1 booking, 14 conflict, 0 lỗi 5xx; broker degradation giữ booking Pending rồi outbox chuyển Sent sau phục hồi; soak 60 giây pass.
+- Các lượt acceptance đã dọn dữ liệu kiểm thử; số appointment nền là 1 trước/sau và không còn dữ liệu thử sót. Tổng hợp máy đọc được: [`postcleanup_acceptance_20261110.json`](../tests/load/evidence/postcleanup_acceptance_20261110.json).
+
+### Kết luận cập nhật
+
+Các điểm còn thiếu trong rà soát trước đã được kiểm tra sau khi Docker hoạt động. Với phạm vi dự án môn học chạy bằng Docker Compose, bằng chứng hiện có đủ để xác nhận các phần Phase 7–9 của A/B và nghiệm thu hồi quy sau cleanup legacy. Đây không phải tuyên bố SLA production: baseline và soak là workload cục bộ, còn soak chỉ kéo dài 60 giây.
+
+Lưu ý vận hành: script acceptance đã đồng bộ password hash của `admin1` với tài khoản test; hash cũ không được khôi phục. Hiện `admin1` đăng nhập bằng mật khẩu dev `Password123!`. Compose frontend build có báo 33 npm audit findings (19 moderate, 13 high, 1 critical); build vẫn thành công. C# nullable/XML documentation warnings hiện hữu cũng không làm fail build/test.
+
+Bổ sung frontend: `npm run test:unit -- --run` pass **176/176 test**. Các test tương tác hủy lịch mock `window.confirm()`; `PatientQueueView` dùng mock `Notification` có thể khởi tạo bằng `new`, sửa hai test đã timeout và xác nhận lượt tải queue.

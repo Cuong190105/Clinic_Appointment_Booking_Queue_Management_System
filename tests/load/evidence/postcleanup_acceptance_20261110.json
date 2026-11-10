@@ -1,0 +1,60 @@
+{
+  "runDate": "2026-11-10",
+  "sourceCommit": "52ebd9d5baab7c111a9be8c98de7184549f9db87",
+  "scope": "Post-legacy-cleanup acceptance for Member A and Member B phases 7-9",
+  "backend": {
+    "command": "dotnet test backend/Clinic.slnx -c Debug --no-restore",
+    "passed": 285,
+    "failed": 0,
+    "result": "passed",
+    "note": "Appointment cancellation test fixture now uses a schedule date three days in the future, avoiding dependence on the current date."
+  },
+  "frontend": { "command": "npm run test:unit -- --run", "passed": 176, "failed": 0, "result": "passed", "note": "PatientQueueView Notification test double is constructible; window.confirm is stubbed for cancellation interaction." },
+  "apiContracts": { "passed": 13, "failed": 0, "result": "passed" },
+  "qosFailurePolicy": { "passed": 8, "failed": 0, "result": "passed" },
+  "compose": {
+    "build": "passed",
+    "runtime": "all configured services healthy; mssql exporter running without a Docker healthcheck",
+    "gatewayHealthz": 200,
+    "gatewayReadyz": 200,
+    "apiCatalog": 200,
+    "prometheusTargetsUp": "9/9",
+    "prometheusRulesHealthy": "7/7",
+    "rabbitDlqCount": 10,
+    "rabbitDlqMessages": 0
+  },
+  "phase8Baseline": {
+    "runId": "phase8-postcleanup-baseline-20261110",
+    "durationSeconds": 327.38,
+    "requests": 800,
+    "success2xx": 800,
+    "errors401_429_5xx": 0,
+    "authenticatedSubjects": 10,
+    "maxEndpointP95Milliseconds": 24.87,
+    "backendImageId": "sha256:6cf21bb9cba82822d9c616b1711dbf450573c51191685a6cb7c6de752b9391b1"
+  },
+  "phase8QoSAndAlerts": {
+    "qosTests": "8/8 passed",
+    "alertLifecycle": "inactive -> pending -> firing -> inactive/resolved",
+    "evidenceFile": "../../tasks/PHASE_8_ALERT_LIFECYCLE_EVIDENCE.json"
+  },
+  "phase9": {
+    "secondaryWorkflowRunId": "PH9-POSTCLEANUP-20261110",
+    "secondaryWorkflow": "check-in retry/idempotency, queue lifecycle, medical report draft/finalize/readback, notification history/read state passed",
+    "secondaryWorkflowEventTimingP95Milliseconds": 3766.76,
+    "benchmarkRunId": "PH9-POSTCLEANUP-BENCH-20261110",
+    "readBenchmark": { "requests": 100, "success2xx": 100, "throughputRps": 274.73, "p95Milliseconds": 105.09, "p99Milliseconds": 180.06, "serverErrors": 0 },
+    "bookingBenchmark": { "attempts": 50, "created201": 48, "conflicts409": 2, "serverErrors": 0, "throughputRps": 10.63, "successP95Milliseconds": 157.49 },
+    "contentionRunId": "PH9-POSTCLEANUP-CONTENTION-20261110",
+    "sameSlotContention": { "virtualUsers": 15, "created": 1, "conflicts": 14, "serverErrors": 0, "checksPassed": "30/30", "p95Milliseconds": 204.71 },
+    "brokerDegradationRunId": "PH9-POSTCLEANUP-DEG-20261110",
+    "brokerDegradation": "booking returned 201 Pending while RabbitMQ was paused; outbox later reached Sent after broker recovery",
+    "soak": { "durationSeconds": 60, "result": "passed", "connectionLeak": false, "workerDegradation": false, "containerMemoryLeak": false },
+    "cleanup": "all generated appointments, reservations, tickets, reports, and schedules removed; baseline appointment count remained 1; no residual test data"
+  },
+  "knownLimitations": [
+    "Compose frontend build reports 33 npm audit findings (19 moderate, 13 high, 1 critical); build itself succeeds.",
+    "Existing C# nullable/XML documentation warnings remain non-fatal.",
+    "The acceptance seed script synchronized admin1's password hash to the test account hash; the previous hash was not restored. admin1 currently authenticates with the development test password Password123!."
+  ]
+}
