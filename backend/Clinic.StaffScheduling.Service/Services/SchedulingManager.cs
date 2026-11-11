@@ -28,6 +28,7 @@ public class SchedulingManager : ISchedulingManager
     private readonly SchedulingDbContext _dbContext;
     private readonly ISchedulingOutboxWriter _outboxWriter;
     private readonly ILogger<SchedulingManager> _logger;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (string DoctorName, string? SpecialtyName, DateTimeOffset ExpiresAt)> DoctorMetaCache = new();
 
     public SchedulingManager(
         SchedulingDbContext dbContext,
@@ -68,9 +69,9 @@ public class SchedulingManager : ISchedulingManager
             .Include(ws => ws.Doctor)
                 .ThenInclude(d => d.Employee)
             .Include(ws => ws.Doctor)
-                .ThenInclude(d => d.WorkHistories)
+                .ThenInclude(d => d.WorkHistories.Where(wh => !wh.IsDeleted && wh.EndDate == null))
                 .ThenInclude(wh => wh.Specialty)
-            .Include(ws => ws.SlotReservations)
+            .Include(ws => ws.SlotReservations.Where(r => r.Status == ReservationStatus.Confirmed || (r.Status == ReservationStatus.Reserved && r.ExpiresAt > now)))
             .Where(ws => ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted &&
                         ws.Doctor.Status == DoctorStatus.Active && ws.Doctor.Employee.Status == EmployeeStatus.Active &&
                         !ws.Doctor.IsDeleted && !ws.Doctor.Employee.IsDeleted)
@@ -206,8 +207,10 @@ public class SchedulingManager : ISchedulingManager
                           AND [Status] = {"Active"}
                           AND [IsDeleted] = 0
                         """)
+                    .AsNoTracking()
                     .FirstOrDefaultAsync(ct)
                 : await _dbContext.WorkSchedules
+                    .AsNoTracking()
                     .FirstOrDefaultAsync(ws => ws.Id == scheduleId && ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted, ct);
 
             if (schedule == null)
@@ -228,21 +231,23 @@ public class SchedulingManager : ISchedulingManager
                 throw new InvalidOperationException("Chỉ có thể đặt hoặc giữ chỗ trước giờ khám ít nhất 30 phút.");
             }
 
-            // Count valid active reservations
-            var activeReservationsQuery = _dbContext.SlotReservations
+            // Count valid active reservations & check exact slot conflict in a single index-friendly query
+            var activeBookedSlots = await _dbContext.SlotReservations
+                .AsNoTracking()
                 .Where(r => r.WorkScheduleId == scheduleId &&
                            (r.Status == ReservationStatus.Confirmed ||
-                           (r.Status == ReservationStatus.Reserved && r.ExpiresAt > now)));
+                           (r.Status == ReservationStatus.Reserved && r.ExpiresAt > now)))
+                .Select(r => r.TimeSlot)
+                .ToListAsync(ct);
 
             // Layer 1: Shift capacity threshold check
-            var activeReservationCount = await activeReservationsQuery.CountAsync(ct);
-            if (activeReservationCount >= schedule.RecommendedCapacity)
+            if (activeBookedSlots.Count >= schedule.RecommendedCapacity)
             {
                 throw new InvalidOperationException("Ca làm việc đã đủ số lượng đặt online (RecommendedCapacity exceeded).");
             }
 
             // Layer 2: Exact slot conflict check
-            if (await activeReservationsQuery.AnyAsync(r => r.TimeSlot == timeSlot, ct))
+            if (activeBookedSlots.Contains(timeSlot))
             {
                 throw new InvalidOperationException($"Khung giờ {timeSlot} đã được người khác đặt.");
             }
@@ -268,15 +273,32 @@ public class SchedulingManager : ISchedulingManager
             _logger.LogInformation("Reserved slot {TimeSlot} on schedule {ScheduleId} for patient {PatientId}. Expires at {ExpiresAt}.",
                 timeSlot, scheduleId, patientId, reservation.ExpiresAt);
 
-            var doctor = await _dbContext.Doctors
-                .AsNoTracking()
-                .Include(d => d.Employee)
-                .Include(d => d.WorkHistories)
-                    .ThenInclude(wh => wh.Specialty)
-                .FirstOrDefaultAsync(d => d.Id == schedule.DoctorId, ct);
+            string doctorName;
+            string? specialtyName;
+            if (DoctorMetaCache.TryGetValue(schedule.DoctorId, out var cachedMeta) && cachedMeta.ExpiresAt > now)
+            {
+                doctorName = cachedMeta.DoctorName;
+                specialtyName = cachedMeta.SpecialtyName;
+            }
+            else
+            {
+                var doctorMeta = await _dbContext.Doctors
+                    .AsNoTracking()
+                    .Where(d => d.Id == schedule.DoctorId)
+                    .Select(d => new
+                    {
+                        DoctorName = d.Employee != null ? d.Employee.FullName : string.Empty,
+                        SpecialtyName = d.WorkHistories
+                            .Where(wh => !wh.IsDeleted && wh.EndDate == null && wh.Specialty != null)
+                            .Select(wh => wh.Specialty!.Name)
+                            .FirstOrDefault()
+                    })
+                    .FirstOrDefaultAsync(ct);
 
-            var specialtyName = doctor?.WorkHistories?.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null)?.Specialty?.Name;
-            var doctorName = doctor?.Employee?.FullName ?? string.Empty;
+                doctorName = doctorMeta?.DoctorName ?? string.Empty;
+                specialtyName = doctorMeta?.SpecialtyName;
+                DoctorMetaCache[schedule.DoctorId] = (doctorName, specialtyName, now.AddSeconds(30));
+            }
 
             return new ReservationResponse(
                 reservation.Id,
@@ -543,6 +565,7 @@ public class SchedulingManager : ISchedulingManager
         }
 
         await _dbContext.SaveChangesAsync(ct);
+        DoctorMetaCache.Clear();
         _logger.LogInformation("Synchronized profile for PersonId {PersonId} across {Count} employee records.", evt.PersonId, employees.Count);
         return employees.Count;
     }

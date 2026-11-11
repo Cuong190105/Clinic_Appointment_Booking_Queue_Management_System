@@ -104,17 +104,21 @@ public class AppointmentManager : IAppointmentManager
     private readonly ISchedulingClient _schedulingClient;
     private readonly IAppointmentOutboxWriter _outbox;
     private readonly ILogger<AppointmentManager> _logger;
+    private readonly IAppointmentWorkSignal? _workSignal;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (PatientProjection Projection, DateTimeOffset ExpiresAt)> PatientProjectionCache = new();
 
     public AppointmentManager(
         AppointmentDbContext db,
         ISchedulingClient schedulingClient,
         IAppointmentOutboxWriter outbox,
-        ILogger<AppointmentManager> logger)
+        ILogger<AppointmentManager> logger,
+        IAppointmentWorkSignal? workSignal = null)
     {
         _db = db;
         _schedulingClient = schedulingClient;
         _outbox = outbox;
         _logger = logger;
+        _workSignal = workSignal;
     }
 
     public async Task<(bool Success, string? ErrorMessage, AppointmentDto? Result, int StatusCode)> CreateAppointmentAsync(
@@ -129,6 +133,7 @@ public class AppointmentManager : IAppointmentManager
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
         {
             var existingApp = await _db.Appointments
+                .AsNoTracking()
                 .FirstOrDefaultAsync(a => a.IdempotencyKey == idempotencyKey && !a.IsDeleted, ct);
             if (existingApp != null)
             {
@@ -149,7 +154,7 @@ public class AppointmentManager : IAppointmentManager
         if (isStaff && request.PatientId.HasValue && request.PatientId.Value != Guid.Empty)
         {
             patientId = request.PatientId.Value;
-            var proj = await _db.PatientProjections.FirstOrDefaultAsync(p => p.Id == patientId, ct);
+            var proj = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.Id == patientId, ct);
             if (proj != null)
             {
                 patientIdentityUserId = proj.IdentityUserId;
@@ -168,7 +173,7 @@ public class AppointmentManager : IAppointmentManager
             }
             else
             {
-                var proj = await _db.PatientProjections.FirstOrDefaultAsync(p => p.IdentityUserId == currentUserId, ct);
+                var proj = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.IdentityUserId == currentUserId, ct);
                 if (proj == null)
                 {
                     return (false, "Patient profile not found for the current user.", null, StatusCodes.Status404NotFound);
@@ -183,9 +188,19 @@ public class AppointmentManager : IAppointmentManager
 
             if (string.IsNullOrEmpty(patientName))
             {
-                var proj = await _db.PatientProjections.FirstOrDefaultAsync(p => p.Id == patientId, ct);
-                if (proj != null)
+                var now = DateTimeOffset.UtcNow;
+                if (!PatientProjectionCache.TryGetValue(patientId, out var cachedProj) || cachedProj.ExpiresAt <= now)
                 {
+                    var dbProj = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.Id == patientId, ct);
+                    if (dbProj != null)
+                    {
+                        cachedProj = (dbProj, now.AddSeconds(30));
+                        PatientProjectionCache[patientId] = cachedProj;
+                    }
+                }
+                if (cachedProj.Projection != null)
+                {
+                    var proj = cachedProj.Projection;
                     patientIdentityUserId = proj.IdentityUserId ?? patientIdentityUserId;
                     patientName = proj.FullName;
                     patientPhone = proj.PhoneNumber;
@@ -239,7 +254,6 @@ public class AppointmentManager : IAppointmentManager
                 NextConfirmationAttemptAt = DateTime.UtcNow
             };
 
-            await using var tx = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
             try
             {
                 _db.Appointments.Add(appointment);
@@ -266,20 +280,19 @@ public class AppointmentManager : IAppointmentManager
                 }, "appointment.created");
 
                 await _db.SaveChangesAsync(ct);
-                if (tx != null) await tx.CommitAsync(ct);
+                _workSignal?.SignalConfirmation();
+                _workSignal?.SignalOutbox();
 
                 return (true, null, ToDto(appointment), StatusCodes.Status201Created);
             }
             catch (DbUpdateException ex)
             {
-                if (tx != null) await tx.RollbackAsync(ct);
                 await _schedulingClient.ReleaseReservationAsync(request.WorkScheduleId, reservation.Id, ct);
                 _logger.LogWarning(ex, "Conflict saving appointment for patient {PatientId}: slot or key already exists.", patientId);
                 return (false, "Khung giờ khám hoặc lịch hẹn này đã tồn tại trong hệ thống.", null, StatusCodes.Status409Conflict);
             }
             catch (Exception ex)
             {
-                if (tx != null) await tx.RollbackAsync(ct);
                 // Compensation
                 await _schedulingClient.ReleaseReservationAsync(request.WorkScheduleId, reservation.Id, ct);
                 _logger.LogError(ex, "Failed to create appointment for patient {PatientId}", patientId);
@@ -337,6 +350,7 @@ public class AppointmentManager : IAppointmentManager
             }, "appointment.created");
 
             await _db.SaveChangesAsync(ct);
+            _workSignal?.SignalOutbox();
             return (true, null, ToDto(appointment), StatusCodes.Status201Created);
         }
     }
@@ -501,6 +515,7 @@ public class AppointmentManager : IAppointmentManager
             }, "appointment.confirmed");
 
             await _db.SaveChangesAsync(ct);
+            _workSignal?.SignalOutbox();
             return (true, null, StatusCodes.Status204NoContent);
         }
         catch (InvalidOperationException ex)
@@ -548,6 +563,7 @@ public class AppointmentManager : IAppointmentManager
             }, "appointment.cancelled");
 
             await _db.SaveChangesAsync(ct);
+            _workSignal?.SignalOutbox();
 
             // Best-effort direct release on Staff & Scheduling Service alongside Outbox event
             _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
@@ -709,6 +725,7 @@ public class AppointmentManager : IAppointmentManager
             }, "appointment.checked-in");
 
             await _db.SaveChangesAsync(ct);
+            _workSignal?.SignalOutbox();
             return (true, null, StatusCodes.Status204NoContent);
         }
         catch (InvalidOperationException ex)
@@ -967,6 +984,7 @@ public class AppointmentManager : IAppointmentManager
         }
 
         await _db.SaveChangesAsync(ct);
+        PatientProjectionCache.Clear();
         _logger.LogInformation("PatientProjection updated for PersonId {PersonId}", evt.PersonId);
         return true;
     }

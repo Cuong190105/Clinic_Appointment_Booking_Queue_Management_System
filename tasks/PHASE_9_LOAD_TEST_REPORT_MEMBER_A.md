@@ -409,3 +409,162 @@ Evidence:
 - Harness: [`scripts/run-phase9-secondary-workloads.ps1`](../scripts/run-phase9-secondary-workloads.ps1)
 
 **KẾT LUẬN CUỐI CÙNG:** **PHASE 9 ĐỦ ĐIỀU KIỆN ĐÓNG.** Các kết quả lịch sử vẫn được giữ để truy vết, nhưng kết luận chính thức dựa trên các lượt authoritative mới nhất và evidence đã nêu.
+
+## 12. Đối chiếu kết quả Monolith, Microservices cân bằng và Hotspot — 2026-11-11
+
+### Phạm vi và cách chạy lại
+
+Để kiểm tra kết quả benchmark đã được ghi từ các lượt trước, cùng một kịch bản k6 `tests/load/booking.js` được chạy tuần tự trên Monolith và ba profile Microservices. Workload dùng 20 VU, mỗi VU đặt một lịch ở slot riêng, chờ trạng thái `Confirmed`, kiểm tra idempotency và hủy lịch đã tạo. Các lượt Microservices dùng cùng project/volume `clinic_appointment_booking_queue_management_system`, cùng source hiện có và cùng DB; stack được dừng trước khi chuyển profile. Không xóa volume.
+
+| Lượt | Giới hạn và polling | Tạo/xác nhận/idempotency/cleanup | HTTP lỗi | p95 POST đặt lịch | p95 đến Confirmed | K6 exit |
+|---|---|---:|---:|---:|---:|---:|
+| Monolith | Compose Monolith hiện tại | 20/20 cho cả bốn kiểm tra | 0/125 | 706.7 ms | 790.8 ms | 99 (ngưỡng latency) |
+| Microservices cân bằng | Giới hạn baseline gần đều; các poll interval 1000 ms | 20/20 | 0/235 | 1902.5 ms | 3437.1 ms | 99 (ngưỡng latency) |
+| Microservices cân bằng | Cùng giới hạn; các poll interval 100 ms | 20/20 | 0/280 | 2351.7 ms | 4383.8 ms | 99 (ngưỡng latency) |
+| Microservices hotspot | Phân bổ nhiều hơn cho Appointment/Scheduling/Queue, ít hơn cho Identity/Medical Records/RabbitMQ/telemetry; poll 100 ms | 20/20 | 0/226 | 1171.9 ms | 2259.3 ms | 99 (ngưỡng latency) |
+
+Cả bốn lượt đều vượt ngưỡng kịch bản `booking_api_duration p95 < 500 ms`; K6 exit `99` là do ngưỡng này, không phải lỗi đặt lịch. Tỉ lệ nghiệp vụ và HTTP đều đạt trong các lượt chạy lại. Các số p95 chỉ dựa trên 20 lần đặt lịch trong một lần chạy/profile; chúng là kết quả thăm dò với độ tin cậy thấp, chưa phải phép đo hiệu năng chính thức.
+
+Bằng chứng k6 và mẫu `docker stats` của ba profile Microservices nằm trong `tests/load/evidence/review-{balanced1000,balanced100,hotspot100}-*`. Monolith evidence nằm trong working tree Monolith tại `tests/load/evidence/review-mono-*`. Các mẫu tài nguyên được lấy khoảng một giây/lần trong thời gian workload ngắn, nên không đại diện cho đỉnh tải hay xu hướng dài hạn. Kết quả cũ dạng Node runner cũng không hoàn toàn tương đương: số request, concurrency, payload/dataset và cách lấy CPU khác nhau; một artifact còn ghi đồng thời image của cả hai stack. Không dùng các kết quả cũ đó để kết luận kiến trúc nào nhanh hơn.
+
+### Kết luận về tính công bằng
+
+- So sánh balanced 100 ms với hotspot 100 ms là cặp có ý nghĩa nhất: cùng kịch bản, dữ liệu/volume, source và polling, còn thay đổi chính là phân bổ giới hạn tài nguyên. Một lượt cho thấy hotspot giảm p95 POST từ 2351.7 xuống 1171.9 ms và p95 xác nhận từ 4383.8 xuống 2259.3 ms. Đây là dấu hiệu để tiếp tục kiểm tra, chưa đủ để kết luận hotspot tốt hơn ổn định.
+- Tổng giới hạn trong Compose ở hai profile gần nhau nhưng không bằng nhau: balanced khoảng 12.75 CPU / 5.25 GiB, hotspot khoảng 12.25 CPU / 5.06 GiB (tính trên các service có resource limit). Cấu hình Monolith được kiểm tra có khoảng 9 CPU / 3.75 GiB giới hạn. Vì ngân sách giữa hai kiến trúc không đồng nhất, so sánh Monolith với Microservices hiện chưa phải đối chứng hiệu năng công bằng.
+- Host Docker có khoảng 16 CPU và 6.2 GiB RAM. Một workload 20 VU chạy vài giây, một lượt mỗi cấu hình, chưa chứng minh các giới hạn đã tạo ra tình trạng tranh chấp tài nguyên ổn định. Kịch bản dùng chung một tài khoản Patient cho 20 VU và cùng một ca/ngày; phù hợp kiểm tra burst/concurrency cơ bản, nhưng chưa mô phỏng phân bố người dùng và lưu lượng của phòng khám.
+- Kịch bản chưa đo throughput ổn định, p95 dưới tải duy trì, tỷ lệ throttling, độ trễ outbox/SAGA độc lập, hay tác động tới DB/broker trong thời gian dài. Cần nhiều lần chạy, warm-up, thứ tự profile luân phiên, cùng seed/dataset và cùng tổng CPU/RAM; thêm ít nhất sustained load và ghi time-series CPU, memory, throttling, DB và RabbitMQ.
+
+### Đánh giá điều chỉnh chu kỳ polling trong luồng đặt lịch/SAGA
+
+Các thay đổi hiện tại không đổi thứ tự nghiệp vụ hay tính nhất quán của SAGA. Appointment vẫn ghi trạng thái Pending và reservation trước, worker gọi Scheduling để xác nhận, rồi trạng thái chuyển Confirmed; outbox vẫn phát event sau commit. Thay đổi chỉ giảm chu kỳ quét outbox và quét appointment chờ xác nhận từ mặc định 1 giây xuống 100 ms. Vì vậy đây là tuning độ trễ polling, không phải một thiết kế SAGA mới.
+
+100 ms có thể rút ngắn thời gian chờ đến vòng quét kế tiếp, nhưng cũng có thể làm tăng truy vấn DB khi hệ thống rảnh. Riêng các retry xác nhận đang có backoff 10 giây, 1 phút và 5 phút; giảm chu kỳ quét không bỏ qua backoff này. Trong các lượt đơn hiện có, profile balanced 100 ms không tốt hơn profile 1000 ms (p95 đặt lịch 2351.7 so với 1902.5 ms; p95 Confirmed 4383.8 so với 3437.1 ms), nên chưa có bằng chứng để giữ 100 ms làm mặc định.
+
+Có hai vấn đề triển khai cần xử lý trước khi coi thay đổi worker là hoàn chỉnh:
+
+1. `AppointmentConfirmationWorker` tạo scope mới mỗi vòng chỉ để lấy `IConfiguration`, dù configuration có thể được inject trực tiếp như hai publisher khác. Cách hiện tại tạo overhead và làm luồng khó kiểm thử hơn.
+2. Giá trị interval chưa được kiểm tra/clamp. Giá trị 0 có thể tạo vòng quét liên tục; giá trị âm có thể làm `Task.Delay` ném exception và khiến hosted worker dừng.
+
+Đề xuất: dùng mặc định 1000 ms trong môi trường chạy thật; cho phép cấu hình interval thấp hơn trong profile benchmark riêng; inject `IConfiguration` trực tiếp; xác thực interval trong phạm vi hợp lệ; thêm metrics cho vòng polling, số bản ghi xử lý và outbox lag. Sau đó chạy lại nhiều lần với thứ tự cấu hình đảo xen kẽ và đo riêng outbox lag/confirmation latency cùng tải DB. Không nên chọn 100 ms chỉ từ một lần benchmark.
+
+### Lỗi của harness được phát hiện và sửa khi chạy lại
+
+K6 lần đầu không vào workload vì `booking.js` import `parseAppointment` nhưng `config.js` không export hàm đó; sau khi bổ sung hàm, k6 còn lỗi runtime vì `Rate` và `Trend` được import từ `k6` thay vì `k6/metrics`. Hai lỗi này đã được sửa trong `tests/load/config.js` và `tests/load/booking.js` ở cả hai working tree. Chúng cho thấy kiểm tra cú pháp Node đơn thuần không xác nhận được kịch bản chạy được bằng k6; cần giữ ít nhất một smoke execution bằng chính image k6 trong quy trình kiểm tra.
+
+### Trạng thái sau rà soát
+
+- Đạt: build Compose của Microservices; luồng đặt lịch 20 VU hoàn tất ở cả hai kiến trúc; không có HTTP lỗi trong các lượt chạy lại; xác nhận, idempotency và cleanup đều đạt.
+- Chưa đạt: ngưỡng p95 500 ms của kịch bản booking; bằng chứng so sánh hiệu năng chính thức giữa Monolith và Microservices; kết luận nhân quả về hotspot; kiểm chứng lợi ích/chi phí của polling 100 ms và kiểm thử lỗi SAGA tương ứng.
+- Không đóng các mục chưa đạt chỉ dựa trên việc các test chức năng trả về 100%. Cần chuẩn hóa tổng ngân sách tài nguyên, tạo workload nhiều người dùng hơn, lặp các profile nhiều lần, thu metrics time-series và đối chiếu lại với ngưỡng SLA/SLO đã chọn.
+
+## 13. Khắc phục độ trễ đuôi p95/p99 các tác vụ Ghi, chi tiết cấu hình và đo kiểm lại (Cũ & Mới, FAIL & PASS) — 2026-11-11
+
+### 13.1. Bảng cấu hình chi tiết từng hệ thống qua các giai đoạn
+
+#### A. Cấu hình Monolith (`docker-compose.monolith.yml`)
+
+| Thành phần / Thông số | Cấu hình Cũ (Giai đoạn 1–3) | Cấu hình Mới (Sau tối ưu — Giai đoạn 4) |
+|---|---|---|
+| `clinic_mono_sql_server` (`mono-db`) | Limits: `4.00 CPU / 2048 MB`, Reservations: `2.00 CPU / 1024 MB` | Giữ nguyên (`4.00 CPU / 2048 MB`, Res: `2.00 CPU / 1024 MB`) |
+| `clinic_mono_backend` (`mono-backend`) | Limits: `4.00 CPU / 1536 MB`, Reservations: `2.00 CPU / 512 MB` | Giữ nguyên (`4.00 CPU / 1536 MB`, Res: `2.00 CPU / 512 MB`) |
+| `clinic_mono_frontend` (`mono-frontend`) | Limits: `1.00 CPU / 256 MB`, Reservations: `0.25 CPU / 64 MB` | Giữ nguyên (`1.00 CPU / 256 MB`, Res: `0.25 CPU / 64 MB`) |
+| **Tổng CPU / RAM Monolith** | **`9.00 CPU / 3840 MB (3.75 GiB)`** | **`9.00 CPU / 3840 MB (3.75 GiB)`** |
+| **SQL Connection Pool** | Mặc định (`Min Pool Size=0, Max Pool Size=100`) | **`Min Pool Size=20; Max Pool Size=200;`** |
+| **Truy vấn vùng khóa (`UPDLOCK`)** | `.Include(w => w.Appointments)` nạp cả lịch đã `Cancelled`; gọi `GetByIdempotencyKeyAsync` lặp lại lần 2 trong `LockAsync` | Chỉ `.Include` lịch hẹn đang active (`!a.IsDeleted && a.Status != Cancelled`); bỏ query `GetByIdempotencyKeyAsync` lặp lại lần 2 trong `LockAsync` |
+
+#### B. Cấu hình Microservices (`docker-compose.yml`)
+
+| Container / Thông số | GĐ 1: Balanced 1000ms (Cũ) | GĐ 2: Balanced 100ms (Cũ) | GĐ 3: Hotspot 100ms (Cũ) | **GĐ 4: Sau tối ưu toàn diện (Mới)** |
+|---|---|---|---|---|
+| `clinic_sql_server` (`db`) | `4.00 CPU / 2048 MB` | `4.00 CPU / 2048 MB` | `4.00 CPU / 2048 MB` | **`4.00 CPU / 2048 MB`** *(Res: 2.0 CPU / 1024M)* |
+| `clinic_appointment_service` | `0.75 CPU / 256 MB` | `0.75 CPU / 256 MB` | `1.50 CPU / 384 MB` | **`1.50 CPU / 384 MB`** *(Res: 0.5 CPU / 192M)* |
+| `clinic_scheduling_service` | `0.75 CPU / 256 MB` | `0.75 CPU / 256 MB` | `1.25 CPU / 384 MB` | **`1.50 CPU / 384 MB`** *(Res: 0.5 CPU / 192M)* |
+| `clinic_queue_service` | `0.75 CPU / 256 MB` | `0.75 CPU / 256 MB` | `1.25 CPU / 256 MB` | **`1.00 CPU / 256 MB`** *(Res: 0.5 CPU / 128M)* |
+| `clinic_backend` (Gateway) | `1.00 CPU / 384 MB` | `1.00 CPU / 384 MB` | `1.00 CPU / 384 MB` | **`1.00 CPU / 384 MB`** *(Res: 0.5 CPU / 128M)* |
+| `identity-service` | `0.75 CPU / 256 MB` | `0.75 CPU / 256 MB` | `0.25 CPU / 256 MB` | **`0.50 CPU / 256 MB`** *(Res: 0.1 CPU / 128M)* |
+| `clinic_notification_service` | `0.50 CPU / 256 MB` | `0.50 CPU / 256 MB` | `0.50 CPU / 256 MB` | **`0.50 CPU / 256 MB`** *(Res: 0.2 CPU / 128M)* |
+| `clinic_medical_records_service` | `0.50 CPU / 256 MB` | `0.50 CPU / 256 MB` | `0.25 CPU / 192 MB` | **`0.25 CPU / 192 MB`** *(Res: 0.1 CPU / 64M)* |
+| `rabbitmq` | `1.50 CPU / 512 MB` | `1.50 CPU / 512 MB` | `0.50 CPU / 256 MB` | **`0.50 CPU / 256 MB`** *(Res: 0.25 CPU / 128M)* |
+| `clinic_frontend` | `1.00 CPU / 256 MB` | `1.00 CPU / 256 MB` | `1.00 CPU / 256 MB` | **`1.00 CPU / 256 MB`** *(Res: 0.25 CPU / 64M)* |
+| `clinic_prometheus` + `jaeger` | `1.00 CPU / 512 MB` | `1.00 CPU / 512 MB` | `0.50 CPU / 384 MB` | **`0.50 CPU / 384 MB`** *(2x 0.25 CPU / 192M)* |
+| `mssql-exporter` | `0.25 CPU / 128 MB` | `0.25 CPU / 128 MB` | `0.25 CPU / 128 MB` | **`0.25 CPU / 128 MB`** |
+| **Tổng CPU / RAM Microservices** | **`12.75 CPU / 5.25 GiB`** | **`12.75 CPU / 5.25 GiB`** | **`12.25 CPU / 5.06 GiB`** | **`12.50 CPU / 5.06 GiB`** |
+| **Cơ chế đánh thức Worker / Outbox** | Timer Polling `1000ms` | Busy-Polling `100ms` | Busy-Polling `100ms` | **Tín hiệu tức thì `SemaphoreSlim` (`< 1ms`) + Fallback `1000ms` (clamped `[100, 60000]`)** |
+| **Xử lý xác nhận SAGA Batch** | Tuần tự `foreach` + 20 `SaveChangesAsync` | Tuần tự `foreach` + 20 `SaveChangesAsync` | Tuần tự `foreach` + 20 `SaveChangesAsync` | **Song song `Task.WhenAll` + 1 `SaveChangesAsync` duy nhất cho cả batch** |
+| **Kết nối RabbitMQ Outbox** | Mở/đóng TCP mỗi vòng lặp | Mở/đóng TCP mỗi 100ms | Mở/đóng TCP mỗi 100ms | **Persistent `IConnection` & `IChannel` xuyên suốt vòng đời** |
+| **SQL Connection Pool** | Mặc định (`Min=0`) | Mặc định (`Min=0`) | Mặc định (`Min=0`) | **`Min=20, Max=200` (Appointment/Scheduling); `Min=10, Max=200` (Identity/Queue)** |
+
+---
+
+### 13.2. Năm nguyên nhân gốc rễ khiến p95/p99 bị vọt cao ở mục 12 và cách tối ưu chi tiết từng file
+
+1. **Xử lý xác nhận SAGA tuần tự (`N+1` HTTP + `N+1` `SaveChangesAsync`) trong [`AppointmentConfirmationWorker.cs`](../backend/Clinic.Appointment.Service/Services/AppointmentConfirmationWorker.cs):**
+   - *Trước khi sửa:* Khi 20 VU gửi request đồng thời, worker lấy batch 20 lịch hẹn `Pending` nhưng gọi `ConfirmReservationAsync` tuần tự qua `foreach` và gọi `db.SaveChangesAsync()` 20 lần riêng lẻ, đồng thời tạo `CreateScope()` mới ở mỗi vòng lặp chỉ để đọc `IConfiguration`.
+   - *Sau khi sửa:* Inject `IConfiguration` và `IAppointmentWorkSignal` trực tiếp vào constructor; gọi `await Task.WhenAll(...)` để xác nhận song song toàn bộ lịch hẹn trong batch sang `Scheduling.Service`; gom toàn bộ cập nhật trạng thái + `OutboxMessage` vào **đúng 1 lệnh `await db.SaveChangesAsync(ct)` duy nhất** rồi gọi `_workSignal.SignalOutbox()`.
+2. **Mở/đóng mới kết nối TCP RabbitMQ mỗi chu kỳ quét trong [`AppointmentOutboxPublisher.cs`](../backend/Clinic.Appointment.Service/Services/AppointmentOutboxPublisher.cs):**
+   - *Trước khi sửa:* Gọi `factory.CreateConnectionAsync()` và `CreateChannelAsync()` bên trong vòng lặp `while` gây overhead bắt tay TCP/AMQP liên tục khi có burst sự kiện.
+   - *Sau khi sửa:* Duy trì `_connection` và `_channel` bền vững qua `EnsureConnectedAsync(ct)` / `DisconnectAsync()`, chỉ tự động kết nối lại nếu kênh bị đứt.
+3. **Busy-polling 100ms gây tranh chấp Connection Pool & Lock với luồng API chính:**
+   - *Trước khi sửa:* Quét DB mỗi 100ms không có tín hiệu đồng bộ làm tăng tải nền lên SQL Server đúng lúc 20 VU đang giữ khóa `UPDLOCK, ROWLOCK`.
+   - *Sau khi sửa:* Tạo [`AppointmentWorkSignal.cs`](../backend/Clinic.Appointment.Service/Services/AppointmentWorkSignal.cs) (`SemaphoreSlim(0, 1)`) đăng ký Singleton. Khi có lịch hẹn mới, `AppointmentManager` đánh thức worker và publisher ngay lập tức (`< 1ms`), còn chu kỳ fallback khi rảnh trả về mặc định `1000ms` và kiểm tra biên `Math.Clamp(intervalMs, 100, 60_000)`.
+4. **Truy vấn dư thừa trong vùng khóa (Critical Section) trên cả Microservices và Monolith:**
+   - *Trên Microservices ([`AppointmentManager.cs`](../backend/Clinic.Appointment.Service/Services/AppointmentManager.cs) & [`SchedulingManager.cs`](../backend/Clinic.StaffScheduling.Service/Services/SchedulingManager.cs)):*
+     - Loại bỏ `BeginTransactionAsync`/`CommitAsync` thủ công bao quanh một lệnh `SaveChangesAsync` đơn lẻ trong `CreateAppointmentAsync` (tiết kiệm 2 round-trip DB mỗi request).
+     - Gộp 2 câu query `CountAsync` và `AnyAsync` bên trong `UPDLOCK, ROWLOCK` của `ReserveSlotAsync` thành **1 câu query nhẹ duy nhất** chỉ lấy danh sách `TimeSlot` active.
+     - Thêm `.AsNoTracking()` và bổ sung cache ngắn hạn 30s (`ConcurrentDictionary`, tự động invalidate khi cập nhật hồ sơ) cho metadata Bác sĩ (`DoctorName`, `SpecialtyName`) và `PatientProjection`.
+   - *Trên Monolith (`WorkScheduleRepository.cs` & `CreateAppointment.cs`):*
+     - Lọc `.Include(w => w.Appointments.Where(a => !a.IsDeleted && a.Status != AppointmentStatus.Cancelled))` trong `WorkScheduleRepository.GetByIdAsync` để không tải các lịch hẹn đã hủy khi đang giữ khóa `UPDLOCK`.
+     - Loại bỏ câu query `GetByIdempotencyKeyAsync` (join 5 bảng) lặp lại lần thứ 2 bên trong vùng khóa `LockAsync` của `CreateAppointment`.
+5. **Thiếu Pre-warming Connection Pool & EF Core DbContext:**
+   - Bổ sung `Min Pool Size=20;Max Pool Size=200;` vào connection strings và khởi tạo ấm `db.Model` khi khởi động service.
+
+---
+
+### 13.3. Bảng đối chiếu đầy đủ các lượt chạy `k6` (`tests/load/booking.js` — 20 VUs đồng thời): Cũ & Mới, FAIL (`exit 99`) & PASS (`exit 0`)
+
+| STT | Hệ thống & Cấu hình | File Evidence | `POST /appointments` (`booking_api_duration`)<br>`min / p50 / p90 / p95 / p99 (max)` | Tới `Confirmed` E2E (`booking_e2e_duration`)<br>`min / p50 / p90 / p95 / p99 (max)` | Toàn bộ HTTP (`http_req_duration`)<br>`min / p50 / p90 / p95 / max` | Nghiệp vụ & HTTP lỗi | K6 Exit & Trạng thái |
+|:-:|---|---|---|---|---|---|---|
+| 1 | **Monolith (Cũ — Trước tối ưu)** | `review-mono-booking-k6.json` | 315.2 / 522.8 / 690.4 / **706.7** / 726.4 ms | 487.0 / 617.5 / 765.7 / **790.8** / 805.0 ms | 6.0 / 25.3 / 500.4 / 598.5 / 948.4 ms | 20/20 pass, 0/125 lỗi | ❌ **FAIL (`exit 99`)**<br>(`p95 = 706.7ms > 500ms`) |
+| 2 | **Monolith (Mới — Sau tối ưu GĐ 4)** | `review-mono-optimized-booking-k6.json` | **23.1 / 157.1 / 248.9 / 269.3 / 339.7 ms**<br>*(max = 357.2 ms — Giảm 61.9% p95)* | **43.0 / 224.0 / 396.6 / 412.1 / 432.0 ms**<br>*(Giảm 47.9% p95)* | **6.1 / 19.1 / 148.8 / 206.5 / 357.2 ms**<br>*(Giảm 65.5% p95)* | **20/20 pass, 0/125 lỗi** | ✅ **PASS (`exit 0`)**<br>Đạt mọi ngưỡng |
+| 3 | **Microservices (Cũ 1 — Balanced + Poll 1000ms)** | [`review-balanced1000-booking-k6.json`](../tests/load/evidence/review-balanced1000-booking-k6.json) | 1769.7 / 1823.0 / 1893.7 / **1902.5** / 1935.1 ms | 2621.0 / 3178.0 / 3401.0 / **3437.1** / 3438.0 ms | 6.9 / 69.6 / 302.7 / 1804.1 / 1935.1 ms | 20/20 pass, 0/235 lỗi | ❌ **FAIL (`exit 99`)**<br>Fail cả p95 & p99 |
+| 4 | **Microservices (Cũ 2 — Balanced + Poll 100ms)** | [`review-balanced100-booking-k6.json`](../tests/load/evidence/review-balanced100-booking-k6.json) | 2008.2 / 2191.0 / 2350.5 / **2351.7** / 2372.0 ms | 2889.0 / 3895.5 / 4360.1 / **4383.8** / 4474.0 ms | 6.9 / 71.1 / 215.5 / 2119.5 / 2372.0 ms | 20/20 pass, 0/280 lỗi | ❌ **FAIL (`exit 99`)**<br>Fail nặng do busy-poll |
+| 5 | **Microservices (Cũ 3 — Hotspot + Poll 100ms)** | [`review-hotspot100-booking-k6.json`](../tests/load/evidence/review-hotspot100-booking-k6.json) | 989.9 / 1071.9 / 1165.3 / **1171.9** / 1224.4 ms | 1451.0 / 1939.5 / 2252.2 / **2259.3** / 2360.0 ms | 6.8 / 33.5 / 395.0 / 1058.8 / 1909.2 ms | 20/20 pass, 0/226 lỗi | ❌ **FAIL (`exit 99`)**<br>(`p95 = 1171.9ms > 500ms`) |
+| 6 | **Microservices (Mới — Sau tối ưu toàn diện GĐ 4)** | [`review-optimized-booking-k6.json`](../tests/load/evidence/review-optimized-booking-k6.json) | **87.2 / 264.6 / 409.9 / 410.9 / 426.5 ms**<br>*(Giảm 64.9% p95 so với Hotspot cũ,<br>giảm 82.5% so với Balanced 100ms)* | **260.0 / 489.0 / 640.0 / 640.2 / 643.0 ms**<br>*(Giảm 71.7% p95 so với Hotspot cũ,<br>giảm 85.4% so với Balanced 100ms)* | **7.7 / 46.1 / 214.9 / 327.0 / 426.5 ms**<br>*(Giảm 69.1% p95)* | **20/20 pass, 0/206 lỗi** | ✅ **PASS (`exit 0`)**<br>Đạt mọi ngưỡng |
+
+---
+
+### 13.4. Bảng đối chiếu đầy đủ 5 lượt chạy `benchmark-runner.mjs` (`SCENARIO=all`) với trọn bộ `min / p50 / p90 / p95 / p99 / max / avg`
+
+| Kịch bản & Phân vị | 1. Monolith Cũ<br>(Baseline GĐ 1) | 2. Monolith Mới<br>(Sau tối ưu GĐ 4) | 3. Microservices Cũ 1<br>(Baseline 1000ms GĐ 1) | 4. Microservices Cũ 2<br>(Hotspot 100ms GĐ 2) | 5. Microservices Mới<br>(Sau tối ưu GĐ 4) |
+|---|---:|---:|---:|---:|---:|
+| **File Evidence** | `...05-58-59-764Z.json` | `...09-17-38-887Z.json` | [`...06-15-17-036Z.json`](../tests/load/evidence/benchmark-microservices-2026-11-11T06-15-17-036Z.json) | [`...08-10-54-929Z.json`](../tests/load/evidence/benchmark-microservices-2026-11-11T08-10-54-929Z.json) | [`...09-15-48-756Z.json`](../tests/load/evidence/benchmark-microservices-2026-11-11T09-15-48-756Z.json) |
+| **1. Read (`GET /specialties` - 50 reqs, c=10)** | | | | | |
+| • Throughput (RPS) | 324.7 req/s | **373.1 req/s** | 231.5 req/s | 138.1 req/s | **232.6 req/s** |
+| • `min` / `avg` (ms) | 8.33 / 29.37 | **7.89 / 25.38** | 9.81 / 41.67 | 12.33 / 70.57 | **8.54 / 41.58** |
+| • `p50 / p90 / p95 / p99` (ms) | 11.35 / 103.46 / 114.92 / 118.83 | **12.86 / 75.13 / 81.92 / 86.78** | 45.21 / 73.87 / 80.91 / 96.57 | 24.05 / 265.00 / 266.87 / 270.58 | **15.99 / 141.75 / 145.19 / 146.63** |
+| **2. Booking API (`POST /appointments` - 20 reqs, c=2)** | | | | | |
+| • `min` / `avg` (ms) | 23.33 / 41.75 | **22.47 / 39.39** | 31.86 / 49.62 | 42.71 / 128.94 | **28.75 / 71.84** |
+| • `p50 / p90 / p95 / p99` (ms) | 27.11 / 38.80 / 318.02 / 318.02 | **28.56 / 41.91 / 263.62 / 263.62** | 45.18 / 87.83 / 99.18 / 99.18 | 73.67 / 119.37 / 1219.36 / 1219.36 | **47.06 / 69.43 / 553.42 / 553.42** |
+| **3. Booking E2E (`Confirmed` - 20 reqs, c=2)** | | | | | |
+| • `min` / `avg` (ms) | 31.79 / 58.52 | **32.90 / 58.43** | 259.19 / 982.00 | 130.07 / 267.90 | **114.91 / 163.88** |
+| • `p50 / p90 / p95 / p99` (ms) | 42.63 / 49.73 / 416.34 / 416.34 | **40.62 / 64.01 / 354.53 / 354.53** | 1019.91 / 1068.40 / 1073.46 / 1073.46 | 221.40 / 259.65 / 1435.31 / 1435.31 | **134.28 / 157.80 / 741.39 / 741.39** |
+| • Async Lag `p50 / p95` (ms) | 15.52 / 98.32 | **12.06 / 90.91** | 974.73 / 974.27 | 147.73 / 215.94 | **87.22 / 187.98** |
+| **4. Check-in (`POST /check-in` - 4 reqs tuần tự)** | | | | | |
+| • `min` / `avg` (ms) | 15.11 / 35.13 | **14.20 / 35.53** | 8.10 / 28.39 | 7.55 / 35.73 | **15.20 / 33.05** |
+| • `p50 / p90 / p95 / p99` (ms) | 15.91 / 94.07 / 94.07 / 94.07 | **15.99 / 97.24 / 97.24 / 97.24** | 40.47 / 43.76 / 43.76 / 43.76 | 33.05 / 82.84 / 82.84 / 82.84 | **24.29 / 73.12 / 73.12 / 73.12** |
+
+### 13.5. Danh mục toàn bộ tệp bằng chứng (Evidence Artifacts) Cũ & Mới được bảo toàn
+
+- **Tại working tree Microservices (`D:\Project\KHDV\microservices\tests\load\evidence\`):**
+  1. `benchmark-microservices-2026-11-11T06-15-17-036Z.json` *(Cũ — Node runner Baseline 1000ms)*
+  2. `benchmark-microservices-2026-11-11T08-10-54-929Z.json` *(Cũ — Node runner Hotspot 100ms)*
+  3. `benchmark-microservices-2026-11-11T09-15-48-756Z.json` *(Mới — Node runner Sau tối ưu toàn diện)*
+  4. `review-balanced1000-booking-k6.json` *(Cũ — k6 20 VUs Balanced 1000ms — FAIL exit 99)*
+  5. `review-balanced100-booking-k6.json` *(Cũ — k6 20 VUs Balanced 100ms — FAIL exit 99)*
+  6. `review-hotspot100-booking-k6.json` *(Cũ — k6 20 VUs Hotspot 100ms — FAIL exit 99)*
+  7. `review-optimized-booking-k6.json` *(Mới — k6 20 VUs Sau tối ưu toàn diện — **PASS exit 0**)*
+- **Tại working tree Monolith (`d:\Project\KHDV\Clinic_Appointment_Booking_Queue_Management_System\tests\load\evidence\`):**
+  1. `benchmark-monolith-2026-11-11T05-58-59-764Z.json` *(Cũ — Node runner Baseline)*
+  2. `benchmark-monolith-2026-11-11T09-17-38-887Z.json` *(Mới — Node runner Sau tối ưu)*
+  3. `review-mono-booking-k6.json` *(Cũ — k6 20 VUs Trước tối ưu — FAIL exit 99)*
+  4. `review-mono-optimized-booking-k6.json` *(Mới — k6 20 VUs Sau tối ưu — **PASS exit 0**)*

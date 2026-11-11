@@ -68,7 +68,9 @@ public class SchedulingOutboxPublisher : BackgroundService
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                var rawDelayMs = _configuration.GetValue<int?>("Outbox:PollingIntervalMs") ?? 1000;
+                var delayMs = Math.Clamp(rawDelayMs, 100, 60_000);
+                await Task.Delay(TimeSpan.FromMilliseconds(delayMs), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

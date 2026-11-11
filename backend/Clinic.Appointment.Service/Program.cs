@@ -39,6 +39,7 @@ builder.Services.AddDbContext<AppointmentDbContext>((sp, options) =>
 });
 
 // Outbox & Application Services
+builder.Services.AddSingleton<IAppointmentWorkSignal, AppointmentWorkSignal>();
 builder.Services.AddScoped<IAppointmentOutboxWriter, AppointmentOutboxWriter>();
 builder.Services.AddScoped<IAppointmentManager, AppointmentManager>();
 if (!builder.Environment.IsEnvironment("Testing") && !builder.Configuration.GetValue<bool>("SkipBackgroundWorkers"))
@@ -230,6 +231,8 @@ if (!app.Environment.IsEnvironment("Testing"))
     if (db.Database.IsRelational())
     {
         await db.Database.MigrateAsync();
+        _ = await db.Appointments.AsNoTracking().AnyAsync();
+        _ = await db.PatientProjections.AsNoTracking().AnyAsync();
     }
 }
 

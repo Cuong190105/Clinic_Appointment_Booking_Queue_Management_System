@@ -236,6 +236,8 @@ if (!app.Environment.IsEnvironment("Testing"))
     if (db.Database.IsRelational())
     {
         await db.Database.MigrateAsync();
+        _ = await db.WorkSchedules.AsNoTracking().AnyAsync();
+        _ = await db.SlotReservations.AsNoTracking().AnyAsync();
     }
 }
 

@@ -53,11 +53,11 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.5'
-                    memory: 512M
-                reservations:
                     cpus: '0.5'
                     memory: 256M
+                reservations:
+                    cpus: '0.25'
+                    memory: 128M
         restart: always
 
     mssql-exporter:
@@ -152,7 +152,7 @@ services:
         ports:
             - "5001:8080"
         environment:
-            - ConnectionStrings__IdentityConnection=Server=db,1433;Database=ClinicIdentityDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - ConnectionStrings__IdentityConnection=Server=db,1433;Database=ClinicIdentityDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False;Min Pool Size=10;Max Pool Size=200;
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - Jwt__RefreshTokenDays=${IDENTITY_REFRESH_TOKEN_DAYS:-7}
@@ -181,10 +181,10 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.75'
+                    cpus: '0.5'
                     memory: 256M
                 reservations:
-                    cpus: '0.25'
+                    cpus: '0.1'
                     memory: 128M
         restart: always
 
@@ -196,7 +196,7 @@ services:
         ports:
             - "5002:8080"
         environment:
-            - ConnectionStrings__SchedulingConnection=Server=db,1433;Database=ClinicSchedulingDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - ConnectionStrings__SchedulingConnection=Server=db,1433;Database=ClinicSchedulingDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False;Min Pool Size=20;Max Pool Size=200;
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Services__InternalToken=${IDENTITY_SERVICE_TOKEN}
@@ -236,11 +236,11 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.75'
-                    memory: 256M
+                    cpus: '1.5'
+                    memory: 384M
                 reservations:
-                    cpus: '0.25'
-                    memory: 128M
+                    cpus: '0.5'
+                    memory: 192M
         restart: always
 
     identity-data-importer:
@@ -301,7 +301,7 @@ services:
         ports:
             - "5003:8080"
         environment:
-            - ConnectionStrings__AppointmentConnection=Server=db,1433;Database=ClinicAppointmentDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - ConnectionStrings__AppointmentConnection=Server=db,1433;Database=ClinicAppointmentDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False;Min Pool Size=20;Max Pool Size=200;
             - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
             - Identity__Authority=http://identity-service:8080
@@ -347,11 +347,11 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.75'
-                    memory: 256M
+                    cpus: '1.5'
+                    memory: 384M
                 reservations:
-                    cpus: '0.25'
-                    memory: 128M
+                    cpus: '0.5'
+                    memory: 192M
         restart: always
 
     appointment-data-importer:
@@ -381,7 +381,7 @@ services:
         ports:
             - "5004:8080"
         environment:
-            - ConnectionStrings__QueueConnection=Server=db,1433;Database=ClinicQueueDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - ConnectionStrings__QueueConnection=Server=db,1433;Database=ClinicQueueDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False;Min Pool Size=10;Max Pool Size=200;
             - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
@@ -418,10 +418,10 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.75'
+                    cpus: '1.0'
                     memory: 256M
                 reservations:
-                    cpus: '0.25'
+                    cpus: '0.5'
                     memory: 128M
         restart: always
 
@@ -491,11 +491,11 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.5'
-                    memory: 256M
+                    cpus: '0.25'
+                    memory: 192M
                 reservations:
-                    cpus: '0.2'
-                    memory: 128M
+                    cpus: '0.1'
+                    memory: 64M
         restart: always
 
     medical-records-data-importer:
@@ -634,8 +634,11 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.5'
-                    memory: 256M
+                    cpus: '0.25'
+                    memory: 192M
+                reservations:
+                    cpus: '0.05'
+                    memory: 64M
         restart: always
 
     jaeger:
@@ -654,8 +657,11 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.5'
-                    memory: 256M
+                    cpus: '0.25'
+                    memory: 192M
+                reservations:
+                    cpus: '0.05'
+                    memory: 64M
         restart: always
 
 volumes:

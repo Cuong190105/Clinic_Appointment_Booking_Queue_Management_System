@@ -1,5 +1,6 @@
 import http from 'k6/http';
-import { check, group, Rate, sleep, Trend } from 'k6';
+import { check, group, sleep } from 'k6';
+import { Rate, Trend } from 'k6/metrics';
 import {
   BASE_URL,
   DEFAULT_HEADERS,

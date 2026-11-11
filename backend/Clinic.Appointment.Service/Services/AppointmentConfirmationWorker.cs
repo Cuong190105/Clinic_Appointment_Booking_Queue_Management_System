@@ -10,13 +10,19 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
     private const int MaxAttempts = 4;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AppointmentConfirmationWorker> _logger;
+    private readonly IConfiguration? _configuration;
+    private readonly IAppointmentWorkSignal? _workSignal;
 
     public AppointmentConfirmationWorker(
         IServiceProvider serviceProvider,
-        ILogger<AppointmentConfirmationWorker> logger)
+        ILogger<AppointmentConfirmationWorker> logger,
+        IConfiguration? configuration = null,
+        IAppointmentWorkSignal? workSignal = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _configuration = configuration;
+        _workSignal = workSignal;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -25,9 +31,10 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var processed = 0;
             try
             {
-                await ProcessPendingAppointmentsAsync(stoppingToken);
+                processed = await ProcessPendingAppointmentsAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -38,9 +45,25 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
                 _logger.LogWarning(ex, "Appointment confirmation cycle failed.");
             }
 
+            if (processed > 0)
+            {
+                continue;
+            }
+
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                var rawDelayMs = _configuration?.GetValue<int?>("Outbox:ConfirmationIntervalMs") ?? 1000;
+                var delayMs = Math.Clamp(rawDelayMs, 100, 60_000);
+                var delay = TimeSpan.FromMilliseconds(delayMs);
+
+                if (_workSignal != null)
+                {
+                    await _workSignal.WaitForConfirmationAsync(delay, stoppingToken);
+                }
+                else
+                {
+                    await Task.Delay(delay, stoppingToken);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -51,7 +74,7 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
         _logger.LogInformation("AppointmentConfirmationWorker stopped.");
     }
 
-    private async Task ProcessPendingAppointmentsAsync(CancellationToken ct)
+    private async Task<int> ProcessPendingAppointmentsAsync(CancellationToken ct)
     {
         await using var scope = _serviceProvider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
@@ -68,98 +91,109 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
             .Take(20)
             .ToListAsync(ct);
 
-        foreach (var appointment in appointments)
+        if (appointments.Count == 0)
         {
-            await ConfirmAppointmentAsync(db, scheduling, outbox, appointment, ct);
-        }
-    }
-
-    private async Task ConfirmAppointmentAsync(
-        AppointmentDbContext db,
-        ISchedulingClient scheduling,
-        IAppointmentOutboxWriter outbox,
-        Clinic.Appointment.Service.Entities.Appointment appointment,
-        CancellationToken ct)
-    {
-        var reservationId = appointment.SchedulingReservationId!.Value;
-        bool confirmed;
-        try
-        {
-            confirmed = await scheduling.ConfirmReservationAsync(appointment.WorkScheduleId, reservationId, ct);
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogWarning(ex, "Scheduling confirmation request failed for appointment {AppointmentId}.", appointment.Id);
-            confirmed = false;
-        }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
-        {
-            _logger.LogWarning("Scheduling confirmation timed out for appointment {AppointmentId}.", appointment.Id);
-            confirmed = false;
+            return 0;
         }
 
-        if (confirmed)
+        // Confirm reservations concurrently over HTTP to avoid serializing N round-trips
+        var confirmationTasks = appointments.Select(async appointment =>
         {
-            appointment.Confirm(appointment.UpdatedByUserId);
-            outbox.Add(new EventEnvelope<AppointmentConfirmed>
-            {
-                EventId = Guid.NewGuid(),
-                EventType = EventTypes.AppointmentConfirmed,
-                SchemaVersion = 1,
-                OccurredAt = DateTimeOffset.UtcNow,
-                CorrelationId = Guid.NewGuid(),
-                Producer = "Clinic.Appointment.Service",
-                Payload = new AppointmentConfirmed(
-                    appointment.Id,
-                    appointment.PatientId,
-                    appointment.DoctorId,
-                    appointment.WorkScheduleId,
-                    appointment.ScheduleDate,
-                    appointment.TimeSlot,
-                    appointment.UpdatedByUserId,
-                    DateTimeOffset.UtcNow,
-                    PatientName: appointment.PatientName,
-                    PatientEmail: null,
-                    PatientPhone: appointment.PatientPhone,
-                    IdentityUserId: appointment.PatientIdentityUserId)
-            }, "appointment.confirmed");
-
-            await db.SaveChangesAsync(ct);
-            _logger.LogInformation("Confirmed appointment {AppointmentId} after {Attempts} attempt(s).",
-                appointment.Id, appointment.ConfirmationAttempts + 1);
-            return;
-        }
-
-        appointment.ConfirmationAttempts++;
-        if (appointment.ConfirmationAttempts >= MaxAttempts)
-        {
+            var reservationId = appointment.SchedulingReservationId!.Value;
             try
             {
-                await scheduling.ReleaseReservationAsync(appointment.WorkScheduleId, reservationId, ct);
+                var ok = await scheduling.ConfirmReservationAsync(appointment.WorkScheduleId, reservationId, ct);
+                return (appointment, confirmed: ok);
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "Failed to release reservation {ReservationId} after confirmation failure for appointment {AppointmentId}.",
-                    reservationId, appointment.Id);
+                _logger.LogWarning(ex, "Scheduling confirmation request failed for appointment {AppointmentId}.", appointment.Id);
+                return (appointment, confirmed: false);
             }
             catch (TaskCanceledException) when (!ct.IsCancellationRequested)
             {
-                _logger.LogError("Timed out releasing reservation {ReservationId} after confirmation failure for appointment {AppointmentId}.",
-                    reservationId, appointment.Id);
+                _logger.LogWarning("Scheduling confirmation timed out for appointment {AppointmentId}.", appointment.Id);
+                return (appointment, confirmed: false);
+            }
+        }).ToList();
+
+        var results = await Task.WhenAll(confirmationTasks);
+        var anyConfirmed = false;
+
+        foreach (var (appointment, confirmed) in results)
+        {
+            var reservationId = appointment.SchedulingReservationId!.Value;
+            if (confirmed)
+            {
+                appointment.Confirm(appointment.UpdatedByUserId);
+                outbox.Add(new EventEnvelope<AppointmentConfirmed>
+                {
+                    EventId = Guid.NewGuid(),
+                    EventType = EventTypes.AppointmentConfirmed,
+                    SchemaVersion = 1,
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    CorrelationId = Guid.NewGuid(),
+                    Producer = "Clinic.Appointment.Service",
+                    Payload = new AppointmentConfirmed(
+                        appointment.Id,
+                        appointment.PatientId,
+                        appointment.DoctorId,
+                        appointment.WorkScheduleId,
+                        appointment.ScheduleDate,
+                        appointment.TimeSlot,
+                        appointment.UpdatedByUserId,
+                        DateTimeOffset.UtcNow,
+                        PatientName: appointment.PatientName,
+                        PatientEmail: null,
+                        PatientPhone: appointment.PatientPhone,
+                        IdentityUserId: appointment.PatientIdentityUserId)
+                }, "appointment.confirmed");
+
+                anyConfirmed = true;
+                _logger.LogInformation("Confirmed appointment {AppointmentId} after {Attempts} attempt(s).",
+                    appointment.Id, appointment.ConfirmationAttempts + 1);
+                continue;
             }
 
-            appointment.Cancel(appointment.UpdatedByUserId, isAdminOrReceptionist: true);
-            appointment.NextConfirmationAttemptAt = null;
-            await db.SaveChangesAsync(ct);
-            _logger.LogError("Unable to confirm appointment {AppointmentId}; reservation released after {Attempts} attempts.",
-                appointment.Id, appointment.ConfirmationAttempts);
-            return;
+            appointment.ConfirmationAttempts++;
+            if (appointment.ConfirmationAttempts >= MaxAttempts)
+            {
+                try
+                {
+                    await scheduling.ReleaseReservationAsync(appointment.WorkScheduleId, reservationId, ct);
+                }
+                catch (HttpRequestException ex)
+                {
+                    _logger.LogError(ex, "Failed to release reservation {ReservationId} after confirmation failure for appointment {AppointmentId}.",
+                        reservationId, appointment.Id);
+                }
+                catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    _logger.LogError("Timed out releasing reservation {ReservationId} after confirmation failure for appointment {AppointmentId}.",
+                        reservationId, appointment.Id);
+                }
+
+                appointment.Cancel(appointment.UpdatedByUserId, isAdminOrReceptionist: true);
+                appointment.NextConfirmationAttemptAt = null;
+                _logger.LogError("Unable to confirm appointment {AppointmentId}; reservation released after {Attempts} attempts.",
+                    appointment.Id, appointment.ConfirmationAttempts);
+                continue;
+            }
+
+            appointment.NextConfirmationAttemptAt = DateTime.UtcNow + GetRetryDelay(appointment.ConfirmationAttempts);
+            _logger.LogWarning("Scheduling confirmation failed for appointment {AppointmentId}; retry {Attempt} scheduled at {NextAttemptAt}.",
+                appointment.Id, appointment.ConfirmationAttempts, appointment.NextConfirmationAttemptAt);
         }
 
-        appointment.NextConfirmationAttemptAt = DateTime.UtcNow + GetRetryDelay(appointment.ConfirmationAttempts);
+        // Single batched database commit for all processed appointments and outbox events
         await db.SaveChangesAsync(ct);
-        _logger.LogWarning("Scheduling confirmation failed for appointment {AppointmentId}; retry {Attempt} scheduled at {NextAttemptAt}.",
-            appointment.Id, appointment.ConfirmationAttempts, appointment.NextConfirmationAttemptAt);
+
+        if (anyConfirmed)
+        {
+            _workSignal?.SignalOutbox();
+        }
+
+        return appointments.Count;
     }
 
     private static TimeSpan GetRetryDelay(int attempt) => attempt switch

@@ -8,18 +8,25 @@ using RabbitMQ.Client;
 
 public class AppointmentOutboxPublisher : BackgroundService
 {
+    private const string ExchangeName = "clinic.events";
     private readonly IServiceProvider _serviceProvider;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AppointmentOutboxPublisher> _logger;
+    private readonly IAppointmentWorkSignal? _workSignal;
+
+    private IConnection? _connection;
+    private IChannel? _channel;
 
     public AppointmentOutboxPublisher(
         IServiceProvider serviceProvider,
         IConfiguration configuration,
-        ILogger<AppointmentOutboxPublisher> logger)
+        ILogger<AppointmentOutboxPublisher> logger,
+        IAppointmentWorkSignal? workSignal = null)
     {
         _serviceProvider = serviceProvider;
         _configuration = configuration;
         _logger = logger;
+        _workSignal = workSignal;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -28,18 +35,40 @@ public class AppointmentOutboxPublisher : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var published = 0;
             try
             {
-                await PublishPendingOutboxMessagesAsync(stoppingToken);
+                published = await PublishPendingOutboxMessagesAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Error occurred during outbox publishing cycle.");
+                await DisconnectAsync();
+            }
+
+            if (published >= 20)
+            {
+                continue;
             }
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                var rawDelayMs = _configuration.GetValue<int?>("Outbox:PollingIntervalMs") ?? 1000;
+                var delayMs = Math.Clamp(rawDelayMs, 100, 60_000);
+                var delay = TimeSpan.FromMilliseconds(delayMs);
+
+                if (_workSignal != null)
+                {
+                    await _workSignal.WaitForOutboxAsync(delay, stoppingToken);
+                }
+                else
+                {
+                    await Task.Delay(delay, stoppingToken);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -47,24 +76,18 @@ public class AppointmentOutboxPublisher : BackgroundService
             }
         }
 
+        await DisconnectAsync();
         _logger.LogInformation("AppointmentOutboxPublisher stopped.");
     }
 
-    private async Task PublishPendingOutboxMessagesAsync(CancellationToken ct)
+    private async Task EnsureConnectedAsync(CancellationToken ct)
     {
-        await using var scope = _serviceProvider.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
-
-        var pendingMessages = await db.OutboxMessages
-            .Where(m => m.Status == OutboxMessageStatus.Pending)
-            .OrderBy(m => m.CreatedAt)
-            .Take(20)
-            .ToListAsync(ct);
-
-        if (pendingMessages.Count == 0)
+        if (_connection is { IsOpen: true } && _channel is { IsOpen: true })
         {
             return;
         }
+
+        await DisconnectAsync();
 
         var host = _configuration["RabbitMq:Host"] ?? _configuration["RabbitMQ__Host"] ?? "rabbitmq";
         var portStr = _configuration["RabbitMq:Port"] ?? _configuration["RabbitMQ__Port"] ?? "5672";
@@ -85,21 +108,36 @@ public class AppointmentOutboxPublisher : BackgroundService
             ClientProvidedName = "clinic-appointment-outbox-publisher"
         };
 
-        IConnection? connection = null;
-        IChannel? channel = null;
+        _connection = await factory.CreateConnectionAsync(ct);
+        _channel = await _connection.CreateChannelAsync(cancellationToken: ct);
+
+        await _channel.ExchangeDeclareAsync(
+            exchange: ExchangeName,
+            type: ExchangeType.Topic,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+    }
+
+    private async Task<int> PublishPendingOutboxMessagesAsync(CancellationToken ct)
+    {
+        await using var scope = _serviceProvider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
+
+        var pendingMessages = await db.OutboxMessages
+            .Where(m => m.Status == OutboxMessageStatus.Pending)
+            .OrderBy(m => m.CreatedAt)
+            .Take(20)
+            .ToListAsync(ct);
+
+        if (pendingMessages.Count == 0)
+        {
+            return 0;
+        }
 
         try
         {
-            connection = await factory.CreateConnectionAsync(ct);
-            channel = await connection.CreateChannelAsync(cancellationToken: ct);
-
-            const string exchangeName = "clinic.events";
-            await channel.ExchangeDeclareAsync(
-                exchange: exchangeName,
-                type: ExchangeType.Topic,
-                durable: true,
-                autoDelete: false,
-                cancellationToken: ct);
+            await EnsureConnectedAsync(ct);
 
             foreach (var message in pendingMessages)
             {
@@ -116,8 +154,8 @@ public class AppointmentOutboxPublisher : BackgroundService
                     MessageId = message.EventId.ToString()
                 };
 
-                await channel.BasicPublishAsync(
-                    exchange: exchangeName,
+                await _channel!.BasicPublishAsync(
+                    exchange: ExchangeName,
                     routingKey: routingKey,
                     mandatory: false,
                     basicProperties: props,
@@ -131,15 +169,30 @@ public class AppointmentOutboxPublisher : BackgroundService
 
             await db.SaveChangesAsync(ct);
             _logger.LogInformation("Published {Count} outbox messages to RabbitMQ.", pendingMessages.Count);
+            return pendingMessages.Count;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Failed to publish outbox messages to RabbitMQ ({Host}:{Port}): {Message}", host, port, ex.Message);
+            _logger.LogWarning("Failed to publish outbox messages to RabbitMQ: {Message}", ex.Message);
+            await DisconnectAsync();
+            return 0;
         }
-        finally
+    }
+
+    private async Task DisconnectAsync()
+    {
+        if (_channel != null)
         {
-            if (channel != null) await channel.DisposeAsync();
-            if (connection != null) await connection.DisposeAsync();
+            try { await _channel.CloseAsync(); } catch { }
+            await _channel.DisposeAsync();
+            _channel = null;
+        }
+
+        if (_connection != null)
+        {
+            try { await _connection.CloseAsync(); } catch { }
+            await _connection.DisposeAsync();
+            _connection = null;
         }
     }
 }

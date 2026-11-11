@@ -1,0 +1,292 @@
+{
+    "root_group": {
+        "groups": {
+            "booking-and-confirmation": {
+                "path": "::booking-and-confirmation",
+                "id": "7781d94d9c123bc7872bf02858e5cf4b",
+                "groups": {},
+                "checks": {
+                        "assigned slot is advertised by availability before booking": {
+                            "path": "::booking-and-confirmation::assigned slot is advertised by availability before booking",
+                            "id": "68dbd9e6358f7348c5f48663e3b9bf03",
+                            "passes": 20,
+                            "fails": 0,
+                            "name": "assigned slot is advertised by availability before booking"
+                        },
+                        "booking returns 200/201 with appointment ID": {
+                            "passes": 20,
+                            "fails": 0,
+                            "name": "booking returns 200/201 with appointment ID",
+                            "path": "::booking-and-confirmation::booking returns 200/201 with appointment ID",
+                            "id": "357adca3936e8c705d20b93d854b0fc7"
+                        },
+                        "appointment reaches Confirmed within 10 seconds": {
+                            "passes": 20,
+                            "fails": 0,
+                            "name": "appointment reaches Confirmed within 10 seconds",
+                            "path": "::booking-and-confirmation::appointment reaches Confirmed within 10 seconds",
+                            "id": "de4809549bdbce15588f68b0fe29d580"
+                        },
+                        "same idempotency key returns same appointment": {
+                            "name": "same idempotency key returns same appointment",
+                            "path": "::booking-and-confirmation::same idempotency key returns same appointment",
+                            "id": "2c22b5ad2b1ceeceade8841cc8c1fe65",
+                            "passes": 20,
+                            "fails": 0
+                        }
+                    },
+                "name": "booking-and-confirmation"
+            },
+            "test-data-cleanup": {
+                "groups": {},
+                "checks": {
+                        "test appointment is cancelled after the sample": {
+                            "id": "c41b3c318049296c953d474962a6cf13",
+                            "passes": 20,
+                            "fails": 0,
+                            "name": "test appointment is cancelled after the sample",
+                            "path": "::test-data-cleanup::test appointment is cancelled after the sample"
+                        }
+                    },
+                "name": "test-data-cleanup",
+                "path": "::test-data-cleanup",
+                "id": "7d4f54c9a8ac24ad042aa181548a1190"
+            },
+            "teardown": {
+                "path": "::teardown",
+                "id": "a8a9942382e8ffe2e56ef29e664b8229",
+                "groups": {},
+                "checks": {
+                        "dedicated benchmark shift is cancelled after run": {
+                            "fails": 0,
+                            "name": "dedicated benchmark shift is cancelled after run",
+                            "path": "::teardown::dedicated benchmark shift is cancelled after run",
+                            "id": "c99fe4e4d488ac114a7906d091e5ab47",
+                            "passes": 1
+                        }
+                    },
+                "name": "teardown"
+            }
+        },
+        "checks": {},
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "metrics": {
+        "http_req_duration{expected_response:true}": {
+            "min": 6.892376,
+            "med": 69.6341,
+            "max": 1935.095949,
+            "p(90)": 302.67968939999975,
+            "p(95)": 1804.0913798,
+            "avg": 235.50551649787226
+        },
+        "http_req_waiting": {
+            "p(95)": 1804.0330948,
+            "avg": 235.3402368808511,
+            "min": 6.743637,
+            "med": 69.588419,
+            "max": 1934.991738,
+            "p(90)": 302.5086687999997
+        },
+        "vus": {
+            "value": 20,
+            "min": 0,
+            "max": 20
+        },
+        "booking_confirmed_rate": {
+            "passes": 20,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.98": false
+            },
+            "value": 1
+        },
+        "data_sent": {
+            "count": 422075,
+            "rate": 74183.5355855238
+        },
+        "http_reqs": {
+            "count": 235,
+            "rate": 41.30339599028157
+        },
+        "http_req_connecting": {
+            "p(95)": 9.641586999999962,
+            "avg": 0.9903883574468085,
+            "min": 0,
+            "med": 0,
+            "max": 19.141085,
+            "p(90)": 0
+        },
+        "data_received": {
+            "count": 160669,
+            "rate": 28239.043958989572
+        },
+        "iteration_duration": {
+            "avg": 3225.0872372000003,
+            "min": 2943.119341,
+            "med": 3265.7827195,
+            "max": 3481.759643,
+            "p(90)": 3467.6034525,
+            "p(95)": 3481.5413482000004
+        },
+        "iterations": {
+            "count": 20,
+            "rate": 3.515182637470772
+        },
+        "booking_cleanup_verified_rate": {
+            "passes": 20,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.98": false
+            },
+            "value": 1
+        },
+        "booking_idempotency_verified_rate": {
+            "passes": 20,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.98": false
+            },
+            "value": 1
+        },
+        "http_req_sending": {
+            "max": 0.416468,
+            "p(90)": 0.064469,
+            "p(95)": 0.08512059999999996,
+            "avg": 0.029663110638297893,
+            "min": 0.003741,
+            "med": 0.017781
+        },
+        "http_req_receiving": {
+            "avg": 0.1356165063829787,
+            "min": 0.014189,
+            "med": 0.066194,
+            "max": 1.491227,
+            "p(90)": 0.2168232,
+            "p(95)": 0.538230399999999
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 235,
+            "value": 0
+        },
+        "booking_availability_success_rate": {
+            "fails": 0,
+            "passes": 20,
+            "thresholds": {
+                "rate>0.98": false
+            },
+            "value": 1
+        },
+        "http_req_duration": {
+            "min": 6.892376,
+            "med": 69.6341,
+            "max": 1935.095949,
+            "p(90)": 302.67968939999975,
+            "p(95)": 1804.0913798,
+            "avg": 235.50551649787226
+        },
+        "vus_max": {
+            "max": 20,
+            "value": 20,
+            "min": 20
+        },
+        "http_req_tls_handshaking": {
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0
+        },
+        "booking_api_duration": {
+            "p(90)": 1893.7240679000001,
+            "p(95)": 1902.4940485,
+            "avg": 1828.1510868500002,
+            "min": 1769.676495,
+            "med": 1822.9594185,
+            "max": 1935.095949,
+            "thresholds": {
+                "p(95)<500": true,
+                "p(99)<1500": true
+            }
+        },
+        "booking_success_rate": {
+            "passes": 20,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.98": false
+            },
+            "value": 1
+        },
+        "booking_e2e_duration": {
+            "avg": 3113.6,
+            "min": 2621,
+            "med": 3178,
+            "max": 3438,
+            "p(90)": 3401,
+            "p(95)": 3437.05,
+            "thresholds": {
+                "p(95)<5000": false
+            }
+        },
+        "http_req_blocked": {
+            "avg": 1.0218888382978721,
+            "min": 0.001209,
+            "med": 0.004368,
+            "max": 19.289172,
+            "p(90)": 0.028045799999999937,
+            "p(95)": 10.245670799999974
+        },
+        "checks": {
+            "passes": 101,
+            "fails": 0,
+            "value": 1
+        },
+        "group_duration": {
+            "p(90)": 3341.9716765,
+            "p(95)": 3406.08642715,
+            "avg": 1612.4051347250002,
+            "min": 34.247577,
+            "med": 1471.4583615,
+            "max": 3447.126393
+        }
+    },
+    "setup_data": {
+        "date": "2026-11-12",
+        "patientToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkRTSzJleXI5U1U3LVBSbmYiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJhMDAwMDAwMi0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMjMiLCJqdGkiOiIzZDk2MjQxNy03ZTJmLTQyMGYtODM2OS1hY2IzYTJmNDcwZmMiLCJ1bmlxdWVfbmFtZSI6InBhdGllbnQxIiwibmFtZSI6Ik5ndXllbiBUaGkgQmFjaCIsInVzZXJuYW1lIjoicGF0aWVudDEiLCJwZXJzb25JZCI6ImEwMDAwMDAxLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAyMyIsImVtYWlsIjoicGF0aWVudDFAY2xpbmljLmxvY2FsIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiUGF0aWVudCIsInBlcm1pc3Npb24iOlsiYXBwb2ludG1lbnQuY3JlYXRlIiwiYXBwb2ludG1lbnQudmlldyIsImFwcG9pbnRtZW50LnJlc2NoZWR1bGUiLCJzbG90LnZpZXciLCJkb2N0b3Iudmlldy5vd24iLCJwYXRpZW50LmVkaXQub3duIiwibWVkaWNhbC1yZXBvcnQudmlldy5vd24iLCJwYXRpZW50LWhpc3Rvcnkudmlldy5vd24iLCJhcHBvaW50bWVudC5lZGl0Lm93biIsInBhdGllbnQudmlldy5vd24iXSwicGF0aWVudElkIjoiYTAwMDAwMDUtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwibmJmIjoxNzk0Mzg2MTcyLCJleHAiOjE3OTQzODcwNzIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTAwMCIsImF1ZCI6IkNsaW5pYy5TZXJ2aWNlcyJ9.W76tH8UVll5Mbp-4ipdBB8ix1XNRAD2BhK2kZCGVoWDyXiCf0Fd9-9CLkFgCwwXbIPYsbk3E_GI-7w3lOHZZyg2Jy81A0iPPVGEESevrOJL_MSCSgRHoAF8JAZF7QYLpMnpZcopC8jRDx2ebgsQPyX197868CL69gLEyJH-HVespytrNsdTt7MSv48Pz20SjzG593P0PIskLjw_QFyLoV56nDoq6oX3E011-w5Pc0O8FUB3NM0BjUjpir6__p7k2pr5HVgsIg30L4WMNIpTpopfmQrOD-f_mNNLG7Kxje_y54LAVnCG4jdl4BuYOtWsVsx8fwKwvi_v4yd0-OMM6VC8P4kT7LrjYJVgV82J0KISwt7jV58oNEXQTWGevnAit3csO689d9figvfJppFBjfGnfMaFG2Jl0DFS1pdUdqFiGkl7h6tqIFtdM5lzBQ1bXH5ohzWRfy6abSXMScfKrrLpNM4BW6LcDJo0wfwBe1EkgP2IFkuhQwqfaD7-A5UdF",
+        "runId": "1794386173418-52381",
+        "schedule": {
+            "startTime": "08:00:00",
+            "createdByTest": true,
+            "date": "2026-11-12",
+            "endTime": "18:00:00",
+            "id": "a940318e-7f87-49c1-84b9-231dab13a0ea"
+        },
+        "slots": [
+            "08:00:00",
+            "08:15:00",
+            "08:30:00",
+            "08:45:00",
+            "09:00:00",
+            "09:15:00",
+            "09:30:00",
+            "09:45:00",
+            "10:00:00",
+            "10:15:00",
+            "10:30:00",
+            "10:45:00",
+            "11:00:00",
+            "11:15:00",
+            "11:30:00",
+            "11:45:00",
+            "12:00:00",
+            "12:15:00",
+            "12:30:00",
+            "12:45:00"
+        ],
+        "adminToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkRTSzJleXI5U1U3LVBSbmYiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJhMDAwMDAwMi0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMTYiLCJqdGkiOiJiMDRmNGZmYS0yYTY2LTQ3OGQtYjA1Ni02NWEzZTRlNGFkZjYiLCJ1bmlxdWVfbmFtZSI6ImFkbWluMSIsIm5hbWUiOiJWbyBUaGFuaCBTb24iLCJ1c2VybmFtZSI6ImFkbWluMSIsInBlcnNvbklkIjoiYTAwMDAwMDEtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDE2IiwiZW1haWwiOiJhZG1pbjFAY2xpbmljLmxvY2FsIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjpbIkFkbWluIiwiUGF0aWVudCJdLCJwZXJtaXNzaW9uIjpbImFwcG9pbnRtZW50LmNyZWF0ZSIsIm5vdGlmaWNhdGlvbi5tYW5hZ2UiLCJhcHBvaW50bWVudC52aWV3IiwibWVkaWNhbC1yZXBvcnQuY3JlYXRlIiwicmVwb3J0LnZpZXciLCJxdWV1ZS5zdGFydC1leGFtLmFueSIsInNwZWNpYWx0eS5tYW5hZ2UiLCJxdWV1ZS5jb21wbGV0ZS1leGFtLm93biIsInF1ZXVlLmNhbGwtbmV4dCIsInNoaWZ0Lm1hbmFnZSIsInNsb3QudmlldyIsInF1ZXVlLmNvbXBsZXRlLWV4YW0uYW55IiwiZG9jdG9yLnZpZXcub3duIiwic2hpZnQuc2VsZi1tYW5hZ2UiLCJzbG90Lm1hbmFnZSIsInF1ZXVlLnN0YXJ0LWV4YW0ub3duIiwicXVldWUudmlldyIsInVzZXIubWFuYWdlIiwicXVldWUuY2hlY2staW4iLCJyb2xlLm1hbmFnZSIsInF1ZXVlLnNraXAiLCJhcHBvaW50bWVudC51cGRhdGUiLCJxdWV1ZS5wcmlvcml0eSIsImRvY3Rvci5xdWV1ZS52aWV3IiwibWVkaWNhbC1yZXBvcnQudmlldy5hbnkiLCJkb2N0b3IuY3JlYXRlIiwiYXBwb2ludG1lbnQuZWRpdC5hbnkiLCJwYXRpZW50LWhpc3Rvcnkudmlldy5hbnkiLCJkb2N0b3IuZWRpdC5hbnkiLCJlbXBsb3llZS52aWV3Lm93biIsImVtcGxveWVlLmNyZWF0ZSIsImVtcGxveWVlLmVkaXQuYW55IiwiZW1wbG95ZWUuZWRpdC5vd24iLCJlbXBsb3llZS52aWV3LmFueSIsImRvY3Rvci52aWV3LmFueSIsInF1ZXVlLnJldHJ5IiwicXVldWUuc2tpcC13YWl0aW5nIiwiYXBwb2ludG1lbnQucmVzY2hlZHVsZSIsInBhdGllbnQuZWRpdC5vd24iLCJtZWRpY2FsLXJlcG9ydC52aWV3Lm93biIsInBhdGllbnQtaGlzdG9yeS52aWV3Lm93biIsImFwcG9pbnRtZW50LmVkaXQub3duIiwicGF0aWVudC52aWV3Lm93biJdLCJwYXRpZW50SWQiOiIyZTUxMzRkZi0xZjI5LTQ3NjQtODZhNS1jZjg5MWRlYTNjN2EiLCJlbXBsb3llZUlkIjoiYTAwMDAwMDMtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDE2IiwibmJmIjoxNzk0Mzg2MTcxLCJleHAiOjE3OTQzODcwNzEsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTAwMCIsImF1ZCI6IkNsaW5pYy5TZXJ2aWNlcyJ9.LaB_Xwyume9wi6JTrgPmUjClClVNrgCAHkVRp-A3vl_KVye2tRHHuz1W2DDOLBqFbdh7lIOw4TIfcBBrV_7e5lgnFk7ZWrG2nca1OuHqJ2EzG255Jnk08XbvP7ChbiACcj-pJP3mBTWwAFlOjx8AAjkYEzncS5hEpVBjddESdpLtw8dASBzu6pum1UHwFBvhsSOEYNf8ScWYq2yA2SNp4MXRqELlZxcy8BT0f5Mvjfc2Y-V90cO6czyQJicqJCwtl00nrTQhlMFcySA0oPKc4i6rlLmsmJDd88v18pMY_r_CCCe6cDcN1Vgi6o_LT8ifzzXojVLpoAk_Y7uc_FLWVxi_JTKpodQf8Q-Qm4WdhsWFELovyDaTzZiCFBWh3OUiz6xUYuHzaCpl8Q0idZsje52pffC8WfwH84bXZ_z2jR0RgwDfXTbFM7RHBHWUFHSdIrVAEwLYyfwhwtlrQa7DaP1ViL3_uenY3cLAiofBMqDm1AhvV2zG0x8XKA3-fzVa"
+    }
+}
