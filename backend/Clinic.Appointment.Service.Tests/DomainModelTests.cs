@@ -211,7 +211,7 @@ public class DomainModelTests
             doctorId: Guid.NewGuid(),
             doctorName: "Dr. Watson",
             specialtyName: "General",
-            scheduleDate: new DateOnly(2026, 11, 10),
+            scheduleDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)),
             timeSlot: new TimeOnly(9, 30),
             reason: "Fever",
             createdByUserId: Guid.NewGuid(),

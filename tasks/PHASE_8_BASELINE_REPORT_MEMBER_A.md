@@ -234,3 +234,9 @@ powershell -File scripts/validate-api-contracts.ps1
    - Thành viên A đã chủ động hoàn thiện và tích hợp toàn bộ các khoảng trống nền tảng của Thành viên B: tích hợp OpenTelemetry Prometheus Exporters cho cả 5 microservices downstream, cấu hình đầy đủ 7 Prometheus scrape jobs, mount và kiểm chứng 7 Prometheus alert rules.
    - Hệ thống hiện tại có **9/9 application/dependency targets UP** trên Prometheus, **7 alert rules nạp thành công**, **10/10 DLQs sạch 0 message**, và **toàn bộ chỉ số SLO đều nằm trong ngưỡng cam kết**.
    - **KẾT LUẬN CHÍNH THỨC:** **PHASE 8 ĐỦ ĐIỀU KIỆN ĐÓNG TOÀN DIỆN (OFFICIALLY ACCEPTED & CLOSED)**. Toàn bộ hệ thống sẵn sàng chuyển giao sang Phase 9.
+
+## Cập nhật bằng chứng baseline sau cleanup (2026-11-10)
+
+Baseline cũ trong phần lịch sử của tài liệu được giữ nguyên như một snapshot trước cleanup. Lượt mới sau cleanup được ghi trong [`PHASE_8_BASELINE_MEASUREMENT_RAW.json`](PHASE_8_BASELINE_MEASUREMENT_RAW.json): 800/800 HTTP 2xx trong 327.38 giây, không có 401/429/5xx, 10 JWT subjects; p95 lớn nhất giữa các endpoint là 24.87 ms. Source commit là `52ebd9d5baab7c111a9be8c98de7184549f9db87`; backend image ID `sha256:6cf21bb9cba82822d9c616b1711dbf450573c51191685a6cb7c6de752b9391b1`. API contract 13/13 và QoS 8/8 cũng pass. Kết quả tổng hợp runtime/load/failure/cleanup nằm ở [`postcleanup_acceptance_20261110.json`](../tests/load/evidence/postcleanup_acceptance_20261110.json).
+
+Giới hạn: đây là baseline cục bộ trên Docker Compose, không thay thế đo SLA trong môi trường production. Acceptance seed script để lại `admin1` với mật khẩu dev `Password123!` do password hash trước đó không được khôi phục.

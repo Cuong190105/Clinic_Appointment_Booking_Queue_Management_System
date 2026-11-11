@@ -19,11 +19,16 @@ describe('PatientQueueView', () => {
 
     vi.useFakeTimers()
 
+    const NotificationMock = vi.fn(function (
+      this: { title: string; options?: { body?: string } },
+      title: string,
+      options?: { body?: string },
+    ) {
+      this.title = title
+      this.options = options
+    })
     Object.defineProperty(globalThis, 'Notification', {
-      value: vi.fn().mockImplementation((title: string, options?: { body?: string }) => ({
-        title,
-        options,
-      })),
+      value: NotificationMock,
       writable: true,
       configurable: true,
     })

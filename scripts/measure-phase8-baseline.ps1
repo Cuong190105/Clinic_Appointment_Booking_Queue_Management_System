@@ -248,6 +248,15 @@ Write-Host "`nAuthenticated User Subject Distribution Audit Trail:" -ForegroundC
 $subjectAudit.Values | Format-Table -AutoSize
 
 # Export summary JSON with full execution metadata
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$gitCommit = (& git -C $repoRoot rev-parse HEAD 2>$null).Trim()
+$gitWorkingTree = @(& git -C $repoRoot status --short 2>$null)
+$containerId = (docker inspect clinic_backend --format '{{.Id}}').Trim()
+$containerImageId = (docker inspect clinic_backend --format '{{.Image}}').Trim()
+$imageTag = "clinic_appointment_booking_queue_management_system-backend:latest"
+$imageInspect = @(docker image inspect $imageTag | ConvertFrom-Json)[0]
+$repoDigests = @($imageInspect.RepoDigests | Where-Object { $_ })
+$repoDigest = if ($repoDigests.Count -gt 0) { $repoDigests[0] } else { $null }
 $meta = [ordered]@{
     MeasurementPhase = "Phase 8 Post-Change Baseline Runtime Measurement"
     StartedAt = $startTime
@@ -261,12 +270,18 @@ $meta = [ordered]@{
     TotalEndpoints = $endpoints.Count
     ProbesPerEndpoint = $ProbesPerEndpoint
     TotalRequests = ($endpoints.Count * $ProbesPerEndpoint)
-    DockerComposeProfile = "Full Stack (12 containers, bridge network: clinic_net)"
+    DockerComposeProfile = "Full Docker Compose stack"
     RebuiltService = "clinic_backend (Gateway)"
-    ImageId = "sha256:79d4aa670b1f3be03e65a52f40c9f70e5ecc09c2e3d65b1ca3a8341c9e952d53"
-    RepoDigest = "clinic_appointment_booking_queue_management_system-backend@sha256:79d4aa670b1f3be03e65a52f40c9f70e5ecc09c2e3d65b1ca3a8341c9e952d53"
-    ImageIdentityNote = "Image built locally via Docker Compose BuildKit. Authoritative identity verified by Docker daemon ImageId matching Container Image SHA."
-    SourceCommitBaseline = "f51a9aaff6d04e897db3dcf4937546ea4de94b58 + Phase 8 changes (RateLimiter, Exemption, 504/502, Correlation, ActivityListener, Multi-Service Telemetry)"
+    ContainerId = $containerId
+    ImageId = $containerImageId
+    DockerImageId = $imageInspect.Id
+    ImageTag = $imageTag
+    RepoDigest = $repoDigest
+    RepoDigests = $repoDigests
+    ImageIdentityVerified = ($containerImageId -eq $imageInspect.Id)
+    ImageIdentityNote = "Captured from Docker inspect immediately after the measurement; container Image is compared with docker image inspect Id. RepoDigest is copied from the daemon and may be empty for local-only images."
+    SourceCommitBaseline = $gitCommit
+    GitWorkingTreeStatus = $gitWorkingTree
     AuthenticatedUsers = $userMap
     SubjectAuditTrail = ($subjectAudit.Values | ForEach-Object { $_ })
     Results = $results

@@ -560,3 +560,11 @@ Kế hoạch chi tiết từng bước, decision gates, yêu cầu nghiệm thu 
 - **Hoàn tất:** review chung contract và SLO; nghiệm thu E2E/runtime sau khi áp dụng thay đổi.
 
 \r\n
+
+## Nghiệm thu hồi quy toàn dự án sau cleanup legacy (2026-11-10)
+
+Với phạm vi đã thống nhất là sản phẩm môn học chạy trên Docker Compose, các phase của Thành viên A đã được kiểm chứng lại cùng thay đổi cleanup: backend solution **285/285 test pass**, API contract **13/13**, QoS **8/8**, Compose build/runtime đạt, cùng baseline và luồng tải/fault/acceptance Phase 9 đạt. Kết quả cụ thể và giới hạn nằm ở [`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md) và artifact [`../tests/load/evidence/postcleanup_acceptance_20261110.json`](../tests/load/evidence/postcleanup_acceptance_20261110.json).
+
+Đánh giá: phần việc A đủ điều kiện kết thúc theo yêu cầu dự án hiện tại. Baseline/soak cục bộ không cấu thành SLA production. Còn hai ghi chú không chặn việc đóng: 33 npm audit findings trong frontend build (1 critical) cần được xem xét nếu dự án tiếp tục phát triển; và script acceptance để lại tài khoản dev `admin1` với mật khẩu `Password123!`, vì hash cũ không được khôi phục.
+
+Bổ sung: frontend unit tests pass **176/176** sau khi test hủy lịch mock `window.confirm()` đúng hành vi.
