@@ -1,64 +1,56 @@
-import http from "k6/http";
-import { check, sleep } from "k6";
-import {
-    BASE_URL,
-    DEFAULT_HEADERS,
-    login,
-    getAuthHeaders,
-    getCachedTokens,
-} from "./config.js";
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Rate } from 'k6/metrics';
+import { BASE_URL, DEFAULT_HEADERS, clinicDate, responseItems, unwrapResponse } from './config.js';
 
-http.setResponseCallback(http.expectedStatuses(200, 429));
+const serverErrorRate = new Rate('spike_server_error_rate');
+const unexpectedStatusRate = new Rate('spike_unexpected_status_rate');
+const rateLimitedRate = new Rate('spike_rate_limited_rate');
+const slotsUrl = `${BASE_URL}/slots?fromDate=${clinicDate(1)}T00:00:00&toDate=${clinicDate(7)}T23:59:59`;
 
 export const options = {
-    stages: [
-        { duration: "5s", target: 5 }, // Warm-up
-        { duration: "10s", target: 50 }, // Sudden spike
-        { duration: "20s", target: 50 }, // Hold peak
-        { duration: "10s", target: 5 }, // Fast scale-down
-        { duration: "5s", target: 0 }, // Recovery
-    ],
-    thresholds: {
-        // Under extreme surge, rate limiting (429) is expected, but 5xx crashes should be zero (<1%)
-        http_req_failed: ["rate<0.01"],
-        http_req_duration: ["p(95)<1000"],
-    },
+  stages: [
+    { duration: '10s', target: 5 },   // Warm-up
+    { duration: '10s', target: 100 }, // Sudden spike to 100 VUs
+    { duration: '30s', target: 100 }, // Hold spike
+    { duration: '10s', target: 5 },   // Fast scale-down
+    { duration: '10s', target: 0 },   // Recovery
+  ],
+  thresholds: {
+    // 429 is measured separately as an expected load-shedding response.
+    spike_server_error_rate: ['rate<0.05'],
+    spike_unexpected_status_rate: ['rate<0.01'],
+    http_req_duration: ['p(95)<1000'],
+  },
 };
 
-export function setup() {
-    const cached = getCachedTokens();
-    if (cached && cached.patients && cached.patients.length >= 20) {
-        return { tokens: cached.patients.slice(0, 20).map((p) => p.token) };
-    }
-    const tokens = [];
-    for (let i = 1; i <= 20; i++) {
-        tokens.push(login(`patient${i}`));
-    }
-    return { tokens };
+export default function () {
+  const readSpecialties = __ITER % 3 === 0;
+  const url = readSpecialties ? `${BASE_URL}/specialties` : slotsUrl;
+  const res = http.get(url, {
+    headers: { ...DEFAULT_HEADERS, 'X-Correlation-ID': `spike-${__VU}-${__ITER}` },
+  });
+
+  const serverError = res.status >= 500;
+  const rateLimited = res.status === 429;
+  const expectedStatus = res.status === 200 || rateLimited;
+  serverErrorRate.add(serverError);
+  unexpectedStatusRate.add(!expectedStatus);
+  rateLimitedRate.add(rateLimited);
+
+  check(res, {
+    'spike returns data or explicit rate limit': (r) => {
+      if (r.status === 429) return true;
+      if (r.status !== 200) return false;
+      try {
+        return readSpecialties
+          ? ((body) => (Array.isArray(body) ? body : body?.items)?.length > 0)(unwrapResponse(JSON.parse(r.body)))
+          : responseItems(JSON.parse(r.body)).length > 0;
+      } catch {
+        return false;
+      }
+    },
+  });
+
+  sleep(0.1);
 }
-
-export default function (data) {
-    const vuIndex = (__VU - 1) % data.tokens.length;
-    const token = data.tokens[vuIndex];
-
-    // Alternating between Specialties and Doctors
-    const endpoint =
-        __ITER % 2 === 0 ? `${BASE_URL}/specialties` : `${BASE_URL}/doctors`;
-    const res = http.get(endpoint, {
-        headers: token
-            ? getAuthHeaders(token, null, `spike-${__VU}-${__ITER}`)
-            : {
-                  ...DEFAULT_HEADERS,
-                  "X-Correlation-ID": `spike-${__VU}-${__ITER}`,
-              },
-    });
-
-    check(res, {
-        "handled cleanly (200 OK or 429 Rate Limited)": (r) =>
-            r.status === 200 || r.status === 429,
-        "no server crash (status < 500)": (r) => r.status < 500,
-    });
-
-    sleep(0.1);
-}
-

@@ -120,13 +120,19 @@ public class SchedulingManager : ISchedulingManager
             var currentSlot = ws.ShiftStart;
             var minBookingTimeUtc = now.UtcDateTime.AddMinutes(30);
 
-            while (currentSlot.AddMinutes(WorkSchedule.SlotIntervalMinutes) <= ws.ShiftEnd)
+            while (true)
             {
+                var nextSlot = currentSlot.AddMinutes(WorkSchedule.SlotIntervalMinutes);
+                if (nextSlot <= currentSlot || nextSlot > ws.ShiftEnd)
+                {
+                    break;
+                }
+
                 // Only generate slots in the future at least 30 minutes from now
                 var slotUtc = ConvertSlotToUtc(ws.Date, currentSlot);
                 if (slotUtc < minBookingTimeUtc)
                 {
-                    currentSlot = currentSlot.AddMinutes(WorkSchedule.SlotIntervalMinutes);
+                    currentSlot = nextSlot;
                     continue;
                 }
 
@@ -147,7 +153,7 @@ public class SchedulingManager : ISchedulingManager
                     ));
                 }
 
-                currentSlot = currentSlot.AddMinutes(WorkSchedule.SlotIntervalMinutes);
+                currentSlot = nextSlot;
             }
         }
 

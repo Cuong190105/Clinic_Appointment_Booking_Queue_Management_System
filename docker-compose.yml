@@ -18,6 +18,14 @@ services:
             timeout: 5s
             retries: 10
             start_period: 30s
+        deploy:
+            resources:
+                limits:
+                    cpus: '4.0'
+                    memory: 2048M
+                reservations:
+                    cpus: '2.0'
+                    memory: 1024M
         restart: always
 
     rabbitmq:
@@ -42,6 +50,14 @@ services:
             timeout: 5s
             retries: 5
             start_period: 10s
+        deploy:
+            resources:
+                limits:
+                    cpus: '1.5'
+                    memory: 512M
+                reservations:
+                    cpus: '0.5'
+                    memory: 256M
         restart: always
 
     mssql-exporter:
@@ -58,6 +74,11 @@ services:
                 condition: service_healthy
         expose:
             - "4000"
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.25'
+                    memory: 128M
         restart: always
 
     backend:
@@ -85,6 +106,7 @@ services:
             - Jwt__PublicBaseUrl=${IDENTITY_PUBLIC_BASE_URL:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - Jwt__RefreshTokenDays=${IDENTITY_REFRESH_TOKEN_DAYS:-7}
+            - QoS__RateLimitPermitLimit=1000
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
         depends_on:
             identity-service:
@@ -113,6 +135,14 @@ services:
             timeout: 5s
             retries: 5
             start_period: 30s
+        deploy:
+            resources:
+                limits:
+                    cpus: '1.0'
+                    memory: 384M
+                reservations:
+                    cpus: '0.5'
+                    memory: 128M
         restart: always
 
     identity-service:
@@ -148,6 +178,14 @@ services:
             timeout: 5s
             retries: 5
             start_period: 30s
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.75'
+                    memory: 256M
+                reservations:
+                    cpus: '0.25'
+                    memory: 128M
         restart: always
 
     scheduling-service:
@@ -195,6 +233,14 @@ services:
             timeout: 5s
             retries: 5
             start_period: 30s
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.75'
+                    memory: 256M
+                reservations:
+                    cpus: '0.25'
+                    memory: 128M
         restart: always
 
     identity-data-importer:
@@ -298,6 +344,14 @@ services:
             timeout: 5s
             retries: 5
             start_period: 30s
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.75'
+                    memory: 256M
+                reservations:
+                    cpus: '0.25'
+                    memory: 128M
         restart: always
 
     appointment-data-importer:
@@ -361,6 +415,14 @@ services:
             timeout: 5s
             retries: 5
             start_period: 30s
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.75'
+                    memory: 256M
+                reservations:
+                    cpus: '0.25'
+                    memory: 128M
         restart: always
 
     queue-data-importer:
@@ -426,6 +488,14 @@ services:
             timeout: 5s
             retries: 5
             start_period: 30s
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.5'
+                    memory: 256M
+                reservations:
+                    cpus: '0.2'
+                    memory: 128M
         restart: always
 
     medical-records-data-importer:
@@ -499,6 +569,14 @@ services:
             timeout: 5s
             retries: 5
             start_period: 15s
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.5'
+                    memory: 256M
+                reservations:
+                    cpus: '0.2'
+                    memory: 128M
         restart: always
 
     frontend:
@@ -517,6 +595,14 @@ services:
             timeout: 5s
             retries: 3
             start_period: 5s
+        deploy:
+            resources:
+                limits:
+                    cpus: '1.0'
+                    memory: 256M
+                reservations:
+                    cpus: '0.25'
+                    memory: 64M
         restart: always
 
     prometheus:
@@ -545,6 +631,11 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.5'
+                    memory: 256M
         restart: always
 
     jaeger:
@@ -560,6 +651,11 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.5'
+                    memory: 256M
         restart: always
 
 volumes:

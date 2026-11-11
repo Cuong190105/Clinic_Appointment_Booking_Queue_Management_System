@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace Clinic.API.Models
 {
@@ -10,7 +10,7 @@ namespace Clinic.API.Models
         public TimeOnly StartTime { get; set; }
         [Required(ErrorMessage = "End time is required.")]
         public TimeOnly EndTime { get; set; }
-        [Required(ErrorMessage = "Patient limit per slot is required."), Range(1, 50, ErrorMessage = "Patient limit per slot must be between 1 and 50.")]
+        [Required(ErrorMessage = "Patient limit per slot is required."), Range(1, 200, ErrorMessage = "Patient limit per slot must be between 1 and 200.")]
         public int RecommendedCapacityPerSlot { get; set; }
     }
 }

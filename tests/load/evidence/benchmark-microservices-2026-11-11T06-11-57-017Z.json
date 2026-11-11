@@ -1,0 +1,383 @@
+{
+  "target": "Microservices",
+  "baseUrl": "http://localhost:5000",
+  "readEndpoint": "/specialties",
+  "provenance": {
+    "gitCommit": "e067d0c9f73798dbb07dc83a42d929332e5bfa56",
+    "gitBranch": "main",
+    "isDirty": true,
+    "diffHash": "7b4784223ad815a0fe49f97f50dec5d00df4b2f54238ef89d9bb6dcb11f03fb8",
+    "untrackedFiles": [
+      "tests/load/README.md",
+      "tests/load/booking.js",
+      "tests/load/fixtures.js",
+      "tests/load/package.json",
+      "tests/load/phase9-throughput-runner.mjs"
+    ],
+    "modifiedFiles": [
+      "M  ackend/Clinic.API/Models/CreateShiftRequest.cs",
+      " M backend/Clinic.API/Models/UpdateShiftRequest.cs",
+      " M backend/Clinic.StaffScheduling.Service/Services/SchedulingManager.cs",
+      " M docker-compose.yml",
+      " M tests/load/benchmark-runner.mjs",
+      " M tests/load/config.js",
+      " M tests/load/contention.js",
+      " M tests/load/load.js",
+      " M tests/load/smoke.js",
+      " M tests/load/soak.js",
+      " M tests/load/spike.js"
+    ],
+    "imageMap": {
+      "clinic_scheduling_service": {
+        "imageTag": "clinic_appointment_booking_queue_management_system-scheduling-service",
+        "containerId": "68a66e4af648",
+        "imageDigest": "sha256:27bd7f558a7f401107bfe5524a96ba75e27584d563c7b5167d2a1af76e6b25da"
+      },
+      "clinic_backend": {
+        "imageTag": "clinic_appointment_booking_queue_management_system-backend",
+        "containerId": "01b21ff26b3e",
+        "imageDigest": "sha256:22593d4ef04cc610adb8037fef37462e2702d0804736664d37bd2536ffb7e929"
+      },
+      "clinic_prometheus": {
+        "imageTag": "prom/prometheus:v2.55.1",
+        "containerId": "8939481ae20a",
+        "imageDigest": "sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3"
+      },
+      "clinic_frontend": {
+        "imageTag": "clinic_appointment_booking_queue_management_system-frontend",
+        "containerId": "cc774b5cc7fc",
+        "imageDigest": "sha256:2b0ceb99b6eb9724643c61e95adcc40e3c08d301d4348651fcae9b33409cdc63"
+      },
+      "clinic_notification_service": {
+        "imageTag": "clinic_appointment_booking_queue_management_system-notification-service",
+        "containerId": "e192f240fdae",
+        "imageDigest": "sha256:7f16f1d942044c5e96439fee2ce8eea0b7de98fd6ce1ffd0a1f6bc39e5e68a8b"
+      },
+      "clinic_appointment_service": {
+        "imageTag": "clinic_appointment_booking_queue_management_system-appointment-service",
+        "containerId": "f3e88599b5fa",
+        "imageDigest": "sha256:66316c4ec49e83b041d515cf70a61c434e470be3e7974f9be234e33a367d56e6"
+      },
+      "clinic_medical_records_service": {
+        "imageTag": "clinic_appointment_booking_queue_management_system-medical-records-service",
+        "containerId": "aeb265424249",
+        "imageDigest": "sha256:1b33e6be3c439a70ade35867e1395ea66be95084c3c55c8a96b771501321a551"
+      },
+      "clinic_queue_service": {
+        "imageTag": "clinic_appointment_booking_queue_management_system-queue-service",
+        "containerId": "1429169cf2b5",
+        "imageDigest": "sha256:fe1e3dab36267ec5728253f9b8b1d66b07a10c210fb4c44add0dccdea64735a9"
+      },
+      "clinic_appointment_booking_queue_management_system-identity-service-1": {
+        "imageTag": "clinic_appointment_booking_queue_management_system-identity-service",
+        "containerId": "3b720624caad",
+        "imageDigest": "sha256:e7bbf7cc679e7964fba206603a0e51474dac6cd39c641381d881fc5785f71b08"
+      },
+      "clinic_appointment_booking_queue_management_system-mssql-exporter-1": {
+        "imageTag": "awaragi/prometheus-mssql-exporter:latest",
+        "containerId": "9dae5f59aecd",
+        "imageDigest": "sha256:403242080ed984f894cc275be72a407c8b11b804727e3f33b0928a87c9cdf5f8"
+      },
+      "clinic_appointment_booking_queue_management_system-rabbitmq-1": {
+        "imageTag": "rabbitmq:3.13-management",
+        "containerId": "fabe8ec20512",
+        "imageDigest": "sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69"
+      },
+      "clinic_jaeger": {
+        "imageTag": "jaegertracing/all-in-one:1.62.0",
+        "containerId": "ff3b6a734a6b",
+        "imageDigest": "sha256:836e9b69c88afbedf7683ea7162e179de63b1f981662e83f5ebb68badadc710f"
+      },
+      "clinic_sql_server": {
+        "imageTag": "mcr.microsoft.com/mssql/server:2022-latest",
+        "containerId": "cf4fda52ed89",
+        "imageDigest": "sha256:4402d880dd4c34bfa7d8705e56a86cd6c88da80a1f6bbbe741f999e76264a090"
+      }
+    },
+    "nodeVersion": "v24.19.0",
+    "benchmarkTimestamp": "2026-11-11T06:11:33.959Z"
+  },
+  "authStatus": {
+    "patientAuthenticated": true,
+    "adminAuthenticated": true,
+    "receptionistAuthenticated": true
+  },
+  "results": {
+    "read": {
+      "scenario": "Business Read Benchmark",
+      "endpoint": "http://localhost:5000/specialties",
+      "samplePayloadBytes": 875,
+      "totalRequests": 50,
+      "successful": 50,
+      "failed": 0,
+      "statusDistribution": {
+        "200": 50
+      },
+      "errorSamples": [],
+      "durationMs": 341,
+      "rps": "146.6",
+      "stats": {
+        "min": 22.20589999999993,
+        "p50": 59.146200000000135,
+        "p90": 131.1624999999999,
+        "p95": 139.57420000000002,
+        "p99": 144.77009999999973,
+        "max": 144.77009999999973,
+        "avg": 65.42294400000006
+      }
+    },
+    "booking": {
+      "scenario": "Booking E2E (API Latency vs E2E Completion)",
+      "totalBookings": 20,
+      "createdBookings": 7,
+      "confirmedBookings": 6,
+      "pollTimeouts": 1,
+      "rejectedConflicts": 0,
+      "retryIdempotentSuccess": 6,
+      "statusDistribution": {
+        "201": 7,
+        "429": 13
+      },
+      "errorSamples": [
+        {
+          "status": 429,
+          "body": "{\"statusCode\":429,\"isSuccess\":false,\"errorMessages\":[\"Rate limit exceeded. Please try again after 60 seconds.\"],\"result\":null}"
+        },
+        {
+          "status": 429,
+          "body": "{\"statusCode\":429,\"isSuccess\":false,\"errorMessages\":[\"Rate limit exceeded. Please try again after 60 seconds.\"],\"result\":null}"
+        },
+        {
+          "status": 429,
+          "body": "{\"statusCode\":429,\"isSuccess\":false,\"errorMessages\":[\"Rate limit exceeded. Please try again after 60 seconds.\"],\"result\":null}"
+        },
+        {
+          "status": 429,
+          "body": "{\"statusCode\":429,\"isSuccess\":false,\"errorMessages\":[\"Rate limit exceeded. Please try again after 60 seconds.\"],\"result\":null}"
+        },
+        {
+          "status": 429,
+          "body": "{\"statusCode\":429,\"isSuccess\":false,\"errorMessages\":[\"Rate limit exceeded. Please try again after 60 seconds.\"],\"result\":null}"
+        }
+      ],
+      "createdApptIds": [
+        "19c000b3-c638-4ee6-bcc8-05cb0432a4d7",
+        "14e4e9d7-7b54-4b7a-b077-b557109b66b5",
+        "41661ee6-c2e8-410d-b1d6-56412f9f75bf",
+        "833f3635-9078-44d5-9390-ceaf82ed1f4f",
+        "9ce80642-96cc-4ce3-987f-2c7a4dfc967b",
+        "0513c1b0-e652-45e4-a8de-13bdfa7745d7",
+        "675f0d00-8b14-4aa8-9fdf-749786b5dd2f"
+      ],
+      "apiStats": {
+        "min": 6.0002000000004045,
+        "p50": 15.5625,
+        "p90": 62.44310000000041,
+        "p95": 961.4268000000002,
+        "p99": 961.4268000000002,
+        "max": 961.4268000000002,
+        "avg": 68.37953500000003
+      },
+      "e2eStats": {
+        "min": 978.6268,
+        "p50": 1057.8423000000003,
+        "p90": 1393.4939000000004,
+        "p95": 1393.4939000000004,
+        "p99": 1393.4939000000004,
+        "max": 1393.4939000000004,
+        "avg": 1081.301216666667
+      }
+    },
+    "checkin": {
+      "scenario": "Check-in & Retry Idempotency",
+      "testedAppointmentId": "19c000b3-c638-4ee6-bcc8-05cb0432a4d7",
+      "attempts": 4,
+      "firstCheckIns": 0,
+      "duplicateProtectionTriggers": 3,
+      "initialTicketInfo": null,
+      "finalTicketInfo": null,
+      "ticketIntegrityVerified": false,
+      "statusDistribution": {
+        "400": 4
+      },
+      "errorSamples": [
+        {
+          "attempt": 1,
+          "status": 400,
+          "body": "{\"statusCode\":\"BadRequest\",\"isSuccess\":false,\"errorMessages\":[\"Idempotency-Key header is required.\"],\"result\":null}"
+        },
+        {
+          "attempt": "initial_ticket_poll",
+          "status": 404,
+          "body": "Could not retrieve queue ticket for appointment 19c000b3-c638-4ee6-bcc8-05cb0432a4d7 after check-in."
+        }
+      ],
+      "stats": {
+        "min": 13.08770000000004,
+        "p50": 15.778200000000652,
+        "p90": 27.17950000000019,
+        "p95": 27.17950000000019,
+        "p99": 27.17950000000019,
+        "max": 27.17950000000019,
+        "avg": 17.934050000000298
+      }
+    }
+  },
+  "containerStatsBefore": {
+    "appContainers": [
+      {
+        "name": "clinic_scheduling_service",
+        "cpu": "0.43%",
+        "mem": "92.25MiB / 256MiB"
+      },
+      {
+        "name": "clinic_backend",
+        "cpu": "0.48%",
+        "mem": "76.93MiB / 384MiB"
+      },
+      {
+        "name": "clinic_notification_service",
+        "cpu": "0.20%",
+        "mem": "85.34MiB / 256MiB"
+      },
+      {
+        "name": "clinic_appointment_service",
+        "cpu": "0.25%",
+        "mem": "90.97MiB / 256MiB"
+      },
+      {
+        "name": "clinic_medical_records_service",
+        "cpu": "0.01%",
+        "mem": "86.29MiB / 256MiB"
+      },
+      {
+        "name": "clinic_queue_service",
+        "cpu": "0.16%",
+        "mem": "93.31MiB / 256MiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-identity-service-1",
+        "cpu": "4.11%",
+        "mem": "171.5MiB / 256MiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_prometheus",
+        "cpu": "0.00%",
+        "mem": "56.81MiB / 256MiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-mssql-exporter-1",
+        "cpu": "0.00%",
+        "mem": "27.46MiB / 128MiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+        "cpu": "0.16%",
+        "mem": "136MiB / 512MiB"
+      },
+      {
+        "name": "clinic_jaeger",
+        "cpu": "0.01%",
+        "mem": "19.18MiB / 256MiB"
+      },
+      {
+        "name": "clinic_sql_server",
+        "cpu": "1.64%",
+        "mem": "849.5MiB / 2GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_frontend",
+        "cpu": "0.00%",
+        "mem": "17.9MiB / 256MiB"
+      }
+    ]
+  },
+  "containerStatsAfter": {
+    "appContainers": [
+      {
+        "name": "clinic_scheduling_service",
+        "cpu": "2.89%",
+        "mem": "107.9MiB / 256MiB"
+      },
+      {
+        "name": "clinic_backend",
+        "cpu": "98.40%",
+        "mem": "83.22MiB / 384MiB"
+      },
+      {
+        "name": "clinic_notification_service",
+        "cpu": "25.84%",
+        "mem": "99.98MiB / 256MiB"
+      },
+      {
+        "name": "clinic_appointment_service",
+        "cpu": "0.49%",
+        "mem": "114.6MiB / 256MiB"
+      },
+      {
+        "name": "clinic_medical_records_service",
+        "cpu": "0.01%",
+        "mem": "86.27MiB / 256MiB"
+      },
+      {
+        "name": "clinic_queue_service",
+        "cpu": "0.42%",
+        "mem": "100.7MiB / 256MiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-identity-service-1",
+        "cpu": "0.59%",
+        "mem": "171MiB / 256MiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_prometheus",
+        "cpu": "0.09%",
+        "mem": "55.67MiB / 256MiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-mssql-exporter-1",
+        "cpu": "0.00%",
+        "mem": "27.46MiB / 128MiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+        "cpu": "0.92%",
+        "mem": "136.9MiB / 512MiB"
+      },
+      {
+        "name": "clinic_jaeger",
+        "cpu": "0.07%",
+        "mem": "22.55MiB / 256MiB"
+      },
+      {
+        "name": "clinic_sql_server",
+        "cpu": "8.07%",
+        "mem": "963.7MiB / 2GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_frontend",
+        "cpu": "0.00%",
+        "mem": "16.99MiB / 256MiB"
+      }
+    ]
+  },
+  "cleanupResult": {
+    "totalToClean": 7,
+    "httpCancelSuccess": 7,
+    "verifiedCancelledCount": 7,
+    "unverifiedApptIds": [],
+    "verified": true
+  },
+  "scheduleCleanupResult": {
+    "attempted": false,
+    "verified": true
+  }
+}
