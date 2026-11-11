@@ -8,7 +8,6 @@ import {
   clinicDate,
   parseAppointment,
   responseItems,
-  unwrapResponse,
 } from './config.js';
 import { availableDoctorSchedules, cancelWorkSchedule, ensureWorkSchedule, login, slotsFromAvailability } from './fixtures.js';
 

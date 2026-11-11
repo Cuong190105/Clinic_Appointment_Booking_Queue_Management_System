@@ -626,7 +626,11 @@ async function runCheckInRetryBenchmark(receptionistToken, apptIds) {
     );
   }
 
-  const headers = { Authorization: `Bearer ${receptionistToken}` };
+  const checkinKey = `bench-checkin-${testApptId}`;
+  const headers = {
+    Authorization: `Bearer ${receptionistToken}`,
+    'Idempotency-Key': checkinKey,
+  };
 
   // Helper to fetch/poll ticket info from Queue endpoint
   async function pollTicket(maxRetries = 20, delayMs = 150) {

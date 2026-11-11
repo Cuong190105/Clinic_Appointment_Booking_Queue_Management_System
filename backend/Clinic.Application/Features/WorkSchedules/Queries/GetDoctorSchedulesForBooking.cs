@@ -77,7 +77,13 @@ namespace Clinic.Application.Features.WorkSchedules.Queries
                         workScheduleDto.TimeSlot.Add(slotTime);
                     }
 
-                    slotTime = slotTime.AddMinutes(WorkSchedule.SlotIntervalMinutes);
+                    var nextSlot = slotTime.AddMinutes(WorkSchedule.SlotIntervalMinutes);
+                    if (nextSlot <= slotTime)
+                    {
+                        break;
+                    }
+
+                    slotTime = nextSlot;
                     slotTimeUtc = slotTimeUtc.AddMinutes(WorkSchedule.SlotIntervalMinutes);
                 }
 

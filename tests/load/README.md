@@ -352,3 +352,11 @@ Các script dùng tài khoản demo mặc định `admin1`, `patient1`, `recepti
 Các kịch bản ghi mới tạo được tải booking nhiều slot, nhưng vẫn dùng một tài khoản patient demo và không mô phỏng phân bố bệnh nhân thật. Contention là bài kiểm tra tính đúng đắn có N VU, không phải throughput benchmark. `docker stats --no-stream` của Node runner vẫn chỉ là snapshot trước/sau, không phải peak/time series. Muốn so sánh kiến trúc chính thức cần chạy stack tuần tự, dùng seed và giới hạn tài nguyên tương đương, lặp nhiều lần, và thu thập metrics tài nguyên trong toàn bộ thời gian chạy.
 
 Trong lượt chỉnh sửa này chỉ kiểm tra cú pháp và diff; không chạy k6, benchmark, Docker Compose hay ghi dữ liệu vào hệ thống.
+
+## 13. Đồng bộ benchmark với working tree microservices
+
+Bộ script chuẩn trong `tests/load` đã được sao chép đồng bộ sang `D:/Project/KHDV/microservices/tests/load`: `benchmark-runner.mjs`, `booking.js`, `fixtures.js`, `contention.js`, `load.js`, `smoke.js`, `soak.js`, `spike.js`, `package.json` và README. Hai bộ dùng cùng logic và ngưỡng; `config.js` chỉ khác `BASE_URL` mặc định để tránh bắn nhầm stack: `localhost:5100` ở monolith và `localhost:5000` ở microservices. Biến `BASE_URL` vẫn có thể ghi đè.
+
+Runner tải Phase 9 cũ của microservices được giữ riêng thành `phase9-throughput-runner.mjs`; đây là công cụ legacy cần `SEED_PASSWORD` và `WORKLOAD_SCHEDULE_ID`, không thuộc bộ so sánh chuẩn. Không gộp số liệu của nó với runner/k6 chuẩn.
+
+Đã đối chiếu SHA-256 các file chuẩn giữa hai working tree; tất cả giống nhau ngoại trừ cấu hình URL mặc định. Đã kiểm tra cú pháp Node và `git diff --check`; chưa chạy benchmark hoặc ghi dữ liệu.

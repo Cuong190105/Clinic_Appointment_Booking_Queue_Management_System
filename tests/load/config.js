@@ -1,7 +1,7 @@
 // Shared configuration for k6 and Node benchmark scripts.
 const ENV = typeof __ENV !== 'undefined' ? __ENV : typeof process !== 'undefined' ? process.env : {};
 
-export const BASE_URL = ENV.BASE_URL || 'http://localhost:5000';
+export const BASE_URL = ENV.BASE_URL || 'http://localhost:5100';
 export const CLINIC_UTC_OFFSET_MINUTES = Number(ENV.CLINIC_UTC_OFFSET_MINUTES || 420);
 export const DOCTOR_ID = ENV.BENCHMARK_DOCTOR_ID || 'a0000004-0000-0000-0000-000000000001';
 export const ADMIN_USERNAME = ENV.BENCHMARK_ADMIN_USERNAME || 'admin1';
