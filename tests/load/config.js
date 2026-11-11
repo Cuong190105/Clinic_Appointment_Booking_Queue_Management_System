@@ -57,3 +57,7 @@ export function responseItems(body, keys = ['items', 'schedules']) {
   }
   return [];
 }
+
+export function parseAppointment(body) {
+  return unwrapResponse(body);
+}

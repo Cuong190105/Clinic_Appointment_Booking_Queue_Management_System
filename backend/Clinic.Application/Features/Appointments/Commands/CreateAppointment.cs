@@ -86,29 +86,6 @@ namespace Clinic.Application.Features.Appointments.Commands
                 // Lock the work schedule row to serialize concurrent slot bookings without table-level range locks
                 await _workScheduleRepository.LockAsync(request.WorkScheduleId, cancellationToken);
 
-                // Double-check idempotency key after lock acquisition to prevent concurrent duplicates
-                if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
-                {
-                    var existingLocked = await _appointmentRepository.GetByIdempotencyKeyAsync(request.IdempotencyKey);
-                    if (existingLocked != null)
-                    {
-                        await _unitOfWork.CommitTransactionAsync(cancellationToken);
-                        return new AppointmentDto
-                        {
-                            Id = existingLocked.Id,
-                            PatientId = existingLocked.PatientId,
-                            DoctorId = existingLocked.WorkSchedule?.DoctorId ?? Guid.Empty,
-                            PatientName = existingLocked.Patient?.Person?.FullName ?? string.Empty,
-                            DoctorName = existingLocked.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty,
-                            TimeSlot = existingLocked.TimeSlot,
-                            Reason = existingLocked.Reason,
-                            Date = existingLocked.WorkSchedule?.Date ?? default,
-                            Status = existingLocked.Status,
-                            CreatedAt = existingLocked.CreatedAt
-                        };
-                    }
-                }
-
                 var workSchedule = await _workScheduleRepository.GetByIdAsync(request.WorkScheduleId);
                 if (workSchedule == null)
                 {

@@ -27,7 +27,7 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
         public async Task<WorkSchedule?> GetByIdAsync(Guid id)
         {
             return await _context.WorkSchedules
-                .Include(w => w.Appointments)
+                .Include(w => w.Appointments.Where(a => !a.IsDeleted && a.Status != AppointmentStatus.Cancelled))
                 .Include(w => w.Doctor)
                     .ThenInclude(d => d.Employee)
                         .ThenInclude(e => e.Person)

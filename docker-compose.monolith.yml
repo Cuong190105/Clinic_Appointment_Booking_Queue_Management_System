@@ -44,7 +44,7 @@ services:
       - "5100:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING:-Server=db,1433;Database=ClinicDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;}
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING:-Server=db,1433;Database=ClinicDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Min Pool Size=20;Max Pool Size=200;}
       - Jwt__Key=${JWT_KEY:-SuperR4nd0mK3yForJWTTokenGenerat!onUsedForDevelopmentPurposesOnly}
       - Email__Username=${SMTP_USERNAME:-mock-notifications@clinic.local}
       - Email__Password=${SMTP_PASSWORD:-mock-dev-password}

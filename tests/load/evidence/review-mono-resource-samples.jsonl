@@ -1,0 +1,3 @@
+{"timestampUtc":"2026-11-11T08:29:36.8947687+00:00","name":"clinic_mono_frontend","cpu":"0.00%","memory":"14.42MiB / 256MiB"}
+{"timestampUtc":"2026-11-11T08:29:36.8947687+00:00","name":"clinic_mono_backend","cpu":"81.21%","memory":"152MiB / 1.5GiB"}
+{"timestampUtc":"2026-11-11T08:29:36.8947687+00:00","name":"clinic_mono_sql_server","cpu":"58.95%","memory":"1.022GiB / 2GiB"}
