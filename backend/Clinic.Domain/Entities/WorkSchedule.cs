@@ -62,6 +62,18 @@ namespace Clinic.Domain.Entities
             Status = status;
         }
 
+        public static WorkSchedule CreateForTest(Doctor doctor, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int patientLimit = 15, WorkScheduleStatus status = WorkScheduleStatus.Active)
+        {
+            var ws = new WorkSchedule(Guid.NewGuid(), doctor.Id, date, shiftStart, shiftEnd, patientLimit, status, DateTime.UtcNow, null, false);
+            ws.Doctor = doctor;
+            return ws;
+        }
+
+        public static WorkSchedule CreateForTest(Guid id, Guid doctorId, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int patientLimit = 15, WorkScheduleStatus status = WorkScheduleStatus.Active)
+        {
+            return new WorkSchedule(id, doctorId, date, shiftStart, shiftEnd, patientLimit, status, DateTime.UtcNow, null, false);
+        }
+
         public void UpdateShift(DateOnly newDate, TimeOnly newShiftStart, TimeOnly newShiftEnd, int newPatientLimit)
         {
             var utcStart = new TimeConverter().ConvertToUtc(new DateTime(Date, ShiftStart));
@@ -137,9 +149,31 @@ namespace Clinic.Domain.Entities
                 throw new InvalidOperationException("Cannot add an appointment to a cancelled work schedule.");
             }
             Appointments.Add(appointment);
-            if (Appointments.Count(a => !a.IsWalkIn && a.Status != AppointmentStatus.Cancelled && a.IsDeleted == false) >= RecommendedCapacity)
+            RecheckCapacity();
+        }
+
+        /// <summary>
+        /// Recalculates online booking capacity and transitions between Active and Full.
+        /// </summary>
+        public void RecheckCapacity()
+        {
+            if (Status == WorkScheduleStatus.Cancelled) return;
+            var activeOnlineCount = Appointments.Count(a => !a.IsWalkIn && a.Status != AppointmentStatus.Cancelled && !a.IsDeleted);
+            if (activeOnlineCount < RecommendedCapacity)
             {
-                Status = WorkScheduleStatus.Full;
+                if (Status == WorkScheduleStatus.Full)
+                {
+                    Status = WorkScheduleStatus.Active;
+                    MarkUpdated();
+                }
+            }
+            else
+            {
+                if (Status == WorkScheduleStatus.Active)
+                {
+                    Status = WorkScheduleStatus.Full;
+                    MarkUpdated();
+                }
             }
         }
     }

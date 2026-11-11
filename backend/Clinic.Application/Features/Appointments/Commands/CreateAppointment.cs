@@ -86,6 +86,29 @@ namespace Clinic.Application.Features.Appointments.Commands
                 // Lock the work schedule row to serialize concurrent slot bookings without table-level range locks
                 await _workScheduleRepository.LockAsync(request.WorkScheduleId, cancellationToken);
 
+                // Double-check idempotency key after lock acquisition to prevent concurrent duplicates
+                if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
+                {
+                    var existingLocked = await _appointmentRepository.GetByIdempotencyKeyAsync(request.IdempotencyKey);
+                    if (existingLocked != null)
+                    {
+                        await _unitOfWork.CommitTransactionAsync(cancellationToken);
+                        return new AppointmentDto
+                        {
+                            Id = existingLocked.Id,
+                            PatientId = existingLocked.PatientId,
+                            DoctorId = existingLocked.WorkSchedule?.DoctorId ?? Guid.Empty,
+                            PatientName = existingLocked.Patient?.Person?.FullName ?? string.Empty,
+                            DoctorName = existingLocked.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                            TimeSlot = existingLocked.TimeSlot,
+                            Reason = existingLocked.Reason,
+                            Date = existingLocked.WorkSchedule?.Date ?? default,
+                            Status = existingLocked.Status,
+                            CreatedAt = existingLocked.CreatedAt
+                        };
+                    }
+                }
+
                 var workSchedule = await _workScheduleRepository.GetByIdAsync(request.WorkScheduleId);
                 if (workSchedule == null)
                 {
@@ -125,6 +148,28 @@ namespace Clinic.Application.Features.Appointments.Commands
                 if (ex is ConflictException)
                 {
                     throw;
+                }
+                if (!string.IsNullOrWhiteSpace(request.IdempotencyKey) &&
+                    (ex.InnerException?.Message.Contains("IdempotencyKey") == true ||
+                     ex.Message.Contains("IdempotencyKey")))
+                {
+                    var existing = await _appointmentRepository.GetByIdempotencyKeyAsync(request.IdempotencyKey);
+                    if (existing != null)
+                    {
+                        return new AppointmentDto
+                        {
+                            Id = existing.Id,
+                            PatientId = existing.PatientId,
+                            DoctorId = existing.WorkSchedule?.DoctorId ?? Guid.Empty,
+                            PatientName = existing.Patient?.Person?.FullName ?? string.Empty,
+                            DoctorName = existing.WorkSchedule?.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                            TimeSlot = existing.TimeSlot,
+                            Reason = existing.Reason,
+                            Date = existing.WorkSchedule?.Date ?? default,
+                            Status = existing.Status,
+                            CreatedAt = existing.CreatedAt
+                        };
+                    }
                 }
                 if (ex.InnerException?.Message.Contains("IX_Appointments_TimeSlot_WorkScheduleId") == true ||
                     ex.Message.Contains("IX_Appointments_TimeSlot_WorkScheduleId"))

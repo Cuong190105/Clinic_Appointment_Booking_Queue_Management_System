@@ -61,6 +61,14 @@ namespace Clinic.Domain.Entities
             UpdatedByUserId = updatedByUserId;
         }
 
+        public static Appointment CreateForTest(Patient patient, WorkSchedule workSchedule, TimeOnly timeSlot, string reason = "Reason", Guid? createdByUserId = null, bool isWalkIn = false)
+        {
+            var app = new Appointment(Guid.NewGuid(), patient.Id, workSchedule.Id, timeSlot, reason, AppointmentStatus.Pending, isWalkIn, createdByUserId ?? Guid.NewGuid(), DateTime.UtcNow, null, false);
+            app.Patient = patient;
+            app.WorkSchedule = workSchedule;
+            return app;
+        }
+
         public Appointment(Patient patient, WorkSchedule workSchedule, TimeOnly timeSlot, string reason, Guid createdByUserId, bool isWalkIn = false)
         {
             WorkSchedule = workSchedule ?? throw new ArgumentNullException(nameof(workSchedule));
@@ -101,6 +109,7 @@ namespace Clinic.Domain.Entities
             Status = AppointmentStatus.Cancelled;
             UpdatedByUserId = adminId;
             MarkUpdated();
+            WorkSchedule?.RecheckCapacity();
         }
 
         /// <summary>
@@ -120,10 +129,11 @@ namespace Clinic.Domain.Entities
                 throw new ArgumentException($"Cannot check in an appointment with status '{Status}'. Appointment must be confirmed first.");
             }
 
-            if (WorkSchedule.Date != DateOnly.FromDateTime(checkInTime))
+            var localCheckInDate = DateOnly.FromDateTime(new TimeConverter().ConvertToLocal(checkInTime));
+            if (WorkSchedule.Date != localCheckInDate)
             {
                 throw new ConflictException(
-                    $"Cannot check in: appointment is scheduled for {new DateTime(WorkSchedule.Date, TimeSlot):yyyy-MM-dd}, not today ({checkInTime:yyyy-MM-dd}).");
+                    $"Cannot check in: appointment is scheduled for {new DateTime(WorkSchedule.Date, TimeSlot):yyyy-MM-dd}, not today ({localCheckInDate:yyyy-MM-dd}).");
             }
 
             var queueTicket = new QueueTicket
@@ -193,6 +203,7 @@ namespace Clinic.Domain.Entities
             Status = AppointmentStatus.Cancelled;
             UpdatedByUserId = cancelledByUserId;
             MarkUpdated();
+            WorkSchedule?.RecheckCapacity();
         }
 
         public void Confirm(Guid confirmedByUserId)
@@ -221,10 +232,11 @@ namespace Clinic.Domain.Entities
 
         public void CheckIn(QueueTicket queueTicket)
         {
-            if (DateOnly.FromDateTime(queueTicket.CheckInTime) != WorkSchedule.Date)
+            var localCheckInDate = DateOnly.FromDateTime(new TimeConverter().ConvertToLocal(queueTicket.CheckInTime));
+            if (localCheckInDate != WorkSchedule.Date)
             {
                 throw new ConflictException(
-                    $"Cannot check in: appointment is scheduled for {new DateTime(WorkSchedule.Date, TimeSlot):yyyy-MM-dd}, not today ({queueTicket.CheckInTime:yyyy-MM-dd}).");
+                    $"Cannot check in: appointment is scheduled for {new DateTime(WorkSchedule.Date, TimeSlot):yyyy-MM-dd}, not today ({localCheckInDate:yyyy-MM-dd}).");
             }
             QueueTicket = queueTicket;
             Status = AppointmentStatus.CheckedIn;

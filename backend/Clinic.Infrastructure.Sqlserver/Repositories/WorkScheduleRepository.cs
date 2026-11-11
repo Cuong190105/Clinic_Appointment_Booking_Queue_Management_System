@@ -49,8 +49,9 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<List<WorkSchedule>> GetAvailableSlotsAsync(Guid? doctorId, Guid? specialtyId, DateTime? fromDate, DateTime? toDate)
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var nowTime = TimeOnly.FromDateTime(DateTime.UtcNow);
+            var timeConverter = new Clinic.Domain.Common.TimeConverter();
+            var today = timeConverter.Today;
+            var nowTime = timeConverter.CurrentTime;
 
             var query = _context.WorkSchedules
                 .Include(w => w.Appointments)

@@ -52,7 +52,9 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<Appointment?> GetByIdAsync(Guid appointmentId)
         {
-            return await _context.Appointments.Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
+            return await _context.Appointments
+                .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Appointments)
+                .Include(a => a.WorkSchedule).ThenInclude(ws => ws.Doctor).ThenInclude(d => d.Employee).ThenInclude(e => e.Person)
                 .Include(a => a.Patient).ThenInclude(p => p.Person)
                 .Include(a => a.QueueTicket)
                 .FirstOrDefaultAsync(a => a.Id == appointmentId && a.IsDeleted == false);

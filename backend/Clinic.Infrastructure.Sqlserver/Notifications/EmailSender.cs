@@ -15,6 +15,12 @@ namespace Clinic.Infrastructure.Sqlserver.Notifications
         }
         public async Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken = default)
         {
+            if (_options.UseMock || string.IsNullOrWhiteSpace(_options.Host) || _options.Host.Equals("mock", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"[Mock EmailSender] Simulated email to '{to}' | Subject: '{subject}'");
+                return;
+            }
+
             var message = new MimeMessage();
 
             message.From.Add(
@@ -61,5 +67,6 @@ namespace Clinic.Infrastructure.Sqlserver.Notifications
         public int Port { get; set; }
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public bool UseMock { get; set; } = true;
     }
 }

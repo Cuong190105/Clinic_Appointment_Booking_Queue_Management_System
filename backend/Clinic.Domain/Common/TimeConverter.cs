@@ -1,9 +1,29 @@
+using System;
+
 namespace Clinic.Domain.Common
 {
     public class TimeConverter
     {
-        private static readonly TimeZoneInfo VietnamTimeZone =
-            TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh");
+        public static readonly TimeZoneInfo VietnamTimeZone = ResolveTimeZone();
+
+        private static TimeZoneInfo ResolveTimeZone()
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh");
+            }
+            catch
+            {
+                try
+                {
+                    return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+                }
+                catch
+                {
+                    return TimeZoneInfo.CreateCustomTimeZone("ICT", TimeSpan.FromHours(7), "ICT", "ICT");
+                }
+            }
+        }
 
         public DateTime ConvertToUtc(DateTime localDateTime)
         {
@@ -15,6 +35,12 @@ namespace Clinic.Domain.Common
             return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, VietnamTimeZone);
         }
 
-        public DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, VietnamTimeZone));
+        public DateTime ConvertToLocal(DateTime utcDateTime) => ConvertFromUtc(utcDateTime);
+
+        public DateTime LocalNow => ConvertFromUtc(DateTime.UtcNow);
+
+        public DateOnly Today => DateOnly.FromDateTime(LocalNow);
+
+        public TimeOnly CurrentTime => TimeOnly.FromDateTime(LocalNow);
     }
 }

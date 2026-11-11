@@ -1,15 +1,30 @@
 using Clinic.Application.Interfaces;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Clinic.Application.UnitTests.Common
 {
     public class FakeUnitOfWork : IUnitOfWork
     {
-        // Test double ch?y trong b? nh?, không có DB th?t nên không có transaction th?t -
-        // ch? c?n ghi nh?n tr?ng thái d? test có th? assert Begin/Commit/Rollback du?c g?i
-        // dúng c?p n?u c?n.
+        private static readonly AsyncLocal<FakeUnitOfWork?> _current = new();
+        public static FakeUnitOfWork? Current
+        {
+            get => _current.Value;
+            set => _current.Value = value;
+        }
+
+        private readonly HashSet<Guid> _acquiredLocks = [];
+
         public bool TransactionOpen { get; private set; }
         public bool WasCommitted { get; private set; }
         public bool WasRolledBack { get; private set; }
+
+        public void RegisterAcquiredLock(Guid lockId)
+        {
+            _acquiredLocks.Add(lockId);
+        }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
@@ -19,6 +34,7 @@ namespace Clinic.Application.UnitTests.Common
         public Task InitializeTransactionLockAsync(CancellationToken cancellationToken = default)
         {
             TransactionOpen = true;
+            Current = this;
             return Task.CompletedTask;
         }
 
@@ -28,6 +44,8 @@ namespace Clinic.Application.UnitTests.Common
             {
                 WasCommitted = true;
                 TransactionOpen = false;
+                Current = null;
+                ReleaseAcquiredLocks();
             }
 
             return Task.CompletedTask;
@@ -39,9 +57,20 @@ namespace Clinic.Application.UnitTests.Common
             {
                 WasRolledBack = true;
                 TransactionOpen = false;
+                Current = null;
+                ReleaseAcquiredLocks();
             }
 
             return Task.CompletedTask;
+        }
+
+        public void ReleaseAcquiredLocks()
+        {
+            foreach (var lockId in _acquiredLocks)
+            {
+                FakeWorkScheduleRepository.ReleaseStaticLock(lockId);
+            }
+            _acquiredLocks.Clear();
         }
     }
 }

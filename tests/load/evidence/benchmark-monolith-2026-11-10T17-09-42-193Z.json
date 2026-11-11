@@ -1,0 +1,85 @@
+{
+  "target": "Monolith",
+  "baseUrl": "http://localhost:5100",
+  "results": {
+    "catalog": {
+      "scenario": "Catalog / Read Benchmark",
+      "totalRequests": 50,
+      "successful": 50,
+      "failed": 0,
+      "durationMs": 130,
+      "rps": "384.6",
+      "stats": {
+        "min": 11.856499999999869,
+        "p50": 17.490099999999984,
+        "p90": 40.898699999999735,
+        "p95": 42.20179999999982,
+        "p99": 42.965999999999894,
+        "max": 42.965999999999894,
+        "avg": 23.57593799999998
+      }
+    },
+    "booking": {
+      "scenario": "Booking E2E (API Latency vs E2E Completion)",
+      "totalBookings": 20,
+      "successfulBookings": 0,
+      "retryIdempotentSuccess": 0,
+      "apiStats": {
+        "min": 1.6354000000001179,
+        "p50": 8.47609999999986,
+        "p90": 15.747199999999793,
+        "p95": 17.434299999999894,
+        "p99": 17.434299999999894,
+        "max": 17.434299999999894,
+        "avg": 8.44872499999999
+      },
+      "e2eStats": {
+        "min": 1.6354000000001179,
+        "p50": 8.47609999999986,
+        "p90": 15.747199999999793,
+        "p95": 17.434299999999894,
+        "p99": 17.434299999999894,
+        "max": 17.434299999999894,
+        "avg": 8.44872499999999
+      }
+    },
+    "checkin": {
+      "scenario": "Check-in & Retry Idempotency",
+      "attempts": 5,
+      "firstCheckIns": 0,
+      "duplicateProtectionTriggers": 0,
+      "stats": {
+        "min": 8.93769999999995,
+        "p50": 15.125,
+        "p90": 15.996399999999994,
+        "p95": 15.996399999999994,
+        "p99": 15.996399999999994,
+        "max": 15.996399999999994,
+        "avg": 13.040879999999925
+      }
+    }
+  },
+  "containerStats": {
+    "appContainers": [
+      {
+        "name": "clinic_mono_backend",
+        "cpu": "40.73%",
+        "mem": "138.5MiB / 5.787GiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_mono_sql_server",
+        "cpu": "3.60%",
+        "mem": "1.204GiB / 5.787GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_mono_frontend",
+        "cpu": "0.00%",
+        "mem": "14.9MiB / 5.787GiB"
+      }
+    ]
+  }
+}

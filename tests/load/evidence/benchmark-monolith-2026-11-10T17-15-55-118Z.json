@@ -1,0 +1,102 @@
+{
+  "target": "Monolith",
+  "baseUrl": "http://localhost:5100",
+  "results": {
+    "catalog": {
+      "scenario": "Catalog / Read Benchmark",
+      "totalRequests": 50,
+      "successful": 50,
+      "failed": 0,
+      "durationMs": 172,
+      "rps": "290.7",
+      "stats": {
+        "min": 9.442799999999806,
+        "p50": 17.926300000000083,
+        "p90": 98.44849999999997,
+        "p95": 107.42509999999993,
+        "p99": 121.05840000000035,
+        "max": 121.05840000000035,
+        "avg": 33.02071399999998
+      }
+    },
+    "booking": {
+      "scenario": "Booking E2E (API Latency vs E2E Completion)",
+      "totalBookings": 20,
+      "successfulBookings": 20,
+      "retryIdempotentSuccess": 15,
+      "createdApptIds": [
+        "abcad376-7270-40c9-b521-7c079c90cc6b",
+        "829525d7-e7c3-44cc-915c-175a00ee911d",
+        "c026e8ee-f6cf-4637-9786-ecaae4da446a",
+        "5f058635-b810-405b-88a6-9cd6359e9a1f",
+        "70ba08f9-b192-433c-b2dc-63b9937d5161",
+        "1702730a-f623-44b2-a1c8-7dec387f3ebf",
+        "a6806566-3726-4ec1-857f-5f5748b20d92",
+        "dabe2065-016b-4602-ab22-d1e77be3e929",
+        "02b2da18-8de8-450f-9ed6-a5c936324152",
+        "7e48a826-9793-4ce3-8395-23063da49846",
+        "14564b22-6d4c-4b8f-9ffe-de310d0f7493",
+        "2de25246-5a7e-42ee-a44c-cd664e4cc0b0",
+        "6c03cb45-4eae-4518-b16a-292a55c30a6d",
+        "c82ad1ab-5c9a-46fa-95c2-1f387a2b0f83",
+        "aef778a9-8aee-4219-9a34-ecb2160329f0"
+      ],
+      "apiStats": {
+        "min": 13.897800000000188,
+        "p50": 26.556899999999587,
+        "p90": 35.58069999999998,
+        "p95": 35.64930000000004,
+        "p99": 35.64930000000004,
+        "max": 35.64930000000004,
+        "avg": 25.369384999999966
+      },
+      "e2eStats": {
+        "min": 13.897800000000188,
+        "p50": 33.564800000000105,
+        "p90": 50.29359999999997,
+        "p95": 60.60919999999987,
+        "p99": 60.60919999999987,
+        "max": 60.60919999999987,
+        "avg": 35.96750999999997
+      }
+    },
+    "checkin": {
+      "scenario": "Check-in & Retry Idempotency",
+      "attempts": 5,
+      "firstCheckIns": 1,
+      "duplicateProtectionTriggers": 4,
+      "stats": {
+        "min": 6.013899999999921,
+        "p50": 17.216199999999844,
+        "p90": 29.630999999999858,
+        "p95": 29.630999999999858,
+        "p99": 29.630999999999858,
+        "max": 29.630999999999858,
+        "avg": 16.499600000000008
+      }
+    }
+  },
+  "containerStats": {
+    "appContainers": [
+      {
+        "name": "clinic_mono_backend",
+        "cpu": "16.54%",
+        "mem": "212.9MiB / 5.787GiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_mono_sql_server",
+        "cpu": "1.56%",
+        "mem": "1.239GiB / 5.787GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_mono_frontend",
+        "cpu": "0.00%",
+        "mem": "14.86MiB / 5.787GiB"
+      }
+    ]
+  }
+}

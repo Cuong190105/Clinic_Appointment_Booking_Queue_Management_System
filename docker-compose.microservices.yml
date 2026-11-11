@@ -1,4 +1,18 @@
-﻿services:
+# ==============================================================================
+# Microservices System Compose Configuration
+# Benchmark Baseline Commit: 7f556ba (branch main)
+# Source worktree: ../microservices (git worktree add ../microservices main)
+# Pre-built Image Tags:
+#   - clinic_appointment_booking_queue_management_system-backend:latest (6cf21bb9cba8)
+#   - clinic_appointment_booking_queue_management_system-identity-service:latest (e7bbf7cc679e)
+#   - clinic_appointment_booking_queue_management_system-scheduling-service:latest (74d23c548ae8)
+#   - clinic_appointment_booking_queue_management_system-appointment-service:latest (66316c4ec49e)
+#   - clinic_appointment_booking_queue_management_system-queue-service:latest (fe1e3dab3626)
+#   - clinic_appointment_booking_queue_management_system-medical-records-service:latest (1b33e6be3c43)
+#   - clinic_appointment_booking_queue_management_system-notification-service:latest (7f16f1d94204)
+#   - clinic_appointment_booking_queue_management_system-frontend:latest (2b0ceb99b6eb)
+# ==============================================================================
+services:
     db:
         image: mcr.microsoft.com/mssql/server:2022-latest
         container_name: clinic_sql_server
@@ -61,9 +75,7 @@
         restart: always
 
     backend:
-        build:
-            context: ./backend
-            dockerfile: Dockerfile # ├ä┬É├å┬░├í┬╗┬¥ng d├í┬║┬½n t├í┬╗ΓÇ║i Dockerfile c├í┬╗┬ºa Backend
+        image: clinic_appointment_booking_queue_management_system-backend:latest
         container_name: clinic_backend
         ports:
             - "5000:8080"
@@ -116,9 +128,7 @@
         restart: always
 
     identity-service:
-        build:
-            context: ./backend
-            dockerfile: Clinic.Identity.Service/Dockerfile
+        image: clinic_appointment_booking_queue_management_system-identity-service:latest
         ports:
             - "5001:8080"
         environment:
@@ -151,9 +161,7 @@
         restart: always
 
     scheduling-service:
-        build:
-            context: ./backend
-            dockerfile: Clinic.StaffScheduling.Service/Dockerfile
+        image: clinic_appointment_booking_queue_management_system-scheduling-service:latest
         container_name: clinic_scheduling_service
         ports:
             - "5002:8080"
@@ -248,9 +256,7 @@
         restart: "no"
 
     appointment-service:
-        build:
-            context: ./backend
-            dockerfile: Clinic.Appointment.Service/Dockerfile
+        image: clinic_appointment_booking_queue_management_system-appointment-service:latest
         container_name: clinic_appointment_service
         ports:
             - "5003:8080"
@@ -320,9 +326,7 @@
         restart: "no"
 
     queue-service:
-        build:
-            context: ./backend
-            dockerfile: Clinic.Queue.Service/Dockerfile
+        image: clinic_appointment_booking_queue_management_system-queue-service:latest
         container_name: clinic_queue_service
         ports:
             - "5004:8080"
@@ -386,9 +390,7 @@
         restart: "no"
 
     medical-records-service:
-        build:
-            context: ./backend
-            dockerfile: Clinic.MedicalRecords.Service/Dockerfile
+        image: clinic_appointment_booking_queue_management_system-medical-records-service:latest
         container_name: clinic_medical_records_service
         ports:
             - "5005:8080"
@@ -450,9 +452,7 @@
         restart: "no"
 
     notification-service:
-        build:
-            context: ./backend
-            dockerfile: Clinic.Notification.Service/Dockerfile
+        image: clinic_appointment_booking_queue_management_system-notification-service:latest
         container_name: clinic_notification_service
         ports:
             - "5006:8080"
@@ -502,9 +502,7 @@
         restart: always
 
     frontend:
-        build:
-            context: ./frontend # Thay b├í┬║┬▒ng ├äΓÇÿ├å┬░├í┬╗┬¥ng d├í┬║┬½n t├í┬╗ΓÇ║i th├å┬░ m├í┬╗┬Ñc Vue.js c├í┬╗┬ºa b├í┬║┬ín
-            dockerfile: Dockerfile
+        image: clinic_appointment_booking_queue_management_system-frontend:latest
         container_name: clinic_frontend
         ports:
             - "3000:80" # Truy c├í┬║┬¡p Frontend ├í┬╗┼╕ giao di├í┬╗ΓÇín m├â┬íy th├í┬║┬¡t qua port 3000

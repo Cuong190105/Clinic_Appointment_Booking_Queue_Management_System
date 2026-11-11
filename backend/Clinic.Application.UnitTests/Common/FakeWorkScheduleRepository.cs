@@ -12,8 +12,8 @@ namespace Clinic.Application.UnitTests.Common
     {
         private readonly List<WorkSchedule> _workSchedules = [];
         private readonly List<ShiftRequest> _shiftRequests = [];
-
-        // ===== Nhóm ch?c nang: d?t l?ch khám (booking) =====
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, SemaphoreSlim> _staticLocks = new();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, SemaphoreSlim> _locks = _staticLocks;
 
         public Task<WorkSchedule?> GetByIdAsync(Guid id)
         {
@@ -21,13 +21,31 @@ namespace Clinic.Application.UnitTests.Common
             return Task.FromResult(result);
         }
 
-        /// <summary>
-        /// Fake trong b? nh?, không có DB th?t nên không th? lock th?t - no-op d? interface
-        /// biên d?ch du?c và test có th? g?i CreateAppointmentHandler bình thu?ng.
-        /// </summary>
-        public Task LockAsync(Guid workScheduleId, CancellationToken cancellationToken = default)
+        public async Task LockAsync(Guid workScheduleId, CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
+            var sem = _staticLocks.GetOrAdd(workScheduleId, _ => new SemaphoreSlim(1, 1));
+            await sem.WaitAsync(cancellationToken);
+            FakeUnitOfWork.Current?.RegisterAcquiredLock(workScheduleId);
+        }
+
+        public void ReleaseLock(Guid workScheduleId)
+        {
+            ReleaseStaticLock(workScheduleId);
+        }
+
+        public static void ReleaseStaticLock(Guid workScheduleId)
+        {
+            if (_staticLocks.TryGetValue(workScheduleId, out var sem))
+            {
+                try
+                {
+                    sem.Release();
+                }
+                catch (SemaphoreFullException)
+                {
+                    // Already at maximum count
+                }
+            }
         }
 
         /// <summary>Helper cho test: seed s?n 1 WorkSchedule d? GetByIdAsync tìm th?y.</summary>

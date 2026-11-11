@@ -48,6 +48,13 @@ namespace Clinic.Domain.Entities
             Status = status;
         }
 
+        public static ShiftRequest CreateForTest(Doctor doctor, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int patientLimit = 15, string? reason = null)
+        {
+            var sr = new ShiftRequest(Guid.NewGuid(), doctor.Id, date, shiftStart, shiftEnd, patientLimit, reason, ShiftRequestStatus.Pending, DateTime.UtcNow, null, false);
+            sr.Doctor = doctor;
+            return sr;
+        }
+
         public void UpdateShift(DateOnly date, TimeOnly newShiftStart, TimeOnly newShiftEnd, int newPatientLimit, string? newReason)
         {
             var utcStart = new TimeConverter().ConvertToUtc(new DateTime(Date, ShiftStart));

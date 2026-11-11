@@ -6,7 +6,7 @@ services:
     container_name: clinic_mono_sql_server
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=ClinicDev!2026StrongPw
+      - SA_PASSWORD=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
       - MSSQL_PID=Express
     ports:
       - "1434:1433"
@@ -16,6 +16,14 @@ services:
       mono-network:
         aliases:
           - db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: always
 
   mono-backend:
@@ -28,16 +36,25 @@ services:
       - "5100:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=db,1433;Database=ClinicDB;User Id=sa;Password=ClinicDev!2026StrongPw;TrustServerCertificate=True;
-      - Jwt__Key=SuperR4nd0mK3yForJWTTokenGenerat!onUsedForDevelopmentPurposesOnly
-      - Email__Username=projectaccnt001@gmail.com
-      - Email__Password=twmc uipu uubx uhxx
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING:-Server=db,1433;Database=ClinicDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;}
+      - Jwt__Key=${JWT_KEY:-SuperR4nd0mK3yForJWTTokenGenerat!onUsedForDevelopmentPurposesOnly}
+      - Email__Username=${SMTP_USERNAME:-mock-notifications@clinic.local}
+      - Email__Password=${SMTP_PASSWORD:-mock-dev-password}
+      - Email__Host=${SMTP_HOST:-mock}
+      - Email__UseMock=true
     depends_on:
-      - mono-db
+      mono-db:
+        condition: service_healthy
     networks:
       mono-network:
         aliases:
           - backend
+    healthcheck:
+      test: ["CMD", "/usr/bin/bash", "-c", "echo > /dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     restart: always
 
   mono-frontend:
@@ -49,15 +66,25 @@ services:
     ports:
       - "3100:80"
     depends_on:
-      - mono-backend
+      mono-backend:
+        condition: service_healthy
     networks:
       - mono-network
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - --spider
+        - http://127.0.0.1/
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     restart: always
 
 volumes:
   mssql_mono_data:
-    name: clinic_appointment_booking_queue_management_system_mssql_mono_data
-    external: true
 
 networks:
   mono-network:

@@ -44,8 +44,7 @@ namespace Clinic.API.Controllers
         [ProducesResponseType(typeof(List<WorkingDoctorDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetWorkingDoctors([FromQuery] Guid? specialtyId)
         {
-            var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
-            var todayLocal = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var todayLocal = new Clinic.Domain.Common.TimeConverter().Today;
 
             var query = _dbContext.WorkSchedules
                 .Include(ws => ws.Doctor)
@@ -63,7 +62,7 @@ namespace Clinic.API.Controllers
             }
 
             var list = await query
-                .Where(ws => ws.Date == todayLocal || ws.Date == todayUtc)
+                .Where(ws => ws.Date == todayLocal)
                 .ToListAsync();
 
             if (list.Count == 0 && specialtyId.HasValue)

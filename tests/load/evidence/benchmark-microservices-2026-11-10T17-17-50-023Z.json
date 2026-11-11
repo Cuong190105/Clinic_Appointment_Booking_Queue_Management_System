@@ -1,0 +1,151 @@
+{
+  "target": "Microservices",
+  "baseUrl": "http://localhost:5000",
+  "results": {
+    "catalog": {
+      "scenario": "Catalog / Read Benchmark",
+      "totalRequests": 50,
+      "successful": 50,
+      "failed": 0,
+      "durationMs": 68,
+      "rps": "735.3",
+      "stats": {
+        "min": 4.649499999999989,
+        "p50": 10.919500000000426,
+        "p90": 26.201700000000073,
+        "p95": 28.16229999999996,
+        "p99": 29.098399999999856,
+        "max": 29.098399999999856,
+        "avg": 12.709611999999979
+      }
+    },
+    "booking": {
+      "scenario": "Booking E2E (API Latency vs E2E Completion)",
+      "totalBookings": 20,
+      "successfulBookings": 20,
+      "retryIdempotentSuccess": 0,
+      "createdApptIds": [],
+      "apiStats": {
+        "min": 18.10299999999961,
+        "p50": 24.490899999999783,
+        "p90": 43.08750000000009,
+        "p95": 366.92260000000033,
+        "p99": 366.92260000000033,
+        "max": 366.92260000000033,
+        "avg": 41.542774999999914
+      },
+      "e2eStats": {
+        "min": 18.10299999999961,
+        "p50": 24.490899999999783,
+        "p90": 43.08750000000009,
+        "p95": 366.92260000000033,
+        "p99": 366.92260000000033,
+        "max": 366.92260000000033,
+        "avg": 41.542774999999914
+      }
+    },
+    "checkin": {
+      "scenario": "Check-in & Retry Idempotency",
+      "attempts": 5,
+      "firstCheckIns": 0,
+      "duplicateProtectionTriggers": 5,
+      "stats": {
+        "min": 7.215199999999641,
+        "p50": 13.595999999999549,
+        "p90": 22.612299999999777,
+        "p95": 22.612299999999777,
+        "p99": 22.612299999999777,
+        "max": 22.612299999999777,
+        "avg": 13.594039999999769
+      }
+    }
+  },
+  "containerStats": {
+    "appContainers": [
+      {
+        "name": "clinic_backend",
+        "cpu": "24.36%",
+        "mem": "69.88MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_notification_service",
+        "cpu": "6.21%",
+        "mem": "92.41MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_appointment_service",
+        "cpu": "0.42%",
+        "mem": "111.9MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_scheduling_service",
+        "cpu": "0.35%",
+        "mem": "110.2MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_medical_records_service",
+        "cpu": "4.34%",
+        "mem": "90.72MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_queue_service",
+        "cpu": "6.05%",
+        "mem": "99.67MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-identity-service-1",
+        "cpu": "0.42%",
+        "mem": "95.32MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_mono_backend",
+        "cpu": "3.17%",
+        "mem": "211.9MiB / 5.787GiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_mono_sql_server",
+        "cpu": "1.15%",
+        "mem": "1.468GiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-rabbitmq-1",
+        "cpu": "0.96%",
+        "mem": "175.3MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_appointment_booking_queue_management_system-mssql-exporter-1",
+        "cpu": "0.00%",
+        "mem": "44.9MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_prometheus",
+        "cpu": "2.35%",
+        "mem": "80.52MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_jaeger",
+        "cpu": "0.06%",
+        "mem": "24.19MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_sql_server",
+        "cpu": "1.92%",
+        "mem": "777.6MiB / 5.787GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_frontend",
+        "cpu": "0.00%",
+        "mem": "14.99MiB / 5.787GiB"
+      },
+      {
+        "name": "clinic_mono_frontend",
+        "cpu": "0.00%",
+        "mem": "14.32MiB / 5.787GiB"
+      }
+    ]
+  }
+}

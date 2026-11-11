@@ -89,6 +89,11 @@ namespace Clinic.Application.UnitTests.Common
 
         public async Task AddAsync(Appointment appointment)
         {
+            if (!string.IsNullOrWhiteSpace(appointment.IdempotencyKey) &&
+                _appointments.Any(a => !a.IsDeleted && a.IdempotencyKey == appointment.IdempotencyKey && a.Id != appointment.Id))
+            {
+                throw new InvalidOperationException("Violation of UNIQUE KEY constraint 'IX_Appointments_IdempotencyKey'.");
+            }
             _appointments.Add(appointment);
         }
 

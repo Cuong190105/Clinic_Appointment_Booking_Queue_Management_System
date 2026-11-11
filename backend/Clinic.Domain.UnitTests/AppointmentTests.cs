@@ -9,7 +9,7 @@ namespace Clinic.Domain.UnitTests
         [Fact]
         public void Cancel_PendingAppointment_ShouldCancel()
         {
-            var appointment = TestDataFactory.CreateAppointment(day: 1);
+            var appointment = TestDataFactory.CreateAppointment(day: 2);
 
             appointment.Cancel(Guid.NewGuid());
 
@@ -19,7 +19,7 @@ namespace Clinic.Domain.UnitTests
         [Fact]
         public void Cancel_ConfirmedAppointment_ShouldCancel()
         {
-            var appointment = TestDataFactory.CreateAppointment(confirmed: true, day: 1);
+            var appointment = TestDataFactory.CreateAppointment(confirmed: true, day: 2);
 
             appointment.Cancel(Guid.NewGuid());
 
@@ -29,7 +29,7 @@ namespace Clinic.Domain.UnitTests
         [Fact]
         public void Cancel_AlreadyCancelledAppointment_ShouldThrowArgumentException()
         {
-            var appointment = TestDataFactory.CreateAppointment(confirmed: true, day: 1);
+            var appointment = TestDataFactory.CreateAppointment(confirmed: true, day: 2);
             appointment.Cancel(Guid.NewGuid());
 
             Assert.Throws<InvalidOperationException>(() => appointment.Cancel(Guid.NewGuid()));
@@ -147,7 +147,7 @@ namespace Clinic.Domain.UnitTests
         [Fact]
         public void Complete_CancelledAppointment_ShouldThrowArgumentException()
         {
-            var appointment = TestDataFactory.CreateAppointment(confirmed: true, day: 1);
+            var appointment = TestDataFactory.CreateAppointment(confirmed: true, day: 2);
             appointment.Cancel(Guid.NewGuid());
 
             Assert.Throws<InvalidOperationException>(() => appointment.Complete(Guid.NewGuid()));

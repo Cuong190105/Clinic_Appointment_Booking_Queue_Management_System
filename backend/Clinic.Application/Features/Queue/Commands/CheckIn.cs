@@ -40,12 +40,11 @@ namespace Clinic.Application.Features.Queue.Commands
             }
 
             // Chỉ cho phép check-in đúng ngày và đúng ca đã đặt
-            var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
-            var todayLocal = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
-            if (appointment.WorkSchedule.Date != todayUtc && appointment.WorkSchedule.Date != todayLocal)
+            var todayLocal = new Clinic.Domain.Common.TimeConverter().Today;
+            if (appointment.WorkSchedule.Date != todayLocal)
             {
                 throw new ConflictException(
-                    $"Không thể check-in: Lịch hẹn được đặt cho ngày {appointment.WorkSchedule.Date:yyyy-MM-dd}, không phải hôm nay.");
+                    $"Không thể check-in: Lịch hẹn được đặt cho ngày {appointment.WorkSchedule.Date:yyyy-MM-dd}, không phải hôm nay ({todayLocal:yyyy-MM-dd}).");
             }
 
             var doctorId = appointment.WorkSchedule.DoctorId;

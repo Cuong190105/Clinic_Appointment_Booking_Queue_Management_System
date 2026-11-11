@@ -38,7 +38,14 @@ namespace Clinic.Application.Features.Appointments.Commands
             {
                 throw new ForbiddenException("You are not authorized to cancel this appointment.");
             }
-            appointment.Cancel((Guid)_currentUser.UserId);
+            if (_currentUser.HasPermission("appointment.edit.any"))
+            {
+                appointment.AdminCancel((Guid)_currentUser.UserId);
+            }
+            else
+            {
+                appointment.Cancel((Guid)_currentUser.UserId);
+            }
             await _unitOfWork.SaveChangesAsync();
             return request.AppointmentId;
         }

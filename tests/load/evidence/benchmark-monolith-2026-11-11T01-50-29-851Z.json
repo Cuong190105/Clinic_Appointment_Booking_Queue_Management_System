@@ -1,0 +1,257 @@
+{
+  "target": "Monolith",
+  "baseUrl": "http://localhost:5100",
+  "readEndpoint": "/specialties",
+  "provenance": {
+    "gitCommit": "4d3dbdd4eb2966d52a575b5dc7d068b7db1b2d05",
+    "gitBranch": "monolith",
+    "isDirty": true,
+    "diffHash": "55043dfbd259a04a67fcffdfcf24c06cdb5828c464d2647712a56ed941d449af",
+    "untrackedFiles": [],
+    "modifiedFiles": [
+      "A  .env.example",
+      "A  backend/Clinic.API/Controllers/ApiCatalogController.cs",
+      "M  backend/Clinic.API/Controllers/ReceptionistController.cs",
+      "M  backend/Clinic.API/Program.cs",
+      "M  backend/Clinic.Application.UnitTests/Clinic.Application.UnitTests.csproj",
+      "M  backend/Clinic.Application.UnitTests/Common/FakeAppointmentRepository.cs",
+      "M  backend/Clinic.Application.UnitTests/Common/FakeQueueTicketRepository.cs",
+      "M  backend/Clinic.Application.UnitTests/Common/FakeUnitOfWork.cs",
+      "M  backend/Clinic.Application.UnitTests/Common/FakeWorkScheduleRepository.cs",
+      "M  backend/Clinic.Application.UnitTests/Common/TestDataFactory.cs",
+      "M  backend/Clinic.Application.UnitTests/Features/Appointments/Commands/BookingConcurrencyAndIdempotencyTests.cs",
+      "A  backend/Clinic.Application.UnitTests/Features/Appointments/Commands/BookingSqlServerConcurrencyIntegrationTests.cs",
+      "M  backend/Clinic.Application.UnitTests/Features/Appointments/Queries/GetPatientAppointmentsTests.cs",
+      "M  backend/Clinic.Application.UnitTests/Features/Queue/Commands/CheckInTests.cs",
+      "M  backend/Clinic.Application/Features/Appointments/Commands/CancelAppointment.cs",
+      "M  backend/Clinic.Application/Features/Appointments/Commands/CreateAppointment.cs",
+      "M  backend/Clinic.Application/Features/Queue/Commands/CheckIn.cs",
+      "M  backend/Clinic.Domain.UnitTests/AppointmentTests.cs",
+      "M  backend/Clinic.Domain.UnitTests/Common/TestDataFactory.cs",
+      "M  backend/Clinic.Domain.UnitTests/DoctorTests.cs",
+      "M  backend/Clinic.Domain.UnitTests/PersonTests.cs",
+      "M  backend/Clinic.Domain.UnitTests/ShiftRequestTests.cs",
+      "M  backend/Clinic.Domain.UnitTests/WorkScheduleTests.cs",
+      "M  backend/Clinic.Domain/Common/TimeConverter.cs",
+      "M  backend/Clinic.Domain/Entities/Appointment.cs",
+      "M  backend/Clinic.Domain/Entities/ShiftRequest.cs",
+      "M  backend/Clinic.Domain/Entities/WorkSchedule.cs",
+      "M  backend/Clinic.Infrastructure.Sqlserver/Notifications/EmailSender.cs",
+      "M  backend/Clinic.Infrastructure.Sqlserver/Repositories/AppointmentRepository.cs",
+      "M  backend/Clinic.Infrastructure.Sqlserver/Repositories/WorkScheduleRepository.cs",
+      "M  docker-compose.microservices.yml",
+      "M  docker-compose.monolith.yml",
+      "A  full-clean-seed.sql",
+      "A  observability/alert.rules.yml",
+      "A  observability/dashboards/clinic_sla_dashboard.json",
+      "A  observability/prometheus.yml",
+      "M  start-microservices.bat",
+      "M  start-monolith.bat",
+      "AM tests/load/README.md",
+      "AM tests/load/benchmark-runner.mjs",
+      "AM tests/load/config.js",
+      "AM tests/load/contention.js",
+      "A  tests/load/evidence/benchmark-microservices-2026-11-10T17-17-50-023Z.json",
+      "A  tests/load/evidence/benchmark-microservices-2026-11-10T17-18-21-583Z.json",
+      "A  tests/load/evidence/benchmark-monolith-2026-11-10T17-01-05-252Z.json",
+      "A  tests/load/evidence/benchmark-monolith-2026-11-10T17-05-07-956Z.json",
+      "A  tests/load/evidence/benchmark-monolith-2026-11-10T17-09-12-362Z.json",
+      "A  tests/load/evidence/benchmark-monolith-2026-11-10T17-09-33-678Z.json",
+      "A  tests/load/evidence/benchmark-monolith-2026-11-10T17-09-42-193Z.json",
+      "A  tests/load/evidence/benchmark-monolith-2026-11-10T17-15-55-118Z.json",
+      "A  tests/load/evidence/benchmark-monolith-2026-11-10T17-18-12-223Z.json",
+      "AM tests/load/load.js",
+      "A  tests/load/package.json",
+      "AM tests/load/smoke.js",
+      "AM tests/load/soak.js",
+      "AM tests/load/spike.js"
+    ],
+    "imageMap": {
+      "clinic_mono_backend": {
+        "imageTag": "clinic-monolith-backend:latest",
+        "containerId": "f371c7e49bb3",
+        "imageDigest": "sha256:066fd2e638ed0be5ef6491ec004244ef7fea03d54e6a80d3d05335317ac9ca6e"
+      },
+      "clinic_mono_frontend": {
+        "imageTag": "clinic-monolith-frontend:latest",
+        "containerId": "2ffb44199909",
+        "imageDigest": "sha256:0685d4f68be462b79649f91dcd3e6009f29a81b90efda827d662be4773ff0c4c"
+      },
+      "clinic_mono_sql_server": {
+        "imageTag": "mcr.microsoft.com/mssql/server:2022-latest",
+        "containerId": "40beda77c15c",
+        "imageDigest": "sha256:4402d880dd4c34bfa7d8705e56a86cd6c88da80a1f6bbbe741f999e76264a090"
+      }
+    },
+    "nodeVersion": "v24.19.0",
+    "benchmarkTimestamp": "2026-11-11T01:50:21.727Z"
+  },
+  "authStatus": {
+    "patientAuthenticated": true,
+    "adminAuthenticated": true,
+    "receptionistAuthenticated": true
+  },
+  "results": {
+    "read": {
+      "scenario": "Business Read Benchmark",
+      "endpoint": "http://localhost:5100/specialties",
+      "samplePayloadBytes": 912,
+      "totalRequests": 50,
+      "successful": 50,
+      "failed": 0,
+      "statusDistribution": {
+        "200": 50
+      },
+      "errorSamples": [],
+      "durationMs": 173,
+      "rps": "289.0",
+      "stats": {
+        "min": 7.8598000000001775,
+        "p50": 12.357599999999366,
+        "p90": 117.08189999999922,
+        "p95": 118.98729999999978,
+        "p99": 132.49119999999948,
+        "max": 132.49119999999948,
+        "avg": 33.15077199999996
+      }
+    },
+    "booking": {
+      "scenario": "Booking E2E (API Latency vs E2E Completion)",
+      "totalBookings": 20,
+      "createdBookings": 20,
+      "confirmedBookings": 20,
+      "pollTimeouts": 0,
+      "rejectedConflicts": 0,
+      "retryIdempotentSuccess": 20,
+      "statusDistribution": {
+        "201": 20
+      },
+      "errorSamples": [],
+      "createdApptIds": [
+        "fc3b313c-af4e-41d9-a4ce-ca6df50f112c",
+        "3d590c77-369f-47dc-bada-e01b426009e1",
+        "55964fed-e275-4c93-871a-ac7f50ca425b",
+        "c47da7c0-200f-4684-a977-c988bd4289a9",
+        "e68ca633-9a19-4ade-9dfe-cfd4884267f3",
+        "5ca343b7-3901-4d2d-880b-025f6699beab",
+        "a1b92aed-7ed2-4693-a547-88fa087792b7",
+        "7c91cf5d-45fd-47d9-b072-5ae767ab06e3",
+        "f735916d-3be9-4934-91c6-47216b506712",
+        "761f3599-e4cf-4cc2-a195-27bb1a771bb4",
+        "f8f29afd-31f4-4086-9bfc-44798b8fc4a1",
+        "08eedf60-0890-4d06-86fb-8e5f432f274e",
+        "69988b26-bd5c-4c55-9425-203a4da85304",
+        "09dd9909-3d79-49ff-9957-0c756813a31c",
+        "730d2d07-2968-455e-8669-5ae7a6adaa52",
+        "98b418dc-8868-49c2-8f1c-1fa51c168a50",
+        "2ef213d4-7a6c-4324-9b43-6fa8ede4e02d",
+        "7f102e18-3b5c-49d8-bde6-e7a68632418d",
+        "4d096b15-e762-4a7f-9275-6bff47ed6995",
+        "1dc362c3-727a-45cb-b6f0-a467d900a5f2"
+      ],
+      "apiStats": {
+        "min": 20.2491,
+        "p50": 24.677599999999984,
+        "p90": 57.88850000000002,
+        "p95": 227.79550000000017,
+        "p99": 227.79550000000017,
+        "max": 227.79550000000017,
+        "avg": 38.63062500000001
+      },
+      "e2eStats": {
+        "min": 30.059400000000096,
+        "p50": 34.957900000000336,
+        "p90": 66.97469999999976,
+        "p95": 301.9875000000002,
+        "p99": 301.9875000000002,
+        "max": 301.9875000000002,
+        "avg": 53.10815499999994
+      }
+    },
+    "checkin": {
+      "scenario": "Check-in & Retry Idempotency",
+      "testedAppointmentId": "fc3b313c-af4e-41d9-a4ce-ca6df50f112c",
+      "attempts": 4,
+      "firstCheckIns": 1,
+      "duplicateProtectionTriggers": 3,
+      "initialTicketInfo": {
+        "ticketId": "a66f17a0-17e7-4e8f-be4d-fc21a2624594",
+        "queueNumber": 3,
+        "status": "Waiting"
+      },
+      "finalTicketInfo": {
+        "ticketId": "a66f17a0-17e7-4e8f-be4d-fc21a2624594",
+        "queueNumber": 3,
+        "status": "Waiting"
+      },
+      "ticketIntegrityVerified": true,
+      "statusDistribution": {
+        "204": 1,
+        "400": 3
+      },
+      "errorSamples": [],
+      "stats": {
+        "min": 12.976399999999558,
+        "p50": 19.509500000000116,
+        "p90": 106.0581000000002,
+        "p95": 106.0581000000002,
+        "p99": 106.0581000000002,
+        "max": 106.0581000000002,
+        "avg": 38.189125000000104
+      }
+    }
+  },
+  "containerStatsBefore": {
+    "appContainers": [
+      {
+        "name": "clinic_mono_backend",
+        "cpu": "0.06%",
+        "mem": "96.85MiB / 5.787GiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_mono_sql_server",
+        "cpu": "1.42%",
+        "mem": "1.415GiB / 5.787GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_mono_frontend",
+        "cpu": "0.00%",
+        "mem": "17.72MiB / 5.787GiB"
+      }
+    ]
+  },
+  "containerStatsAfter": {
+    "appContainers": [
+      {
+        "name": "clinic_mono_backend",
+        "cpu": "99.93%",
+        "mem": "157.3MiB / 5.787GiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_mono_sql_server",
+        "cpu": "5.55%",
+        "mem": "1.423GiB / 5.787GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_mono_frontend",
+        "cpu": "0.00%",
+        "mem": "17.67MiB / 5.787GiB"
+      }
+    ]
+  },
+  "cleanupResult": {
+    "totalToClean": 20,
+    "httpCancelSuccess": 20,
+    "verifiedCancelledCount": 20,
+    "unverifiedApptIds": [],
+    "verified": true
+  }
+}

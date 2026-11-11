@@ -1,0 +1,16 @@
+{
+  "name": "clinic-load-benchmarks",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Cross-system load and performance benchmarking suite for Monolith and Microservices",
+  "scripts": {
+    "benchmark:monolith": "node benchmark-runner.mjs",
+    "benchmark:microservices": "node benchmark-runner.mjs --target=microservices",
+    "k6:smoke": "k6 run smoke.js",
+    "k6:load": "k6 run load.js",
+    "k6:contention": "k6 run contention.js",
+    "k6:booking": "k6 run booking.js",
+    "k6:spike": "k6 run spike.js",
+    "k6:soak": "k6 run soak.js"
+  }
+}

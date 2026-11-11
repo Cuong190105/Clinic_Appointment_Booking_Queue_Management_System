@@ -1,0 +1,46 @@
+{
+  "target": "Monolith",
+  "baseUrl": "http://localhost:5100",
+  "results": {
+    "catalog": {
+      "scenario": "Catalog / Read Benchmark",
+      "totalRequests": 50,
+      "successful": 50,
+      "failed": 0,
+      "durationMs": 312,
+      "rps": "160.3",
+      "stats": {
+        "min": 11.393399999999929,
+        "p50": 15.730000000000018,
+        "p90": 232.77840000000015,
+        "p95": 233.0252999999998,
+        "p99": 235.808,
+        "max": 235.808,
+        "avg": 60.659354000000036
+      }
+    }
+  },
+  "containerStats": {
+    "appContainers": [
+      {
+        "name": "clinic_mono_backend",
+        "cpu": "99.67%",
+        "mem": "165.3MiB / 5.787GiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_mono_sql_server",
+        "cpu": "2.53%",
+        "mem": "972.4MiB / 5.787GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_mono_frontend",
+        "cpu": "0.00%",
+        "mem": "13.32MiB / 5.787GiB"
+      }
+    ]
+  }
+}

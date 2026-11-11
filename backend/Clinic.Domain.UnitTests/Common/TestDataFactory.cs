@@ -1,3 +1,4 @@
+using Clinic.Domain.Common;
 using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 using System.Diagnostics.CodeAnalysis;
@@ -48,11 +49,15 @@ namespace Clinic.Domain.UnitTests.Common
                 isDeleted: false
             );
 
-            var workSchedule = new WorkSchedule(
+            var targetDate = new TimeConverter().Today.AddDays((int)(day ?? 0));
+            var start = startTime ?? new TimeOnly(8, 0);
+            var end = endTime ?? new TimeOnly(12, 0);
+
+            var workSchedule = WorkSchedule.CreateForTest(
                 doctor,
-                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(day.Value)),
-                TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(8)), // UTC+7 +1
-                TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(9)), // UTC+7 +2
+                targetDate,
+                start,
+                end,
                 5
             );
 
@@ -62,7 +67,7 @@ namespace Clinic.Domain.UnitTests.Common
                 patientPerson, "", ""
             );
 
-            var appointment = new Appointment(patient, workSchedule, TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(8)), "Reason", Guid.NewGuid());
+            var appointment = Appointment.CreateForTest(patient, workSchedule, start, "Reason", Guid.NewGuid());
 
             if (confirmed || checkedIn)
             {
