@@ -166,7 +166,7 @@ function parseTimeMinutes(value) {
   return hour * 60 + minute;
 }
 
-function buildFutureSlots(startTime, endTime, nowMinutes, maxCount = 20) {
+function buildFutureSlots(startTime, endTime, nowMinutes, maxCount = 200) {
   const start = parseTimeMinutes(startTime);
   const end = parseTimeMinutes(endTime);
   const first = Math.ceil((Math.max(start, nowMinutes + 30)) / 15) * 15;
@@ -461,10 +461,10 @@ async function runReadBenchmark(endpoint = READ_ENDPOINT) {
 // ------------------------------------------------------------------------------
 // Scenario 2: End-to-End Booking Benchmark (API Response vs Workflow Completion)
 // ------------------------------------------------------------------------------
-async function runBookingE2EBenchmark(token, schedule, requestedCount = Math.min(TOTAL_REQUESTS, 20)) {
-  console.log(`\n[2/3] Running End-to-End Booking Benchmark (${Math.min(requestedCount, schedule.slots.length)} bookings)...`);
-
-  const testCount = Math.min(requestedCount, schedule.slots.length);
+async function runBookingE2EBenchmark(token, schedule, requestedCount = TOTAL_REQUESTS) {
+  const maxAvailable = schedule.slots.length;
+  const testCount = Math.min(requestedCount, maxAvailable);
+  console.log(`\n[2/3] Running End-to-End Booking Benchmark (${testCount} bookings, Concurrency: ${CONCURRENCY})...`);
   if (testCount < 1) throw new Error('The selected work schedule has no valid future booking slots.');
   const apiLatencies = [];
   const e2eLatencies = [];
@@ -477,111 +477,121 @@ async function runBookingE2EBenchmark(token, schedule, requestedCount = Math.min
   let retryIdempotentCount = 0;
   const createdApptIds = [];
 
-  for (let i = 0; i < testCount; i++) {
-    const idempKey = `bench-booking-${Date.now()}-${i}`;
-    const reqStart = performance.now();
+  const taskQueue = Array.from({ length: testCount }, (_, i) => i);
 
-    const headers = {
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempKey,
-    };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+  async function bookingWorker(workerId) {
+    while (taskQueue.length > 0) {
+      const i = taskQueue.shift();
+      if (i === undefined) break;
 
-    const timeSlot = schedule.slots[i];
+      const idempKey = `bench-booking-${Date.now()}-w${workerId}-${i}`;
+      const reqStart = performance.now();
 
-    const bookPayload = JSON.stringify({
-      workScheduleId: schedule.id,
-      timeSlot,
-      reason: `Load benchmark booking ${i}`,
-    });
+      const headers = {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempKey,
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    let apptId = null;
-    let apiDuration = 0;
-    let resStatus = 0;
+      const timeSlot = schedule.slots[i % maxAvailable];
 
-    try {
-      const res = await fetch(`${BASE_URL}/appointments`, {
-        method: 'POST',
-        headers,
-        body: bookPayload,
+      const bookPayload = JSON.stringify({
+        workScheduleId: schedule.id,
+        timeSlot,
+        reason: `Load benchmark booking w${workerId}-${i}`,
       });
 
-      apiDuration = performance.now() - reqStart;
-      apiLatencies.push(apiDuration);
+      let apptId = null;
+      let apiDuration = 0;
+      let resStatus = 0;
 
-      resStatus = res.status;
-      statusDistribution[resStatus] = (statusDistribution[resStatus] || 0) + 1;
-
-      if (res.status === 200 || res.status === 201) {
-        const body = await res.json();
-        apptId = body.id || (body.result && body.result.id) || (body.data && body.data.id);
-        if (apptId) {
-          createdApptIds.push(apptId);
-          createdBookings++;
-        }
-      } else if (res.status === 409 || res.status === 400) {
-        rejectedConflicts++;
-        if (errorSamples.length < 5) errorSamples.push({ status: res.status, body: (await res.text()).slice(0, 200) });
-      } else {
-        if (errorSamples.length < 5) errorSamples.push({ status: res.status, body: (await res.text()).slice(0, 200) });
-      }
-    } catch (err) {
-      apiLatencies.push(performance.now() - reqStart);
-      statusDistribution[0] = (statusDistribution[0] || 0) + 1;
-      if (errorSamples.length < 5) errorSamples.push({ status: 0, body: err.message });
-    }
-
-    // 2. Measure End-to-End Completion Time ONLY when an appointment ID was obtained
-    if (apptId) {
-      let isConfirmed = false;
-      const pollStart = performance.now();
-      const maxPollMs = 3000;
-
-      while (!isConfirmed && performance.now() - pollStart < maxPollMs) {
-        try {
-          const pollRes = await fetch(`${BASE_URL}/appointments/${apptId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          if (pollRes.ok) {
-            const data = await pollRes.json();
-            const item = data.result || data.data || data;
-            const status = item.status;
-            if (status === 'Confirmed' || status === 1) {
-              isConfirmed = true;
-              break;
-            }
-          }
-        } catch {}
-        await new Promise((r) => setTimeout(r, 50));
-      }
-
-      if (isConfirmed) {
-        confirmedBookings++;
-        const totalE2EDuration = performance.now() - reqStart;
-        e2eLatencies.push(totalE2EDuration);
-      } else {
-        pollTimeouts++;
-      }
-
-      // 3. Measure Retry Idempotency: re-send identical Idempotency-Key
       try {
-        const retryRes = await fetch(`${BASE_URL}/appointments`, {
+        const res = await fetch(`${BASE_URL}/appointments`, {
           method: 'POST',
           headers,
           body: bookPayload,
         });
 
-        if (retryRes.status === 200 || retryRes.status === 201) {
-          const retryData = await retryRes.json();
-          const retryId =
-            retryData.id || (retryData.result && retryData.result.id) || (retryData.data && retryData.data.id);
-          if (retryId === apptId) {
-            retryIdempotentCount++;
+        apiDuration = performance.now() - reqStart;
+        apiLatencies.push(apiDuration);
+
+        resStatus = res.status;
+        statusDistribution[resStatus] = (statusDistribution[resStatus] || 0) + 1;
+
+        if (res.status === 200 || res.status === 201) {
+          const body = await res.json();
+          apptId = body.id || (body.result && body.result.id) || (body.data && body.data.id);
+          if (apptId) {
+            createdApptIds.push(apptId);
+            createdBookings++;
           }
+        } else if (res.status === 409 || res.status === 400) {
+          rejectedConflicts++;
+          if (errorSamples.length < 5) errorSamples.push({ status: res.status, body: (await res.text()).slice(0, 200) });
+        } else {
+          if (errorSamples.length < 5) errorSamples.push({ status: res.status, body: (await res.text()).slice(0, 200) });
         }
-      } catch {}
+      } catch (err) {
+        apiLatencies.push(performance.now() - reqStart);
+        statusDistribution[0] = (statusDistribution[0] || 0) + 1;
+        if (errorSamples.length < 5) errorSamples.push({ status: 0, body: err.message });
+      }
+
+      // 2. Measure End-to-End Completion Time ONLY when an appointment ID was obtained
+      if (apptId) {
+        let isConfirmed = false;
+        const pollStart = performance.now();
+        const maxPollMs = 8000;
+
+        while (!isConfirmed && performance.now() - pollStart < maxPollMs) {
+          try {
+            const pollRes = await fetch(`${BASE_URL}/appointments/${apptId}`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (pollRes.ok) {
+              const data = await pollRes.json();
+              const item = data.result || data.data || data;
+              const status = item.status;
+              if (status === 'Confirmed' || status === 1) {
+                isConfirmed = true;
+                break;
+              }
+            }
+          } catch {}
+          await new Promise((r) => setTimeout(r, 50));
+        }
+
+        if (isConfirmed) {
+          confirmedBookings++;
+          const totalE2EDuration = performance.now() - reqStart;
+          e2eLatencies.push(totalE2EDuration);
+        } else {
+          pollTimeouts++;
+        }
+
+        // 3. Measure Retry Idempotency: re-send identical Idempotency-Key
+        try {
+          const retryRes = await fetch(`${BASE_URL}/appointments`, {
+            method: 'POST',
+            headers,
+            body: bookPayload,
+          });
+
+          if (retryRes.status === 200 || retryRes.status === 201) {
+            const retryData = await retryRes.json();
+            const retryId =
+              retryData.id || (retryData.result && retryData.result.id) || (retryData.data && retryData.data.id);
+            if (retryId === apptId) {
+              retryIdempotentCount++;
+            }
+          }
+        } catch {}
+      }
     }
   }
+
+  const workerCount = Math.min(CONCURRENCY, testCount);
+  await Promise.all(Array.from({ length: workerCount }, (_, w) => bookingWorker(w + 1)));
 
   return {
     scenario: 'Booking E2E (API Latency vs E2E Completion)',

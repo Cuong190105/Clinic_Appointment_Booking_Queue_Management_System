@@ -1,0 +1,215 @@
+{
+  "target": "Monolith",
+  "baseUrl": "http://localhost:5100",
+  "readEndpoint": "/specialties",
+  "provenance": {
+    "gitCommit": "ab9480fa1a664d6bcbeaa49341730f944495f3db",
+    "gitBranch": "monolith",
+    "isDirty": true,
+    "diffHash": "d3efdedac9945564cefb383c94b3871c2cfdef8c3a5fcd6669436826a1e84c9f",
+    "untrackedFiles": [
+      "tests/load/booking-high-load.js"
+    ],
+    "modifiedFiles": [
+      "M  ocker-compose.monolith.yml",
+      " M tests/load/benchmark-runner.mjs"
+    ],
+    "imageMap": {
+      "clinic_mono_frontend": {
+        "imageTag": "clinic-monolith-frontend:latest",
+        "containerId": "6aa59f359db9",
+        "imageDigest": "sha256:85caa670866e04c85c56681a60de8ce006ef82e7309ee193b0b46ea7e9c6ecbb"
+      },
+      "clinic_mono_backend": {
+        "imageTag": "clinic-monolith-backend:latest",
+        "containerId": "255513d0a46b",
+        "imageDigest": "sha256:fc171df3934dc7fa7b7f12621422dcfdda220df95e78ff20160597ff90c1d756"
+      },
+      "clinic_mono_sql_server": {
+        "imageTag": "mcr.microsoft.com/mssql/server:2022-latest",
+        "containerId": "06cd6fd1b99b",
+        "imageDigest": "sha256:4402d880dd4c34bfa7d8705e56a86cd6c88da80a1f6bbbe741f999e76264a090"
+      }
+    },
+    "nodeVersion": "v24.19.0",
+    "benchmarkTimestamp": "2026-11-11T09:58:14.174Z"
+  },
+  "authStatus": {
+    "patientAuthenticated": true,
+    "adminAuthenticated": true,
+    "receptionistAuthenticated": true
+  },
+  "results": {
+    "read": {
+      "scenario": "Business Read Benchmark",
+      "endpoint": "http://localhost:5100/specialties",
+      "samplePayloadBytes": 912,
+      "totalRequests": 50,
+      "successful": 50,
+      "failed": 0,
+      "statusDistribution": {
+        "200": 50
+      },
+      "errorSamples": [],
+      "durationMs": 127,
+      "rps": "393.7",
+      "stats": {
+        "min": 8.658400000000256,
+        "p50": 14.002599999999802,
+        "p90": 62.792199999999866,
+        "p95": 76.34000000000015,
+        "p99": 78.63659999999982,
+        "max": 78.63659999999982,
+        "avg": 22.848764000000028
+      }
+    },
+    "booking": {
+      "scenario": "Booking E2E (API Latency vs E2E Completion)",
+      "totalBookings": 26,
+      "createdBookings": 26,
+      "confirmedBookings": 26,
+      "pollTimeouts": 0,
+      "rejectedConflicts": 0,
+      "retryIdempotentSuccess": 26,
+      "statusDistribution": {
+        "201": 26
+      },
+      "errorSamples": [],
+      "createdApptIds": [
+        "93f290f1-3b76-4985-bf64-77c562f60b58",
+        "da303729-a543-4092-9235-f0a1ba9b8f45",
+        "34830bc1-215f-460b-b2d2-60c3e92916e1",
+        "a9bc6d43-3a09-4479-9245-f15144d55d53",
+        "7b101452-bac7-4702-a116-ecd1b190213b",
+        "a98303bf-e55b-433d-9524-afa391e198f5",
+        "8fabea0a-f169-42b3-8875-71258e888a62",
+        "cec24c1c-33e5-4c1b-b27b-98f582ddf491",
+        "48276618-4847-48b4-839c-5ce60a1f2725",
+        "c1eecee0-1e43-414c-9b49-c435f9786ec7",
+        "b27fe092-6efb-4c87-9c6d-d151f9866d89",
+        "262d17f5-b50d-43ee-9ae6-e069568f6821",
+        "ca2c6222-4123-4eec-968c-c0500e32361d",
+        "d71fcc8e-0a66-4fef-98ec-256c0e337745",
+        "001a0bfd-5e7b-41d6-a9a6-394eb83fd2fc",
+        "95a21ba6-8161-4e35-9c92-b3206e327f0b",
+        "d3a532f4-0f0c-4523-8fe1-c4863cfd5776",
+        "04cc27e7-33d7-4f00-b848-95e02405b3d7",
+        "f207f966-574c-4980-bc9a-fc190219ebcb",
+        "577854ea-4109-4683-a7f7-234bb49bc31b",
+        "df6b3b73-1f6f-4679-a798-37bbfdcad0be",
+        "9de7d82a-a0ea-47b2-acb4-c704302fbe9c",
+        "0bc760f9-c0de-4a6e-86ce-217bb46a2db0",
+        "61116627-22d3-480e-ad07-1684a2361a8d",
+        "51cbfe92-29d5-46f4-a593-862a8568265c",
+        "379e0049-e501-489b-bf22-9e2be1b4298d"
+      ],
+      "apiStats": {
+        "min": 41.38310000000001,
+        "p50": 208.1923999999999,
+        "p90": 494.64820000000054,
+        "p95": 514.7048999999997,
+        "p99": 544.6819999999998,
+        "max": 544.6819999999998,
+        "avg": 265.6396115384615
+      },
+      "e2eStats": {
+        "min": 56.29920000000038,
+        "p50": 228.5016999999998,
+        "p90": 539.3922000000002,
+        "p95": 542.3040999999994,
+        "p99": 571.3499999999995,
+        "max": 571.3499999999995,
+        "avg": 318.13998076923065
+      }
+    },
+    "checkin": {
+      "scenario": "Check-in & Retry Idempotency",
+      "testedAppointmentId": "93f290f1-3b76-4985-bf64-77c562f60b58",
+      "attempts": 4,
+      "firstCheckIns": 1,
+      "duplicateProtectionTriggers": 3,
+      "initialTicketInfo": {
+        "ticketId": "819cd70d-bb1d-4aa2-bc67-297ffa85010e",
+        "queueNumber": 6,
+        "status": "Waiting"
+      },
+      "finalTicketInfo": {
+        "ticketId": "819cd70d-bb1d-4aa2-bc67-297ffa85010e",
+        "queueNumber": 6,
+        "status": "Waiting"
+      },
+      "ticketIntegrityVerified": true,
+      "statusDistribution": {
+        "204": 1,
+        "400": 3
+      },
+      "errorSamples": [],
+      "stats": {
+        "min": 20.385700000000725,
+        "p50": 23.11239999999998,
+        "p90": 131.07870000000003,
+        "p95": 131.07870000000003,
+        "p99": 131.07870000000003,
+        "max": 131.07870000000003,
+        "avg": 48.760775000000194
+      }
+    }
+  },
+  "containerStatsBefore": {
+    "appContainers": [
+      {
+        "name": "clinic_mono_backend",
+        "cpu": "0.10%",
+        "mem": "109.4MiB / 2.812GiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_mono_sql_server",
+        "cpu": "1.23%",
+        "mem": "1021MiB / 2GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_mono_frontend",
+        "cpu": "0.00%",
+        "mem": "16.27MiB / 256MiB"
+      }
+    ]
+  },
+  "containerStatsAfter": {
+    "appContainers": [
+      {
+        "name": "clinic_mono_backend",
+        "cpu": "100.05%",
+        "mem": "176.6MiB / 2.812GiB"
+      }
+    ],
+    "platformContainers": [
+      {
+        "name": "clinic_mono_sql_server",
+        "cpu": "1.59%",
+        "mem": "1.017GiB / 2GiB"
+      }
+    ],
+    "frontendContainers": [
+      {
+        "name": "clinic_mono_frontend",
+        "cpu": "0.00%",
+        "mem": "16.21MiB / 256MiB"
+      }
+    ]
+  },
+  "cleanupResult": {
+    "totalToClean": 26,
+    "httpCancelSuccess": 26,
+    "verifiedCancelledCount": 26,
+    "unverifiedApptIds": [],
+    "verified": true
+  },
+  "scheduleCleanupResult": {
+    "attempted": false,
+    "verified": true
+  }
+}
