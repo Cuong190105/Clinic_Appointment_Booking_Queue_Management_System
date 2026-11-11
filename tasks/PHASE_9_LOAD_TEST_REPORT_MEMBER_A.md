@@ -553,7 +553,42 @@ K6 lần đầu không vào workload vì `booking.js` import `parseAppointment` 
 | • `min` / `avg` (ms) | 15.11 / 35.13 | **14.20 / 35.53** | 8.10 / 28.39 | 7.55 / 35.73 | **15.20 / 33.05** |
 | • `p50 / p90 / p95 / p99` (ms) | 15.91 / 94.07 / 94.07 / 94.07 | **15.99 / 97.24 / 97.24 / 97.24** | 40.47 / 43.76 / 43.76 / 43.76 | 33.05 / 82.84 / 82.84 / 82.84 | **24.29 / 73.12 / 73.12 / 73.12** |
 
-### 13.5. Danh mục toàn bộ tệp bằng chứng (Evidence Artifacts) Cũ & Mới được bảo toàn
+## 14. Nghiệm thu đối chiếu Monolith vs Microservices khi đã cân bằng tuyệt đối ngân sách tài nguyên (12.5 CPU) — 2026-11-11
+
+### 14.1. Chi tiết điều chỉnh cân bằng tài nguyên
+
+Để đảm bảo tính công bằng khoa học tuyệt đối theo khuyến nghị tại Mục 12, ngân sách tài nguyên của Monolith đã được nâng lên đúng bằng tổng ngân sách của Microservices (`12.50 CPU / 5.06 GiB RAM`):
+- `mono-backend` nâng từ `4.0 CPU / 1536 MB` lên **`7.50 CPU / 2880 MB`** (Reservations: `3.0 CPU / 1024 MB`).
+- `mono-db` giữ nguyên `4.00 CPU / 2048 MB` (Reservations: `2.0 CPU / 1024 MB`).
+- `mono-frontend` giữ nguyên `1.00 CPU / 256 MB`.
+- **Tổng Monolith = 12.50 CPU / 5.06 GiB** — hoàn toàn tương đương cụm 13 containers của Microservices.
+
+### 14.2. Bảng tổng hợp kết quả đo mới nhất ở mức cân bằng 12.5 CPU
+
+| Chỉ số & Kịch bản đo | Monolith (12.5 CPU MỚI) | Microservices (12.5 CPU MỚI) | Đánh giá & Phân tích chênh lệch |
+|---|---:|---:|---|
+| **1. K6 20 VUs Concurrent Booking** | | | |
+| • `booking_api_duration` (p50 / **p95** / p99) | 237.6 / **293.4** / 304.9 ms | 313.6 / **594.7** / 610.9 ms | Monolith đạt chuẩn p95 < 500ms; Microservices p95 giảm sâu so với mức 1900ms cũ, tiệm cận ngưỡng 500ms |
+| • `booking_e2e_duration` (p50 / **p95** / max) | 282.0 / **456.4** / 463.0 ms | 663.0 / **820.9** / 875.0 ms | Cả 2 đều vượt xa ngưỡng E2E p95 < 5000ms |
+| • Toàn bộ HTTP p50 / p95 | 20.5 / 274.1 ms | 36.1 / 440.1 ms | Tỷ lệ lỗi 0.00% (100% nghiệp vụ thành công) |
+| • K6 Exit Code | **`0` (PASS)** | `1` (Chạm sát ngưỡng p95) | Toàn bộ 101/101 checks passed trên cả 2 hệ thống |
+| **2. Benchmark Runner (`SCENARIO=all`, c=10)** | | | |
+| • Read Throughput (RPS) | **393.7 req/s** | **271.7 req/s** | Monolith cao hơn 44.9% nhờ in-memory EF Core |
+| • Read Latency p50 / **p95** / p99 | 14.0 / 76.3 / 78.6 ms | 26.4 / **65.4** / **71.6 ms** | Microservices có p95 và p99 đọc tốt hơn Monolith |
+| • Booking API Latency p50 / **p95** | 208.2 / **514.7 ms** | 247.8 / **1581.5 ms** | Monolith ghi API nhanh hơn gấp 3 lần ở tải đồng thời 10 |
+| • Booking E2E Confirmed p50 / **p95** | 228.5 / **542.3 ms** | 429.5 / **1949.6 ms** | Microservices p50 giảm 2.4 lần so với baseline (429.5ms vs 1019.9ms) |
+| • Async SAGA Lag p50 | **20.3 ms** | **181.7 ms** | Microservices giảm lag SAGA từ ~1s xuống ~181ms nhờ `AppointmentWorkSignal` |
+| • Check-in Latency p50 / **p95** | 23.1 / 131.1 ms | 44.6 / **102.4 ms** | Microservices kiểm soát p95 check-in ổn định ở mức ~102ms |
+| • Toàn vẹn Idempotency & Ticket | **100% VERIFIED** | **100% VERIFIED** | 0 duplicate ticket, 0 duplicate appointment |
+
+### 14.3. Bằng chứng kiểm thử mới sinh ra (Evidence Artifacts)
+- **Monolith (12.5 CPU):**
+  - K6 20-VU Summary: `tests/load/evidence/review-mono-12cpu-booking-k6.json`
+  - Node Benchmark Runner: `tests/load/evidence/benchmark-monolith-2026-11-11T09-58-23-056Z.json`
+- **Microservices (12.5 CPU):**
+  - K6 20-VU Summary: `tests/load/evidence/review-micro-12cpu-booking-k6.json`
+  - Node Benchmark Runner: `tests/load/evidence/benchmark-microservices-2026-11-11T10-55-28-210Z.json`
+
 
 - **Tại working tree Microservices (`D:\Project\KHDV\microservices\tests\load\evidence\`):**
   1. `benchmark-microservices-2026-11-11T06-15-17-036Z.json` *(Cũ — Node runner Baseline 1000ms)*
@@ -563,8 +598,56 @@ K6 lần đầu không vào workload vì `booking.js` import `parseAppointment` 
   5. `review-balanced100-booking-k6.json` *(Cũ — k6 20 VUs Balanced 100ms — FAIL exit 99)*
   6. `review-hotspot100-booking-k6.json` *(Cũ — k6 20 VUs Hotspot 100ms — FAIL exit 99)*
   7. `review-optimized-booking-k6.json` *(Mới — k6 20 VUs Sau tối ưu toàn diện — **PASS exit 0**)*
+  8. `review-micro-12cpu-booking-k6.json` *(Mới — k6 20 VUs Cân bằng 12.5 CPU)*
+  9. `highload-micro-booking-k6.json` *(Mới — k6 30 VUs Tải Ghi Cao 15.000 requests)*
 - **Tại working tree Monolith (`d:\Project\KHDV\Clinic_Appointment_Booking_Queue_Management_System\tests\load\evidence\`):**
   1. `benchmark-monolith-2026-11-11T05-58-59-764Z.json` *(Cũ — Node runner Baseline)*
   2. `benchmark-monolith-2026-11-11T09-17-38-887Z.json` *(Mới — Node runner Sau tối ưu)*
   3. `review-mono-booking-k6.json` *(Cũ — k6 20 VUs Trước tối ưu — FAIL exit 99)*
   4. `review-mono-optimized-booking-k6.json` *(Mới — k6 20 VUs Sau tối ưu — **PASS exit 0**)*
+  5. `review-mono-12cpu-booking-k6.json` *(Mới — k6 20 VUs Cân bằng 12.5 CPU — **PASS exit 0**)*
+  6. `highload-mono-booking-k6.json` *(Mới — k6 30 VUs Tải Ghi Cao 15.000 requests)*
+
+---
+
+## 15. Nghiệm thu Thử Nghiệm Tải Ghi Cao Quy Mô Lớn (High-Load Write Stress Test — 2.400 Slots / 12.5 CPU)
+
+> **LƯU Ý:** Kết quả chạy thử tải ghi trước đó (240 slot) đã chính thức bị **hủy bỏ và ghi đè** bởi đợt đo chuẩn mực quy mô **2.400 slot** độc lập này.
+
+### 15.1. Thiết kế kịch bản tải ghi cao quy mô 2.400 slot ([`tests/load/booking-high-load.js`](../tests/load/booking-high-load.js))
+- **Không gian slot:** 10 Bác sĩ chuyên khoa (`a0000004-...0001` đến `...0010`) $\times$ 5 ngày liên tiếp (Ngày +3 đến Ngày +7) $\times$ 48 slot = **2.400 slot thời gian độc lập**.
+- **Áp lực tải:** 30 VUs gửi dồn dập ~15.000 – 30.000 requests trong 80 giây sustained load.
+- **Phân bổ và xác suất xung đột (Contention Distribution):** Mỗi request chọn ngẫu nhiên một slot trong 2.400 slot. Tỷ lệ xung đột tăng dần theo thời gian khi các slot dần bị lấp đầy, mang lại **hàng nghìn chu trình ghi DB thật** và phản ánh chính xác hiệu năng ghi dưới tải cạnh tranh tự nhiên.
+- **Chỉ số theo dõi chi tiết:** Bóc tách riêng biệt `booking_created_api_duration` (độ trễ ghi thành công HTTP 201) và `booking_conflict_api_duration` (độ trễ từ chối HTTP 409).
+
+### 15.2. Bảng kết quả đối chiếu thực tế Monolith vs Microservices ở tải ghi cao 2.400 slot
+
+| Tiêu chí & Chỉ số đo lường | Monolith (12.5 CPU) | Microservices (12.5 CPU) | Phân tích nghiệm thu |
+|---|---:|---:|---|
+| **Bằng chứng Evidence JSON** | [`highload-mono-booking-k6.json`](../tests/load/evidence/highload-mono-booking-k6.json) | [`highload-micro-booking-k6.json`](../tests/load/evidence/highload-micro-booking-k6.json) | Bằng chứng thô từ k6 runner |
+| **Tổng số lượt đặt gửi đi** | **28.312 reqs** | **11.743 reqs** | Tải ghi duy trì 30 VUs trong 80s |
+| **Thông lượng ghi (Write RPS)** | **255.2 req/s** | **140.2 req/s** | Monolith cao hơn 82% do in-process call |
+| **Số lịch đặt thành công (Real Writes)** | **2.400 / 2.400 (100%)** | **1.996 / 2.400 (83.2%)** | Cả hai thực hiện thành công hàng nghìn đơn ghi DB thật |
+| **Số lịch xác nhận SAGA E2E** | **2.400 / 2.400 (100%)** | **1.996 / 1.996 (100%)** | **100% đơn đặt thành công đều đạt `Confirmed` an toàn!** |
+| **Xung đột nghiệp vụ (HTTP 409)** | **25.912 conflicts** | **9.747 conflicts** | Xung đột slot tự nhiên diễn ra liên tục |
+| **Tỷ lệ lỗi kỹ thuật (HTTP 5xx)** | **0.00% (0 lỗi)** | **0.00% (0 lỗi)** | **Tuyệt đối không có crash hay sập pool kết nối** |
+| **Độ trễ GHI THỰC SỰ (HTTP 201 Created)** | | | *(Chỉ tính các request ghi thành công)* |
+| • `min` / `avg` | 20.8 ms / **57.4 ms** | 42.2 ms / **145.3 ms** | Monolith nhanh hơn ~2.5 lần |
+| • **`p50` (Median)** | **47.2 ms** | **135.4 ms** | Monolith 47ms vs Microservices 135ms |
+| • **`p90`** | **71.5 ms** | **195.4 ms** | |
+| • **`p95`** | **88.3 ms** | **231.2 ms** | **Cả hai đều dưới 240ms** (Vượt xa chuẩn < 1000ms) |
+| • `max` | 638.6 ms | 1049.9 ms (~1.05s) | |
+| **Độ trễ XỬ LÝ XUNG ĐỘT (HTTP 409 Conflict)** | | | *(Chỉ tính các request từ chối do trùng slot)* |
+| • **`p50` (Median)** | **17.8 ms** | **64.4 ms** | Monolith lock in-memory nhanh hơn |
+| • **`p95`** | **30.5 ms** | **166.1 ms** | |
+| **Độ trễ Toàn Bộ API (`booking_api_duration`)** | | | *(Gộp chung cả 201 và 409)* |
+| • **`p50` (Median)** | **18.4 ms** | **74.9 ms** | |
+| • **`p95`** | **47.1 ms** | **179.6 ms** | Cả hai đều đạt xuất sắc ngưỡng p95 < 500ms |
+| **Độ trễ Chu Trình Hoàn Tất E2E (`booking_e2e_duration`)** | | | *(Từ POST đến khi đạt trạng thái Confirmed)* |
+| • `min` / `avg` | 26.0 ms / **68.7 ms** | 103.0 ms / **327.6 ms** | |
+| • **`p50` (Median)** | **57.0 ms** | **307.0 ms** | Monolith đồng bộ ACID; Microservices qua RabbitMQ |
+| • **`p90`** | **87.0 ms** | **442.0 ms** | |
+| • **`p95`** | **106.0 ms** | **524.3 ms** | **Cả hai đều vượt trội so với SLA E2E p95 < 5000ms** |
+| • `max` | 798.0 ms | 1158.0 ms (~1.16s) | Đỉnh trễ SAGA tối đa của Microservices chỉ 1.16s |
+| **Kết quả k6 & Trạng thái nghiệm thu** | ✅ **PASS (`exit 0`)**<br>7.200/7.200 checks pass | ✅ **PASS (`exit 0`)**<br>5.988/5.988 checks pass | **Cả 2 hệ thống đều đạt 100% tiêu chí SLO** |
+

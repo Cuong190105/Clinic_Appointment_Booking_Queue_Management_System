@@ -106,7 +106,7 @@ services:
             - Jwt__PublicBaseUrl=${IDENTITY_PUBLIC_BASE_URL:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - Jwt__RefreshTokenDays=${IDENTITY_REFRESH_TOKEN_DAYS:-7}
-            - QoS__RateLimitPermitLimit=1000
+            - QoS__RateLimitPermitLimit=${RATE_LIMIT_PERMIT_LIMIT:-100000}
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
         depends_on:
             identity-service:
