@@ -1,0 +1,103 @@
+{
+    "benchmark":  "booking-high-load",
+    "date":  "2026-11-17",
+    "target":  "microservices",
+    "baseUrl":  "http://localhost:5000",
+    "workload":  {
+                     "vus":  30,
+                     "rampUpSeconds":  10,
+                     "sustainedSeconds":  60,
+                     "rampDownSeconds":  10,
+                     "fixtureSlots":  2400,
+                     "doctorCount":  10,
+                     "days":  5
+                 },
+    "provenance":  {
+                       "headCommit":  "a7f2fb03ea22a63f952102ff8d449032f34d87a1",
+                       "workingTreeDirty":  true,
+                       "appointmentImageId":  "sha256:b640a8ef90fddf6344ef8ca250e599709660fe5ad495fe92b72c0ba0c0a841da",
+                       "schedulingManagerSha256":  "DACD8548114CAD689128472FD5F47C9DC8491BEBBB627EC5094C7A87AA9D4E4A",
+                       "loadScriptSha256":  "ACFE175F2EF37EB9119C0D461A4F8371EB3A83F2BFCCF6A28B307D946F1D3487"
+                   },
+    "runs":  [
+                 {
+                     "exitCode":  0,
+                     "iterations":  13088,
+                     "attempts":  13088,
+                     "created":  2390,
+                     "confirmed":  2390,
+                     "conflicts409":  10698,
+                     "bookingApiP95Ms":  172.53,
+                     "createdApiP95Ms":  347.69,
+                     "e2ePostToConfirmedP95Ms":  656,
+                     "checks":  "7170/7170",
+                     "serverErrors":  0,
+                     "httpReqFailedRatePercent":  42.13,
+                     "cleanup":  {
+                                     "appointmentsCancelled":  2390,
+                                     "schedulesCancelled":  50,
+                                     "activeUpcomingAfter":  0
+                                 }
+                 },
+                 {
+                     "exitCode":  0,
+                     "iterations":  11292,
+                     "attempts":  11292,
+                     "created":  2381,
+                     "confirmed":  2381,
+                     "conflicts409":  8911,
+                     "bookingApiP95Ms":  253.57,
+                     "createdApiP95Ms":  387.8,
+                     "e2ePostToConfirmedP95Ms":  762,
+                     "checks":  "7143/7143",
+                     "serverErrors":  0,
+                     "httpReqFailedRatePercent":  36.34,
+                     "cleanup":  {
+                                     "appointmentsCancelled":  2381,
+                                     "schedulesCancelled":  50,
+                                     "activeUpcomingAfter":  0
+                                 }
+                 },
+                 {
+                     "exitCode":  0,
+                     "iterations":  10018,
+                     "attempts":  10018,
+                     "created":  2362,
+                     "confirmed":  2362,
+                     "conflicts409":  7656,
+                     "bookingApiP95Ms":  398.27,
+                     "createdApiP95Ms":  513.02,
+                     "e2ePostToConfirmedP95Ms":  797,
+                     "checks":  "7086/7086",
+                     "serverErrors":  0,
+                     "httpReqFailedRatePercent":  33.06,
+                     "cleanup":  {
+                                     "appointmentsCancelled":  2362,
+                                     "schedulesCancelled":  50,
+                                     "activeUpcomingAfter":  0
+                                 }
+                 }
+             ],
+    "aggregate":  {
+                      "attempts":  34398,
+                      "createdAndConfirmed":  7133,
+                      "conflicts409":  27265,
+                      "bookingApiP95MedianMs":  253.57,
+                      "createdBookingP95MedianMs":  387.8,
+                      "e2eP95MedianMs":  762,
+                      "createdBookingP95RangeMs":  "347.69-513.02",
+                      "bookingApiP95RangeMs":  "172.53-398.27",
+                      "checks":  "21399/21399",
+                      "serverErrors":  0,
+                      "allK6ExitCodesZero":  true
+                  },
+    "interpretation":  "http_req_failed counts expected HTTP 409 conflicts; do not treat it as a server-error rate. booking_success_rate counts 201/200 and expected 409 as valid business responses.",
+    "observabilityAfterLoad":  {
+                                   "jaegerStatusAfterHighLoad":  "unhealthy",
+                                   "jaegerMemoryObservedMiB":  172.3,
+                                   "jaegerMemoryLimitMiB":  192,
+                                   "healthCheckFailure":  "local admin health probe timed out after 5s",
+                                   "recovery":  "container restarted after all benchmark and cleanup operations; healthy at 27.75 MiB",
+                                   "traceRetention":  "in-memory benchmark traces cleared by restart"
+                               }
+}

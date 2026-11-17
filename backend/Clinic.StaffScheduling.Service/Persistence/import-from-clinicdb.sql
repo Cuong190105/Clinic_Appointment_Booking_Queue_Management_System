@@ -40,7 +40,7 @@ BEGIN TRY
     -- 2. Reconcile and import Employees with Identity Projections
     UPDATE target
     SET target.PersonId = source.PersonId,
-        target.IdentityUserId = COALESCE(identityUser.Id, person.IdentityUserId),
+        target.IdentityUserId = identityUser.Id,
         target.FullName = person.FullName,
         target.PhoneNumber = person.PhoneNumber,
         target.Email = person.Email,
@@ -60,7 +60,7 @@ BEGIN TRY
 
     INSERT INTO ClinicSchedulingDB.dbo.Employees (Id, PersonId, IdentityUserId, FullName, PhoneNumber, Email, Gender, DateOfBirth, Address, HireDate, Status, ManagerId, IsDeleted, CreatedAt, UpdatedAt)
     SELECT e.Id, e.PersonId,
-           COALESCE(u.Id, p.IdentityUserId),
+           u.Id,
            p.FullName,
            p.PhoneNumber,
            p.Email,
@@ -140,7 +140,7 @@ BEGIN TRY
         target.Date = source.Date,
         target.ShiftStart = source.ShiftStart,
         target.ShiftEnd = source.ShiftEnd,
-        target.RecommendedCapacity = source.RecommendedCapacity,
+        target.RecommendedCapacity = source.PatientLimit,
         target.Reason = source.Reason,
         target.Status = source.Status,
         target.IsDeleted = source.IsDeleted,
@@ -150,7 +150,7 @@ BEGIN TRY
     JOIN ClinicDB.dbo.ShiftRequests AS source ON source.Id = target.Id;
 
     INSERT INTO ClinicSchedulingDB.dbo.ShiftRequests (Id, DoctorId, Date, ShiftStart, ShiftEnd, RecommendedCapacity, Reason, Status, IsDeleted, CreatedAt, UpdatedAt)
-    SELECT sr.Id, sr.DoctorId, sr.Date, sr.ShiftStart, sr.ShiftEnd, sr.RecommendedCapacity, sr.Reason, sr.Status, sr.IsDeleted, sr.CreatedAt, sr.UpdatedAt
+    SELECT sr.Id, sr.DoctorId, sr.Date, sr.ShiftStart, sr.ShiftEnd, sr.PatientLimit, sr.Reason, sr.Status, sr.IsDeleted, sr.CreatedAt, sr.UpdatedAt
     FROM ClinicDB.dbo.ShiftRequests AS sr
     WHERE NOT EXISTS (SELECT 1 FROM ClinicSchedulingDB.dbo.ShiftRequests AS target WHERE target.Id = sr.Id);
 

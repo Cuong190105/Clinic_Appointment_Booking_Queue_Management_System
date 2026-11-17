@@ -1,0 +1,146 @@
+{
+  "profile": "clinic-peak",
+  "baseUrl": "http://host.docker.internal:5000",
+  "vus": 30,
+  "rampDuration": "30s",
+  "sustainedDuration": "5m",
+  "metrics": {
+    "mixed_read_requests": {
+      "count": 32139,
+      "rate": 88.16681163946606
+    },
+    "mixed_write_requests": {
+      "count": 15312,
+      "rate": 42.00535859309575
+    },
+    "mixed_read_success_rate": {
+      "rate": 1,
+      "passes": 32139,
+      "fails": 0,
+      "thresholds": {
+        "rate>0.98": {
+          "ok": true
+        }
+      }
+    },
+    "mixed_write_success_rate": {
+      "rate": 1,
+      "passes": 15312,
+      "fails": 0,
+      "thresholds": {
+        "rate>0.95": {
+          "ok": true
+        }
+      }
+    },
+    "mixed_workflow_success_rate": {
+      "rate": 0.9997626394493235,
+      "passes": 16848,
+      "fails": 4,
+      "thresholds": {
+        "rate>0.90": {
+          "ok": true
+        }
+      }
+    },
+    "mixed_server_error_rate": {
+      "rate": 0,
+      "passes": 0,
+      "fails": 47451,
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "mixed_read_api_duration": {
+      "avg": 15.746176167460066,
+      "med": 8.991847,
+      "min": 3.68329,
+      "max": 630.448858,
+      "p(90)": 31.10892760000001,
+      "p(95)": 49.67919789999998,
+      "thresholds": {
+        "p(95)<1000": {
+          "ok": true
+        }
+      }
+    },
+    "mixed_write_api_duration": {
+      "avg": 73.40752451978814,
+      "med": 60.2754275,
+      "min": 3.94883,
+      "max": 1847.955035,
+      "p(90)": 129.66212749999997,
+      "p(95)": 187.80328294999978,
+      "thresholds": {
+        "p(95)<1500": {
+          "ok": true
+        }
+      }
+    },
+    "mixed_booking_create_duration": {
+      "avg": 128.2445839120047,
+      "med": 84.54019349999999,
+      "min": 22.42448,
+      "max": 1847.955035,
+      "p(90)": 234.11705570000004,
+      "p(95)": 343.8004798,
+      "thresholds": {
+        "p(95)<1500": {
+          "ok": true
+        }
+      }
+    },
+    "mixed_queue_workflow_duration": {
+      "avg": 784.2069377990431,
+      "med": 613.5,
+      "min": 277,
+      "max": 4329,
+      "p(90)": 1251.5,
+      "p(95)": 1661.25,
+      "thresholds": {
+        "p(95)<10000": {
+          "ok": true
+        }
+      }
+    },
+    "mixed_read_journeys": {
+      "count": 12584,
+      "rate": 34.52164528053272
+    },
+    "mixed_booking_journeys": {
+      "count": 3432,
+      "rate": 9.414994167418014
+    },
+    "mixed_queue_journeys": {
+      "count": 836,
+      "rate": 2.293396015140285
+    },
+    "mixed_booking_confirmed": {
+      "count": 3432,
+      "rate": 9.414994167418014
+    },
+    "mixed_checkins_completed": {
+      "count": 836,
+      "rate": 2.293396015140285
+    },
+    "mixed_queue_lifecycle_completed": {
+      "count": 836,
+      "rate": 2.293396015140285
+    },
+    "http_req_duration": {
+      "avg": 34.39758291555086,
+      "med": 10.8493085,
+      "min": 3.68329,
+      "max": 1847.955035,
+      "p(90)": 82.96005400000001,
+      "p(95)": 112.65710695000001
+    },
+    "http_req_failed": {
+      "rate": 0.036941146754230866,
+      "passes": 1755,
+      "fails": 45753
+    }
+  }
+}

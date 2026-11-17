@@ -231,23 +231,33 @@ public class SchedulingManager : ISchedulingManager
                 throw new InvalidOperationException("Chỉ có thể đặt hoặc giữ chỗ trước giờ khám ít nhất 30 phút.");
             }
 
-            // Count valid active reservations & check exact slot conflict in a single index-friendly query
-            var activeBookedSlots = await _dbContext.SlotReservations
+            // Aggregate on SQL Server instead of materializing every active slot into the service.
+            // The schedule row lock above keeps the capacity check and insert serialized for this schedule;
+            // the filtered unique index remains the final guard against reserving the same slot twice.
+            var activeReservationSummary = await _dbContext.SlotReservations
                 .AsNoTracking()
                 .Where(r => r.WorkScheduleId == scheduleId &&
                            (r.Status == ReservationStatus.Confirmed ||
                            (r.Status == ReservationStatus.Reserved && r.ExpiresAt > now)))
-                .Select(r => r.TimeSlot)
-                .ToListAsync(ct);
+                .GroupBy(r => r.WorkScheduleId)
+                .Select(group => new
+                {
+                    ActiveCount = group.Count(),
+                    RequestedSlotCount = group.Count(r => r.TimeSlot == timeSlot)
+                })
+                .SingleOrDefaultAsync(ct);
+
+            var activeReservationCount = activeReservationSummary?.ActiveCount ?? 0;
+            var requestedSlotIsReserved = (activeReservationSummary?.RequestedSlotCount ?? 0) > 0;
 
             // Layer 1: Shift capacity threshold check
-            if (activeBookedSlots.Count >= schedule.RecommendedCapacity)
+            if (activeReservationCount >= schedule.RecommendedCapacity)
             {
                 throw new InvalidOperationException("Ca làm việc đã đủ số lượng đặt online (RecommendedCapacity exceeded).");
             }
 
             // Layer 2: Exact slot conflict check
-            if (activeBookedSlots.Contains(timeSlot))
+            if (requestedSlotIsReserved)
             {
                 throw new InvalidOperationException($"Khung giờ {timeSlot} đã được người khác đặt.");
             }
