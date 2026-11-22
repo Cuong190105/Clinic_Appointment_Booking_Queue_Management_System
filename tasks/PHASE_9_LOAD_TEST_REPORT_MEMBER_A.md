@@ -818,3 +818,56 @@ Evidence tổng hợp đã sanitize, không chứa token hay fixture setup: [pro
 Ba lượt booking-only high-load ở mục 19 có median p95 253,6 ms cho toàn bộ booking API response, 387,8 ms cho request tạo booking thành công và 762 ms từ POST đến Confirmed. p95 tạo booking ở mixed profile là 107,2 ms (normal) và 343,8 ms (clinic-peak). Đây là workload và cách tổng hợp khác nhau, không chứng minh mixed workload nhanh hơn. Hai nhóm kết quả bổ sung cho nhau: cạnh tranh slot/booking và tải đồng thời nhiều persona, đọc/ghi, queue.
 
 Kết quả xác nhận các luồng đã chọn chạy dưới tải hỗn hợp 20 và 30 VU trên cấu hình Docker hiện tại. Chúng chưa đại diện traffic đo từ phòng khám thật, chưa đo thao tác lưu/finalize bệnh án, và không phải benchmark đối chứng monolith. Muốn kết luận so sánh cần dùng cùng profile, seed, tài nguyên, warm-up và trạng thái dữ liệu trên cả hai hệ thống; nên lặp tối thiểu ba lần và báo median/variance cùng CPU/RAM.
+
+## 22. Chạy các profile tương ứng trên monolith — 22/11/2026
+
+### 22.1. Cấu hình và cách chạy
+
+Monolith được build và chạy bằng `docker compose -f docker-compose.monolith.yml up -d --build --wait`; API `http://localhost:5100`, SQL Server và backend đều healthy trước và sau các lượt đo. Workload dùng bản sao `tests/load/mixed-workload.js` và `tests/load/booking-high-load.js` tương ứng với harness microservices. Bản mixed trên monolith bổ sung bước tra `specialtyId` từ tên specialty vì `/doctors/me` của monolith không trả `specialtyId`; phần này chỉ thay đổi harness, không thay đổi ứng dụng.
+
+- `normal`: 20 VU, ramp-up 30 giây, giữ tải 5 phút, ramp-down 30 giây; cùng profile với mục 21.
+- `clinic-peak`: 30 VU, ramp-up 30 giây, giữ tải 5 phút, ramp-down 30 giây; bao gồm receptionist walk-in/check-in và Queue.
+- `booking-high-load`: 30 VU, ramp-up 10 giây, giữ tải 60 giây, ramp-down 10 giây; provision tối đa 2.400 slot, 10 bác sĩ × 5 ngày. Chạy 4 lượt; ba lượt có teardown hoàn tất được dùng làm acceptance. Lượt `mono-hl-20261122-0128` bị loại khỏi nhóm acceptance do k6 báo teardown timeout, dù các threshold nghiệp vụ đều đạt và DB xác nhận toàn bộ 2.393 booking đã Cancelled.
+- Code nghiệp vụ monolith ở commit `bcee7edff3648739aa8acd29b6aeb341f3fe421e`; các thay đổi tại working tree chỉ thuộc harness/evidence kiểm thử. Evidence mới chỉ chứa metrics tổng hợp, không chứa token, mật khẩu hay PII.
+
+### 22.2. Mixed workload
+
+Tỷ lệ dưới đây là tỷ lệ **HTTP request đo được**, không phải tỷ lệ persona/lượt nghiệp vụ cấu hình trong script. Các giá trị p95 tính bằng mili giây.
+
+| Hệ thống / profile | Journeys | HTTP read / write | Tỷ lệ read / write | p95 read / write / booking create | Workflow success / 5xx | Queue lifecycle |
+|---|---:|---:|---:|---:|---:|---:|
+| Monolith `normal`, 20 VU | 13.473 (11.067 read, 2.406 booking) | 15.879 / 7.218 | 68,75% / 31,25% | 82,2 / 111,3 / 50,3 ms | 100% / 0% | Không chạy Queue |
+| Microservices `normal`, 20 VU, mục 21 | 13.052 (10.622 read, 2.430 booking) | 18.108 / 7.290 | 71,30% / 28,70% | 26,8 / 91,3 / 107,2 ms | 100% / 0% | Không chạy Queue |
+| Monolith `clinic-peak`, 30 VU | 16.662 (12.508 read, 3.289 booking, 865 queue) | 19.086 / 10.732 | 64,00% / 36,00% | 276,7 / 362,4 / 287,8 ms | 94,81% / 2,90% | 0/865 hoàn tất; 865 lỗi check-in |
+| Microservices `clinic-peak`, 30 VU, mục 21 | 16.852 (12.584 read, 3.432 booking, 836 queue) | 32.139 / 15.312 | 67,73% / 32,27% | 49,7 / 187,8 / 343,8 ms | 99,976% / 0% | 836 lifecycle hoàn tất |
+
+`normal` đạt toàn bộ threshold ở cả hai hệ thống; đây là một lượt mỗi bên, nên chỉ dùng để mô tả. `clinic-peak` trên monolith **không đạt**: 865 lượt receptionist walk-in trả 5xx, làm write-success còn 91,94% (ngưỡng >95%) và server-error rate 2,90% (ngưỡng <1%). Không có queue lifecycle hợp lệ để so latency Queue. Lỗi trùng với `DbUpdateException` do EF Core cố thêm lại `WorkSchedule` đã tồn tại qua navigation graph trong luồng walk-in: handler lấy schedule bằng truy vấn `AsNoTracking`, sau đó thêm `Appointment` qua repository. Đây là lỗi chức năng monolith được phát hiện trong test, không phải kết quả capacity Queue. Cần attach schedule hiện hữu với state `Unchanged`/chỉ insert appointment mà không add lại graph, rồi chạy lại clinic-peak.
+
+### 22.3. Booking high-load
+
+Ba lượt acceptance dùng cùng code monolith và script, mỗi lượt có 30 VU, cửa sổ tải 80 giây (10 giây ramp-up + 60 giây giữ tải + 10 giây ramp-down) và tối đa 2.400 slot. Lượt thứ hai bị loại khỏi phép tổng hợp do teardown timeout; dữ liệu của lượt này được kiểm tra riêng và đã ở trạng thái Cancelled.
+
+| Run | Attempts / 80 giây | Confirmed | p95 mọi booking API | p95 API tạo thành công | POST → Confirmed p95 | 5xx / Idempotency |
+|---|---:|---:|---:|---:|---:|---:|
+| `0126` | 17.479 (218,49/s) | 2.399 (29,99/s) | 122,3 ms | 148,9 ms | 166 ms | 0% / 100% |
+| `0131` | 12.866 (160,82/s) | 2.387 (29,84/s) | 190,2 ms | 214,6 ms | 235 ms | 0% / 100% |
+| `0139` | 10.148 (126,85/s) | 2.367 (29,59/s) | 253,5 ms | 287,4 ms | 316 ms | 0% / 100% |
+| **Median 3 lượt** | — | — | **190,2 ms** | **214,6 ms** | **235 ms** | **0% / 100%** |
+
+Microservices ở mục 19 có ba lượt cùng cấu hình: median p95 mọi booking API 253,6 ms, API tạo thành công 387,8 ms, POST → Confirmed 762 ms; 5xx 0%. Tỷ lệ booking được xác nhận trong hai hệ thống gần nhau theo thông lượng (monolith median 29,84/s; microservices tổng 7.133/240s ≈29,72/s), còn p95 của các metric này thấp hơn trong nhóm monolith đo được. Tuy nhiên monolith có xu hướng latency tăng theo thứ tự chạy (API p95 122 → 190 → 254 ms) do các lượt dùng chung DB và để lại lịch sử appointment đã hủy; vì vậy không được diễn giải median này như kết luận kiến trúc chắc chắn. Cần chạy lại trên snapshot DB sạch hoặc khôi phục cùng seed trước từng lượt để loại ảnh hưởng thứ tự.
+
+HTTP `http_req_failed` cao trong booking-high-load vì k6 đánh dấu các phản hồi 409 do cạnh tranh slot là failed HTTP request; custom `server_error_rate` vẫn bằng 0%. Không dùng tổng tỷ lệ HTTP failed này như tỷ lệ 5xx.
+
+### 22.4. Tài nguyên, cleanup và bằng chứng
+
+Trong hai profile mixed, `docker stats` được lấy xấp xỉ mỗi 5 giây. Ở `normal`, backend monolith CPU trung bình/đỉnh 163,8%/479,6%, RAM đỉnh 360,8 MiB; SQL Server 51,7%/131,5%, RAM đỉnh 1.292,3 MiB. Ở `clinic-peak`, backend 433,7%/770,2%, RAM đỉnh 400,7 MiB; SQL Server 155,9%/325,6%, RAM đỉnh 1.339,4 MiB. Đây là mức sử dụng quan sát được, không phải quota cấu hình, và chưa có chuỗi đo cùng cách trên microservices để đối chiếu trực tiếp.
+
+`booking-high-load` lấy thêm 38 mẫu trong cả setup, cửa sổ tải và teardown: backend trung bình/đỉnh 127,6%/207,4%, RAM đỉnh 355,8 MiB; SQL Server 117,0%/418,8%, RAM đỉnh 1.414,1 MiB. Do mẫu gồm cả teardown và run test state tăng dần, không so số trung bình này với mixed profile.
+
+Sau mỗi run high-load, k6 hủy ca test; ClinicDB xác nhận lần lượt 2.399, 2.387 và 2.367 appointment còn đúng marker run đều đã ở trạng thái `Cancelled`. Lượt bị loại `0128` cũng có 2.393 appointment Cancelled. Không in ID fixture hoặc thông tin tài khoản vào báo cáo. Evidence sanitize: [mixed normal](../tests/load/evidence/mixed-normal-monolith-2026-11-22.json), [mixed clinic peak](../tests/load/evidence/mixed-clinic-peak-monolith-2026-11-22.json), [booking high-load tổng hợp](../tests/load/evidence/highload-monolith-2026-11-22.json), [tài nguyên](../tests/load/evidence/monolith-resource-summary-2026-11-22.json).
+
+### 22.5. Kết luận và việc cần xử lý
+
+- Đã có đối chứng monolith cho `normal`, `clinic-peak` và booking high-load. `normal` và booking high-load đều đạt các threshold đo được; clinic-peak phát hiện lỗi 500 ở walk-in và không đạt write-success/5xx SLO.
+- Chưa thể kết luận microservices nhanh hơn hoặc tốt hơn tổng thể: mixed chỉ có một lượt mỗi bên; high-load monolith sử dụng DB tích lũy lịch sử hủy và p95 tăng theo thứ tự chạy. Muốn benchmark kết luận kiến trúc, cần snapshot/restore DB, giữ seed và giới hạn tài nguyên giống nhau, warm-up thống nhất, chạy tối thiểu ba lượt sạch mỗi profile và đo CPU/RAM hai hệ thống cùng cách.
+- Ưu tiên sửa lỗi tracking `WorkSchedule` của monolith, chạy lại clinic-peak và xác nhận đủ 865 queue workflow. Sau đó chạy ít nhất ba lượt clinic-peak trên mỗi hệ thống, ghi p95/throughput/5xx/queue lifecycle và tài nguyên.

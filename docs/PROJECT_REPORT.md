@@ -210,12 +210,12 @@ Artifact 30 VU `highload-*` cho thấy API p95 khoảng 47.1 ms monolith và 179
 
 ### 6.4. Việc còn phải làm trước khi kết luận nghiệm thu toàn bộ
 
-1. **Làm sạch evidence bí mật:** xóa/rotate nếu còn hiệu lực các JWT đã ghi trong `setup_data` của `highload-micro-booking-k6.json` và `highload-mono-booking-k6.json`; thay bằng artifact đã sanitize hoặc tạo JSON summary mới không lưu token, mật khẩu, PII. Không đưa raw artifact chứa credential vào báo cáo/commit.
-2. **Sửa harness high-load:** cleanup phải theo dõi và hủy/đối soát appointment được tạo, kiểm tra số tồn trước/sau; không chỉ xóa ca làm do test tạo. Chạy mỗi hệ thống trên DB snapshot sạch hoặc dữ liệu namespace riêng.
-3. **Khóa điều kiện so sánh:** cùng workload, seed, số VU/thời lượng, số slot khả dụng, dataset ban đầu, giới hạn CPU/RAM tổng, phiên bản image/commit và cùng thời gian warm-up. Chạy tối thiểu ba lượt cho mỗi hệ thống và báo median/variance cùng p95/p99.
-4. **Sửa phân loại kết quả:** 409 expected contention phải được đo riêng; threshold outcome trong JSON phải khớp số liệu/exit code. Kiểm tra runner trả lỗi nếu threshold vượt; lưu log tóm tắt không chứa setup credentials.
-5. **Đánh giá SLO:** chạy workload booking trên cùng cấu hình; nếu microservice p95 vẫn >500 ms thì tối ưu hoặc ghi nhận vi phạm và đề xuất/nghiệm thu lại mục tiêu có lý do. Không sửa ngưỡng chỉ để biến test thành pass.
-6. **Đính kèm bằng chứng contract hiện tại:** chạy validator trên đúng commit, cập nhật OpenAPI snapshots nếu cần và ghi kết quả vào báo cáo nghiệm thu cuối.
+1. **Rà soát artifact cũ:** các summary mới đã sanitize, nhưng `tests/load/evidence/highload-micro-booking-k6.json` còn tồn tại; không công bố/chiếu raw artifact nếu chưa xác minh rồi loại bỏ token/fixture data. Các artifact mới ngày 22/11 chỉ chứa metrics tổng hợp.
+2. **Lặp lại mixed-workload:** monolith normal/clinic-peak và microservices hiện mỗi bên mới có một lượt cho từng profile. Chạy tối thiểu ba lượt trên snapshot DB tương đương, cùng seed, VU/thời lượng, tài nguyên và warm-up; báo median/range cho p95, throughput, 5xx, Queue lifecycle và CPU/RAM.
+3. **Sửa lỗi monolith walk-in:** clinic-peak phát hiện `DbUpdateException` do cố insert lại `WorkSchedule` đã tồn tại; 865/865 lượt Queue thất bại và tỷ lệ 5xx 2,90%. Sửa cách attach/insert graph, viết integration test regression, rồi chạy lại clinic-peak.
+4. **Làm benchmark có trạng thái dữ liệu tái lập:** ba lượt booking high-load sạch đã đạt threshold, song dùng chung DB và p95 tăng theo thứ tự chạy. Restore cùng DB snapshot trước từng lượt để phân biệt ảnh hưởng kiến trúc với lịch sử dữ liệu.
+5. **Đối chiếu tài nguyên ngang nhau:** hiện đã có chuỗi docker stats monolith; cần thu cùng cách/chu kỳ cho các container microservices dưới cùng profile và giới hạn CPU/RAM. Số liệu CPU vượt 100% là mức dùng nhiều hơn một logical core, không phải quota cấu hình.
+6. **Đính kèm contract evidence:** chạy validator trên đúng commit, cập nhật OpenAPI snapshots nếu cần và ghi kết quả vào báo cáo nghiệm thu cuối.
 
 ### 6.5. Tối ưu code thực hiện sau khi lập báo cáo
 
@@ -241,3 +241,11 @@ Sau ba lượt booking-only high-load (30 VU, 2.400 slot), median p95 là 253,6 
 Hai mixed-workload profile mới chạy trên microservices: normal (20 VU) có 71,30% request đọc / 28,70% ghi, p95 đọc 26,8 ms, ghi 91,3 ms, tạo booking 107,2 ms; clinic-peak (30 VU, bao gồm walk-in và queue) có 67,73% đọc / 32,27% ghi, p95 đọc 49,7 ms, ghi 187,8 ms, tạo booking 343,8 ms, queue workflow 1.661 ms. Cả hai không có 5xx và đạt các threshold đã khai báo. Peak có 4/16.852 workflow iteration chưa thành công (0,024%), dù toàn bộ 836 queue lifecycle đạt marker hoàn tất.
 
 Đây là hai loại workload khác nhau, nên không suy ra rằng một loại nhanh hơn loại kia. Mixed profiles chưa chạy đối chứng trên monolith và chưa sử dụng tỷ lệ traffic đo tại phòng khám; vì vậy chúng chứng minh các luồng đã chọn hoạt động dưới tải hỗn hợp trên cấu hình hiện tại, chưa chứng minh ưu thế hiệu năng tổng thể. Chi tiết và evidence sanitize nằm trong [báo cáo phase 9](../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md#21-nghiệm-thu-hai-profile-tải-hỗn-hợp--17112026).
+
+## Bổ sung đối chứng monolith — 22/11/2026
+
+Các lượt chạy sau đó đã bổ sung đối chứng cùng profile trên monolith. Mixed normal (20 VU/5 phút) đạt 100% workflow và 0% 5xx; p95 đọc/ghi là 82,2/111,3 ms. Mixed clinic-peak (30 VU/5 phút) không đạt: 865 lượt receptionist walk-in đều lỗi, 5xx là 2,90%, và không có Queue lifecycle hoàn tất. Nguyên nhân được khoanh vùng ở cách EF Core thêm lại `WorkSchedule` đã tồn tại trong graph của appointment. Vì vậy clinic-peak không được dùng để so hiệu năng Queue cho tới khi sửa lỗi và chạy lại.
+
+Booking high-load 30 VU/2.400 slot chạy ba lượt acceptance trên monolith, với median p95 190,2 ms cho mọi booking API, 214,6 ms cho POST tạo thành công, 235 ms từ POST đến Confirmed; median 29,84 booking xác nhận/giây và 0% 5xx. Microservices trong ba lượt cùng profile đạt median tương ứng 253,6 ms, 387,8 ms, 762 ms và khoảng 29,72 booking xác nhận/giây. Các con số này mô tả các lượt đo hiện có; monolith dùng cùng DB qua các lượt nên lịch sử appointment đã hủy tích lũy và latency tăng theo thứ tự. Chưa khôi phục DB snapshot giữa các lượt hoặc thu CPU/RAM hai stack cùng cách, nên chưa thể kết luận kiến trúc nào tốt hơn tổng thể.
+
+Tài liệu Phase 9 mục 22 ghi chi tiết workload, lượt bị loại do timeout teardown, cleanup đã xác minh, tài nguyên và evidence sanitize. Trước khi chốt kết luận so sánh, cần sửa lỗi walk-in, lặp clinic-peak tối thiểu ba lượt và benchmark cả hai stack trên snapshot/seed/tài nguyên tương đương.
