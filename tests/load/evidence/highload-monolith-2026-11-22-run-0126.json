@@ -1,0 +1,133 @@
+﻿{
+    "profile":  "booking-high-load",
+    "baseUrl":  "http://host.docker.internal:5100",
+    "runId":  "mono-hl-20261122-0126",
+    "vus":  30,
+    "rampDuration":  "10s",
+    "sustainedDuration":  "60s",
+    "metrics":  {
+                    "booking_api_duration":  {
+                                                 "avg":  66.67535781452042,
+                                                 "med":  62.589689,
+                                                 "min":  11.628122,
+                                                 "max":  283.893567,
+                                                 "p(90)":  105.53533360000002,
+                                                 "p(95)":  122.2672805,
+                                                 "thresholds":  {
+                                                                    "p(95)\u003c500":  {
+                                                                                           "ok":  true
+                                                                                       },
+                                                                    "p(99)\u003c1500":  {
+                                                                                            "ok":  true
+                                                                                        }
+                                                                }
+                                             },
+                    "booking_created_api_duration":  {
+                                                         "avg":  79.92577967986664,
+                                                         "med":  75.878189,
+                                                         "min":  17.394649,
+                                                         "max":  283.893567,
+                                                         "p(90)":  129.9032324,
+                                                         "p(95)":  148.90851759999998,
+                                                         "thresholds":  {
+                                                                            "p(95)\u003c1000":  {
+                                                                                                    "ok":  true
+                                                                                                }
+                                                                        }
+                                                     },
+                    "booking_conflict_api_duration":  {
+                                                          "avg":  64.56741603368728,
+                                                          "med":  61.1194885,
+                                                          "min":  11.628122,
+                                                          "max":  244.220565,
+                                                          "p(90)":  100.776169,
+                                                          "p(95)":  116.26609064999998
+                                                      },
+                    "booking_e2e_duration":  {
+                                                 "avg":  91.5785744060025,
+                                                 "med":  88,
+                                                 "min":  22,
+                                                 "max":  312,
+                                                 "p(90)":  148,
+                                                 "p(95)":  166,
+                                                 "thresholds":  {
+                                                                    "p(95)\u003c5000":  {
+                                                                                            "ok":  true
+                                                                                        }
+                                                                }
+                                             },
+                    "booking_success_rate":  {
+                                                 "rate":  1,
+                                                 "passes":  17479,
+                                                 "fails":  0,
+                                                 "thresholds":  {
+                                                                    "rate\u003e0.98":  {
+                                                                                           "ok":  true
+                                                                                       }
+                                                                }
+                                             },
+                    "server_error_rate":  {
+                                              "rate":  0,
+                                              "passes":  0,
+                                              "fails":  17479,
+                                              "thresholds":  {
+                                                                 "rate\u003c0.01":  {
+                                                                                        "ok":  true
+                                                                                    }
+                                                             }
+                                          },
+                    "booking_confirmed_rate":  {
+                                                   "rate":  1,
+                                                   "passes":  2399,
+                                                   "fails":  0,
+                                                   "thresholds":  {
+                                                                      "rate\u003e0.90":  {
+                                                                                             "ok":  true
+                                                                                         }
+                                                                  }
+                                               },
+                    "booking_idempotency_verified_rate":  {
+                                                              "rate":  1,
+                                                              "passes":  2399,
+                                                              "fails":  0
+                                                          },
+                    "total_bookings_attempted":  {
+                                                     "count":  17479,
+                                                     "rate":  160.08637465867457
+                                                 },
+                    "total_bookings_created":  {
+                                                   "count":  2399,
+                                                   "rate":  21.971921323082572
+                                               },
+                    "total_bookings_confirmed":  {
+                                                     "count":  2399,
+                                                     "rate":  21.971921323082572
+                                                 },
+                    "total_conflicts_encountered":  {
+                                                        "count":  15080,
+                                                        "rate":  138.11445333559197
+                                                    },
+                    "http_req_duration":  {
+                                              "avg":  56.4341341374057,
+                                              "med":  53.142129,
+                                              "min":  3.436735,
+                                              "max":  1123.596208,
+                                              "p(90)":  100.06165410000001,
+                                              "p(95)":  117.64055034999997
+                                          },
+                    "http_req_failed":  {
+                                            "rate":  0.6723138653588944,
+                                            "passes":  15080,
+                                            "fails":  7350
+                                        },
+                    "checks":  {
+                                   "rate":  1,
+                                   "passes":  7197,
+                                   "fails":  0
+                               }
+                },
+    "runDate":  "2026-11-22",
+    "sourceCommit":  "bcee7edff3648739aa8acd29b6aeb341f3fe421e",
+    "cleanupVerified":  true,
+    "cleanupMethod":  "k6 teardown completed; test schedule cancellation cascaded to created appointments"
+}

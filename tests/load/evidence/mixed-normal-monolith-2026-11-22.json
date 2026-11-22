@@ -1,0 +1,139 @@
+﻿{
+    "profile":  "normal",
+    "baseUrl":  "http://host.docker.internal:5100",
+    "vus":  20,
+    "rampDuration":  "30s",
+    "sustainedDuration":  "5m",
+    "metrics":  {
+                    "mixed_read_requests":  {
+                                                "count":  15879,
+                                                "rate":  43.99586395229321
+                                            },
+                    "mixed_write_requests":  {
+                                                 "count":  7218,
+                                                 "rate":  19.998875622372466
+                                             },
+                    "mixed_read_success_rate":  {
+                                                    "rate":  1,
+                                                    "passes":  15879,
+                                                    "fails":  0,
+                                                    "thresholds":  {
+                                                                       "rate\u003e0.98":  {
+                                                                                              "ok":  true
+                                                                                          }
+                                                                   }
+                                                },
+                    "mixed_write_success_rate":  {
+                                                     "rate":  1,
+                                                     "passes":  7218,
+                                                     "fails":  0,
+                                                     "thresholds":  {
+                                                                        "rate\u003e0.95":  {
+                                                                                               "ok":  true
+                                                                                           }
+                                                                    }
+                                                 },
+                    "mixed_workflow_success_rate":  {
+                                                        "rate":  1,
+                                                        "passes":  13473,
+                                                        "fails":  0,
+                                                        "thresholds":  {
+                                                                           "rate\u003e0.90":  {
+                                                                                                  "ok":  true
+                                                                                              }
+                                                                       }
+                                                    },
+                    "mixed_server_error_rate":  {
+                                                    "rate":  0,
+                                                    "passes":  0,
+                                                    "fails":  23097,
+                                                    "thresholds":  {
+                                                                       "rate\u003c0.01":  {
+                                                                                              "ok":  true
+                                                                                          }
+                                                                   }
+                                                },
+                    "mixed_read_api_duration":  {
+                                                    "avg":  20.381334649222286,
+                                                    "med":  7.480067,
+                                                    "min":  2.688196,
+                                                    "max":  300.151722,
+                                                    "p(90)":  56.4528984,
+                                                    "p(95)":  82.23538819999992,
+                                                    "thresholds":  {
+                                                                       "p(95)\u003c1000":  {
+                                                                                               "ok":  true
+                                                                                           }
+                                                                   }
+                                                },
+                    "mixed_write_api_duration":  {
+                                                     "avg":  33.163835011776136,
+                                                     "med":  20.031852,
+                                                     "min":  3.296943,
+                                                     "max":  310.603568,
+                                                     "p(90)":  81.2439796,
+                                                     "p(95)":  111.30969479999992,
+                                                     "thresholds":  {
+                                                                        "p(95)\u003c1500":  {
+                                                                                                "ok":  true
+                                                                                            }
+                                                                    }
+                                                 },
+                    "mixed_booking_create_duration":  {
+                                                          "avg":  25.915763079384913,
+                                                          "med":  21.905452,
+                                                          "min":  13.171814,
+                                                          "max":  269.141114,
+                                                          "p(90)":  41.2252,
+                                                          "p(95)":  50.3417105,
+                                                          "thresholds":  {
+                                                                             "p(95)\u003c1500":  {
+                                                                                                     "ok":  true
+                                                                                                 }
+                                                                         }
+                                                      },
+                    "mixed_queue_workflow_duration":  {
+                                                          "avg":  0,
+                                                          "med":  0,
+                                                          "min":  0,
+                                                          "max":  0,
+                                                          "p(90)":  0,
+                                                          "p(95)":  0,
+                                                          "thresholds":  {
+                                                                             "p(95)\u003c10000":  {
+                                                                                                      "ok":  true
+                                                                                                  }
+                                                                         }
+                                                      },
+                    "mixed_read_journeys":  {
+                                                "count":  11067,
+                                                "rate":  30.663280204044902
+                                            },
+                    "mixed_booking_journeys":  {
+                                                   "count":  2406,
+                                                   "rate":  6.666291874124156
+                                               },
+                    "mixed_queue_journeys":  null,
+                    "mixed_booking_confirmed":  {
+                                                    "count":  2406,
+                                                    "rate":  6.666291874124156
+                                                },
+                    "mixed_checkins_completed":  null,
+                    "mixed_queue_lifecycle_completed":  null,
+                    "http_req_duration":  {
+                                              "avg":  24.394409632275796,
+                                              "med":  8.926834,
+                                              "min":  2.688196,
+                                              "max":  310.603568,
+                                              "p(90)":  64.59544100000012,
+                                              "p(95)":  92.36903090000003
+                                          },
+                    "http_req_failed":  {
+                                            "rate":  0,
+                                            "passes":  0,
+                                            "fails":  23107
+                                        }
+                },
+    "runDate":  "2026-11-22",
+    "sourceCommit":  "bcee7edff3648739aa8acd29b6aeb341f3fe421e"
+}

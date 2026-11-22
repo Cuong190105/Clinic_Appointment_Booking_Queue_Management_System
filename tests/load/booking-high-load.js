@@ -36,6 +36,9 @@ const totalBookingsConfirmed = new Counter('total_bookings_confirmed');
 const totalConflictsEncountered = new Counter('total_conflicts_encountered');
 
 export const options = {
+  // Teardown cancels the 50 schedule fixtures after the load window. Under a
+  // saturated DB, those cancellation requests can take longer than k6's 60s default.
+  teardownTimeout: '3m',
   scenarios: {
     sustained_high_load_booking: {
       executor: 'ramping-vus',
@@ -95,7 +98,7 @@ const TARGET_DAY_OFFSETS = [3, 4, 5, 6, 7];
 export function setup() {
   const admin = adminToken();
   const patientToken = login(PATIENT_USERNAME, PATIENT_PASSWORD);
-  const runId = `hl2k-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const runId = __ENV.HIGH_LOAD_RUN_ID || `hl2k-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
   console.log(`[SETUP] Initializing 2,400 Slot Fixtures (10 Doctors x 5 Days) for runId: ${runId}`);
 
@@ -328,14 +331,49 @@ export function teardown(data) {
   console.log(`[TEARDOWN] Cleaning up ${data.schedules?.length || 0} schedules on ${BASE_URL}...`);
   if (!data?.schedules) return;
 
+  console.log(`[TEST_SHIFT_IDS] ${JSON.stringify(data.schedules.filter((sched) => sched.createdByTest).map((sched) => sched.id))}`);
   for (const sched of data.schedules) {
     if (sched.createdByTest && sched.id) {
       try {
-        cancelWorkSchedule(data.adminToken, { id: sched.id, createdByTest: true });
+        const cancelled = cancelWorkSchedule(data.adminToken, { id: sched.id, createdByTest: true });
+        if (!cancelled) console.warn(`[SCHEDULE_CLEANUP_PENDING] ${sched.id}`);
       } catch (e) {
-        // Silently ignore cleanup warning
+        console.warn(`[SCHEDULE_CLEANUP_PENDING] ${sched.id}: ${e.message}`);
       }
     }
   }
   console.log('[TEARDOWN] Cleanup completed.');
+}
+
+function safeMetric(metrics, name) {
+  const source = metrics[name];
+  if (!source) return null;
+  const values = source.values || source;
+  const picked = {};
+  for (const key of ['count', 'rate', 'value', 'avg', 'med', 'min', 'max', 'p(90)', 'p(95)', 'p(99)', 'passes', 'fails']) {
+    if (values[key] !== undefined) picked[key] = values[key];
+  }
+  if (source.thresholds) picked.thresholds = source.thresholds;
+  return picked;
+}
+
+export function handleSummary(data) {
+  const names = [
+    'booking_api_duration', 'booking_created_api_duration', 'booking_conflict_api_duration',
+    'booking_e2e_duration', 'booking_success_rate', 'server_error_rate',
+    'booking_confirmed_rate', 'booking_idempotency_verified_rate',
+    'total_bookings_attempted', 'total_bookings_created', 'total_bookings_confirmed',
+    'total_conflicts_encountered', 'http_req_duration', 'http_req_failed', 'checks',
+  ];
+  const summary = {
+    profile: 'booking-high-load',
+    baseUrl: BASE_URL,
+    runId: __ENV.HIGH_LOAD_RUN_ID || null,
+    vus: HIGH_LOAD_VUS,
+    rampDuration: RAMP_DURATION,
+    sustainedDuration: TEST_DURATION,
+    metrics: Object.fromEntries(names.map((name) => [name, safeMetric(data.metrics, name)])),
+  };
+  const json = `${JSON.stringify(summary, null, 2)}\n`;
+  return { stdout: json, '/results/high-load-summary.json': json };
 }
