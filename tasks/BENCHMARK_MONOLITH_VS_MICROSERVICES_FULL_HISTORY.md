@@ -153,3 +153,40 @@ Qua toàn bộ chuỗi đo kiểm (từ Baseline, Tối ưu hóa code Giai đo�
 
 3. **Tính Toàn Vẹn Nghiệp Vụ:**
    - Cả hai hệ thống đều đạt **100% tính toàn vẹn về Idempotency và phòng chống đặt trùng**: Tuyệt đối không có hiện tượng overbooking hoặc cấp trùng số thứ tự khám bệnh (Duplicate Queue Ticket) ngay cả dưới tải tranh chấp cực đại.
+
+---
+
+# PHẦN VI: ĐỐI CHIẾU BỔ SUNG THEO MIXED PROFILE VÀ HIGH-LOAD HIỆN TẠI — 22/11/2026
+
+> Phần này dùng script cập nhật và bổ sung cho các phép đo lịch sử ở Phần IV–V. Các số cũ vẫn được giữ để truy vết; không gộp số liệu từ các phiên bản script khác nhau thành cùng một mẫu.
+
+## 1. Booking high-load cùng kịch bản
+
+Hai hệ thống chạy `booking-high-load.js`, 30 VU, tối đa 2.400 slot, 10 giây ramp-up + 60 giây giữ tải + 10 giây ramp-down. Microservices có ba lượt acceptance trong mục 19 của báo cáo Phase 9. Monolith chạy bốn lượt; lượt `0128` bị loại khỏi nhóm acceptance vì k6 timeout khi teardown, còn ba lượt `0126`, `0131`, `0139` có cleanup hoàn tất và DB xác nhận mọi appointment marker của run đã Cancelled.
+
+| Metric | Monolith — median (range), 3 lượt | Microservices — median (range), 3 lượt | Diễn giải |
+|---|---:|---:|---|
+| Attempts trong cửa sổ 80 giây | 12.866 (10.148–17.479) | 11.292 (10.018–13.088) | Gồm cả 409 slot contention; không xem là throughput booking thành công |
+| Booking Confirmed / giây | 29,84 (29,59–29,99) | 29,76 (29,53–29,88) | Thông lượng nghiệp vụ gần nhau trong các lượt đo |
+| p95 toàn bộ booking API | 190,2 ms (122,3–253,5) | 253,6 ms (172,5–398,3) | Monolith thấp hơn trong mẫu hiện tại; có dấu hiệu tăng theo thứ tự chạy ở cả hai nhóm |
+| p95 API tạo booking thành công | 214,6 ms (148,9–287,4) | 387,8 ms (347,7–513,0) | Đo riêng các POST tạo được booking |
+| p95 POST → Confirmed | 235 ms (166–316) | 762 ms (656–797) | Monolith xử lý đồng bộ; microservices hoàn tất qua SAGA |
+| 5xx / idempotency | 0% / 100% | 0% / 100% | 409 là xung đột nghiệp vụ dự kiến, không phải 5xx |
+
+Lượt thứ hai monolith (`0128`) có 16.112 attempts, 2.393 confirmed, p95 API 133,1 ms, p95 create 148,3 ms, p95 E2E 164 ms; các metric threshold đều đạt nhưng `teardown()` vượt timeout. DB xác minh các appointment đã hủy, song lượt này không được đưa vào median acceptance.
+
+Ba lượt monolith acceptance đều dùng chung DB; p95 booking API tăng 122 → 190 → 254 ms khi lịch sử appointment đã hủy tích lũy. Vì vậy bảng trên là đối chiếu mô tả theo workload tương tự, không phải so sánh nhân quả trên DB snapshot sạch. Kết quả không chứng minh microservices có capacity thấp hơn; chúng chỉ cho thấy trong môi trường đo này E2E p95 và POST p95 microservices cao hơn, trong khi confirmed throughput gần nhau.
+
+## 2. Mixed workload
+
+Các profile mixed có một lượt mỗi bên; tỷ lệ là HTTP request read/write thực đo, không phải tỷ lệ persona cấu hình. Monolith `normal` ghi 15.879 read và 7.218 write, p95 lần lượt 82,2/111,3 ms, tạo booking p95 50,3 ms, workflow 100%, 0% 5xx. Microservices `normal` ghi 18.108/7.290, p95 26,8/91,3 ms, tạo booking p95 107,2 ms, workflow 100%, 0% 5xx.
+
+Ở `clinic-peak`, monolith ghi p95 read/write/create 276,7/362,4/287,8 ms nhưng **không hoàn tất được Queue workflow**: cả 865 lượt receptionist walk-in đều trả 5xx (2,90%), do lỗi EF Core thêm lại `WorkSchedule` đã tồn tại. Microservices hoàn tất 836 Queue lifecycle trong lượt đo mục 21, không có 5xx. Do monolith không thực hiện xong nghiệp vụ, không so sánh queue latency/throughput như thể hai luồng đều thành công. Đây là lỗi chức năng cần sửa ở monolith trước khi dùng profile này làm benchmark capacity.
+
+## 3. Tài nguyên và giới hạn kết luận
+
+Trong monolith mixed normal, backend CPU trung bình/đỉnh 163,8%/479,6% và RAM peak 360,8 MiB; SQL Server 51,7%/131,5% và 1.292,3 MiB. Trong clinic-peak, backend 433,7%/770,2% và 400,7 MiB; SQL Server 155,9%/325,6% và 1.339,4 MiB. Đây là mức sử dụng quan sát từ `docker stats`, không phải quota cấu hình. Chưa có chuỗi đo cùng cách trong các lượt microservices nên chưa phải phép so sánh chi phí tài nguyên.
+
+Các lượt booking lặp sử dụng DB persistent và có trạng thái lịch sử khác nhau; mixed profile mỗi bên mới có một lượt; clinic-peak monolith có defect nghiệp vụ; và chưa khóa DB snapshot/seed cùng trace warm-up. Trước khi kết luận kiến trúc, cần sửa walk-in, lặp mixed tối thiểu ba lần mỗi bên, restore cùng DB snapshot trước từng high-load run và thu CPU/RAM hai stack cùng cách.
+
+Summary sanitize và file evidence theo từng lượt được lưu tại `tests/load/evidence/highload-monolith-2026-11-22*.json`, `mixed-*-monolith-2026-11-22.json` và `monolith-resource-summary-2026-11-22.json`; chi tiết kịch bản và cleanup nằm trong [`PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md` mục 22](PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md#22-chạy-các-profile-tương-ứng-trên-monolith--22112026).

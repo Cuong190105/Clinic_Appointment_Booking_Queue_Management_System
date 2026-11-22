@@ -1,0 +1,66 @@
+﻿{
+    "runDate":  "2026-11-22",
+    "profiles":  [
+                     {
+                         "containers":  [
+                                            {
+                                                "memoryMiBPeak":  360.8,
+                                                "samples":  53,
+                                                "cpuPercentPeak":  479.6,
+                                                "container":  "clinic_mono_backend",
+                                                "cpuPercentAvg":  163.8
+                                            },
+                                            {
+                                                "memoryMiBPeak":  1292.3,
+                                                "samples":  53,
+                                                "cpuPercentPeak":  131.5,
+                                                "container":  "clinic_mono_sql_server",
+                                                "cpuPercentAvg":  51.7
+                                            }
+                                        ],
+                         "profile":  "mixed-normal"
+                     },
+                     {
+                         "containers":  [
+                                            {
+                                                "memoryMiBPeak":  400.7,
+                                                "samples":  53,
+                                                "cpuPercentPeak":  770.2,
+                                                "container":  "clinic_mono_backend",
+                                                "cpuPercentAvg":  433.7
+                                            },
+                                            {
+                                                "memoryMiBPeak":  1339.4,
+                                                "samples":  53,
+                                                "cpuPercentPeak":  325.6,
+                                                "container":  "clinic_mono_sql_server",
+                                                "cpuPercentAvg":  155.9
+                                            }
+                                        ],
+                         "profile":  "mixed-clinic-peak"
+                     }
+                 ],
+    "system":  "monolith",
+    "samplingNote":  "docker stats --no-stream sampled approximately every 5 seconds during mixed profile; values are observed usage, not configured CPU quota",
+    "sourceCommit":  "bcee7edff3648739aa8acd29b6aeb341f3fe421e",
+    "highLoadRun":  {
+                        "samplingWindow":  "setup, 80-second load window, and teardown",
+                        "containers":  [
+                                           {
+                                               "memoryMiBPeak":  355.8,
+                                               "samples":  38,
+                                               "cpuPercentPeak":  207.4,
+                                               "container":  "clinic_mono_backend",
+                                               "cpuPercentAvg":  127.6
+                                           },
+                                           {
+                                               "memoryMiBPeak":  1414.1,
+                                               "samples":  38,
+                                               "cpuPercentPeak":  418.8,
+                                               "container":  "clinic_mono_sql_server",
+                                               "cpuPercentAvg":  117
+                                           }
+                                       ],
+                        "runId":  "mono-hl-20261122-0139"
+                    }
+}

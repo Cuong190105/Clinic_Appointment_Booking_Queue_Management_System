@@ -1,0 +1,81 @@
+﻿{
+    "profile":  "booking-high-load-monolith",
+    "runDate":  "2026-11-22",
+    "sourceCommit":  "bcee7edff3648739aa8acd29b6aeb341f3fe421e",
+    "vus":  30,
+    "slotCapacity":  2400,
+    "rampSeconds":  10,
+    "sustainedSeconds":  60,
+    "rampDownSeconds":  10,
+    "acceptanceRuns":  [
+                           {
+                               "runId":  "mono-hl-20261122-0126",
+                               "attempts":  17479,
+                               "confirmed":  2399,
+                               "attemptsPerSecond":  218.49,
+                               "confirmedPerSecond":  29.99,
+                               "bookingApiP95Ms":  122.3,
+                               "createdApiP95Ms":  148.9,
+                               "conflictApiP95Ms":  116.3,
+                               "postToConfirmedP95Ms":  166,
+                               "serverErrorRate":  0,
+                               "idempotencyRate":  1
+                           },
+                           {
+                               "runId":  "mono-hl-20261122-0131",
+                               "attempts":  12866,
+                               "confirmed":  2387,
+                               "attemptsPerSecond":  160.82,
+                               "confirmedPerSecond":  29.84,
+                               "bookingApiP95Ms":  190.2,
+                               "createdApiP95Ms":  214.6,
+                               "conflictApiP95Ms":  183.8,
+                               "postToConfirmedP95Ms":  235,
+                               "serverErrorRate":  0,
+                               "idempotencyRate":  1
+                           },
+                           {
+                               "runId":  "mono-hl-20261122-0139",
+                               "attempts":  10148,
+                               "confirmed":  2367,
+                               "attemptsPerSecond":  126.85,
+                               "confirmedPerSecond":  29.59,
+                               "bookingApiP95Ms":  253.5,
+                               "createdApiP95Ms":  287.4,
+                               "conflictApiP95Ms":  241.4,
+                               "postToConfirmedP95Ms":  316,
+                               "serverErrorRate":  0,
+                               "idempotencyRate":  1
+                           }
+                       ],
+    "median":  {
+                   "bookingApiP95Ms":  190.2,
+                   "createdApiP95Ms":  214.6,
+                   "postToConfirmedP95Ms":  235,
+                   "confirmedPerSecond":  29.84
+               },
+    "range":  {
+                  "bookingApiP95Ms":  [
+                                          122.3,
+                                          253.5
+                                      ],
+                  "createdApiP95Ms":  [
+                                          148.9,
+                                          287.4
+                                      ],
+                  "postToConfirmedP95Ms":  [
+                                               166,
+                                               316
+                                           ]
+              },
+    "excludedRun":  {
+                        "runId":  "mono-hl-20261122-0128",
+                        "reason":  "k6 teardown timeout; API metrics pass thresholds and DB cleanup verified, but excluded from three-run acceptance set"
+                    },
+    "notes":  [
+                  "Three accepted runs use the same application commit and 2,400-slot scenario; test data was cancelled after each run.",
+                  "One additional run passed metric thresholds but was excluded because k6 teardown timed out.",
+                  "The first, third and fourth runs used the same persistent database; cancelled history accumulated and response latency increased across run order. Treat the median/range as descriptive, not a clean-snapshot causal comparison.",
+                  "HTTP 409 slot conflicts are expected business outcomes and are not counted as 5xx."
+              ]
+}

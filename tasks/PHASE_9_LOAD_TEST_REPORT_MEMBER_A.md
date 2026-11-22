@@ -651,3 +651,223 @@ K6 lần đầu không vào workload vì `booking.js` import `parseAppointment` 
 | • `max` | 798.0 ms | 1158.0 ms (~1.16s) | Đỉnh trễ SAGA tối đa của Microservices chỉ 1.16s |
 | **Kết quả k6 & Trạng thái nghiệm thu** | ✅ **PASS (`exit 0`)**<br>7.200/7.200 checks pass | ✅ **PASS (`exit 0`)**<br>5.988/5.988 checks pass | **Cả 2 hệ thống đều đạt 100% tiêu chí SLO** |
 
+---
+
+## 16. Rà soát lại bằng chứng benchmark đối chiếu — 16/11/2026
+
+Mục này bổ sung rà soát độc lập các artifact đang có trong hai working tree. Không thay thế dữ liệu thô, nhưng hiệu chỉnh cách diễn giải để phân biệt lượt acceptance chức năng với bằng chứng so sánh hiệu năng.
+
+### 16.1. Run 20 VU mang tên `12cpu`
+
+Artifact `review-mono-12cpu-booking-k6.json` và `review-micro-12cpu-booking-k6.json` ghi nhận:
+
+| Chỉ số | Monolith | Microservices | Đánh giá |
+|---|---:|---:|---|
+| Booking API p95 | 293.4 ms | 594.7 ms | Micro vượt mục tiêu API p95 500 ms |
+| POST → Confirmed p95 | 456.4 ms | 820.9 ms | Cả hai dưới mục tiêu E2E 5 s |
+| Business success / confirmation | 100% / 100% | 100% / 100% | Luồng nghiệp vụ đạt trong lượt chạy |
+| 5xx | 0 | 0 | Không ghi nhận lỗi server trong lượt này |
+
+Tên artifact ghi `12cpu`, trong khi báo cáo trước đây mô tả tài nguyên là 12.5 CPU. Cần lấy cấu hình Compose/profile và ghi tổng CPU/RAM thực tế vào lần chạy mới, không dùng tên file làm bằng chứng đủ về giới hạn tài nguyên.
+
+### 16.2. Run 30 VU tải ghi cao
+
+Các artifact `highload-mono-booking-k6.json` và `highload-micro-booking-k6.json` ghi p95 API lần lượt khoảng 47.1 ms và 179.6 ms, p95 E2E khoảng 106 ms và 524.3 ms, cùng `server_error_rate = 0`. Tuy nhiên số request/booking tạo ra không bằng nhau (28,312 attempts và 2,400 booking ở monolith; 11,743 attempts và 1,996 booking ở microservices). Đây là kết quả mô tả của hai lượt chạy, không phải phép so sánh công bằng đã khóa workload.
+
+Ngoài ra, trong hai JSON, một số `thresholds` được đánh dấu `false` trong khi percentile/rate hiển thị có vẻ thấp hơn/ngang ngưỡng (ví dụ p95 API 47/180 ms so với 500 ms; success rate 1.0 so với 0.98). Trạng thái threshold này mâu thuẫn với số đo hiển thị và cần được tái tạo/đối chiếu với log cùng exit code của k6 trước khi gọi lượt đó là PASS. Các `http_req_failed` cao phần lớn đến từ HTTP 409 contention hợp lệ; không được dùng thay cho tỷ lệ 5xx.
+
+Script `booking-high-load.js` tạo các ca làm và chọn slot ngẫu nhiên, nhưng teardown hiện không theo dõi và hủy các appointment đã tạo. Vì vậy trạng thái ban đầu của DB có thể thay đổi giữa các lần chạy, và cleanup của lượt benchmark chưa được chứng minh.
+
+### 16.3. Bảo vệ artifact và kết luận acceptance
+
+Hai JSON high-load có `setup_data` chứa `patientToken` và `adminToken`. Không đăng tải, commit hoặc chiếu các file nguyên bản; cần xóa/rotate credential nếu còn hiệu lực và thay artifact bằng bản đã sanitize không chứa token, mật khẩu hay dữ liệu cá nhân.
+
+Kết luận cập nhật: các báo cáo runtime hiện có vẫn là bằng chứng tốt cho việc service chạy, workflow hoạt động và không phát sinh 5xx trong các lượt được ghi. Tuy nhiên, chưa đủ căn cứ để tuyên bố đã có benchmark monolith–microservices cuối cùng, công bằng và tái lập, hoặc tất cả service đều đạt latency SLO trong mọi workload. Trước khi đóng mục tiêu so sánh tải, hãy khóa cùng commit/profile CPU/RAM, cùng seed và trạng thái DB sạch, workload như nhau, cleanup có đối soát, chạy ít nhất ba lượt mỗi hệ thống, tách 409 khỏi lỗi hệ thống và xác nhận threshold/exit code khớp dữ liệu.
+
+Báo cáo tổng hợp và kịch bản thuyết trình đã ghi các giới hạn này tại [`../docs/PROJECT_REPORT.md`](../docs/PROJECT_REPORT.md) và [`../docs/PRESENTATION_SCRIPT.md`](../docs/PRESENTATION_SCRIPT.md).
+
+---
+
+## 17. Tối ưu truy vấn reserve sau rà soát — 16/11/2026
+
+Trong `backend/Clinic.StaffScheduling.Service/Services/SchedulingManager.cs`, truy vấn kiểm tra capacity không còn materialize toàn bộ danh sách slot đang được giữ vào memory. Nó aggregate ở SQL theo schedule và trả về hai scalar: số reservation active và số reservation trùng slot đang yêu cầu. Khóa schedule trong transaction và filtered unique index `(WorkScheduleId, TimeSlot)` vẫn được giữ để bảo toàn capacity và chống trùng slot.
+
+Đây là tối ưu chắc chắn về lượng dữ liệu trả về và allocation phía service; chưa có số đo chứng minh p95 giảm. Chưa sửa lock strategy, pool/resource limits hoặc chu kỳ worker vì các lựa chọn đó cần trace/benchmark và kiểm tra invariant trước khi đổi. Cần chạy Scheduling manager/API tests, concurrency acceptance, rồi benchmark lại trên cùng profile/dataset trước khi cập nhật kết luận hiệu năng.
+
+
+## 18. Đo lại sau tối ưu truy vấn reserve — 17/11/2026
+
+### 18.1. Cấu hình và cách chạy
+
+- Build microservices từ source hiện tại bằng `docker compose up -d --build --wait`; các service được kiểm tra đều healthy.
+- Tổng giới hạn CPU trong Compose của mỗi hệ thống: 12.5 CPU. Chạy lần lượt, không để hai stack tranh tài nguyên.
+- Dùng chung `tests/load/booking.js`, 20 VU, 20 appointment/iteration; mỗi VU dùng slot riêng. Mỗi lượt xác minh availability, tạo booking, trạng thái Confirmed, idempotency và cleanup.
+- Scheduling DB ban đầu chưa có dữ liệu. Importer cũ không khớp schema ClinicDB sau các đổi tên cột, nên cập nhật `import-from-clinicdb.sql` để ánh xạ `WorkSchedules.RecommendedCapacity` và `ShiftRequests.PatientLimit` sang cột đích tương ứng, đồng thời lấy `IdentityUserId` từ bảng Identity. Import lại thành công: 5 specialties, 22 employees, 15 doctors, 15 work histories và 150 schedules.
+- Tài khoản test được dùng qua file env tạm bên ngoài repo. Không ghi credentials hoặc token vào tài liệu.
+
+### 18.2. Kết quả ba lượt mỗi hệ thống
+
+| Hệ thống | Booking API p95 (ms) | POST → Confirmed p95 (ms) | Thành công / cleanup | k6 threshold `<500ms` |
+|---|---:|---:|---:|---|
+| Microservices, lượt 1 | 983.8 | 1529 | 20/20; 20/20 | Fail |
+| Microservices, lượt 2 | 417.4 | 729.6 | 20/20; 20/20 | Pass |
+| Microservices, lượt 3 | 449.0 | 661.1 | 20/20; 20/20 | Pass |
+| Monolith, lượt 1 | 796.7 | 908.2 | 20/20; 20/20 | Fail |
+| Monolith, lượt 2 | 335.6 | 408.0 | 20/20; 20/20 | Pass |
+| Monolith, lượt 3 | 297.9 | 368.6 | 20/20; 20/20 | Pass |
+
+Mỗi lượt hoàn thành đủ 101/101 checks, không có HTTP 5xx. Dòng `Fail` phản ánh riêng ngưỡng booking API p95; các kiểm tra nghiệp vụ và cleanup vẫn pass.
+
+### 18.3. Đánh giá
+
+- Microservices có median p95 **449.0 ms** trong ba lượt, giảm khoảng **24.5%** so với mốc trước tối ưu **594.7 ms**. Hai lượt ấm đạt ngưỡng API p95 dưới 500 ms; lượt đầu không đạt.
+- Cùng phiên đo, monolith có median p95 **335.6 ms**. Microservices vẫn chậm hơn khoảng **34%** theo median p95; median POST → Confirmed cũng cao hơn (729.6 ms so với 408.0 ms).
+- Kết quả gợi ý tối ưu có lợi ở các lượt ấm, nhưng độ phân tán lớn (983.8 ms ở lượt đầu) và mỗi lượt chỉ có 20 mẫu booking. Chưa đủ căn cứ để tuyên bố SLO p95 dưới 500 ms ổn định hoặc khẳng định nguyên nhân giảm p95 chỉ đến từ truy vấn aggregate.
+- Lượt ban đầu trước khi importer được sửa không có dữ liệu bác sĩ và không được dùng làm mẫu đo. Importer SQL được sửa để đồng bộ schema hiện tại; cần giữ thay đổi này và kiểm tra importer cùng seed mới trong quy trình khởi tạo.
+- Compose monolith được build thành công; microservices đã được build trước khi chạy đo. Cả hai stack được chạy nối tiếp; kết quả trên là acceptance workflow nhỏ, không thay thế benchmark tải dài đã định nghĩa ở phần 15.
+
+### 18.4. Việc cần làm tiếp
+
+1. Giữ evidence k6 thô cho sáu lượt cùng metadata về commit, CPU/RAM, image và seed; các lượt này hiện chỉ được ghi lại trong phiên benchmark và chưa xuất thành JSON artifact.
+2. Chạy tối thiểu ba lượt warm-up bỏ riêng và ba lượt đo chính trên DB được reset/seed nhất quán, ghi đầy đủ p50/p90/p95, CPU/RAM và thời gian từng hop.
+3. Nếu mục tiêu là p95 dưới 500 ms ổn định, điều tra độ trễ lượt đầu bằng trace/log và xác minh thời gian trong Appointment orchestration so với Scheduling reserve; không tiếp tục đổi lock hoặc pool nếu chưa có bằng chứng.
+4. Đã dừng stack monolith và khôi phục stack microservices; các service hiện healthy.
+## 19. High-load booking sau tối ưu reserve — 17/11/2026
+
+### 19.1. Kịch bản và điều kiện
+
+- Chạy `tests/load/booking-high-load.js` trên microservices hiện tại: 30 VU, ramp-up 10 giây, tải duy trì 60 giây, ramp-down 10 giây; kịch bản provision tối đa 2.400 slot (10 bác sĩ × 5 ngày).
+- Ba lượt đo chính đều chạy tới hết, **k6 exit 0**. Trước mỗi lượt, danh sách appointment upcoming của tài khoản benchmark rỗng. Sau lượt, hủy appointment benchmark qua API; k6 teardown cũng hủy 50 ca do lượt đó tạo. API xác nhận sau cleanup không còn appointment upcoming.
+- Evidence JSON đã sanitize, không chứa token, tên hoặc dữ liệu bệnh nhân: [`highload-micro-2026-11-17-post-reserve-optimization.json`](../tests/load/evidence/highload-micro-2026-11-17-post-reserve-optimization.json). Artifact lưu commit, dirty state, image ID và hash của SchedulingManager/script để nhận diện code được đo.
+
+### 19.2. Kết quả
+
+| Lượt | Attempts | Tạo và Confirmed | 409 dự kiến | API p95 (mọi response) | API p95 (booking tạo thành công) | POST → Confirmed p95 | Checks / exit |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 1 | 13.088 | 2.390 | 10.698 | 172.5 ms | 347.7 ms | 656 ms | 7.170/7.170; 0 |
+| 2 | 11.292 | 2.381 | 8.911 | 253.6 ms | 387.8 ms | 762 ms | 7.143/7.143; 0 |
+| 3 | 10.018 | 2.362 | 7.656 | 398.3 ms | 513.0 ms | 797 ms | 7.086/7.086; 0 |
+
+Cả ba lượt có 0 HTTP 5xx, 100% booking tạo thành công đạt Confirmed, và 100% retry idempotency trả đúng appointment đã tạo. Tổng cộng có **7.133 appointment được tạo và Confirmed** từ 34.398 attempts. Median của ba p95 là **253.6 ms** cho API booking tổng thể, **387.8 ms** cho API tạo booking thành công và **762 ms** cho POST → Confirmed. API p95 tổng thể dưới 500 ms trong cả ba lượt; p95 create booking dưới 1 giây và p95 E2E dưới 5 giây.
+
+### 19.3. Cách diễn giải và giới hạn
+
+- HTTP 409 chiếm một phần lớn workload do các VU chọn ngẫu nhiên trong không gian 2.400 slot khi slot dần được đặt. k6 mặc định tính 409 là `http_req_failed`; vì vậy tỷ lệ HTTP failed 33–42% **không phải tỷ lệ 5xx**. Tỷ lệ 5xx đo riêng là 0%.
+- `booking_success_rate` trong script xem 200/201 và 409 là các kết quả nghiệp vụ hợp lệ; do đó 100% ở chỉ số đó không có nghĩa 100% attempts tạo được appointment. Bảng đã tách số booking được tạo/xác nhận khỏi xung đột 409.
+- Ba lượt lặp có số attempts và p95 khác nhau; một lượt có p95 booking-create 513 ms nhưng vẫn đạt threshold cấu hình `<1000 ms`. Đây là bằng chứng rằng p95 API tổng `<500 ms` giữ được dưới kịch bản này, không chứng minh mọi endpoint/SLO hay mọi cấu hình tải đều đạt.
+- Số đo chỉ bao phủ một profile microservices, một tài khoản bệnh nhân và các slot trong năm ngày; DB chứa lịch sử appointment đã hủy sau cleanup. Chưa có cùng high-load workload chạy đối chứng monolith, chưa thu chuỗi CPU/RAM trong lúc tải và chưa chạy soak dài. Vì vậy không dùng kết quả này để kết luận microservices nhanh hơn monolith hoặc có capacity/SLA phổ quát.
+- Một lượt thăm dò ban đầu đạt 2.396 booking nhưng PowerShell capture bị ngắt trước khi lấy được exit code; lượt đó không được tính vào ba lượt acceptance ở trên.
+
+Kết luận: **có đủ bằng chứng cho mục tiêu booking API p95 <500 ms ở microservices với kịch bản 30 VU/2.400 slot đã chạy**, trong ba lần lặp có exit code 0 và cleanup được xác minh. Để khẳng định so sánh kiến trúc hoặc SLA rộng hơn, cần chạy cùng workload/seed/resources trên monolith và thu CPU/RAM/trace trong lúc tải.
+### 19.4. Quan sát tài nguyên sau tải
+
+Sau ba lượt high-load, Jaeger báo `unhealthy`; probe nội bộ của Jaeger timeout quá 5 giây. Tại thời điểm kiểm tra, container dùng 172.3 MiB trên giới hạn 192 MiB. Gateway và các service nghiệp vụ vẫn healthy, `/healthz` trả 200, và kết quả booking không có 5xx. Restart Jaeger sau khi đã cleanup toàn bộ appointment benchmark đã khôi phục healthcheck; bộ nhớ giảm còn 27.75 MiB. Trace lưu in-memory của các lượt đo bị xóa khi restart.
+
+Điều này không làm mất evidence k6 đã lưu, nhưng cho thấy cấu hình Jaeger 192 MiB chưa chịu được chuỗi high-load lặp với mức trace hiện tại. Nên giảm retention/sampling hoặc cấp thêm memory cho Jaeger; hiện chưa thay đổi cấu hình Compose. Chưa có chuỗi docker stats theo thời gian nên số 172.3 MiB là ảnh chụp sau tải, không phải peak chính xác.
+## 20. Rà soát mixed-workload test — 17/11/2026
+
+### Hiện trạng
+
+- Chưa có kịch bản tải hỗn hợp chạy đồng thời nhiều loại tác vụ nghiệp vụ.
+- `load.js`, `spike.js`, `soak.js` chỉ đọc specialties và availability; hai API đọc được gọi nối tiếp trong mỗi iteration.
+- `booking-high-load.js` là tải ghi đặt lịch; mỗi booking thành công còn phát sinh GET poll xác nhận và POST retry idempotency. Đây là booking-centric workload, không có nhóm người dùng khác chạy đồng thời.
+- `benchmark-runner.mjs` với `SCENARIO=all` thực hiện read, booking và check-in theo thứ tự trong `main()`, không chạy đồng thời; không thể xem là mixed-load test.
+
+### Đánh giá
+
+High-load vừa chạy đủ để đánh giá p95 của luồng booking trên đúng tải 30 VU/2.400 slot, nhưng chưa cho biết browse, đặt lịch, lễ tân/check-in và thao tác bác sĩ cạnh tranh tài nguyên với nhau ra sao. Vì vậy mixed-load không bắt buộc để kết luận riêng booking API đạt p95 mục tiêu trong kịch bản booking hiện tại; **nên có trước khi kết luận năng lực/SLO của toàn hệ thống hoặc hoàn tất benchmark hiệu năng tổng thể**.
+
+### Kịch bản nên bổ sung
+
+1. Tạo nhiều persona độc lập: bệnh nhân tra cứu và đặt/hủy lịch; lễ tân xem danh sách, check-in/gọi số; bác sĩ đọc queue và bắt đầu/hoàn tất khám. Chỉ đưa luồng medical record vào nếu mục tiêu capacity có bao gồm thao tác đó.
+2. Chạy tác vụ đồng thời theo tỷ trọng đã xác định từ yêu cầu môn học hoặc giả định được ghi rõ. Nếu chưa có telemetry thực tế, ghi tỷ trọng là workload giả định và chạy thêm sensitivity profile; không trình bày nó như phân bố người dùng thực.
+3. Dùng dữ liệu fixture đủ lớn và tài khoản riêng theo persona; kiểm soát số slot để phân biệt contention chủ ý với lỗi. Giữ 409 business conflict tách khỏi 5xx và thống kê create success, saga confirmation, check-in/queue transitions riêng.
+4. Đặt threshold theo từng operation group thay vì một p95 tổng hợp; thu CPU/RAM theo thời gian, DB utilization, RabbitMQ queue/consumer lag và Jaeger memory để tìm saturation.
+5. Chạy warm-up riêng, ít nhất ba lượt đo có cùng seed/profile, cleanup được xác minh; lưu JSON đã sanitize và metadata code/image/resources.
+
+---
+
+## 21. Nghiệm thu hai profile tải hỗn hợp — 17/11/2026
+
+### 21.1. Thiết kế và cách chạy
+
+`tests/load/mixed-workload.js` chạy đồng thời request đọc và ghi qua Gateway trên Docker Compose của microservices:
+
+- `normal`: 20 VU, ramp-up 30 giây, duy trì 5 phút, ramp-down 30 giây; 82% lượt nghiệp vụ đọc và 18% lượt booking.
+- `clinic-peak`: 30 VU, cùng thời lượng; 75% lượt đọc, 20% booking, 5% check-in và queue tại quầy lễ tân.
+
+Đây là tỷ lệ chọn lượt nghiệp vụ; tỷ lệ request HTTP đọc/ghi đo được được báo riêng. Cả hai profile dùng tài khoản test và idempotency key, xác nhận booking rồi hủy. Profile peak chạy walk-in qua lễ tân, chờ Queue ticket, đặt ưu tiên, gọi số, bác sĩ bỏ qua, lễ tân retry; sau đó hủy appointment và xác minh queue ticket đã hủy. Ca làm việc do test tạo được hủy trong teardown.
+
+Các lượt đọc gồm specialties, doctors, availability, lịch hẹn và queue của bệnh nhân, danh sách lịch hẹn chờ và queue-doctors của lễ tân, queue của bác sĩ, và medical history. Không đưa lưu/finalize medical report vào vòng lặp vì report đã finalize là dữ liệu lâu dài và không có API cleanup tương ứng.
+
+### 21.2. Kết quả
+
+| Profile | VU / thời lượng giữ tải | Journeys (đọc / booking / queue) | Request HTTP đọc / ghi | Tỷ lệ đọc / ghi đo được | p95 đọc / ghi | p95 tạo booking | p95 workflow queue | Workflow thành công / 5xx |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| normal | 20 / 5 phút | 10.622 / 2.430 / — | 18.108 / 7.290 | 71,30% / 28,70% | 26,8 / 91,3 ms | 107,2 ms | — | 100% / 0% |
+| clinic-peak | 30 / 5 phút | 12.584 / 3.432 / 836 | 32.139 / 15.312 | 67,73% / 32,27% | 49,7 / 187,8 ms | 343,8 ms | 1.661 ms | 99,976% / 0% |
+
+Normal xác nhận và cleanup 2.430/2.430 booking. Peak xác nhận 3.432/3.432 booking và hoàn tất cả 836 check-in cùng queue lifecycle đến bước retry. Tỷ lệ thành công của request đọc và ghi đều là 100% trong cả hai lượt. `http_req_failed` của k6 là 0% ở normal và 3,694% ở peak; đây là metric HTTP tổng quát, bao gồm các phản hồi 404 được cho phép khi poll chờ queue ticket. Metric 5xx riêng là 0% ở cả hai profile.
+
+Tất cả threshold khai báo đều đạt: p95 đọc <1.000 ms; p95 ghi và tạo booking <1.500 ms; p95 queue workflow <10.000 ms; workflow success >90%; 5xx <1%. Profile peak đánh dấu 4/16.852 iteration chưa thành công (0,024%); summary tổng hợp không xác định được bước gây ra bốn trường hợp này. Vì vậy profile đạt threshold nhưng không nên mô tả là không có workflow failure. Bộ đếm cho thấy mọi booking và queue lifecycle đều đạt marker hoàn tất nghiệp vụ.
+
+Evidence tổng hợp đã sanitize, không chứa token hay fixture setup: [profile normal](../tests/load/evidence/mixed-normal-2026-11-17.json), [profile clinic-peak](../tests/load/evidence/mixed-clinic-peak-2026-11-17.json). `k6 inspect` đọc được script. Sau lượt chạy, các service đều healthy và `/healthz` trả 200.
+
+### 21.3. Đối chiếu với booking high-load và giới hạn kết luận
+
+Ba lượt booking-only high-load ở mục 19 có median p95 253,6 ms cho toàn bộ booking API response, 387,8 ms cho request tạo booking thành công và 762 ms từ POST đến Confirmed. p95 tạo booking ở mixed profile là 107,2 ms (normal) và 343,8 ms (clinic-peak). Đây là workload và cách tổng hợp khác nhau, không chứng minh mixed workload nhanh hơn. Hai nhóm kết quả bổ sung cho nhau: cạnh tranh slot/booking và tải đồng thời nhiều persona, đọc/ghi, queue.
+
+Kết quả xác nhận các luồng đã chọn chạy dưới tải hỗn hợp 20 và 30 VU trên cấu hình Docker hiện tại. Chúng chưa đại diện traffic đo từ phòng khám thật, chưa đo thao tác lưu/finalize bệnh án, và không phải benchmark đối chứng monolith. Muốn kết luận so sánh cần dùng cùng profile, seed, tài nguyên, warm-up và trạng thái dữ liệu trên cả hai hệ thống; nên lặp tối thiểu ba lần và báo median/variance cùng CPU/RAM.
+
+## 22. Chạy các profile tương ứng trên monolith — 22/11/2026
+
+### 22.1. Cấu hình và cách chạy
+
+Monolith được build và chạy bằng `docker compose -f docker-compose.monolith.yml up -d --build --wait`; API `http://localhost:5100`, SQL Server và backend đều healthy trước và sau các lượt đo. Workload dùng bản sao `tests/load/mixed-workload.js` và `tests/load/booking-high-load.js` tương ứng với harness microservices. Bản mixed trên monolith bổ sung bước tra `specialtyId` từ tên specialty vì `/doctors/me` của monolith không trả `specialtyId`; phần này chỉ thay đổi harness, không thay đổi ứng dụng.
+
+- `normal`: 20 VU, ramp-up 30 giây, giữ tải 5 phút, ramp-down 30 giây; cùng profile với mục 21.
+- `clinic-peak`: 30 VU, ramp-up 30 giây, giữ tải 5 phút, ramp-down 30 giây; bao gồm receptionist walk-in/check-in và Queue.
+- `booking-high-load`: 30 VU, ramp-up 10 giây, giữ tải 60 giây, ramp-down 10 giây; provision tối đa 2.400 slot, 10 bác sĩ × 5 ngày. Chạy 4 lượt; ba lượt có teardown hoàn tất được dùng làm acceptance. Lượt `mono-hl-20261122-0128` bị loại khỏi nhóm acceptance do k6 báo teardown timeout, dù các threshold nghiệp vụ đều đạt và DB xác nhận toàn bộ 2.393 booking đã Cancelled.
+- Code nghiệp vụ monolith ở commit `bcee7edff3648739aa8acd29b6aeb341f3fe421e`; các thay đổi tại working tree chỉ thuộc harness/evidence kiểm thử. Evidence mới chỉ chứa metrics tổng hợp, không chứa token, mật khẩu hay PII.
+
+### 22.2. Mixed workload
+
+Tỷ lệ dưới đây là tỷ lệ **HTTP request đo được**, không phải tỷ lệ persona/lượt nghiệp vụ cấu hình trong script. Các giá trị p95 tính bằng mili giây.
+
+| Hệ thống / profile | Journeys | HTTP read / write | Tỷ lệ read / write | p95 read / write / booking create | Workflow success / 5xx | Queue lifecycle |
+|---|---:|---:|---:|---:|---:|---:|
+| Monolith `normal`, 20 VU | 13.473 (11.067 read, 2.406 booking) | 15.879 / 7.218 | 68,75% / 31,25% | 82,2 / 111,3 / 50,3 ms | 100% / 0% | Không chạy Queue |
+| Microservices `normal`, 20 VU, mục 21 | 13.052 (10.622 read, 2.430 booking) | 18.108 / 7.290 | 71,30% / 28,70% | 26,8 / 91,3 / 107,2 ms | 100% / 0% | Không chạy Queue |
+| Monolith `clinic-peak`, 30 VU | 16.662 (12.508 read, 3.289 booking, 865 queue) | 19.086 / 10.732 | 64,00% / 36,00% | 276,7 / 362,4 / 287,8 ms | 94,81% / 2,90% | 0/865 hoàn tất; 865 lỗi check-in |
+| Microservices `clinic-peak`, 30 VU, mục 21 | 16.852 (12.584 read, 3.432 booking, 836 queue) | 32.139 / 15.312 | 67,73% / 32,27% | 49,7 / 187,8 / 343,8 ms | 99,976% / 0% | 836 lifecycle hoàn tất |
+
+`normal` đạt toàn bộ threshold ở cả hai hệ thống; đây là một lượt mỗi bên, nên chỉ dùng để mô tả. `clinic-peak` trên monolith **không đạt**: 865 lượt receptionist walk-in trả 5xx, làm write-success còn 91,94% (ngưỡng >95%) và server-error rate 2,90% (ngưỡng <1%). Không có queue lifecycle hợp lệ để so latency Queue. Lỗi trùng với `DbUpdateException` do EF Core cố thêm lại `WorkSchedule` đã tồn tại qua navigation graph trong luồng walk-in: handler lấy schedule bằng truy vấn `AsNoTracking`, sau đó thêm `Appointment` qua repository. Đây là lỗi chức năng monolith được phát hiện trong test, không phải kết quả capacity Queue. Cần attach schedule hiện hữu với state `Unchanged`/chỉ insert appointment mà không add lại graph, rồi chạy lại clinic-peak.
+
+### 22.3. Booking high-load
+
+Ba lượt acceptance dùng cùng code monolith và script, mỗi lượt có 30 VU, cửa sổ tải 80 giây (10 giây ramp-up + 60 giây giữ tải + 10 giây ramp-down) và tối đa 2.400 slot. Lượt thứ hai bị loại khỏi phép tổng hợp do teardown timeout; dữ liệu của lượt này được kiểm tra riêng và đã ở trạng thái Cancelled.
+
+| Run | Attempts / 80 giây | Confirmed | p95 mọi booking API | p95 API tạo thành công | POST → Confirmed p95 | 5xx / Idempotency |
+|---|---:|---:|---:|---:|---:|---:|
+| `0126` | 17.479 (218,49/s) | 2.399 (29,99/s) | 122,3 ms | 148,9 ms | 166 ms | 0% / 100% |
+| `0131` | 12.866 (160,82/s) | 2.387 (29,84/s) | 190,2 ms | 214,6 ms | 235 ms | 0% / 100% |
+| `0139` | 10.148 (126,85/s) | 2.367 (29,59/s) | 253,5 ms | 287,4 ms | 316 ms | 0% / 100% |
+| **Median 3 lượt** | — | — | **190,2 ms** | **214,6 ms** | **235 ms** | **0% / 100%** |
+
+Microservices ở mục 19 có ba lượt cùng cấu hình: median p95 mọi booking API 253,6 ms, API tạo thành công 387,8 ms, POST → Confirmed 762 ms; 5xx 0%. Tỷ lệ booking được xác nhận trong hai hệ thống gần nhau theo thông lượng (monolith median 29,84/s; microservices tổng 7.133/240s ≈29,72/s), còn p95 của các metric này thấp hơn trong nhóm monolith đo được. Tuy nhiên monolith có xu hướng latency tăng theo thứ tự chạy (API p95 122 → 190 → 254 ms) do các lượt dùng chung DB và để lại lịch sử appointment đã hủy; vì vậy không được diễn giải median này như kết luận kiến trúc chắc chắn. Cần chạy lại trên snapshot DB sạch hoặc khôi phục cùng seed trước từng lượt để loại ảnh hưởng thứ tự.
+
+HTTP `http_req_failed` cao trong booking-high-load vì k6 đánh dấu các phản hồi 409 do cạnh tranh slot là failed HTTP request; custom `server_error_rate` vẫn bằng 0%. Không dùng tổng tỷ lệ HTTP failed này như tỷ lệ 5xx.
+
+### 22.4. Tài nguyên, cleanup và bằng chứng
+
+Trong hai profile mixed, `docker stats` được lấy xấp xỉ mỗi 5 giây. Ở `normal`, backend monolith CPU trung bình/đỉnh 163,8%/479,6%, RAM đỉnh 360,8 MiB; SQL Server 51,7%/131,5%, RAM đỉnh 1.292,3 MiB. Ở `clinic-peak`, backend 433,7%/770,2%, RAM đỉnh 400,7 MiB; SQL Server 155,9%/325,6%, RAM đỉnh 1.339,4 MiB. Đây là mức sử dụng quan sát được, không phải quota cấu hình, và chưa có chuỗi đo cùng cách trên microservices để đối chiếu trực tiếp.
+
+`booking-high-load` lấy thêm 38 mẫu trong cả setup, cửa sổ tải và teardown: backend trung bình/đỉnh 127,6%/207,4%, RAM đỉnh 355,8 MiB; SQL Server 117,0%/418,8%, RAM đỉnh 1.414,1 MiB. Do mẫu gồm cả teardown và run test state tăng dần, không so số trung bình này với mixed profile.
+
+Sau mỗi run high-load, k6 hủy ca test; ClinicDB xác nhận lần lượt 2.399, 2.387 và 2.367 appointment còn đúng marker run đều đã ở trạng thái `Cancelled`. Lượt bị loại `0128` cũng có 2.393 appointment Cancelled. Không in ID fixture hoặc thông tin tài khoản vào báo cáo. Evidence sanitize: [mixed normal](../tests/load/evidence/mixed-normal-monolith-2026-11-22.json), [mixed clinic peak](../tests/load/evidence/mixed-clinic-peak-monolith-2026-11-22.json), [booking high-load tổng hợp](../tests/load/evidence/highload-monolith-2026-11-22.json), [tài nguyên](../tests/load/evidence/monolith-resource-summary-2026-11-22.json).
+
+### 22.5. Kết luận và việc cần xử lý
+
+- Đã có đối chứng monolith cho `normal`, `clinic-peak` và booking high-load. `normal` và booking high-load đều đạt các threshold đo được; clinic-peak phát hiện lỗi 500 ở walk-in và không đạt write-success/5xx SLO.
+- Chưa thể kết luận microservices nhanh hơn hoặc tốt hơn tổng thể: mixed chỉ có một lượt mỗi bên; high-load monolith sử dụng DB tích lũy lịch sử hủy và p95 tăng theo thứ tự chạy. Muốn benchmark kết luận kiến trúc, cần snapshot/restore DB, giữ seed và giới hạn tài nguyên giống nhau, warm-up thống nhất, chạy tối thiểu ba lượt sạch mỗi profile và đo CPU/RAM hai hệ thống cùng cách.
+- Ưu tiên sửa lỗi tracking `WorkSchedule` của monolith, chạy lại clinic-peak và xác nhận đủ 865 queue workflow. Sau đó chạy ít nhất ba lượt clinic-peak trên mỗi hệ thống, ghi p95/throughput/5xx/queue lifecycle và tài nguyên.
