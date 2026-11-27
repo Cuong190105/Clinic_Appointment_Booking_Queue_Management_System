@@ -1,6 +1,7 @@
 'use strict';
 
 const { addArrow, notesFor, rect, text, theme } = require('../helpers');
+const { qosResults } = require('../qos-results');
 const { addLiveBase, addLiveCard, addLivePill } = require('./live-01-08');
 
 function buildLiveSlides09To16(pptx) {
@@ -150,90 +151,81 @@ function buildLiveSlides09To16(pptx) {
   }
 
   // =========================================================================
-  // SLIDE 11 — SLA, SLI, SLO và QoS
+  // SLIDE 11 — SLA/SLO/QoS theo từng dịch vụ
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addLiveBase(slide, {
       section: 'Chỉ tiêu chất lượng dịch vụ',
-      title: 'Khung đo lường SLI, mục tiêu SLO và chính sách QoS',
+      title: 'SLA, SLO và QoS cho từng dịch vụ',
       number: 11,
     });
 
-    const targets = [
-      {
-        x: 0.58, y: 1.72,
-        metric: '≥ 99,0%',
-        title: 'Độ sẵn sàng tại Gateway',
-        accent: theme.colors.teal,
-        body: 'Tính lỗi 5xx là sự cố;\nloại trừ xung đột 409 & giới hạn 429',
-      },
-      {
-        x: 4.72, y: 1.72,
-        metric: '≤ 500 ms',
-        title: 'Độ trễ API p95',
-        accent: theme.colors.navy,
-        body: 'p99 ≤ 1.500 ms;\nđo riêng tại từng ranh giới dịch vụ',
-      },
-      {
-        x: 8.86, y: 1.72,
-        metric: '≤ 1,0%',
-        title: 'Tỷ lệ lỗi máy chủ (5xx)',
-        accent: theme.colors.teal,
-        body: 'Đo trên tập mẫu hợp lệ;\ntách biệt khỏi từ chối nghiệp vụ',
-      },
-      {
-        x: 0.58, y: 4.26,
-        metric: '≤ 5 giây',
-        title: 'Độ trễ xử lý sự kiện (p95)',
-        accent: theme.colors.navy,
-        body: 'Từ lúc phát lên RabbitMQ\nđến khi dịch vụ đích xử lý xong',
-      },
-      {
-        x: 4.72, y: 4.26,
-        metric: '0 vi phạm',
-        title: 'Bất biến dữ liệu & DLQ',
-        accent: theme.colors.green,
-        body: '0 đặt vượt chỗ, 0 trùng phiếu;\n0 thông điệp hợp lệ kẹt ở DLQ',
-      },
-      {
-        x: 8.86, y: 4.26,
-        metric: '100 req/phút',
-        title: 'Giới hạn tốc độ (Rate Limit)',
-        accent: theme.colors.amber,
-        body: 'Cửa sổ cố định theo tài khoản/IP;\nkết hợp Timeout, Retry & Idempotency',
-      },
+    const head = (t) => ({ text: t, options: { bold: true, color: theme.colors.white, fill: { color: theme.colors.navy } } });
+    const tier = (t, color) => ({ text: t, options: { bold: true, color, align: 'center' } });
+    const rows = [
+      [head('Dịch vụ'), head('Tầng'), head('Sẵn sàng'), head('Độ trễ p95'), head('QoS chính'), head('RPO')],
+      ['Gateway', tier('—', theme.colors.slate), '99,9%', 'Đọc 300 · Ghi 500 ms', 'Rate limit theo tầng · breaker', '—'],
+      ['Identity', tier('1', theme.colors.red), '99,9%', 'Đăng nhập 1 s', 'Bulkhead · 503 + Retry-After', '24 giờ'],
+      ['Scheduling', tier('1', theme.colors.red), '99,7%', 'Đọc 300 ms', 'Deadline 3 s · retry 1 lần', '1 giờ'],
+      ['Appointment', tier('1', theme.colors.red), '99,7%', 'Confirmed ≤ 5 s', 'Idempotency · lỗi không lan', '1 giờ'],
+      ['Queue', tier('1', theme.colors.red), '99,7%', 'Số thứ tự ≤ 3 s', 'Consumer idempotent · DLQ', '1 giờ'],
+      ['Medical Records', tier('2', theme.colors.amber), '99,5%', 'Encounter ≤ 5 s', 'Audit 100%', '15 phút'],
+      ['Notification', tier('3', theme.colors.teal), '99,0%', 'Inbox ≤ 10 s', 'Không ảnh hưởng Tier 1', '24 giờ'],
     ];
+    slide.addTable(rows, {
+      x: 0.58, y: 1.62, w: 12.15,
+      colW: [2.15, 0.85, 1.3, 2.75, 3.75, 1.35],
+      fontFace: theme.font, fontSize: 15, color: theme.colors.ink,
+      border: { type: 'solid', pt: 0.8, color: theme.colors.line },
+      fill: { color: theme.colors.white },
+      rowH: 0.56, valign: 'middle', margin: 0.07,
+    });
 
-    targets.forEach((t) => {
-      rect(slide, t.x, t.y, 3.87, 2.28, theme.colors.white, theme.colors.line);
-      slide.addShape('rect', {
-        x: t.x, y: t.y + 0.02, w: 0.08, h: 2.24,
-        fill: { color: t.accent }, line: { color: t.accent, transparency: 100 },
-      });
-      text(slide, t.metric, t.x + 0.24, t.y + 0.18, 3.45, 0.54, {
-        fontSize: 28, bold: true, color: t.accent,
-      });
-      text(slide, t.title, t.x + 0.24, t.y + 0.8, 3.45, 0.38, {
-        fontSize: 17.5, bold: true, color: theme.colors.ink,
-      });
-      text(slide, t.body, t.x + 0.24, t.y + 1.28, 3.45, 0.82, {
-        fontSize: 14.5, color: theme.colors.slate, valign: 'top',
-      });
+    rect(slide, 0.58, 6.3, 12.15, 0.6, theme.colors.sky, 'B9D4DC');
+    text(slide, 'SLA: hành trình ≥ 99,0% (đăng nhập ≥ 99,5%) · 30 ngày giờ phòng khám · 409/429 không tính lỗi', 0.8, 6.43, 11.7, 0.34, {
+      fontSize: 15.5, bold: true, color: theme.colors.navy,
     });
 
     slide.addNotes(notesFor(11));
   }
 
   // =========================================================================
-  // SLIDE 12 — Cách đánh giá hiệu năng
+  // SLIDE 12 — Kiểm chứng SLA/QoS trên hệ thống chạy
+  // =========================================================================
+  {
+    const slide = pptx.addSlide('BASE');
+    addLiveBase(slide, {
+      section: 'Kiểm chứng chất lượng dịch vụ',
+      title: 'Kiểm chứng SLA/QoS trên hệ thống đang chạy',
+      number: 12,
+    });
+
+    const pos = [[0.58, 1.62], [4.72, 1.62], [8.86, 1.62], [0.58, 4.12], [4.72, 4.12], [8.86, 4.12]];
+    qosResults.forEach((r, i) => {
+      const [x, y] = pos[i];
+      rect(slide, x, y, 3.87, 2.3, theme.colors.white, theme.colors.line);
+      slide.addShape('rect', {
+        x, y: y + 0.02, w: 0.08, h: 2.26,
+        fill: { color: r.accent }, line: { color: r.accent, transparency: 100 },
+      });
+      text(slide, r.metric, x + 0.24, y + 0.14, 3.5, 0.5, { fontSize: 25, bold: true, color: r.accent });
+      text(slide, r.title, x + 0.24, y + 0.72, 3.5, 0.38, { fontSize: 16.5, bold: true, color: theme.colors.ink });
+      text(slide, r.live, x + 0.24, y + 1.2, 3.5, 0.95, { fontSize: 13.5, color: theme.colors.slate, valign: 'top' });
+    });
+
+    slide.addNotes(notesFor(12));
+  }
+
+  // =========================================================================
+  // SLIDE 13 — Cách đánh giá hiệu năng
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addLiveBase(slide, {
       section: 'Phương pháp kiểm thử tải',
       title: 'Cách đánh giá hiệu năng: Kịch bản tải và chỉ số đo lường',
-      number: 12,
+      number: 13,
     });
 
     addLiveCard(slide, {
@@ -281,18 +273,18 @@ function buildLiveSlides09To16(pptx) {
       });
     });
 
-    slide.addNotes(notesFor(12));
+    slide.addNotes(notesFor(13));
   }
 
   // =========================================================================
-  // SLIDE 13 — Quá trình cải tiến microservices
+  // SLIDE 14 — Quá trình cải tiến microservices
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addLiveBase(slide, {
       section: 'Lịch sử tối ưu hóa',
       title: 'Quá trình cải tiến Microservices qua 5 mốc đo kiểm',
-      number: 13,
+      number: 14,
     });
 
     slide.addShape('line', {
@@ -375,18 +367,18 @@ function buildLiveSlides09To16(pptx) {
       });
     });
 
-    slide.addNotes(notesFor(13));
+    slide.addNotes(notesFor(14));
   }
 
   // =========================================================================
-  // SLIDE 14 — Kết quả high-load và mixed-load mới nhất trên Microservices
+  // SLIDE 15 — Kết quả high-load và mixed-load mới nhất trên Microservices
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addLiveBase(slide, {
       section: 'Kết quả Microservices mới nhất',
       title: 'Kết quả High-Load và Mixed-Load trên Microservices',
-      number: 14,
+      number: 15,
     });
 
     const kpis = [
@@ -473,18 +465,18 @@ function buildLiveSlides09To16(pptx) {
       text(slide, r.status, cols[4].x + 0.14, y + 0.16, cols[4].w - 0.28, 0.72, { fontSize: 14.2, bold: true, color: theme.colors.green });
     });
 
-    slide.addNotes(notesFor(14));
+    slide.addNotes(notesFor(15));
   }
 
   // =========================================================================
-  // SLIDE 15 — Đối chiếu trực quan số liệu Monolith và Microservices
+  // SLIDE 16 — Đối chiếu trực quan số liệu Monolith và Microservices
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addLiveBase(slide, {
       section: 'Đối chiếu số liệu thực nghiệm',
       title: 'Đối chiếu hiệu năng Monolith và Microservices (12,5 CPU)',
-      number: 15,
+      number: 16,
     });
 
     text(slide, 'Độ trễ p95 (ms) · Thấp hơn là nhanh hơn', 0.58, 1.5, 6.1, 0.34, {
@@ -597,18 +589,18 @@ function buildLiveSlides09To16(pptx) {
       }
     });
 
-    slide.addNotes(notesFor(15));
+    slide.addNotes(notesFor(16));
   }
 
   // =========================================================================
-  // SLIDE 16 — Kết luận và hướng phát triển
+  // SLIDE 17 — Kết luận và hướng phát triển
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addLiveBase(slide, {
       section: 'Kết luận & hướng phát triển',
       title: 'Tổng kết kết quả đạt được và hướng hoàn thiện',
-      number: 16,
+      number: 17,
     });
 
     const cols = [
@@ -619,7 +611,7 @@ function buildLiveSlides09To16(pptx) {
         items: [
           { h: 'Phân rã 6 dịch vụ & Gateway', d: 'Tách quyền sở hữu và 6 CSDL logic' },
           { h: 'Hợp đồng OpenAPI & SAGA', d: 'SAGA đặt lịch lai & Choreography' },
-          { h: 'Khung SLI / SLO / QoS', d: 'Rate limit, Idempotency, Prometheus, Jaeger' },
+          { h: 'SLA/SLO/QoS đã kiểm chứng', d: 'Cô lập lỗi, load shedding, backup PITR' },
         ],
       },
       {
@@ -666,7 +658,7 @@ function buildLiveSlides09To16(pptx) {
       });
     });
 
-    slide.addNotes(notesFor(16));
+    slide.addNotes(notesFor(17));
   }
 }
 

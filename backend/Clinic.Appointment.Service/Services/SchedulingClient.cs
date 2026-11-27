@@ -47,8 +47,20 @@ public class SchedulingClient : ISchedulingClient
 
     public async Task<bool> ReleaseReservationAsync(Guid scheduleId, Guid reservationId, CancellationToken ct = default)
     {
-        var response = await _client.PostAsync($"schedules/{scheduleId}/reservations/{reservationId}/release", null, ct);
-        return response.IsSuccessStatusCode;
+        // Release is always compensation/best-effort: an unreleased hold expires after 10 minutes and the
+        // AppointmentCancelled outbox event retries the release, so a Scheduling outage must not fail the caller.
+        try
+        {
+            using var response = await _client.PostAsync($"schedules/{scheduleId}/reservations/{reservationId}/release", null, ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or Polly.ExecutionRejectedException
+                                   || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        {
+            _logger.LogWarning(ex, "Best-effort release of reservation {ReservationId} on schedule {ScheduleId} failed; hold will expire or be released by the outbox consumer.",
+                reservationId, scheduleId);
+            return false;
+        }
     }
 
     public async Task<bool> ReleaseSlotByAppointmentAsync(Guid appointmentId, Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid cancelledBy, Guid? reservationId = null, CancellationToken ct = default)

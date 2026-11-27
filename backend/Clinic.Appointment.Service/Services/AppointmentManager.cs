@@ -799,6 +799,8 @@ public class AppointmentManager : IAppointmentManager
         {
             if (tx != null) await tx.RollbackAsync(ct);
             await _schedulingClient.ReleaseReservationAsync(request.NewWorkScheduleId, newReservation.Id, ct);
+            // Scheduling outage after compensation: surface as 503/504/502 (flagged as a dependency failure), not 500.
+            if (Clinic.Appointment.Service.Common.DownstreamFailure.TryMap(ex, out _, out _, out _)) throw;
             _logger.LogError(ex, "Failed to reschedule appointment {AppointmentId}", appointmentId);
             return (false, "Internal error rescheduling appointment.", null, StatusCodes.Status500InternalServerError);
         }

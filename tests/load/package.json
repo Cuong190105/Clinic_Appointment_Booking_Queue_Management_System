@@ -1,16 +1,22 @@
 {
   "name": "clinic-load-benchmarks",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Cross-system load and performance benchmarking suite for Monolith and Microservices",
+  "description": "SLO/QoS load-test suite for the Clinic monolith and microservices (see README.md and tasks/SLI_SLO_MATRIX_MEMBER_A.md §6)",
   "scripts": {
-    "benchmark:monolith": "node benchmark-runner.mjs",
-    "benchmark:microservices": "node benchmark-runner.mjs --target=microservices",
     "k6:smoke": "k6 run smoke.js",
     "k6:load": "k6 run load.js",
-    "k6:contention": "k6 run contention.js",
-    "k6:booking": "k6 run booking.js",
+    "k6:breakpoint": "k6 run breakpoint.js",
+    "k6:soak": "k6 run soak.js",
     "k6:spike": "k6 run spike.js",
-    "k6:soak": "k6 run soak.js"
+    "k6:high-load": "k6 run booking-high-load.js",
+    "k6:contention": "k6 run contention.js",
+    "k6:mixed": "k6 run mixed-workload.js",
+    "k6:workflow": "k6 run workflow-slo.js",
+    "k6:qos": "k6 run qos-policy.js",
+    "k6:login-capacity": "k6 run login-capacity.js",
+    "legacy:benchmark:monolith": "node benchmark-runner.mjs",
+    "legacy:benchmark:microservices": "node benchmark-runner.mjs --target=microservices",
+    "legacy:k6:booking": "k6 run booking.js"
   }
 }

@@ -67,3 +67,6 @@ tests/load/tokens.*.json
 *.token
 frontend/certs/*.key
 frontend/certs/*.pem
+
+# Off-site backup copies (docker-compose db-backup, BACKUP_OFFSITE_DIR)
+backups/

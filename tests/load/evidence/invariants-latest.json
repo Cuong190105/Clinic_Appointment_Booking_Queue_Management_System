@@ -1,0 +1,72 @@
+﻿{
+    "checkedAt":  "2026-11-27T09:03:01.2261094Z",
+    "allPassed":  true,
+    "checks":  [
+                   {
+                       "check":  "Shifts over RecommendedCapacity (active reservations)",
+                       "database":  "ClinicSchedulingDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Slots with more than one active reservation",
+                       "database":  "ClinicSchedulingDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Orphan reservations (Reserved, expired \u003e 1 min, not swept)",
+                       "database":  "ClinicSchedulingDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Online appointments stuck Pending \u003e 10 min",
+                       "database":  "ClinicAppointmentDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Confirmed/CheckedIn online appointments without a Confirmed reservation",
+                       "database":  "ClinicAppointmentDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Duplicate active appointments per doctor/date/slot",
+                       "database":  "ClinicAppointmentDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Duplicate idempotency keys",
+                       "database":  "ClinicAppointmentDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Duplicate queue numbers (DoctorId, QueueDate, QueueNumber)",
+                       "database":  "ClinicQueueDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Appointments with more than one queue ticket",
+                       "database":  "ClinicQueueDB",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Messages in dead-letter queues",
+                       "database":  "rabbitmq",
+                       "violations":  0,
+                       "ok":  true
+                   },
+                   {
+                       "check":  "Backups within RPO / last drill passed",
+                       "database":  "db-backup",
+                       "violations":  0,
+                       "ok":  true
+                   }
+               ]
+}

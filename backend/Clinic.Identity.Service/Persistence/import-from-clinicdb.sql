@@ -34,7 +34,9 @@ BEGIN TRY
         SELECT r.Id, r.Name, r.Description
         FROM ClinicDB.dbo.Roles AS r
         WHERE r.IsDeleted = 0
-          AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Roles AS target WHERE target.Id = r.Id);
+          -- Identity seeds its roles on startup (before this import runs); match by name as well as id
+          -- so a name already present under another id is not inserted twice (unique index on Name).
+          AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Roles AS target WHERE target.Id = r.Id OR target.Name = r.Name);
     END;
 
     IF OBJECT_ID(N'ClinicDB.dbo.Permissions', N'U') IS NOT NULL
@@ -43,7 +45,9 @@ BEGIN TRY
         SELECT p.Id, p.Name, p.Description
         FROM ClinicDB.dbo.Permissions AS p
         WHERE p.IsDeleted = 0
-          AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Permissions AS target WHERE target.Id = p.Id);
+          -- Identity's startup seed creates queue permissions with its own ids, so the monolith row for
+          -- the same name (e.g. queue.view) must be skipped, not inserted (unique index on Name).
+          AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Permissions AS target WHERE target.Id = p.Id OR target.Name = p.Name);
     END;
 
     IF OBJECT_ID(N'ClinicDB.dbo.Patients', N'U') IS NOT NULL
@@ -80,35 +84,81 @@ BEGIN TRY
 
     IF OBJECT_ID(N'ClinicDB.dbo.UserRoles', N'U') IS NOT NULL
     BEGIN
+        -- Resolve roles by name: the target id can differ from the monolith id (see Roles above).
         INSERT INTO ClinicIdentityDB.dbo.UserRoles (UserId, RoleId)
-        SELECT ur.UserId, ur.RoleId
+        SELECT DISTINCT ur.UserId, targetRole.Id
         FROM ClinicDB.dbo.UserRoles AS ur
+        JOIN ClinicDB.dbo.Roles AS sourceRole ON sourceRole.Id = ur.RoleId
+        JOIN ClinicIdentityDB.dbo.Roles AS targetRole ON targetRole.Name = sourceRole.Name
         WHERE EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Users AS u WHERE u.Id = ur.UserId)
-          AND EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Roles AS r WHERE r.Id = ur.RoleId)
-          AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.UserRoles AS target WHERE target.UserId = ur.UserId AND target.RoleId = ur.RoleId);
+          AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.UserRoles AS target WHERE target.UserId = ur.UserId AND target.RoleId = targetRole.Id);
     END;
 
     IF OBJECT_ID(N'ClinicDB.dbo.RolePermissions', N'U') IS NOT NULL
     BEGIN
+        -- Resolve both sides by name. Queue permissions are excluded here: they are owned by
+        -- QueuePermissionCatalog and applied by the queue-permission-map block below.
         INSERT INTO ClinicIdentityDB.dbo.RolePermissions (RoleId, PermissionId)
-        SELECT rp.RoleId, rp.PermissionId
+        SELECT DISTINCT targetRole.Id, targetPermission.Id
         FROM ClinicDB.dbo.RolePermissions AS rp
-        WHERE EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Roles AS r WHERE r.Id = rp.RoleId)
-          AND EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Permissions AS p WHERE p.Id = rp.PermissionId)
-          AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.RolePermissions AS target WHERE target.RoleId = rp.RoleId AND target.PermissionId = rp.PermissionId);
+        JOIN ClinicDB.dbo.Roles AS sourceRole ON sourceRole.Id = rp.RoleId
+        JOIN ClinicDB.dbo.Permissions AS sourcePermission ON sourcePermission.Id = rp.PermissionId
+        JOIN ClinicIdentityDB.dbo.Roles AS targetRole ON targetRole.Name = sourceRole.Name
+        JOIN ClinicIdentityDB.dbo.Permissions AS targetPermission ON targetPermission.Name = sourcePermission.Name
+        WHERE sourcePermission.Name NOT LIKE N'queue.%' AND sourcePermission.Name <> N'doctor.queue.view'
+          AND NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.RolePermissions AS target WHERE target.RoleId = targetRole.Id AND target.PermissionId = targetPermission.Id);
     END;
 
-    -- Ensure Doctor role has necessary queue permissions
+    -- BEGIN queue-permission-map
+    -- Mirrors Clinic.Identity.Service/Auth/QueuePermissionCatalog.cs (checked by QueuePermissionCatalogTests).
+    -- Identity reconciles the same grants on startup; applying them here keeps a freshly imported
+    -- database consistent without an Identity restart.
+    DECLARE @QueueGrants TABLE (RoleName nvarchar(50) NOT NULL, PermissionName nvarchar(150) NOT NULL);
+    INSERT INTO @QueueGrants (RoleName, PermissionName) VALUES
+        (N'Admin', N'queue.view'),
+        (N'Admin', N'doctor.queue.view'),
+        (N'Admin', N'queue.check-in'),
+        (N'Admin', N'queue.call-next'),
+        (N'Admin', N'queue.skip'),
+        (N'Admin', N'queue.skip-waiting'),
+        (N'Admin', N'queue.retry'),
+        (N'Admin', N'queue.priority'),
+        (N'Admin', N'queue.start-exam.own'),
+        (N'Admin', N'queue.start-exam.any'),
+        (N'Admin', N'queue.complete-exam.own'),
+        (N'Admin', N'queue.complete-exam.any'),
+        (N'Receptionist', N'queue.view'),
+        (N'Receptionist', N'queue.check-in'),
+        (N'Receptionist', N'queue.call-next'),
+        (N'Receptionist', N'queue.skip-waiting'),
+        (N'Receptionist', N'queue.retry'),
+        (N'Receptionist', N'queue.priority'),
+        (N'Doctor', N'doctor.queue.view'),
+        (N'Doctor', N'queue.call-next'),
+        (N'Doctor', N'queue.skip'),
+        (N'Doctor', N'queue.start-exam.own'),
+        (N'Doctor', N'queue.complete-exam.own');
+    -- END queue-permission-map
+
+    INSERT INTO ClinicIdentityDB.dbo.Permissions (Id, Name, Description)
+    SELECT NEWID(), names.PermissionName, names.PermissionName
+    FROM (SELECT DISTINCT PermissionName FROM @QueueGrants) AS names
+    WHERE NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.Permissions AS p WHERE p.Name = names.PermissionName);
+
+    DELETE rp
+    FROM ClinicIdentityDB.dbo.RolePermissions AS rp
+    JOIN ClinicIdentityDB.dbo.Roles AS r ON r.Id = rp.RoleId
+    JOIN ClinicIdentityDB.dbo.Permissions AS p ON p.Id = rp.PermissionId
+    WHERE p.Name IN (SELECT PermissionName FROM @QueueGrants)
+      AND r.Name IN (SELECT RoleName FROM @QueueGrants)
+      AND NOT EXISTS (SELECT 1 FROM @QueueGrants AS g WHERE g.RoleName = r.Name AND g.PermissionName = p.Name);
+
     INSERT INTO ClinicIdentityDB.dbo.RolePermissions (RoleId, PermissionId)
     SELECT r.Id, p.Id
-    FROM ClinicIdentityDB.dbo.Roles r
-    CROSS JOIN ClinicIdentityDB.dbo.Permissions p
-    WHERE r.Name = 'Doctor'
-      AND p.Name IN ('queue.call-next', 'queue.skip', 'queue.priority')
-      AND NOT EXISTS (
-          SELECT 1 FROM ClinicIdentityDB.dbo.RolePermissions target
-          WHERE target.RoleId = r.Id AND target.PermissionId = p.Id
-      );
+    FROM @QueueGrants AS g
+    JOIN ClinicIdentityDB.dbo.Roles AS r ON r.Name = g.RoleName
+    JOIN ClinicIdentityDB.dbo.Permissions AS p ON p.Name = g.PermissionName
+    WHERE NOT EXISTS (SELECT 1 FROM ClinicIdentityDB.dbo.RolePermissions AS target WHERE target.RoleId = r.Id AND target.PermissionId = p.Id);
 
     IF OBJECT_ID(N'ClinicDB.dbo.RefreshTokens', N'U') IS NOT NULL
     BEGIN

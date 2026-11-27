@@ -44,6 +44,11 @@ public class GlobalExceptionHandler : IExceptionHandler
             ArgumentException => (HttpStatusCode.BadRequest, new[] { exception.Message }),
             InvalidOperationException => (HttpStatusCode.BadRequest, new[] { exception.Message }),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, new[] { exception.Message }),
+            // Resilience pipeline: total/attempt deadline exceeded -> 504; circuit open -> 503 (fail fast).
+            Polly.Timeout.TimeoutRejectedException
+                => (HttpStatusCode.GatewayTimeout, new[] { "Downstream microservice did not respond within the SLA threshold." }),
+            Polly.CircuitBreaker.BrokenCircuitException
+                => (HttpStatusCode.ServiceUnavailable, new[] { "Downstream microservice is temporarily unavailable (circuit open). Please retry later." }),
             TimeoutException or TaskCanceledException when !httpContext.RequestAborted.IsCancellationRequested
                 => (HttpStatusCode.GatewayTimeout, new[] { "Downstream microservice did not respond within the SLA threshold." }),
             HttpRequestException => (HttpStatusCode.BadGateway, new[] { "Downstream microservice connection failed or refused." }),
@@ -54,6 +59,13 @@ public class GlobalExceptionHandler : IExceptionHandler
         {
             // Chỉ log chi tiết cho lỗi ngoài dự kiến; không rò rỉ thông tin ra client.
             _logger.LogError(exception, "Unhandled exception while processing {Path}", httpContext.Request.Path);
+        }
+
+        if (exception is Polly.CircuitBreaker.BrokenCircuitException broken)
+        {
+            _ = broken;
+            var retryAfter = Resilience.DownstreamResilience.BreakerBreakDuration;
+            httpContext.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
         }
 
         var response = ApiResponse.Fail(statusCode, messages);

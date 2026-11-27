@@ -10,6 +10,8 @@ services:
             - "1433:1433"
         volumes:
             - mssql_data:/var/opt/mssql
+            # Backup files are written by SQL Server here and managed by db-backup (same path in both).
+            - mssql_backups:/var/opt/mssql/backup
         networks:
             default:
                 aliases:
@@ -51,6 +53,7 @@ services:
                 -v QueuePassword="$$DB_QUEUE_PASSWORD"
                 -v MedicalRecordsPassword="$$DB_MEDICAL_RECORDS_PASSWORD"
                 -v NotificationPassword="$$DB_NOTIFICATION_PASSWORD"
+                -v BackupPassword="$$DB_BACKUP_PASSWORD"
                 -i /init-service-logins.sql
         environment:
             DB_SA_PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
@@ -60,12 +63,66 @@ services:
             DB_QUEUE_PASSWORD: ${DB_QUEUE_PASSWORD:?Set DB_QUEUE_PASSWORD in .env}
             DB_MEDICAL_RECORDS_PASSWORD: ${DB_MEDICAL_RECORDS_PASSWORD:?Set DB_MEDICAL_RECORDS_PASSWORD in .env}
             DB_NOTIFICATION_PASSWORD: ${DB_NOTIFICATION_PASSWORD:?Set DB_NOTIFICATION_PASSWORD in .env}
+            DB_BACKUP_PASSWORD: ${DB_BACKUP_PASSWORD:?Set DB_BACKUP_PASSWORD in .env}
         volumes:
             - ./backend/sql/init-service-logins.sql:/init-service-logins.sql:ro
         depends_on:
             db:
                 condition: service_healthy
         restart: "no"
+
+    # Backup scheduler, verifier and restore tooling (docs/BACKUP_RECOVERY.md). Express edition has no
+    # SQL Agent, so this sidecar schedules FULL/DIFF/LOG backups per backup/policy.conf, keeps an
+    # off-site gzip copy, archives the key volumes, prunes by chain and runs periodic restore drills.
+    # It connects as svc_backup (dbcreator + db_backupoperator, no data access), not as sa.
+    db-backup:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        container_name: clinic_db_backup
+        user: "0:0"   # reads the key volumes and hands backup directories to the mssql user (uid 10001)
+        entrypoint: ["/bin/bash", "-c"]
+        # Scripts are copied with CR stripped so a Windows (CRLF) checkout cannot break them.
+        command:
+            - >-
+                mkdir -p /opt/clinic-backup-run &&
+                for f in /opt/clinic-backup/*; do tr -d '\r' < "$$f" > "/opt/clinic-backup-run/$${f##*/}"; done &&
+                exec bash /opt/clinic-backup-run/scheduler.sh
+        environment:
+            BACKUP_SQL_SERVER: db,1433
+            BACKUP_SQL_USER: svc_backup
+            SQLCMDPASSWORD: ${DB_BACKUP_PASSWORD:?Set DB_BACKUP_PASSWORD in .env}
+            BACKUP_POLICY: ${BACKUP_POLICY:-policy}
+            BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-8}
+            BACKUP_OFFSITE_RETENTION_DAYS: ${BACKUP_OFFSITE_RETENTION_DAYS:-35}
+            BACKUP_DRILL_INTERVAL_MIN: ${BACKUP_DRILL_INTERVAL_MIN:-10080}
+            BACKUP_KEYS_INTERVAL_MIN: ${BACKUP_KEYS_INTERVAL_MIN:-1440}
+            BACKUP_TICK_SECONDS: ${BACKUP_TICK_SECONDS:-60}
+        volumes:
+            - ./backup:/opt/clinic-backup:ro
+            - mssql_backups:/var/opt/mssql/backup
+            # Second copy on different storage: point BACKUP_OFFSITE_DIR at another disk or a synced folder.
+            - ${BACKUP_OFFSITE_DIR:-./backups/offsite}:/offsite
+            - identity_signing_keys:/sources/identity-signing-keys:ro
+            - notification_protection_keys:/sources/notification-protection-keys:ro
+        depends_on:
+            db:
+                condition: service_healthy
+            db-init:
+                condition: service_completed_successfully
+        healthcheck:
+            test: ["CMD", "bash", "/opt/clinic-backup-run/status.sh", "--quiet"]
+            interval: 60s
+            timeout: 30s
+            retries: 3
+            start_period: 10m
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.5'
+                    memory: 256M
+                reservations:
+                    cpus: '0.05'
+                    memory: 64M
+        restart: always
 
     rabbitmq:
         image: rabbitmq:3.13-management
@@ -146,6 +203,10 @@ services:
             - Jwt__Audience=Clinic.Services
             - Jwt__RefreshTokenDays=${IDENTITY_REFRESH_TOKEN_DAYS:-7}
             - QoS__RateLimitPermitLimit=${RATE_LIMIT_PERMIT_LIMIT:-100}
+            - QoS__StaffRateLimitPermitLimit=${STAFF_RATE_LIMIT_PERMIT_LIMIT:-600}
+            - QoS__AnonymousRateLimitPermitLimit=${ANONYMOUS_RATE_LIMIT_PERMIT_LIMIT:-100}
+            - QoS__AuthRateLimitPermitLimit=${AUTH_RATE_LIMIT_PERMIT_LIMIT:-10}
+            - QoS__BookingRateLimitPermitLimit=${BOOKING_RATE_LIMIT_PERMIT_LIMIT:-10}
             - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
         depends_on:
             identity-service:
@@ -197,6 +258,13 @@ services:
             - Jwt__RefreshTokenDays=${IDENTITY_REFRESH_TOKEN_DAYS:-7}
             - Jwt__AccessTokenMinutes=${IDENTITY_ACCESS_TOKEN_MINUTES:-15}
             - Jwt__SigningKeyDirectory=/var/lib/clinic/identity-keys
+            - QoS__AuthPermitLimit=${IDENTITY_AUTH_RATE_LIMIT_PERMIT_LIMIT:-20}
+            # Password-hashing capacity (SLI_SLO_MATRIX §2.3): BCrypt cost 10 (OWASP minimum; older cost-11
+            # hashes are re-hashed on login), 1 hash at a time (bulkhead: leaves CPU headroom) and a queue of
+            # 4 (~0.4 s wait at capacity, keeps accepted logins within the 1 s SLO), then 503 + Retry-After.
+            - Security__BcryptWorkFactor=${IDENTITY_BCRYPT_WORK_FACTOR:-10}
+            - QoS__PasswordHashConcurrency=${IDENTITY_PASSWORD_HASH_CONCURRENCY:-1}
+            - QoS__PasswordHashQueueLimit=${IDENTITY_PASSWORD_HASH_QUEUE_LIMIT:-4}
             - Jwt__PublicBaseUrl=http://identity-service:8080
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
             - ASPNETCORE_HTTP_PORTS=8080
@@ -222,10 +290,13 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.5'
+                    # Login throughput is CPU-bound (BCrypt): 1 core for hashing (PasswordHashConcurrency=1) plus
+                    # 0.5 headroom so refresh/JWKS and fast load-shed responses are not starved.
+                    # Budget taken from frontend (1.0 -> 0.25) and scheduling-service (1.5 -> 1.0).
+                    cpus: '1.5'
                     memory: 256M
                 reservations:
-                    cpus: '0.1'
+                    cpus: '0.25'
                     memory: 128M
         restart: always
 
@@ -279,7 +350,9 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.5'
+                    # 0.5 CPU moved to identity-service (password-hashing headroom); Scheduling is I/O-bound
+                    # (measured low CPU in every load profile).
+                    cpus: '1.0'
                     memory: 384M
                 reservations:
                     cpus: '0.5'
@@ -649,10 +722,11 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    # nginx serving static files; measured ~0% CPU. CPU budget moved to identity-service.
+                    cpus: '0.25'
                     memory: 256M
                 reservations:
-                    cpus: '0.25'
+                    cpus: '0.05'
                     memory: 64M
         restart: always
 
@@ -717,6 +791,7 @@ services:
 
 volumes:
     mssql_data:
+    mssql_backups:
     rabbitmq_data:
     prometheus_data:
     identity_signing_keys:

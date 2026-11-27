@@ -11,6 +11,7 @@ namespace Clinic.API.Services;
 public sealed class NotificationServiceClient
 {
     private readonly HttpClient _client;
+    private readonly HttpClient _hubClient;
     private readonly IConfiguration _config;
     private readonly ILogger<NotificationServiceClient> _logger;
 
@@ -20,6 +21,7 @@ public sealed class NotificationServiceClient
         ILogger<NotificationServiceClient> logger)
     {
         _client = factory.CreateClient("Notification");
+        _hubClient = factory.CreateClient("NotificationHub");
         _config = config;
         _logger = logger;
     }
@@ -167,7 +169,7 @@ public sealed class NotificationServiceClient
             request.Content = new StringContent(body, Encoding.UTF8, httpContext.Request.ContentType ?? "application/json");
         }
 
-        using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var response = await _hubClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         httpContext.Response.StatusCode = (int)response.StatusCode;
         if (response.Content.Headers.ContentType != null)
         {
@@ -186,7 +188,7 @@ public sealed class NotificationServiceClient
         string relativePath,
         CancellationToken ct)
     {
-        var baseAddress = _client.BaseAddress ?? new Uri("http://localhost:5006/");
+        var baseAddress = _hubClient.BaseAddress ?? new Uri("http://localhost:5006/");
         var fullHttpUri = new Uri(baseAddress, relativePath);
         var wsBuilder = new UriBuilder(fullHttpUri)
         {

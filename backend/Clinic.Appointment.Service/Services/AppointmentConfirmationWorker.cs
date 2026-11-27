@@ -115,6 +115,12 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
                 _logger.LogWarning("Scheduling confirmation timed out for appointment {AppointmentId}.", appointment.Id);
                 return (appointment, confirmed: false);
             }
+            catch (Polly.ExecutionRejectedException ex)
+            {
+                // Circuit open or resilience deadline exceeded: keep Pending and retry on the normal schedule.
+                _logger.LogWarning(ex, "Scheduling confirmation rejected by resilience policy for appointment {AppointmentId}.", appointment.Id);
+                return (appointment, confirmed: false);
+            }
         }).ToList();
 
         var results = await Task.WhenAll(confirmationTasks);

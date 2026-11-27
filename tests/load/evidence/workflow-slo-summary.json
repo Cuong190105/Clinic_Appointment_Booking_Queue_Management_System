@@ -1,0 +1,175 @@
+{
+  "profile": "workflow-slo",
+  "baseUrl": "http://host.docker.internal:5000",
+  "target": "microservices",
+  "runAt": "2026-11-27T06:01:48.356Z",
+  "testRunDurationMs": 128820.777208,
+  "thresholdsPassed": true,
+  "failedChecks": [],
+  "probes": 2,
+  "duration": "2m",
+  "inboxSlo": "measured",
+  "metrics": {
+      "iterations": {
+        "count": 30,
+        "rate": 0.23288168764546893
+      },
+      "slo_requests": {
+        "count": 1025,
+        "rate": 7.956790994553521
+      },
+      "slo_throttled": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 1025
+      },
+      "workflow_success_rate": {
+        "rate": 1,
+        "passes": 60,
+        "fails": 0,
+        "thresholds": {
+          "rate>=0.99": true
+        }
+      },
+      "slo_unexpected_status": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 1025
+      },
+      "http_req_failed": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 1025
+      },
+      "slo_write_duration": {
+        "avg": 28.221724708771905,
+        "med": 15.683663,
+        "min": 4.636155,
+        "max": 891.919934,
+        "p(90)": 48.6611274,
+        "p(95)": 57.5225454,
+        "thresholds": {
+          "p(95)<500": true,
+          "p(99)<1500": true
+        }
+      },
+      "workflow_exam_completed_duration": {
+        "avg": 1036.2,
+        "med": 1049,
+        "min": 790,
+        "max": 1138,
+        "p(90)": 1090.9,
+        "p(95)": 1117.1499999999999,
+        "thresholds": {
+          "p(95)<5000": true
+        }
+      },
+      "workflow_inbox_supported": {
+        "rate": 1,
+        "passes": 30,
+        "fails": 0
+      },
+      "workflow_notification_inbox_duration": {
+        "avg": 313.23333333333335,
+        "med": 309,
+        "min": 291,
+        "max": 357,
+        "p(90)": 341,
+        "p(95)": 347.59999999999997,
+        "thresholds": {
+          "p(95)<10000": true
+        }
+      },
+      "workflow_booking_confirmed_duration": {
+        "avg": 304.8666666666667,
+        "med": 301,
+        "min": 286,
+        "max": 352,
+        "p(90)": 336,
+        "p(95)": 343.15,
+        "thresholds": {
+          "p(95)<5000": true
+        }
+      },
+      "slo_availability": {
+        "rate": 1,
+        "passes": 675,
+        "fails": 0,
+        "thresholds": {
+          "rate>=0.99": true
+        }
+      },
+      "http_req_duration": {
+        "avg": 18.73523428097561,
+        "med": 6.127057,
+        "min": 3.815335,
+        "max": 891.919934,
+        "p(90)": 38.3006132,
+        "p(95)": 49.71815879999999
+      },
+      "booking_created_rate": {
+        "rate": 1,
+        "passes": 30,
+        "fails": 0
+      },
+      "slo_login_duration": {
+        "avg": 471.67495622222225,
+        "med": 506.244211,
+        "min": 248.121587,
+        "max": 615.678514,
+        "p(90)": 615.150442,
+        "p(95)": 615.4144779999999,
+        "thresholds": {
+          "p(95)<1000": true,
+          "p(99)<2500": true
+        }
+      },
+      "workflow_checkin_ticket_duration": {
+        "avg": 1044.6666666666667,
+        "med": 1078.5,
+        "min": 241,
+        "max": 1163,
+        "p(90)": 1126.2,
+        "p(95)": 1139,
+        "thresholds": {
+          "p(95)<3000": true
+        }
+      },
+      "slo_read_duration": {
+        "avg": 9.170703200698073,
+        "med": 5.266248,
+        "min": 3.815335,
+        "max": 54.870121,
+        "p(90)": 9.5535568,
+        "p(95)": 48.2617948,
+        "thresholds": {
+          "p(95)<300": true,
+          "p(99)<1000": true
+        }
+      },
+      "vus_max": {
+        "value": 2,
+        "min": 2,
+        "max": 2
+      },
+      "workflow_encounter_open_duration": {
+        "avg": 763.9333333333333,
+        "med": 798.5,
+        "min": 284,
+        "max": 1754,
+        "p(90)": 1120.7,
+        "p(95)": 1479.9499999999982,
+        "thresholds": {
+          "p(95)<5000": true
+        }
+      },
+      "slo_server_errors": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 1025,
+        "thresholds": {
+          "rate<0.01": true
+        }
+      }
+    }
+}

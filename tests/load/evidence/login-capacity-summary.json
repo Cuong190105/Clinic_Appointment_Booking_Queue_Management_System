@@ -1,0 +1,342 @@
+{
+  "profile": "login-capacity",
+  "baseUrl": "http://host.docker.internal:5000",
+  "target": "microservices",
+  "runAt": "2026-11-27T08:38:27.583Z",
+  "testRunDurationMs": 351210.983377,
+  "thresholdsPassed": true,
+  "failedChecks": [],
+  "startRate": 2,
+  "maxRate": 20,
+  "stepRate": 2,
+  "stepDurationS": 30,
+  "acceptedLoginsPerSecondAvg": 7.63,
+  "note": "Capacity = highest stage_rate whose qos_login_shed count stays ~0 and whose accepted p95 <= 1000 ms. Each stage lasts 35s.",
+  "metrics": {
+      "slo_login_accepted_duration{stage_rate:8}": {
+        "avg": 192.4499397925926,
+        "med": 127.618369,
+        "min": 85.318222,
+        "max": 1158.585894,
+        "p(90)": 371.0325596,
+        "p(95)": 579.3230997499995,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "slo_login_accepted_duration{stage_rate:2}": {
+        "avg": 136.4631290144928,
+        "med": 115.304687,
+        "min": 82.575826,
+        "max": 313.890713,
+        "p(90)": 233.608267,
+        "p(95)": 288.67444579999994,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "qos_login_accepted{stage_rate:20}": {
+        "count": 346,
+        "rate": 0.985162812031404,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_unexpected_error": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 3804,
+        "thresholds": {
+          "rate<0.01": true
+        }
+      },
+      "iterations": {
+        "count": 3804,
+        "rate": 10.831096349616939
+      },
+      "qos_login_accepted{stage_rate:10}": {
+        "count": 334,
+        "rate": 0.9509953156603727,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "slo_login_accepted_duration{stage_rate:16}": {
+        "avg": 544.9311935205046,
+        "med": 517.052079,
+        "min": 388.403433,
+        "max": 829.961496,
+        "p(90)": 704.5434586,
+        "p(95)": 721.285804,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "qos_login_shed_duration": {
+        "avg": 8.469944254884531,
+        "med": 7.5017689999999995,
+        "min": 5.137179,
+        "max": 67.983356,
+        "p(90)": 11.663643,
+        "p(95)": 13.597179,
+        "thresholds": {
+          "p(95)<300": true
+        }
+      },
+      "http_req_failed": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 3805
+      },
+      "qos_login_accepted{stage_rate:16}": {
+        "count": 317,
+        "rate": 0.9025913624680783,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:6}": {
+        "count": 0,
+        "rate": 0,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "slo_login_accepted_duration{stage_rate:6}": {
+        "avg": 123.18939503414636,
+        "med": 115.208572,
+        "min": 80.959032,
+        "max": 297.335249,
+        "p(90)": 155.3291214,
+        "p(95)": 194.9960025999998,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "qos_login_timeouts": {
+        "count": 0,
+        "rate": 0,
+        "thresholds": {
+          "count==0": true
+        }
+      },
+      "qos_login_shed{stage_rate:20}": {
+        "count": 353,
+        "rate": 1.0050938515811723,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_accepted{stage_rate:12}": {
+        "count": 299,
+        "rate": 0.8513401179115312,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "slo_login_accepted_duration{stage_rate:14}": {
+        "avg": 484.4461733703709,
+        "med": 467.823124,
+        "min": 359.029099,
+        "max": 708.202944,
+        "p(90)": 591.873277,
+        "p(95)": 622.992123,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "qos_login_accepted{stage_rate:18}": {
+        "count": 352,
+        "rate": 1.0022465602169197,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "slo_login_accepted_duration{stage_rate:10}": {
+        "avg": 310.1690724640717,
+        "med": 289.5551765,
+        "min": 93.182256,
+        "max": 907.968238,
+        "p(90)": 511.4484983999999,
+        "p(95)": 576.8072615999997,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:10}": {
+        "count": 11,
+        "rate": 0.03132020500677874,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "slo_login_accepted_duration{stage_rate:12}": {
+        "avg": 539.0676607993314,
+        "med": 532.716453,
+        "min": 97.179103,
+        "max": 983.427406,
+        "p(90)": 710.2203946,
+        "p(95)": 756.0618221999995,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "qos_login_accepted{stage_rate:4}": {
+        "count": 135,
+        "rate": 0.3843843341741027,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:12}": {
+        "count": 112,
+        "rate": 0.3188966327962926,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:16}": {
+        "count": 238,
+        "rate": 0.6776553446921219,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_shed_has_retry_after": {
+        "rate": 1,
+        "passes": 1126,
+        "fails": 0,
+        "thresholds": {
+          "rate==1": true
+        }
+      },
+      "qos_login_accepted{stage_rate:14}": {
+        "count": 351,
+        "rate": 0.999399268852667,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:2}": {
+        "count": 0,
+        "rate": 0,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "vus_max": {
+        "value": 60,
+        "min": 60,
+        "max": 60
+      },
+      "qos_login_accepted{stage_rate:8}": {
+        "count": 270,
+        "rate": 0.7687686683482055,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_accepted{stage_rate:2}": {
+        "count": 69,
+        "rate": 0.19646310413343027,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_shed": {
+        "count": 1126,
+        "rate": 3.206050076148442
+      },
+      "qos_login_accepted": {
+        "count": 2678,
+        "rate": 7.625046273468497
+      },
+      "slo_login_accepted_duration{stage_rate:4}": {
+        "avg": 104.24099697777781,
+        "med": 101.04937,
+        "min": 77.901348,
+        "max": 166.047035,
+        "p(90)": 130.1417068,
+        "p(95)": 135.3535856,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:8}": {
+        "count": 5,
+        "rate": 0.014236456821263064,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:18}": {
+        "count": 273,
+        "rate": 0.7773105424409633,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "slo_login_accepted_duration{stage_rate:18}": {
+        "avg": 491.29295122159124,
+        "med": 483.458664,
+        "min": 375.989274,
+        "max": 770.013617,
+        "p(90)": 559.9171152,
+        "p(95)": 607.14835715,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "slo_login_accepted_duration": {
+        "avg": 395.0991297804332,
+        "med": 448.7436845,
+        "min": 77.901348,
+        "max": 1158.585894,
+        "p(90)": 607.8453021,
+        "p(95)": 671.8006234500001,
+        "thresholds": {
+          "p(95)<1000": true
+        }
+      },
+      "slo_login_accepted_duration{stage_rate:20}": {
+        "avg": 511.1995795404625,
+        "med": 498.2320615,
+        "min": 374.660133,
+        "max": 975.586104,
+        "p(90)": 597.3992020000001,
+        "p(95)": 649.751048,
+        "thresholds": {
+          "p(95)>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:4}": {
+        "count": 0,
+        "rate": 0,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_shed{stage_rate:14}": {
+        "count": 134,
+        "rate": 0.3815370428098501,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "qos_login_accepted{stage_rate:6}": {
+        "count": 205,
+        "rate": 0.5836947296717856,
+        "thresholds": {
+          "count>=0": true
+        }
+      },
+      "http_req_duration": {
+        "avg": 280.7768531516426,
+        "med": 239.260434,
+        "min": 5.137179,
+        "max": 1158.585894,
+        "p(90)": 575.5890978,
+        "p(95)": 639.4527755999999
+      }
+    }
+}

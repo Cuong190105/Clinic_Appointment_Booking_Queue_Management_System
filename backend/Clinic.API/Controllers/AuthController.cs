@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Net.Http;
 using System.Net;
 using Clinic.API.Services;
+using Clinic.API.Resilience;
 
 namespace Clinic.API.Controllers
 {
@@ -56,6 +57,7 @@ namespace Clinic.API.Controllers
                 using var upstreamRequest = CreatePublicRequest(HttpMethod.Post, "v1/auth/login");
                 upstreamRequest.Content = JsonContent.Create(request);
                 using var upstream = await _identityClient.SendAsync(upstreamRequest, HttpContext.RequestAborted);
+                if (BusyResponse(upstream) is { } busy) return busy;
                 if (!upstream.IsSuccessStatusCode)
                 {
                     _logger.LogWarning("AUTH_AUDIT: Login failed for username '{Username}' with status {StatusCode}. CorrelationId: {CorrelationId}",
@@ -124,6 +126,7 @@ namespace Clinic.API.Controllers
 
             using (upstream)
             {
+                if (BusyResponse(upstream) is { } busy) return busy;
                 if (!upstream.IsSuccessStatusCode)
                 {
                     _logger.LogWarning("AUTH_AUDIT: Registration rejected for username '{Username}' with status {StatusCode}. CorrelationId: {CorrelationId}",
@@ -556,10 +559,33 @@ namespace Clinic.API.Controllers
         Path = "/auth"
     };
 
+    /// <summary>
+    /// Identity answers 429 (per-client limit) or 503 + X-Clinic-Load-Shed (all password-hashing slots
+    /// busy) under login bursts. Pass the status and Retry-After through instead of reporting a wrong
+    /// password, so clients back off (SLI_SLO_MATRIX §5.3).
+    /// </summary>
+    private IActionResult? BusyResponse(HttpResponseMessage upstream)
+    {
+        if (upstream.StatusCode is not (HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)) return null;
+        var retryAfter = upstream.Headers.RetryAfter?.Delta?.TotalSeconds ?? 1;
+        Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(retryAfter)).ToString();
+        if (upstream.Headers.TryGetValues(DownstreamResilience.LoadShedHeader, out var reason))
+            Response.Headers[DownstreamResilience.LoadShedHeader] = reason.FirstOrDefault() ?? "identity";
+        _logger.LogWarning("AUTH_AUDIT: Identity is shedding load with status {StatusCode}; Retry-After {RetryAfter}s. CorrelationId: {CorrelationId}",
+            (int)upstream.StatusCode, Response.Headers.RetryAfter.ToString(), GetCorrelationId());
+        return StatusCode((int)upstream.StatusCode, new { message = "Authentication is busy. Please retry shortly." });
+    }
+
     private HttpRequestMessage CreatePublicRequest(HttpMethod method, string path)
     {
         var request = new HttpRequestMessage(method, path);
         request.Headers.TryAddWithoutValidation("X-Correlation-ID", GetCorrelationId());
+        // Identity rate-limits auth routes per client. Behind the Gateway every request comes from the
+        // Gateway's IP, so forward the real client IP, authenticated by the internal service token
+        // (Identity ignores the header without a valid token, so clients cannot spoof it).
+        request.Headers.TryAddWithoutValidation("X-Clinic-Client-IP", GetClientIp());
+        if (!string.IsNullOrWhiteSpace(_identityServiceToken))
+            request.Headers.TryAddWithoutValidation("X-Identity-Service-Token", _identityServiceToken);
         return request;
     }
 

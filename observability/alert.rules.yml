@@ -19,23 +19,51 @@ groups:
           summary: "API availability fell below 99% SLO"
           description: "Current Gateway API availability is {{ $value }}%, violating the Phase 8 SLO target of 99%."
 
-      - alert: HighApiLatencyP95
-        expr: histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{job="clinic-api"}[5m])) by (le)) > 0.5
+      # Latency SLOs per endpoint class (SLI_SLO_MATRIX §2.3), Gateway boundary.
+      - alert: HighReadLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{job="clinic-api",http_request_method="GET"}[5m])) by (le)) > 0.3
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "p95 API latency exceeds 500ms SLO"
-          description: "Gateway p95 response time is {{ $value }}s (SLO <= 0.5s)."
+          summary: "Read p95 latency exceeds 300ms SLO"
+          description: "Gateway GET p95 is {{ $value }}s (SLO <= 0.3s)."
+
+      - alert: HighWriteLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{job="clinic-api",http_request_method=~"POST|PUT|PATCH|DELETE",http_route!~".*auth/(login|register|refresh)"}[5m])) by (le)) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Write p95 latency exceeds 500ms SLO"
+          description: "Gateway write p95 is {{ $value }}s (SLO <= 0.5s)."
 
       - alert: HighApiLatencyP99
-        expr: histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{job="clinic-api"}[5m])) by (le)) > 1.5
+        expr: histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{job="clinic-api",http_route!~".*auth/(login|register)"}[5m])) by (le)) > 1.5
         for: 1m
         labels:
           severity: critical
         annotations:
           summary: "p99 API latency exceeds 1.5s SLO"
-          description: "Gateway p99 response time is {{ $value }}s (SLO <= 1.5s)."
+          description: "Gateway p99 response time (excluding login) is {{ $value }}s (SLO <= 1.5s)."
+
+      - alert: HighLoginLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{job="clinic-api",http_route=~".*auth/login"}[5m])) by (le)) > 1.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Login p95 latency exceeds 1s SLO"
+          description: "Gateway login p95 is {{ $value }}s (SLO <= 1s; BCrypt-bound)."
+
+      - alert: IdentityLoginLoadShedding
+        expr: sum(rate(clinic_identity_password_hash_rejected_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Identity is shedding sign-in load"
+          description: "{{ $value }} password-hash operations/s rejected with 503 + Retry-After for 5m: sustained demand above login capacity (SLI_SLO_MATRIX §2.3). Add Identity CPU/replicas or check for a credential-stuffing burst."
 
       - alert: HighErrorRate5xx
         expr: (sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code!~"400|401|403|404|409|422|429"}[5m]))) * 100 > 1.0
@@ -81,3 +109,70 @@ groups:
         annotations:
           summary: "Queue consumer dead-lettered messages in the last 5m"
           description: "{{ $value }} message(s) were dead-lettered by Queue consumer."
+
+      - alert: OutboxBacklogStale
+        expr: clinic_queue_outbox_oldest_pending_age_seconds > 60
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue outbox has events pending for more than 60s"
+          description: "Oldest pending outbox message is {{ $value }}s old (SLO <= 60s)."
+
+  # Multi-window burn-rate alerts against the 99.0% E2E SLO (1% error budget, SLI_SLO_MATRIX §4.3).
+  # Error ratio = 5xx / eligible requests (excludes 400/401/403/404/409/422/429 per §1.2).
+  - name: clinic_error_budget_burn
+    rules:
+      - alert: GatewayErrorBudgetFastBurn
+        expr: |
+          (
+            sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code=~"5.."}[1h]))
+            / sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code!~"400|401|403|404|409|422|429"}[1h]))
+          ) > (14.4 * 0.01)
+          and
+          (
+            sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code=~"5.."}[5m]))
+            / sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code!~"400|401|403|404|409|422|429"}[5m]))
+          ) > (14.4 * 0.01)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gateway is burning the 30-day error budget 14.4x too fast"
+          description: "5xx ratio above 14.4% over both 1h and 5m windows (~2% of monthly budget per hour)."
+
+      - alert: GatewayErrorBudgetSlowBurn
+        expr: |
+          (
+            sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code=~"5.."}[6h]))
+            / sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code!~"400|401|403|404|409|422|429"}[6h]))
+          ) > (6 * 0.01)
+          and
+          (
+            sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code=~"5.."}[30m]))
+            / sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_response_status_code!~"400|401|403|404|409|422|429"}[30m]))
+          ) > (6 * 0.01)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway is burning the 30-day error budget 6x too fast"
+          description: "5xx ratio above 6% over both 6h and 30m windows (~5% of monthly budget per 6h)."
+
+      - alert: BookingErrorBudgetFastBurn
+        expr: |
+          (
+            sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_route=~".*appointments.*",http_response_status_code=~"5.."}[1h]))
+            / sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_route=~".*appointments.*",http_response_status_code!~"400|401|403|404|409|422|429"}[1h]))
+          ) > (14.4 * 0.01)
+          and
+          (
+            sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_route=~".*appointments.*",http_response_status_code=~"5.."}[5m]))
+            / sum(rate(http_server_request_duration_seconds_count{job="clinic-api",http_route=~".*appointments.*",http_response_status_code!~"400|401|403|404|409|422|429"}[5m]))
+          ) > (14.4 * 0.01)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Booking journey is burning its error budget 14.4x too fast"
+          description: "Tier 1 booking routes have a 5xx ratio above 14.4% over both 1h and 5m windows."

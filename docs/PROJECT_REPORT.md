@@ -156,25 +156,43 @@ Repo có OpenAPI snapshot cho Gateway và sáu service trong `tasks/contracts/` 
 
 ## 5. SLA/SLO/QoS
 
-Ma trận chi tiết: [`../tasks/SLI_SLO_MATRIX_MEMBER_A.md`](../tasks/SLI_SLO_MATRIX_MEMBER_A.md).
+Ma trận chi tiết (bản sửa đổi 27/11/2026): [`../tasks/SLI_SLO_MATRIX_MEMBER_A.md`](../tasks/SLI_SLO_MATRIX_MEMBER_A.md). Thay vì một bộ ngưỡng chung cho mọi service, SLO được **phân tầng theo mức quan trọng** và gắn với một **SLA mô phỏng** có cửa sổ đo, error budget và hệ quả vận hành:
 
-| SLI/QoS | Mục tiêu dự án | Cách hiểu |
-|---|---:|---|
-| Availability tại Gateway | ≥ 99,0% | Loại expected 4xx, 401/403, contention 409, throttling 429 và client abort khỏi lỗi hệ thống; 5xx/502/503/504 tính là failure |
-| API latency | p95 ≤ 500 ms; p99 ≤ 1.500 ms | Đo riêng từng endpoint/boundary; percentile các hop không cộng lại |
-| Server error | ≤ 1,0% | Theo cửa sổ và mẫu tối thiểu quy định trong ma trận |
-| Event processing lag | p95 ≤ 5 s | Từ lúc publish đến lúc xử lý/ack |
-| DLQ | 0 message hợp lệ bị bỏ lại | Poison event phải được cách ly, chẩn đoán và replay an toàn |
-| Invariants | 0 overbooking; 0 queue ticket trùng | Kiểm tra bằng integration/load test và truy vấn đối soát |
-| Rate limiting | Fixed window, mặc định 100 request/phút/partition | Đã xác minh trong `Clinic.API/Program.cs`; authenticated theo subject, anonymous theo remote IP |
+| Thành phần | Nội dung chính |
+|---|---|
+| Phân tầng | Tier 1: Identity, Appointment + Scheduling, Queue · Tier 2: Medical Records · Tier 3: Notification |
+| Availability (30 ngày, giờ phòng khám 07:00–20:00, T2–T7) | Thành phần: Gateway/Identity/SQL/RabbitMQ 99.9%; Appointment/Scheduling/Queue 99.7%; Medical Records 99.5%; Notification 99.0%. Hành trình E2E (tích các thành phần): đặt lịch, check-in, hồ sơ ≥ 99.0%; đăng nhập ≥ 99.5% |
+| Độ trễ theo nhóm endpoint | Đọc p95 ≤ 300 ms / p99 ≤ 1 s; ghi p95 ≤ 500 ms / p99 ≤ 1.5 s; đăng nhập p95 ≤ 1 s (BCrypt); refresh p95 ≤ 300 ms |
+| Workflow bất đồng bộ | Đặt lịch → Confirmed ≤ 5 s; check-in → số thứ tự ≤ 3 s; kết thúc khám → Completed ≤ 5 s; bắt đầu khám → mở encounter ≤ 5 s; sự kiện → inbox ≤ 10 s |
+| Toàn vẹn | 0 overbooking, 0 vé trùng, 0 reservation mồ côi, 0 lịch treo Pending > 10 phút, 0 message hợp lệ trong DLQ, 100% truy cập bệnh án được audit |
+| SLA & error budget | 99.0% ≈ 200 phút/30 ngày; ≥ 50% budget → ưu tiên độ tin cậy; ≥ 100% → đóng băng tính năng; cảnh báo burn-rate nhiều cửa sổ (14.4× / 6×) |
+| QoS đồng bộ | Deadline lồng nhau (Gateway 5 s, Appointment→Scheduling 3 s, Identity 10 s), retry chỉ cho method an toàn hoặc lệnh idempotent, circuit breaker fail-fast 503 + `Retry-After`, lỗi phụ thuộc không làm mở breaker của service khỏe |
+| Rate limiting | Theo tầng: bệnh nhân 100/phút, nhân viên 600/phút, ẩn danh 100/phút/IP; đăng nhập 10/phút/IP; đặt lịch 10/phút/bệnh nhân; Identity 20/phút/client thật |
+| Degraded modes | Notification/Medical Records/Identity/RabbitMQ gián đoạn không làm hỏng đặt lịch & hàng đợi; Scheduling gián đoạn → đặt lịch thất bại nhanh, xem lịch hẹn vẫn hoạt động |
+| Năng lực đăng nhập | BCrypt cost 10 (re-hash hash cũ khi đăng nhập), bulkhead 1 phép băm đồng thời + hàng chờ 4, quá tải → 503 + `Retry-After` thay vì timeout; Identity 1,5 CPU (lấy từ frontend 1,0 → 0,25 và Scheduling 1,5 → 1,0, tổng ngân sách không đổi); đo bằng `login-capacity.js` |
+| RPO/RTO | Sidecar `db-backup`: full hằng tuần + differential + transaction-log (khôi phục tới từng thời điểm), tail-log khi khôi phục tại chỗ, verify checksum, bản sao off-site gzip + sha256, lưu volume khóa, diễn tập restore + `DBCC CHECKDB` định kỳ. Medical Records RPO 15 phút (log 5 phút), Appointment/Scheduling/Queue RPO 1 giờ (log 15 phút), Identity/Notification RPO 24 giờ; RTO ≤ 1 giờ ([BACKUP_RECOVERY.md](BACKUP_RECOVERY.md)) |
 
-Các ngưỡng này là mục tiêu đồ án trên môi trường Docker Compose, không phải SLA production hay cam kết uptime theo tháng.
+**SLA/SLO/QoS theo từng dịch vụ** (tóm tắt từ ma trận §2–§5; độ trễ là p95 đo tại Gateway):
+
+| Dịch vụ | Tầng | Availability | Độ trễ / workflow | QoS chính | Chế độ suy giảm khi dịch vụ gặp sự cố | RPO / RTO |
+|---|:---:|---:|---|---|---|---|
+| API Gateway | — | 99,9% | Đọc ≤ 300 ms, ghi ≤ 500 ms | Rate limit theo tầng; deadline 5 s; retry chỉ GET; circuit breaker 503 + `Retry-After` | Điểm vào duy nhất (không có dự phòng trên Compose) | — |
+| Identity | 1 | 99,9% | Đăng nhập ≤ 1 s, refresh ≤ 300 ms | 10 lượt đăng nhập/phút/IP; 20/phút/client tại Identity; bulkhead băm mật khẩu + load shedding | Request đã có token vẫn chạy (JWT kiểm tra cục bộ qua JWKS) | 24 giờ / 1 giờ |
+| Staff & Scheduling | 1 | 99,7% | Đọc ≤ 300 ms | Appointment→Scheduling: deadline 3 s, retry 1 lần (lệnh idempotent), breaker | Đặt lịch mới lỗi nhanh 502/503/504; xem lịch hẹn, hàng đợi, hồ sơ vẫn chạy | 1 giờ / 1 giờ |
+| Appointment | 1 | 99,7% | Ghi ≤ 500 ms; đặt lịch → Confirmed ≤ 5 s | `Idempotency-Key`; 10 lượt đặt/phút/bệnh nhân; lỗi Scheduling gắn `X-Clinic-Dependency-Failure` để không mở breaker | Outbox giữ sự kiện; worker xác nhận thử lại | 1 giờ / 1 giờ |
+| Queue | 1 | 99,7% | Check-in → số thứ tự ≤ 3 s; consumer lag ≤ 5 s | Consumer idempotent; retry 5 s → 30 s → 2 phút rồi DLQ | Sự kiện chờ trong RabbitMQ | 1 giờ / 1 giờ |
+| Medical Records | 2 | 99,5% | Ghi ≤ 500 ms; bắt đầu khám → encounter ≤ 5 s | Audit 100% truy cập; không ghi PHI vào log/trace | Đặt lịch/hàng đợi không ảnh hưởng; sự kiện xử lý khi phục hồi | 15 phút / 1 giờ |
+| Notification | 3 | 99,0% | Sự kiện → inbox ≤ 10 s | 3 retry rồi DLQ | Thông báo trễ, luồng Tier 1 không ảnh hưởng | 24 giờ / 4 giờ |
+
+Mỗi chính sách có kiểm chứng tự động (ma trận §6): bộ k6 trong `tests/load` dùng chung ngưỡng `lib/slo.js`, fault injection `scripts/run-fault-isolation.ps1`, đối soát `scripts/check-slo-invariants.ps1`, và integration test cho rate limit/resilience. Các ngưỡng là mục tiêu đồ án trên Docker Compose, không phải SLA production.
+
+**Phát hiện khi chạy bộ test mới (27/11/2026):** (1) Identity giới hạn đăng nhập theo IP kết nối nên phía sau Gateway toàn hệ thống chỉ có 20 lượt đăng nhập/phút — đã sửa; (2) cấu hình circuit breaker ban đầu làm sự cố Scheduling lan sang cả route xem lịch hẹn — đã sửa; (3) Identity ở 0.5 CPU (BCrypt cost 11) chỉ xử lý ~2–3 lượt đăng nhập/giây và quá tải thành 504 — đã xử lý bằng cost 10 + re-hash, load shedding có `Retry-After`, chuyển 0.75 CPU từ frontend sang Identity, và tách đo năng lực đăng nhập (`login-capacity.js`) khỏi kịch bản đột biến đặt lịch (`spike.js` làm nóng phiên trước); (4) script import dữ liệu Identity từ monolith chèn permission theo Id nên đụng unique index `Name` với permission do Identity seed (cả transaction rollback trên stack mới) — đã đổi sang khớp theo tên và dùng chung bản đồ quyền hàng đợi với seed (`QueuePermissionCatalog`); (5) đột biến 40 lượt đặt/giây dồn vào ít ca làm việc làm lộ điểm nghẽn khóa `UPDLOCK` theo bản ghi `WorkSchedule` trong Scheduling (chưa sửa, xem §6.6).
 
 ## 6. Kiểm thử và kết quả
 
 ### 6.1. Kiểm thử chức năng và hợp đồng
 
-Lượt nghiệm thu sau cleanup ngày 10/11/2026 ([`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](../tasks/PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md)) ghi: toàn bộ backend solution **285/285 test pass**, contract validation **13/13**, QoS failure-policy **8/8**, cùng runtime acceptance cho baseline, booking, contention, broker degradation/recovery, soak, queue/medical record và event timing. Bộ test hiện có 267 phương thức `[Fact]`/`[Theory]` trải trên 12 project test (số test case lớn hơn do `[Theory]` có nhiều bộ dữ liệu).
+Lượt nghiệm thu sau cleanup ngày 10/11/2026 ([`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](../tasks/PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md)) ghi: toàn bộ backend solution **285/285 test pass**, contract validation **13/13**, QoS failure-policy **8/8**, cùng runtime acceptance cho baseline, booking, contention, broker degradation/recovery, soak, queue/medical record và event timing. Lượt chạy ngày 27/11/2026 ghi nhận **333/333** test .NET (8 project, gồm `GatewayQoSPolicyTests`, `IdentityAuthRateLimitTests`, `PasswordHashingTests`, `QueuePermissionCatalogTests`) và kiểm chứng SLA/QoS trên stack thật ở §6.6.
 
 Trong đợt review này chưa chạy lại được bộ test vì máy tổng hợp không có .NET 10 SDK và Docker không hoạt động (xem mục 7.3).
 
@@ -218,7 +236,29 @@ Cả hai đạt mọi threshold, dữ liệu test được cleanup. Thông lư�
 - **Đánh thức worker theo tín hiệu** (`AppointmentWorkSignal.cs`): outbox publisher và confirmation worker được đánh thức ngay khi có appointment/outbox mới, giảm thời gian chờ POST → Confirmed.
 - **Connection pool** cấu hình `Min Pool Size`/`Max Pool Size` cho các service chịu tải ghi (Scheduling, Appointment, Queue, Identity).
 
-### 6.6. Nhận định so sánh
+### 6.6. Kiểm chứng SLA/QoS và khôi phục dữ liệu trên stack đang chạy — 27/11/2026
+
+Các lượt chạy ngắn trên Docker Compose (một máy) sau khi rebuild Gateway và Identity, nhằm chứng minh mỗi chính sách ở §5 được thực thi, không phải benchmark lặp nhiều lượt:
+
+| Chính sách / SLO | Kiểm chứng | Kết quả |
+|---|---|---|
+| Toàn bộ code | `dotnet test` (8 project) | **333/333 đạt** |
+| Rate limit theo tầng, `Retry-After`, envelope, correlation ID | `qos-policy.js` với hạn mức mặc định | **10/10 đạt** |
+| Deadline / retry / circuit breaker / không lan lỗi | `GatewayQoSPolicyTests` (9 test, gồm load shedding không mở breaker) | Đạt |
+| Degraded modes | `run-fault-isolation.ps1` dừng Scheduling / Notification giữa tải | Đạt: đặt lịch lỗi nhanh 502/503/504, xem lịch hẹn 100%; dừng Notification thì lõi 100% |
+| Đăng nhập (p95 ≤ 1 s) và quá tải có kiểm soát | `login-capacity.js` 2 → 20 lượt/s | **Đạt**: trong SLO tới ~10 lượt/s (trước: ~2); quá tải gấp đôi p95 lượt nhận ≤ 756 ms, shed p95 14 ms, 0 × 504 |
+| Smoke mọi hành trình Tier 1 | `smoke.js` | Đạt: đọc p95 19 ms, ghi 78 ms, đăng nhập 181 ms |
+| Đột biến mở lịch | `spike.js` (500 phiên làm nóng, 3 → 40 lượt/s vào 2 bác sĩ) | **Không đạt** (xem dưới) |
+| RPO/RTO | `backup.ps1 drill -IntegrityCheck`, PITR, khôi phục tại chỗ | **7/7 đạt**, restore 2–9 s; PITR khớp đúng số bản ghi tại thời điểm *T*; tail-log mất 0 bản ghi ([BACKUP_RECOVERY.md §7.1](BACKUP_RECOVERY.md)) |
+| Toàn vẹn sau tất cả các test | `check-slo-invariants.ps1` | **11/11 đạt** (0 overbooking, 0 vé trùng, DLQ = 0, backup trong RPO) |
+
+**Phát hiện từ kịch bản đột biến.** Đăng nhập không còn là nút cổ chai (p95 233 ms). Nhưng trong ~25 s đầu đợt tăng từ 3 lên 40 lượt/s, p95 đọc/ghi lên ~9,5/9,9 s và 11,6% request lỗi (504 theo deadline Gateway). Khi các slot hết, lượt đặt trả 409 rất nhanh và hệ thống trở lại bình thường; pha recovery đạt SLO (p95 18/23 ms). Log cho thấy mọi service cùng chậm và thời gian lệnh SQL tăng trong đúng cửa sổ đó. Nguyên nhân: `SchedulingManager` khóa `UPDLOCK, ROWLOCK` bản ghi `WorkSchedule` khi giữ chỗ, nên mọi lượt đặt vào cùng một ca (ở đây chỉ 4 ca nóng) xếp hàng nối tiếp. Khóa này bảo đảm đúng sức chứa — kiểm tra bất biến xác nhận 0 overbooking — nhưng đánh đổi bằng độ trễ khi có điểm nóng.
+
+Hướng xử lý đề xuất (chưa làm): thay bước đếm + chèn trong khóa bằng một bộ đếm chỗ cập nhật nguyên tử (`UPDATE … SET Reserved = Reserved + 1 WHERE Reserved < Capacity`) để rút ngắn thời gian giữ khóa. Kèm theo đó, giới hạn đồng thời cho route đặt lịch tại Gateway, trả 503 + `Retry-After` thay vì để request chờ tới deadline (giống bulkhead của Identity). Sau đó chạy lại `spike.js`.
+
+**Lưu ý harness:** gọi qua cổng publish của Docker Desktop (`host.docker.internal`) làm rơi kết nối lúc hàng trăm VU mở kết nối cùng lúc. Vì vậy kịch bản đột biến được chạy trong mạng Compose (`run-k6.ps1 -Network microservices_default`), xem `tests/load/README.md` §5.
+
+### 6.7. Nhận định so sánh
 
 Với các lượt đo hiện có, monolith có latency booking thấp hơn (ít hop mạng, giao dịch cục bộ), thông lượng xác nhận hai bên tương đương, còn microservices xử lý được tải hỗn hợp có Queue mà monolith gặp lỗi. Các kết quả này **chưa đủ để kết luận kiến trúc nào tốt hơn tổng thể**, vì chưa khôi phục DB snapshot giữa các lượt, chưa thu CPU/RAM hai stack theo cùng cách, và mixed workload mới có một lượt mỗi bên.
 
@@ -270,6 +310,7 @@ Review tĩnh trên commit `5dd739f`, tập trung vào độ tin cậy messaging,
 - Thiết kế/task tổng thể: [`../tasks/TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`../tasks/TASK_MEMBER_B.md`](../tasks/TASK_MEMBER_B.md), các execution plan Phase 0–9 trong `tasks/`.
 - SLI/SLO/QoS: [`../tasks/SLI_SLO_MATRIX_MEMBER_A.md`](../tasks/SLI_SLO_MATRIX_MEMBER_A.md).
 - Kiểm thử tải: [`../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md`](../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md) (mục 18–22), [`PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md`](PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md), [`../tests/load/README.md`](../tests/load/README.md).
+- Sao lưu & khôi phục (RPO/RTO): [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md).
 - Nghiệm thu sau cleanup: [`../tasks/PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](../tasks/PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
 - Lịch sử benchmark: [`../tasks/BENCHMARK_MONOLITH_VS_MICROSERVICES_FULL_HISTORY.md`](../tasks/BENCHMARK_MONOLITH_VS_MICROSERVICES_FULL_HISTORY.md).
 - OpenAPI: [`../tasks/contracts/`](../tasks/contracts/); drift test: `backend/Clinic.IntegrationTests/ApiContractDriftTests.cs`.

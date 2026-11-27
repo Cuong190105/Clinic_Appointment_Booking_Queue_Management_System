@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Clinic.API;
 using Clinic.API.Middlewares;
+using Clinic.API.Resilience;
 using Clinic.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -31,49 +32,97 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Rate limiting (SLI_SLO_MATRIX §5.3). Two chained layers, both fixed 60s windows:
+//  1. General quota per partition: patients/default 100, staff (Admin/Receptionist/Doctor) 600, anonymous per IP 100.
+//  2. Sensitive routes: login/register/password flows 10 per IP; booking creation (POST /appointments) 10 per user.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, cancellationToken) =>
     {
+        var retryAfterSeconds = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)
+            ? Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))
+            : 60;
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        context.HttpContext.Response.Headers.RetryAfter = "60";
+        context.HttpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString();
         context.HttpContext.Response.ContentType = "application/json";
 
         var response = Clinic.API.Models.ApiResponse.Fail(
             HttpStatusCode.TooManyRequests,
-            "Rate limit exceeded. Please try again after 60 seconds.");
+            $"Rate limit exceeded. Please try again after {retryAfterSeconds} seconds.");
 
         await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken);
     };
 
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    var config = builder.Configuration;
+    int Limit(string key, int fallback) => Math.Max(1, config.GetValue<int?>(key) ?? fallback);
+    var defaultLimit = Limit("QoS:RateLimitPermitLimit", 100);
+    var staffLimit = Limit("QoS:StaffRateLimitPermitLimit", 600);
+    var anonymousLimit = Limit("QoS:AnonymousRateLimitPermitLimit", defaultLimit);
+    var authLimit = Limit("QoS:AuthRateLimitPermitLimit", 10);
+    var bookingLimit = Limit("QoS:BookingRateLimitPermitLimit", 10);
+
+    static FixedWindowRateLimiterOptions Window(int permits) => new()
     {
+        PermitLimit = permits,
+        Window = TimeSpan.FromMinutes(1),
+        QueueLimit = 0,
+        AutoReplenishment = true
+    };
+
+    static bool IsExempt(string path) =>
+        path.StartsWith("/healthz", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/readyz", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase);
+
+    static string? SubjectOf(HttpContext context) =>
+        context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.User.FindFirstValue("sub");
+
+    static string IpOf(HttpContext context) => context.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+
+    static bool IsAuthRoute(HttpContext context)
+    {
+        if (!HttpMethods.IsPost(context.Request.Method)) return false;
         var path = context.Request.Path.Value ?? string.Empty;
-        if (path.StartsWith("/healthz", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/readyz", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase))
-        {
+        return path.Equals("/auth/login", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/auth/register", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/forgot-password", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/reset-password", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/auth/forgot-password", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/auth/reset-password", StringComparison.OrdinalIgnoreCase);
+    }
+
+    static bool IsBookingCreate(HttpContext context) =>
+        HttpMethods.IsPost(context.Request.Method) &&
+        string.Equals(context.Request.Path.Value?.TrimEnd('/'), "/appointments", StringComparison.OrdinalIgnoreCase);
+
+    var general = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        if (IsExempt(context.Request.Path.Value ?? string.Empty))
             return RateLimitPartition.GetNoLimiter("exempt");
-        }
 
-        var partitionKey = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? context.User.FindFirstValue("sub")
-            ?? context.Connection.RemoteIpAddress?.ToString()
-            ?? "anonymous";
+        var subject = SubjectOf(context);
+        if (subject is null)
+            return RateLimitPartition.GetFixedWindowLimiter($"anon:{IpOf(context)}", _ => Window(anonymousLimit));
 
-        return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = builder.Configuration.GetValue<int?>("QoS:RateLimitPermitLimit") ?? 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0,
-                AutoReplenishment = true
-            });
+        var isStaff = context.User.IsInRole("Admin") || context.User.IsInRole("Receptionist") || context.User.IsInRole("Doctor");
+        return isStaff
+            ? RateLimitPartition.GetFixedWindowLimiter($"staff:{subject}", _ => Window(staffLimit))
+            : RateLimitPartition.GetFixedWindowLimiter($"user:{subject}", _ => Window(defaultLimit));
     });
+
+    var sensitive = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        if (IsAuthRoute(context))
+            return RateLimitPartition.GetFixedWindowLimiter($"auth:{IpOf(context)}", _ => Window(authLimit));
+        if (IsBookingCreate(context))
+            return RateLimitPartition.GetFixedWindowLimiter($"booking:{SubjectOf(context) ?? IpOf(context)}", _ => Window(bookingLimit));
+        return RateLimitPartition.GetNoLimiter("not-sensitive");
+    });
+
+    options.GlobalLimiter = PartitionedRateLimiter.CreateChained(general, sensitive);
 });
 
 // Add presentation services (Controllers, Filters, ProblemDetails, Mapster)
@@ -108,40 +157,43 @@ builder.Services.AddScoped<Clinic.API.Authentication.ICurrentUser, Clinic.API.Au
 builder.Services.AddTransient<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 
 // Downstream microservice HTTP clients
+// Downstream QoS (SLI_SLO_MATRIX §5.2): every client gets a 5s total deadline, a per-attempt timeout,
+// retries for safe methods only and a circuit breaker. The SignalR hub proxy uses a separate client
+// without these deadlines because long-polling/SSE requests are long-lived by design.
 builder.Services.AddHttpClient("Identity", client =>
 {
     var identityAuthority = builder.Configuration["Identity:Authority"] ?? "http://localhost:5001";
     client.BaseAddress = new Uri(identityAuthority.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(10);
-}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>()
+  .AddClinicDownstreamResilience(builder.Configuration, DownstreamResilience.IdentityAttemptTimeout, DownstreamResilience.IdentityTotalTimeout);
 
 builder.Services.AddHttpClient("Scheduling", (sp, client) =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var schedulingAuthority = config["Scheduling:Authority"] ?? "http://localhost:5002";
     client.BaseAddress = new Uri(schedulingAuthority.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(10);
     var serviceToken = config["Services:InternalToken"] ?? config["Identity:ServiceToken"];
     if (!string.IsNullOrWhiteSpace(serviceToken))
     {
         client.DefaultRequestHeaders.Remove("X-Clinic-Service-Token");
         client.DefaultRequestHeaders.Add("X-Clinic-Service-Token", serviceToken);
     }
-}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>()
+  .AddClinicDownstreamResilience(builder.Configuration);
 
 builder.Services.AddHttpClient("Appointment", client =>
 {
     var appointmentAuthority = builder.Configuration["Appointment:Authority"] ?? "http://localhost:5003";
     client.BaseAddress = new Uri(appointmentAuthority.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(15);
-}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>()
+  .AddClinicDownstreamResilience(builder.Configuration, DownstreamResilience.BookingAttemptTimeout);
 
 builder.Services.AddHttpClient("Queue", client =>
 {
     var queueAuthority = builder.Configuration["Queue:Authority"] ?? "http://localhost:5004";
     client.BaseAddress = new Uri(queueAuthority.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(15);
-}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>()
+  .AddClinicDownstreamResilience(builder.Configuration);
 
 builder.Services.AddHttpClient("MedicalRecords", client =>
 {
@@ -149,16 +201,24 @@ builder.Services.AddHttpClient("MedicalRecords", client =>
         ?? builder.Configuration["Services:MedicalRecords:BaseUrl"]
         ?? "http://localhost:5005";
     client.BaseAddress = new Uri(medicalRecordsAuthority.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(15);
-}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>()
+  .AddClinicDownstreamResilience(builder.Configuration);
+
+string NotificationAuthority() =>
+    builder.Configuration["Notification:Authority"]
+    ?? builder.Configuration["Services:Notification:BaseUrl"]
+    ?? "http://localhost:5006";
 
 builder.Services.AddHttpClient("Notification", client =>
 {
-    var notificationAuthority = builder.Configuration["Notification:Authority"]
-        ?? builder.Configuration["Services:Notification:BaseUrl"]
-        ?? "http://localhost:5006";
-    client.BaseAddress = new Uri(notificationAuthority.TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(10);
+    client.BaseAddress = new Uri(NotificationAuthority().TrimEnd('/') + "/");
+}).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>()
+  .AddClinicDownstreamResilience(builder.Configuration);
+
+builder.Services.AddHttpClient("NotificationHub", client =>
+{
+    client.BaseAddress = new Uri(NotificationAuthority().TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(130); // > SignalR long-polling interval (100s)
 }).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 
 // Gateway microservice client wrappers

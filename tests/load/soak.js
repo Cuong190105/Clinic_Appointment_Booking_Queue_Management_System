@@ -1,46 +1,62 @@
-import http from 'k6/http';
-import { check, sleep } from 'k6';
-import { BASE_URL, DEFAULT_HEADERS, buildSanitizedSummary, clinicDate, responseItems, unwrapResponse } from './config.js';
+// Soak: moderate constant offered load for a long window (default 60 min) to expose memory leaks,
+// connection-pool exhaustion, outbox growth or latency drift. Compares p95 of the first and last
+// 10 minutes; drift > 1.5x is reported as a failure in the summary (soakDriftOk=false).
+import { Trend } from 'k6/metrics';
+import { apiThresholds } from './lib/slo.js';
+import { metrics } from './lib/api.js';
+import { runAction, setupMix, teardownMix, THINK, vusFor } from './lib/mix.js';
+import { think } from './lib/clinic.js';
+import { summarize } from './lib/summary.js';
 
-const slotsUrl = `${BASE_URL}/slots?fromDate=${clinicDate(1)}T00:00:00&toDate=${clinicDate(7)}T23:59:59`;
+const RATE = Number(__ENV.SOAK_RATE || 8);
+const DURATION_MIN = Number(__ENV.SOAK_MINUTES || 60);
+const WINDOW_MIN = Math.min(10, Math.floor(DURATION_MIN / 3));
+const MAX_DRIFT = Number(__ENV.SOAK_MAX_DRIFT || 1.5);
+
+const early = new Trend('soak_early_write_duration', true);
+const late = new Trend('soak_late_write_duration', true);
 
 export const options = {
-  // Extended endurance test: 20 VUs for 5 minutes
-  stages: [
-    { duration: '30s', target: 20 },
-    { duration: '4m', target: 20 },
-    { duration: '30s', target: 0 },
-  ],
+  scenarios: {
+    // 2-minute ramp spreads session creation (logins) instead of a cold login burst at t=0.
+    soak: {
+      executor: 'ramping-arrival-rate', startRate: 1, timeUnit: '1s',
+      stages: [{ target: RATE, duration: '2m' }, { target: RATE, duration: `${DURATION_MIN}m` }],
+      ...vusFor(RATE),
+    },
+  },
   thresholds: {
-    http_req_failed: ['rate<0.01'],
-    http_req_duration: ['p(95)<400', 'p(99)<1200'],
+    ...apiThresholds(),
+    soak_late_write_duration: [`p(95)<500`],
+    dropped_iterations: [`count<${RATE * 30}`],
   },
 };
 
-export default function () {
-  const readSpecialties = __ITER % 5 === 0;
-  const url = readSpecialties ? `${BASE_URL}/specialties` : slotsUrl;
-  const res = http.get(url, {
-    headers: { ...DEFAULT_HEADERS, 'X-Correlation-ID': `soak-${__VU}-${__ITER}` },
-  });
-
-  check(res, {
-    'read API responds consistently during soak': (r) => {
-      if (r.status !== 200) return false;
-      try {
-        return readSpecialties
-          ? ((body) => (Array.isArray(body) ? body : body?.items)?.length > 0)(unwrapResponse(JSON.parse(r.body)))
-          : responseItems(JSON.parse(r.body)).length > 0;
-      } catch {
-        return false;
-      }
-    },
-  });
-
-  sleep(1);
+export function setup() {
+  return { ...setupMix({ minimumSlots: 300 }), startedAt: Date.now() };
 }
 
+export default function (data) {
+  const before = Date.now();
+  runAction(data);
+  const took = Date.now() - before;
+  think(THINK.min, THINK.max);
+  const elapsedMin = (before - data.startedAt) / 60000 - 2; // minutes since the end of the ramp
+  if (elapsedMin >= 0 && elapsedMin < WINDOW_MIN) early.add(took);
+  else if (elapsedMin > DURATION_MIN - WINDOW_MIN) late.add(took);
+}
+
+export function teardown(data) {
+  teardownMix(data);
+}
 
 export function handleSummary(data) {
-  return buildSanitizedSummary(data);
+  void metrics;
+  const e = data.metrics.soak_early_write_duration?.values?.['p(95)'];
+  const l = data.metrics.soak_late_write_duration?.values?.['p(95)'];
+  const drift = e && l ? l / e : null;
+  return summarize('soak', data, {
+    rate: RATE, minutes: DURATION_MIN, windowMinutes: WINDOW_MIN,
+    actionP95EarlyMs: e ?? null, actionP95LateMs: l ?? null, drift, soakDriftOk: drift === null ? null : drift <= MAX_DRIFT,
+  });
 }

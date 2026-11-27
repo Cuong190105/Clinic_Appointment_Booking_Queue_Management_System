@@ -1,0 +1,192 @@
+{
+  "profile": "spike",
+  "baseUrl": "http://backend:8080",
+  "target": "microservices",
+  "runAt": "2026-11-27T09:00:13.806Z",
+  "testRunDurationMs": 350551.4284,
+  "thresholdsPassed": false,
+  "failedChecks": [
+    {
+      "name": "read-specialties -> expected status",
+      "passes": 165,
+      "fails": 20
+    },
+    {
+      "name": "write-booking-create -> expected status",
+      "passes": 1451,
+      "fails": 333
+    },
+    {
+      "name": "read-booking-status -> expected status",
+      "passes": 368,
+      "fails": 38
+    },
+    {
+      "name": "read-my-queue-status -> expected status",
+      "passes": 160,
+      "fails": 12
+    },
+    {
+      "name": "read-medical-history -> expected status",
+      "passes": 165,
+      "fails": 11
+    },
+    {
+      "name": "read-doctors -> expected status",
+      "passes": 155,
+      "fails": 22
+    },
+    {
+      "name": "read-my-notifications -> expected status",
+      "passes": 173,
+      "fails": 9
+    },
+    {
+      "name": "read-availability -> expected status",
+      "passes": 130,
+      "fails": 16
+    },
+    {
+      "name": "read-my-appointments -> expected status",
+      "passes": 152,
+      "fails": 13
+    }
+  ],
+  "baseRate": 3,
+  "peakRate": 40,
+  "hotDoctors": 2,
+  "warmSessions": 526,
+  "metrics": {
+    "slo_read_duration": {
+      "avg": 1531.7085100807983,
+      "med": 16.389931,
+      "min": 3.970777,
+      "max": 11949.179026,
+      "p(90)": 7563.2109698,
+      "p(95)": 9470.64314319999,
+      "thresholds": {
+        "p(95)<1000": false,
+        "p(99)<1000": false
+      }
+    },
+    "slo_throttled": {
+      "rate": 0,
+      "passes": 0,
+      "fails": 4095
+    },
+    "slo_unexpected_status": {
+      "rate": 0.11575091575091576,
+      "passes": 474,
+      "fails": 3621
+    },
+    "dropped_iterations": {
+      "count": 114,
+      "rate": 0.3252019269193199
+    },
+    "slo_login_duration": {
+      "avg": 134.25914905988031,
+      "med": 122.862952,
+      "min": 84.278175,
+      "max": 468.90534,
+      "p(90)": 177.866884,
+      "p(95)": 232.823177,
+      "thresholds": {
+        "p(95)<1000": true,
+        "p(99)<2500": true
+      }
+    },
+    "slo_business_conflicts": {
+      "count": 1291,
+      "rate": 3.6827691899372104
+    },
+    "slo_availability": {
+      "rate": 0.8309557774607703,
+      "passes": 2330,
+      "fails": 474,
+      "thresholds": {
+        "rate>=0.99": false
+      }
+    },
+    "workflow_booking_confirmed_duration": {
+      "avg": 1582.7054263565892,
+      "med": 345,
+      "min": 290,
+      "max": 16419,
+      "p(90)": 5226.600000000001,
+      "p(95)": 10182.399999999996
+    },
+    "slo_server_errors": {
+      "rate": 0.11575091575091576,
+      "passes": 474,
+      "fails": 3621,
+      "thresholds": {
+        "rate<0.01": false
+      }
+    },
+    "slo_requests": {
+      "count": 4095,
+      "rate": 11.68159553275978
+    },
+    "booking_created_rate": {
+      "rate": 0.09192825112107623,
+      "passes": 164,
+      "fails": 1620
+    },
+    "http_req_failed": {
+      "rate": 0.11575091575091576,
+      "passes": 474,
+      "fails": 3621
+    },
+    "slo_write_duration": {
+      "avg": 1905.5812014478727,
+      "med": 20.7768525,
+      "min": 9.665618,
+      "max": 12061.67091,
+      "p(90)": 8627.8599829,
+      "p(95)": 9928.695623000001,
+      "thresholds": {
+        "p(95)<1000": false,
+        "p(99)<1500": false
+      }
+    },
+    "iterations": {
+      "count": 2987,
+      "rate": 8.52086101498253
+    },
+    "vus_max": {
+      "value": 594,
+      "min": 491,
+      "max": 594
+    },
+    "slo_read_duration{phase:recovery}": {
+      "avg": 9.21120384,
+      "med": 7.455499,
+      "min": 4.323056,
+      "max": 32.172428,
+      "p(90)": 15.6271306,
+      "p(95)": 18.215337899999994,
+      "thresholds": {
+        "p(95)<300": true
+      }
+    },
+    "http_req_duration": {
+      "avg": 1451.1252340625215,
+      "med": 38.546587,
+      "min": 3.970777,
+      "max": 12061.67091,
+      "p(90)": 7186.590387,
+      "p(95)": 9633.3315741
+    },
+    "slo_write_duration{phase:recovery}": {
+      "avg": 16.58001759433963,
+      "med": 15.449313499999999,
+      "min": 10.394436,
+      "max": 32.295513,
+      "p(90)": 20.9001585,
+      "p(95)": 23.44182325,
+      "thresholds": {
+        "p(95)<500": true
+      }
+    }
+  }
+}

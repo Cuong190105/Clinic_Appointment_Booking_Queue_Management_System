@@ -1,0 +1,86 @@
+{
+  "profile": "qos-policy",
+  "baseUrl": "http://host.docker.internal:5000",
+  "target": "microservices",
+  "runAt": "2026-11-27T08:24:05.585Z",
+  "testRunDurationMs": 6863.335669,
+  "thresholdsPassed": true,
+  "failedChecks": [],
+  "limits": {
+      "user": 100,
+      "staff": 600,
+      "auth": 10,
+      "booking": 10
+    },
+  "metrics": {
+      "iterations": {
+        "count": 1,
+        "rate": 0.14570174740494687
+      },
+      "slo_availability": {
+        "rate": 1,
+        "passes": 1,
+        "fails": 0
+      },
+      "qos_policy_checks_run": {
+        "count": 10,
+        "rate": 1.4570174740494688,
+        "thresholds": {
+          "count>=9": true
+        }
+      },
+      "vus_max": {
+        "value": 1,
+        "min": 1,
+        "max": 1
+      },
+      "slo_unexpected_status": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 1
+      },
+      "qos_policy_checks": {
+        "rate": 1,
+        "passes": 10,
+        "fails": 0,
+        "thresholds": {
+          "rate==1": true
+        }
+      },
+      "slo_requests": {
+        "count": 1,
+        "rate": 0.14570174740494687
+      },
+      "slo_login_duration": {
+        "avg": 387.461696,
+        "med": 387.461696,
+        "min": 387.461696,
+        "max": 387.461696,
+        "p(90)": 387.461696,
+        "p(95)": 387.461696
+      },
+      "http_req_failed": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 383
+      },
+      "http_req_duration": {
+        "avg": 17.606354898172338,
+        "med": 15.438158,
+        "min": 1.293328,
+        "max": 445.976155,
+        "p(90)": 25.520898600000002,
+        "p(95)": 58.5989151
+      },
+      "slo_throttled": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 1
+      },
+      "slo_server_errors": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 1
+      }
+    }
+}

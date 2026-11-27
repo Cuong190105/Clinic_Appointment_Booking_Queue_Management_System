@@ -1,107 +1,96 @@
 'use strict';
 
 const { addCard, addPill, addSlideBase, notesFor, rect, text, theme } = require('../helpers');
+const { qosResults } = require('../qos-results');
 
 function buildSlides11To17(pptx) {
   // =========================================================================
-  // SLIDE 11 — SLA, SLI, SLO và QoS
+  // SLIDE 11 — SLA/SLO/QoS theo từng dịch vụ
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addSlideBase(slide, {
       section: 'Chỉ tiêu chất lượng dịch vụ',
-      title: 'SLA, SLI, SLO và QoS: Mục tiêu nghiệm thu và chính sách bảo vệ',
-      source: '[Q]  ·  [P] §5  ·  [S] Slide 11',
+      title: 'SLA, SLO và QoS được định nghĩa cho từng dịch vụ',
+      source: '[Q] §2–§5  ·  [P] §5  ·  [R] §4  ·  [S] Slide 11',
       number: 11,
     });
 
-    rect(slide, 0.58, 1.5, 12.15, 0.58, theme.colors.sky, 'B9D4DC');
-    text(slide, 'SLI (Chỉ số đo):', 0.78, 1.64, 1.55, 0.28, { fontSize: 12.2, bold: true, color: theme.colors.navy });
-    text(slide, 'Độ trễ p95/p99, tỷ lệ 5xx', 2.28, 1.64, 2.25, 0.28, { fontSize: 12, color: theme.colors.ink });
-    text(slide, '·  SLO (Mục tiêu nội bộ):', 4.55, 1.64, 2.35, 0.28, { fontSize: 12.2, bold: true, color: theme.colors.teal });
-    text(slide, 'Ngưỡng nghiệm thu đồ án', 6.88, 1.64, 2.45, 0.28, { fontSize: 12, color: theme.colors.ink });
-    text(slide, '·  SLA:', 9.38, 1.64, 0.75, 0.28, { fontSize: 12.2, bold: true, color: theme.colors.amber });
-    text(slide, 'Chưa phải cam kết thương mại', 10.1, 1.64, 2.5, 0.28, { fontSize: 12, color: theme.colors.ink });
-
-    const targets = [
-      {
-        x: 0.58, y: 2.28,
-        metric: '≥ 99,0%',
-        title: 'Độ sẵn sàng tại Gateway',
-        accent: theme.colors.teal,
-        body: 'Tính lỗi 5xx/502/503/504 là sự cố;\nloại trừ 401/403, xung đột 409 và 429.',
-      },
-      {
-        x: 4.72, y: 2.28,
-        metric: '≤ 500 ms',
-        title: 'Độ trễ API p95 (p99 ≤ 1.500 ms)',
-        accent: theme.colors.navy,
-        body: 'Đo riêng tại từng ranh giới dịch vụ;\nkhông cộng gộp phân vị giữa các chặng.',
-      },
-      {
-        x: 8.86, y: 2.28,
-        metric: '≤ 1,0%',
-        title: 'Tỷ lệ lỗi máy chủ (HTTP 5xx)',
-        accent: theme.colors.teal,
-        body: 'Đo trên tập mẫu hợp lệ theo ma trận;\ntách bạch khỏi phản hồi từ chối nghiệp vụ.',
-      },
-      {
-        x: 0.58, y: 4.22,
-        metric: '≤ 5 giây',
-        title: 'Độ trễ xử lý sự kiện (p95)',
-        accent: theme.colors.navy,
-        body: 'Tính từ lúc phát sự kiện lên RabbitMQ\nđến khi dịch vụ đích xử lý xong (ack).',
-      },
-      {
-        x: 4.72, y: 4.22,
-        metric: '0 vi phạm',
-        title: 'Bất biến dữ liệu & DLQ',
-        accent: theme.colors.green,
-        body: '0 đặt vượt chỗ, 0 tạo lịch hẹn trùng;\n0 thông điệp hợp lệ bị bỏ lại trong DLQ.',
-      },
-      {
-        x: 8.86, y: 4.22,
-        metric: '100 req/phút',
-        title: 'Giới hạn tốc độ & Chính sách QoS',
-        accent: theme.colors.amber,
-        body: 'Cửa sổ cố định theo tài khoản hoặc IP;\nkết hợp timeout, retry và Idempotency.',
-      },
+    const head = (t) => ({ text: t, options: { bold: true, color: theme.colors.white, fill: { color: theme.colors.navy } } });
+    const tierCell = (t, color) => ({ text: t, options: { bold: true, color, align: 'center' } });
+    const rows = [
+      [head('Dịch vụ'), head('Tầng'), head('Sẵn sàng'), head('Độ trễ / workflow (p95)'), head('QoS chính'), head('RPO / RTO')],
+      ['API Gateway', tierCell('—', theme.colors.slate), '99,9%', 'Đọc ≤ 300 ms · Ghi ≤ 500 ms', 'Rate limit theo tầng (BN 100, NV 600/phút); deadline 5 s; circuit breaker 503 + Retry-After', '—'],
+      ['Identity', tierCell('1', theme.colors.red), '99,9%', 'Đăng nhập ≤ 1 s · Refresh ≤ 300 ms', 'Đăng nhập 10/phút/IP; bulkhead băm mật khẩu, quá tải → 503 nhanh', '24 giờ / 1 giờ'],
+      ['Staff & Scheduling', tierCell('1', theme.colors.red), '99,7%', 'Đọc ≤ 300 ms', 'Gọi từ Appointment: deadline 3 s, retry 1 lần (lệnh idempotent)', '1 giờ / 1 giờ'],
+      ['Appointment', tierCell('1', theme.colors.red), '99,7%', 'Ghi ≤ 500 ms · Confirmed ≤ 5 s', 'Idempotency-Key; 10 lượt đặt/phút/BN; lỗi Scheduling không lan', '1 giờ / 1 giờ'],
+      ['Queue', tierCell('1', theme.colors.red), '99,7%', 'Check-in → số ≤ 3 s · lag ≤ 5 s', 'Consumer idempotent; retry 5 s → 30 s → 2 phút rồi DLQ', '1 giờ / 1 giờ'],
+      ['Medical Records', tierCell('2', theme.colors.amber), '99,5%', 'Ghi ≤ 500 ms · encounter ≤ 5 s', 'Audit 100%; sự kiện chờ trong queue khi gián đoạn', '15 phút / 1 giờ'],
+      ['Notification', tierCell('3', theme.colors.teal), '99,0%', 'Sự kiện → inbox ≤ 10 s', 'Gián đoạn không ảnh hưởng Tier 1; 3 retry rồi DLQ', '24 giờ / 4 giờ'],
     ];
-
-    targets.forEach((t) => {
-      rect(slide, t.x, t.y, 3.87, 1.72, theme.colors.white, theme.colors.line);
-      slide.addShape('rect', {
-        x: t.x, y: t.y + 0.02, w: 0.07, h: 1.68,
-        fill: { color: t.accent }, line: { color: t.accent, transparency: 100 },
-      });
-      text(slide, t.metric, t.x + 0.22, t.y + 0.14, 3.45, 0.44, {
-        fontSize: 24, bold: true, color: t.accent,
-      });
-      text(slide, t.title, t.x + 0.22, t.y + 0.62, 3.45, 0.3, {
-        fontSize: 14, bold: true, color: theme.colors.ink,
-      });
-      text(slide, t.body, t.x + 0.22, t.y + 0.98, 3.45, 0.62, {
-        fontSize: 11.8, color: theme.colors.slate, valign: 'top',
-      });
+    slide.addTable(rows, {
+      x: 0.58, y: 1.52, w: 12.15,
+      colW: [1.75, 0.62, 0.95, 2.6, 4.68, 1.55],
+      fontFace: theme.font, fontSize: 11, color: theme.colors.ink,
+      border: { type: 'solid', pt: 0.6, color: theme.colors.line },
+      fill: { color: theme.colors.white },
+      rowH: 0.5, valign: 'middle', margin: 0.06,
     });
 
-    rect(slide, 0.58, 6.22, 12.15, 0.62, theme.colors.amberLight, 'F1D5A1');
-    text(slide, 'Phạm vi áp dụng:', 0.8, 6.38, 1.85, 0.28, { fontSize: 12.8, bold: true, color: theme.colors.amber });
-    text(slide, 'Các ngưỡng trên là mục tiêu nghiệm thu nội bộ trên Docker Compose phục vụ đồ án, không phải cam kết SLA vận hành thương mại.', 2.68, 6.38, 9.85, 0.28, { fontSize: 12.6, color: theme.colors.ink });
+    rect(slide, 0.58, 5.66, 12.15, 0.5, theme.colors.sky, 'B9D4DC');
+    text(slide, 'SLA (mô phỏng):', 0.78, 5.77, 1.75, 0.28, { fontSize: 12.4, bold: true, color: theme.colors.navy });
+    text(slide, 'Hành trình đặt lịch / check-in / hồ sơ ≥ 99,0%, đăng nhập ≥ 99,5% · 30 ngày giờ phòng khám · error budget ≈ 200 phút · cảnh báo burn-rate 14,4× / 6×', 2.5, 5.77, 10.1, 0.28, { fontSize: 11.6, color: theme.colors.ink });
+
+    rect(slide, 0.58, 6.26, 12.15, 0.62, theme.colors.amberLight, 'F1D5A1');
+    text(slide, 'Quy tắc đo:', 0.8, 6.42, 1.3, 0.28, { fontSize: 12.6, bold: true, color: theme.colors.amber });
+    text(slide, '5xx/timeout là sự cố; 409 (hết chỗ), 429 (giới hạn) không tính vào lỗi · percentile không cộng qua các chặng · mục tiêu đồ án trên Docker Compose.', 2.1, 6.42, 10.45, 0.28, { fontSize: 11.8, color: theme.colors.ink });
 
     slide.addNotes(notesFor(11));
   }
 
   // =========================================================================
-  // SLIDE 12 — Cách đánh giá hiệu năng
+  // SLIDE 12 — Kiểm chứng SLA/QoS trên hệ thống chạy
+  // =========================================================================
+  {
+    const slide = pptx.addSlide('BASE');
+    addSlideBase(slide, {
+      section: 'Kiểm chứng chất lượng dịch vụ',
+      title: 'Kiểm chứng SLA/QoS trên hệ thống đang chạy (27/11/2026)',
+      source: '[T] §5  ·  [Q] §6  ·  [R] §7  ·  [S] Slide 12',
+      number: 12,
+    });
+
+    const pos = [[0.58, 1.56], [4.72, 1.56], [8.86, 1.56], [0.58, 3.86], [4.72, 3.86], [8.86, 3.86]];
+    const results = qosResults.map((r, i) => ({ ...r, x: pos[i][0], y: pos[i][1] }));
+
+    results.forEach((t) => {
+      rect(slide, t.x, t.y, 3.87, 2.1, theme.colors.white, theme.colors.line);
+      slide.addShape('rect', {
+        x: t.x, y: t.y + 0.02, w: 0.07, h: 2.06,
+        fill: { color: t.accent }, line: { color: t.accent, transparency: 100 },
+      });
+      text(slide, t.metric, t.x + 0.22, t.y + 0.12, 3.5, 0.44, { fontSize: 22, bold: true, color: t.accent });
+      text(slide, t.title, t.x + 0.22, t.y + 0.6, 3.5, 0.3, { fontSize: 13.6, bold: true, color: theme.colors.ink });
+      text(slide, t.body.replace(/\n/g, ' '), t.x + 0.22, t.y + 0.96, 3.5, 1.04, { fontSize: 10.6, color: theme.colors.slate, valign: 'top' });
+    });
+
+    rect(slide, 0.58, 6.22, 12.15, 0.62, theme.colors.amberLight, 'F1D5A1');
+    text(slide, 'Lưu ý:', 0.8, 6.38, 0.8, 0.28, { fontSize: 12.6, bold: true, color: theme.colors.amber });
+    text(slide, 'Các lượt chạy ngắn để kiểm chứng cơ chế trên Docker Compose (một máy); chưa phải số liệu benchmark lặp lại nhiều lượt.', 1.6, 6.38, 10.95, 0.28, { fontSize: 12.2, color: theme.colors.ink });
+
+    slide.addNotes(notesFor(12));
+  }
+
+  // =========================================================================
+  // SLIDE 13 — Cách đánh giá hiệu năng
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addSlideBase(slide, {
       section: 'Phương pháp kiểm thử tải',
       title: 'Cách đánh giá hiệu năng: Kịch bản tải và hệ thống chỉ số đo',
-      source: '[B] §§19, 21, 22  ·  [S] Slide 12',
-      number: 12,
+      source: '[B] §§19, 21, 22  ·  [S] Slide 13',
+      number: 13,
     });
 
     text(slide, 'Hai kịch bản kiểm thử tải', 0.58, 1.5, 5.8, 0.28, {
@@ -161,19 +150,19 @@ function buildSlides11To17(pptx) {
     text(slide, 'Ngân sách đối chiếu:', 0.8, 6.4, 2.15, 0.28, { fontSize: 13, bold: true, color: theme.colors.navy });
     text(slide, 'Cả hai hệ thống Monolith và Microservices đều được cấp cùng ngân sách tài nguyên 12,5 CPU / 5,06 GiB RAM trên Docker Compose.', 2.98, 6.4, 9.55, 0.28, { fontSize: 12.6, color: theme.colors.ink });
 
-    slide.addNotes(notesFor(12));
+    slide.addNotes(notesFor(13));
   }
 
   // =========================================================================
-  // SLIDE 13 — Quá trình cải tiến microservices
+  // SLIDE 14 — Quá trình cải tiến microservices
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addSlideBase(slide, {
       section: 'Lịch sử tối ưu hóa',
       title: 'Quá trình cải tiến microservices qua các mốc đo kiểm',
-      source: '[B] §§14, 18, 19  ·  [P] §§6.2, 6.5  ·  [S] Slide 13',
-      number: 13,
+      source: '[B] §§14, 18, 19  ·  [P] §§6.2, 6.5  ·  [S] Slide 14',
+      number: 14,
     });
 
     text(slide, 'Các mốc đo kiểm kỹ thuật (bao gồm cả lượt đối chiếu chưa đạt ngưỡng 500 ms)', 0.58, 1.5, 10.5, 0.28, {
@@ -264,19 +253,19 @@ function buildSlides11To17(pptx) {
     text(slide, 'Lưu ý phương pháp:', 0.8, 6.36, 1.95, 0.28, { fontSize: 12.8, bold: true, color: theme.colors.amber });
     text(slide, 'Các mốc trên thuộc các cấu hình tải và kích thước mẫu khác nhau (20 mẫu/lượt so với 2.400 slot và tải hỗn hợp 5 phút), không ghép thành một chuỗi so sánh trực tiếp.', 2.78, 6.36, 9.75, 0.28, { fontSize: 12.2, color: theme.colors.ink });
 
-    slide.addNotes(notesFor(13));
+    slide.addNotes(notesFor(14));
   }
 
   // =========================================================================
-  // SLIDE 14 — Kết quả high-load và mixed-load mới nhất trên Microservices
+  // SLIDE 15 — Kết quả high-load và mixed-load mới nhất trên Microservices
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addSlideBase(slide, {
       section: 'Kết quả Microservices mới nhất',
       title: 'Kết quả high-load và mixed-load mới nhất trên Microservices',
-      source: '[B] §§19, 21  ·  [E3]  ·  [S] Slide 14',
-      number: 14,
+      source: '[B] §§19, 21  ·  [E3]  ·  [S] Slide 15',
+      number: 15,
     });
 
     const kpis = [
@@ -371,19 +360,19 @@ function buildSlides11To17(pptx) {
       fontSize: 11, color: theme.colors.slate, align: 'center',
     });
 
-    slide.addNotes(notesFor(14));
+    slide.addNotes(notesFor(15));
   }
 
   // =========================================================================
-  // SLIDE 15 — Đối chiếu trực quan số liệu Monolith và Microservices
+  // SLIDE 16 — Đối chiếu trực quan số liệu Monolith và Microservices
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addSlideBase(slide, {
       section: 'Đối chiếu số liệu thực nghiệm',
       title: 'Đối chiếu hiệu năng Monolith và Microservices (12,5 CPU)',
-      source: '[B] §§19, 21, 22  ·  [E1–E3]  ·  [S] Slide 15',
-      number: 15,
+      source: '[B] §§19, 21, 22  ·  [E1–E3]  ·  [S] Slide 16',
+      number: 16,
     });
 
     text(slide, 'Biểu đồ độ trễ p95 (ms) · Cột thấp hơn là nhanh hơn', 0.58, 1.48, 6.2, 0.28, {
@@ -504,19 +493,19 @@ function buildSlides11To17(pptx) {
       fontSize: 10.3, color: theme.colors.slate, align: 'center',
     });
 
-    slide.addNotes(notesFor(15));
+    slide.addNotes(notesFor(16));
   }
 
   // =========================================================================
-  // SLIDE 16 — Kết luận và hướng tiếp theo
+  // SLIDE 17 — Kết luận và hướng tiếp theo
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addSlideBase(slide, {
       section: 'Kết luận & hướng tiếp theo',
       title: 'Kết luận tổng hợp và các bước hoàn thiện tiếp theo',
-      source: '[S] Slide 16  ·  [P] §§6.3–6.4  ·  [B] §§19, 21, 22',
-      number: 16,
+      source: '[S] Slide 17  ·  [P] §§6.3–6.4  ·  [B] §§19, 21, 22',
+      number: 17,
     });
 
     const cols = [
@@ -528,7 +517,7 @@ function buildSlides11To17(pptx) {
         items: [
           { h: 'Phân rã 6 dịch vụ & Gateway', d: 'Tách quyền sở hữu nghiệp vụ và 6 CSDL logic trên Docker Compose.' },
           { h: 'Chuẩn hóa Hợp đồng & Phối hợp', d: 'OpenAPI drift test, SAGA đặt lịch lai và Choreography sự kiện.' },
-          { h: 'Khung SLI / SLO / QoS & Quan sát', d: 'Rate limit, Idempotency, health check, Prometheus và Jaeger.' },
+          { h: 'SLA/SLO/QoS đã kiểm chứng', d: 'Rate limit, deadline/breaker, load shedding, cô lập lỗi, backup PITR + diễn tập khôi phục.' },
         ],
       },
       {
@@ -583,26 +572,26 @@ function buildSlides11To17(pptx) {
     text(slide, 'Tổng kết đồ án:', 0.82, 6.4, 1.85, 0.28, { fontSize: 13, bold: true, color: theme.colors.navy });
     text(slide, 'Hoàn thành kiến trúc Microservices chạy thực tế và bộ số liệu đối chiếu trực diện với Monolith trên cả hai chế độ tải đơn miền và hỗn hợp.', 2.7, 6.4, 9.85, 0.28, { fontSize: 12.5, color: theme.colors.ink });
 
-    slide.addNotes(notesFor(16));
+    slide.addNotes(notesFor(17));
   }
 
   // =========================================================================
-  // SLIDE 17 — Tài liệu tham khảo (Phụ lục ngoài thời lượng 15 phút)
+  // SLIDE 18 — Tài liệu tham khảo (Phụ lục ngoài thời lượng 15 phút)
   // =========================================================================
   {
     const slide = pptx.addSlide('BASE');
     addSlideBase(slide, {
       section: 'Phụ lục · Nguồn đối chiếu (Không tính vào 15 phút thuyết trình)',
       title: 'Tài liệu tham khảo và bằng chứng kiểm thử dự án',
-      source: 'Danh mục nguồn đối chiếu nội bộ dự án [S, P, Q, B, C, E1–E3]',
-      number: 17,
+      source: 'Danh mục nguồn đối chiếu nội bộ dự án [S, P, Q, B, R, T, C, E1–E3]',
+      number: 18,
     });
 
     const leftRefs = [
       {
         code: '[S]',
         path: 'docs/PRESENTATION_SCRIPT.md',
-        desc: 'Kịch bản thuyết trình 15 phút: thứ tự 16 slide, lời dẫn và phân tích đối chiếu hai kiến trúc.',
+        desc: 'Kịch bản thuyết trình 15 phút: thứ tự 17 slide, lời dẫn và phân tích đối chiếu hai kiến trúc.',
       },
       {
         code: '[P]',
@@ -618,6 +607,11 @@ function buildSlides11To17(pptx) {
         code: '[B]',
         path: 'tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md (§§14–22)',
         desc: 'Báo cáo kiểm thử tải: lịch sử tối ưu, ép tải 2.400 slot (§19), tải hỗn hợp (§21) và đối chiếu Monolith (§22).',
+      },
+      {
+        code: '[R]',
+        path: 'docs/BACKUP_RECOVERY.md',
+        desc: 'Thiết kế sao lưu full + differential + log, off-site, diễn tập khôi phục và runbook RPO/RTO.',
       },
     ];
 
@@ -642,17 +636,22 @@ function buildSlides11To17(pptx) {
         path: 'tests/load/evidence/*-2026-11-17*.json',
         desc: 'Bằng chứng đã làm sạch của 3 lượt ép tải đặt lịch và 2 kịch bản tải hỗn hợp trên Microservices.',
       },
+      {
+        code: '[T]',
+        path: 'tests/load/README.md (§5) & tests/load/evidence/*-summary.json',
+        desc: 'Bộ kiểm thử SLO/QoS: qos-policy, fault-isolation, login-capacity, spike và backup-drill (27/11/2026).',
+      },
     ];
 
     const renderRefColumn = (items, xBase) => {
       items.forEach((item, idx) => {
-        const y = 1.66 + idx * 1.1;
-        rect(slide, xBase, y, 5.92, 0.94, theme.colors.white, theme.colors.line);
-        addPill(slide, item.code, xBase + 0.16, y + 0.14, 0.62, theme.colors.navy, theme.colors.white, { h: 0.26, fontSize: 9.5 });
-        text(slide, item.path, xBase + 0.88, y + 0.14, 4.92, 0.26, {
+        const y = 1.5 + idx * 0.93;
+        rect(slide, xBase, y, 5.92, 0.84, theme.colors.white, theme.colors.line);
+        addPill(slide, item.code, xBase + 0.16, y + 0.11, 0.62, theme.colors.navy, theme.colors.white, { h: 0.26, fontSize: 9.5 });
+        text(slide, item.path, xBase + 0.88, y + 0.11, 4.92, 0.26, {
           fontSize: 11.2, bold: true, color: theme.colors.teal,
         });
-        text(slide, item.desc, xBase + 0.16, y + 0.46, 5.6, 0.4, {
+        text(slide, item.desc, xBase + 0.16, y + 0.4, 5.6, 0.4, {
           fontSize: 11.4, color: theme.colors.slate, valign: 'top',
         });
       });
@@ -665,7 +664,7 @@ function buildSlides11To17(pptx) {
     text(slide, 'Truy xuất nguồn gốc:', 0.82, 6.38, 2.15, 0.28, { fontSize: 12.8, bold: true, color: theme.colors.navy });
     text(slide, 'Mọi sơ đồ và con số trên slide đều khớp với báo cáo dự án và tệp bằng chứng JSON đã làm sạch (không chứa token/dữ liệu nhạy cảm).', 3.0, 6.38, 9.5, 0.28, { fontSize: 12.4, color: theme.colors.ink });
 
-    slide.addNotes(notesFor(17));
+    slide.addNotes(notesFor(18));
   }
 }
 

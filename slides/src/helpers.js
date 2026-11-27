@@ -115,14 +115,14 @@ function addPill(slide, label, x, y, w, fill, color = theme.colors.ink, opts = {
 }
 
 function notesFor(number) {
-  if (number === 17) {
+  if (number === 18) {
     const qaMatch = /^## Phụ lục số liệu đối chiếu dùng khi hỏi đáp[^\n]*/m.exec(scriptText);
     const qaSection = qaMatch ? scriptText.slice(qaMatch.index).trim() : '';
     return [
-      'Slide 17 — Tài liệu tham khảo và bằng chứng nghiệm thu (Phụ lục tra cứu khi hỏi đáp, không nằm trong 15 phút thuyết trình chính).',
+      'Slide 18 — Tài liệu tham khảo và bằng chứng nghiệm thu (Phụ lục tra cứu khi hỏi đáp, không nằm trong 15 phút thuyết trình chính).',
       '',
       'Hướng dẫn sử dụng khi hỏi đáp (Q&A):',
-      '- Dùng bảng mã nguồn [S], [P], [Q], [B], [C], [E1–E3] để truy xuất nhanh tới báo cáo dự án, ma trận SLI/SLO, hợp đồng OpenAPI và tệp JSON kết quả kiểm thử đã làm sạch (sanitized).',
+      '- Dùng bảng mã nguồn [S], [P], [Q], [B], [R], [T], [C], [E1–E3] để truy xuất nhanh tới báo cáo dự án, ma trận SLI/SLO, tài liệu sao lưu, bộ kiểm thử SLO/QoS, hợp đồng OpenAPI và tệp JSON kết quả kiểm thử đã làm sạch (sanitized).',
       '',
       qaSection,
     ].filter(Boolean).join('\n');

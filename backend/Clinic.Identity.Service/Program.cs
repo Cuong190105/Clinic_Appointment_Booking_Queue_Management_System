@@ -35,6 +35,7 @@ builder.Services.AddDbContext<IdentityDbContext>((sp, options) =>
 });
 var signingKeyRing = new SigningKeyRing(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton(signingKeyRing);
+builder.Services.AddSingleton<PasswordHashing>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
@@ -52,11 +53,14 @@ builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // Partition per real client: behind the Gateway the TCP peer is always the Gateway, so a per-peer
+    // limit would make all users share one quota. Trust X-Clinic-Client-IP only with a valid service token.
+    var authPermitLimit = Math.Max(1, builder.Configuration.GetValue<int?>("QoS:AuthPermitLimit") ?? 20);
     options.AddPolicy("identity-auth", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        IdentityRateLimitPartition(context, serviceToken),
         _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 20,
+            PermitLimit = authPermitLimit,
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
             AutoReplenishment = true
@@ -140,6 +144,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
+        .AddMeter(PasswordHashing.MeterName)
         .AddPrometheusExporter())
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation(options => options.Filter = context => context.Request.Path != "/metrics")
@@ -159,6 +164,23 @@ app.Use(async (context, next) =>
         ["CorrelationId"] = correlationId
     });
     await next();
+});
+// Load shedding for CPU-bound password hashing: fail fast with 503 + Retry-After instead of queueing
+// until the caller's deadline. The header tells the Gateway this is not an Identity fault, so its
+// circuit breaker stays closed and cheap routes (refresh, JWKS) keep working.
+app.Use(async (context, next) =>
+{
+    try { await next(); }
+    catch (PasswordHashingOverloadedException) when (!context.Response.HasStarted)
+    {
+        context.Response.Clear();
+        context.Response.Headers.RetryAfter = PasswordHashing.RetryAfterSeconds.ToString();
+        context.Response.Headers[PasswordHashing.LoadShedHeader] = PasswordHashing.LoadShedReason;
+        await Results.Problem(
+            title: "Authentication is busy",
+            detail: "Too many sign-in requests are being processed. Retry after the indicated delay.",
+            statusCode: StatusCodes.Status503ServiceUnavailable).ExecuteAsync(context);
+    }
 });
 app.UseRouting();
 app.UseRateLimiter();
@@ -198,7 +220,7 @@ app.MapGet("/.well-known/openid-configuration", () => Results.Ok(new
 })).AllowAnonymous();
 
 var auth = app.MapGroup("/v1/auth");
-auth.MapPost("/register", async (RegisterRequest request, HttpRequest httpRequest, IdentityDbContext db, ILogger<Program> logger, CancellationToken ct) =>
+auth.MapPost("/register", async (RegisterRequest request, HttpRequest httpRequest, IdentityDbContext db, PasswordHashing hashing, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (!HasServiceToken(httpRequest, serviceToken)) return Results.Unauthorized();
     var username = request.Username?.Trim();
@@ -220,7 +242,7 @@ auth.MapPost("/register", async (RegisterRequest request, HttpRequest httpReques
     {
         // A repeated gateway request can finish local Patient provisioning after a transient failure.
         if (existingUsername.Person.PhoneNumber == phoneNumber && existingUsername.IsActive &&
-            BCrypt.Net.BCrypt.Verify(request.Password, existingUsername.PasswordHash))
+            await hashing.VerifyAsync(request.Password, existingUsername.PasswordHash, ct))
         {
             logger.LogInformation("IDENTITY_AUDIT: User registration replayed for existing active user UserId={UserId}, Username={Username}", existingUsername.Id, existingUsername.Username);
             return Results.Created($"/auth/users/{existingUsername.Id}", new
@@ -259,7 +281,7 @@ auth.MapPost("/register", async (RegisterRequest request, HttpRequest httpReques
     var user = new IdentityUser
     {
         Id = Guid.NewGuid(), PersonId = person.Id, Person = person, PatientId = request.PatientId,
-        Username = username, PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password)
+        Username = username, PasswordHash = await hashing.HashAsync(request.Password, ct)
     };
     db.Users.Add(user);
     db.UserRoles.Add(new IdentityUserRole { UserId = user.Id, User = user, RoleId = patientRole.Id, Role = patientRole });
@@ -298,7 +320,7 @@ auth.MapPost("/forgot-password", async (ForgotPasswordRequest request, HttpReque
     return Results.Ok(new PasswordResetDelivery(true, user.PersonId, resetToken));
 }).AllowAnonymous().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/reset-password", async (ResetPasswordRequest request, IdentityDbContext db, ILogger<Program> logger, CancellationToken ct) =>
+auth.MapPost("/reset-password", async (ResetPasswordRequest request, IdentityDbContext db, PasswordHashing hashing, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["New password must contain at least 8 characters."] });
@@ -316,7 +338,7 @@ auth.MapPost("/reset-password", async (ResetPasswordRequest request, IdentityDbC
     }
 
     token.UsedAt = now;
-    token.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+    token.User.PasswordHash = await hashing.HashAsync(request.NewPassword, ct);
     await db.RefreshTokens.Where(x => x.UserId == token.UserId && x.RevokedAt == null)
         .ExecuteUpdateAsync(changes => changes.SetProperty(x => x.RevokedAt, now), ct);
     await db.PasswordResetTokens.Where(x => x.UserId == token.UserId && x.Id != token.Id && x.UsedAt == null)
@@ -327,15 +349,23 @@ auth.MapPost("/reset-password", async (ResetPasswordRequest request, IdentityDbC
     return Results.NoContent();
 }).AllowAnonymous().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/login", async (LoginRequest request, IdentityDbContext db, SigningKeyRing ring, ILogger<Program> logger, CancellationToken ct) =>
+auth.MapPost("/login", async (LoginRequest request, IdentityDbContext db, SigningKeyRing ring, PasswordHashing hashing, ILogger<Program> logger, CancellationToken ct) =>
 {
     var user = await db.Users.Include(x => x.Person).Include(x => x.UserRoles).ThenInclude(x => x.Role)
         .ThenInclude(x => x.RolePermissions).ThenInclude(x => x.Permission)
         .SingleOrDefaultAsync(x => x.Username == request.Username, ct);
-    if (user is null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+    if (user is null || !user.IsActive || string.IsNullOrEmpty(request.Password) ||
+        !await hashing.VerifyAsync(request.Password, user.PasswordHash, ct))
     {
         logger.LogWarning("IDENTITY_AUDIT: Login failed for Username={Username}", request.Username);
         return Results.Unauthorized();
+    }
+    // Hashes created with another work factor (e.g. cost 11 from the monolith import) migrate on the
+    // next successful login; IssueTokens persists the change together with the refresh token.
+    if (hashing.NeedsRehash(user.PasswordHash))
+    {
+        user.PasswordHash = await hashing.HashAsync(request.Password, ct);
+        logger.LogInformation("IDENTITY_AUDIT: Password hash re-encoded to work factor {WorkFactor} for UserId={UserId}", hashing.WorkFactor, user.Id);
     }
     var tokens = await IssueTokens(user, db, ring, issuer, audience, accessMinutes, refreshDays, ct);
     logger.LogInformation("IDENTITY_AUDIT: Login succeeded for UserId={UserId}, Username={Username}", user.Id, user.Username);
@@ -368,23 +398,23 @@ auth.MapPost("/refresh", async (RefreshRequest request, IdentityDbContext db, Si
     return Results.Ok(response);
 }).AllowAnonymous().RequireRateLimiting("identity-auth");
 
-auth.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPrincipal principal, IdentityDbContext db, ILogger<Program> logger, CancellationToken ct) =>
+auth.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPrincipal principal, IdentityDbContext db, PasswordHashing hashing, ILogger<Program> logger, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["New password must contain at least 8 characters."] });
     var subject = principal.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
     if (!Guid.TryParse(subject, out var userId)) return Results.Unauthorized();
     var user = await db.Users.SingleOrDefaultAsync(x => x.Id == userId, ct);
-    if (user is null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+    if (user is null || !user.IsActive || !await hashing.VerifyAsync(request.CurrentPassword, user.PasswordHash, ct))
     {
         logger.LogWarning("IDENTITY_AUDIT: Change password failed for UserId={UserId} - invalid current credentials", userId);
         return Results.Unauthorized();
     }
-    if (BCrypt.Net.BCrypt.Verify(request.NewPassword, user.PasswordHash))
+    if (await hashing.VerifyAsync(request.NewPassword, user.PasswordHash, ct))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["New password must differ from the current password."] });
 
     await using var transaction = await db.Database.BeginTransactionAsync(ct);
-    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+    user.PasswordHash = await hashing.HashAsync(request.NewPassword, ct);
     var now = DateTime.UtcNow;
     await db.RefreshTokens.Where(x => x.UserId == user.Id && x.RevokedAt == null)
         .ExecuteUpdateAsync(changes => changes.SetProperty(x => x.RevokedAt, now), ct);
@@ -441,7 +471,7 @@ auth.MapGet("/users/{userId:guid}", async (Guid userId, ClaimsPrincipal principa
 }).RequireAuthorization();
 
 var internalUsers = app.MapGroup("/v1/internal/users");
-internalUsers.MapPost("/provision", async (ProvisionAccountRequest request, HttpRequest httpRequest, IdentityDbContext db, CancellationToken ct) =>
+internalUsers.MapPost("/provision", async (ProvisionAccountRequest request, HttpRequest httpRequest, IdentityDbContext db, PasswordHashing hashing, CancellationToken ct) =>
 {
     if (!HasServiceToken(httpRequest, serviceToken)) return Results.Unauthorized();
     if (request.UserId == Guid.Empty || request.PersonId == Guid.Empty ||
@@ -462,7 +492,7 @@ internalUsers.MapPost("/provision", async (ProvisionAccountRequest request, Http
         if (retryUser is not null)
         {
             if (retryUser.PersonId != request.PersonId || retryUser.Person.PhoneNumber != request.PhoneNumber ||
-                string.IsNullOrWhiteSpace(request.Password) || !BCrypt.Net.BCrypt.Verify(request.Password, retryUser.PasswordHash))
+                string.IsNullOrWhiteSpace(request.Password) || !await hashing.VerifyAsync(request.Password, retryUser.PasswordHash, ct))
                 return Results.Conflict(new { code = "username_exists", message = "Username is already registered." });
             user = retryUser;
         }
@@ -505,7 +535,7 @@ internalUsers.MapPost("/provision", async (ProvisionAccountRequest request, Http
         user = new IdentityUser
         {
             Id = request.UserId, PersonId = request.PersonId, Person = person, Username = username,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password!), IsActive = false,
+            PasswordHash = await hashing.HashAsync(request.Password!, ct), IsActive = false,
             PatientId = request.PatientId, EmployeeId = request.EmployeeId, DoctorId = request.DoctorId
         };
         db.Users.Add(user);
@@ -633,6 +663,14 @@ if (!app.Configuration.GetValue<bool>("SkipDatabaseInitialization"))
 }
 app.Run();
 
+static string IdentityRateLimitPartition(HttpContext context, string? configuredToken)
+{
+    var forwarded = context.Request.Headers["X-Clinic-Client-IP"].FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(forwarded) && HasServiceToken(context.Request, configuredToken))
+        return $"client:{forwarded.Trim()}";
+    return $"direct:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+}
+
 static bool HasServiceToken(HttpRequest request, string? configuredToken)
 {
     if (string.IsNullOrWhiteSpace(configuredToken) ||
@@ -692,12 +730,7 @@ static async Task SeedRolesAsync(IdentityDbContext db)
             db.Roles.Add(new IdentityRole { Id = roleId, Name = roleName, Description = roleName });
     await db.SaveChangesAsync();
 
-    var queuePermissionNames = new[]
-    {
-        "queue.view", "doctor.queue.view", "queue.call-next", "queue.skip", "queue.skip-waiting",
-        "queue.retry", "queue.priority", "queue.start-exam.own", "queue.start-exam.any",
-        "queue.complete-exam.own", "queue.complete-exam.any"
-    };
+    var queuePermissionNames = QueuePermissionCatalog.Permissions;
     var permissions = await db.Permissions.Where(p => queuePermissionNames.Contains(p.Name)).ToListAsync();
     foreach (var name in queuePermissionNames.Except(permissions.Select(p => p.Name), StringComparer.OrdinalIgnoreCase))
     {
@@ -707,12 +740,7 @@ static async Task SeedRolesAsync(IdentityDbContext db)
     }
     await db.SaveChangesAsync();
 
-    var rolePermissionMap = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Admin"] = queuePermissionNames,
-        ["Receptionist"] = ["queue.view", "queue.call-next", "queue.skip-waiting", "queue.retry", "queue.priority"],
-        ["Doctor"] = ["doctor.queue.view", "queue.call-next", "queue.skip", "queue.start-exam.own", "queue.complete-exam.own"]
-    };
+    var rolePermissionMap = QueuePermissionCatalog.RoleGrants;
     var knownQueuePermissions = queuePermissionNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
     var queueRoles = await db.Roles.Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission).ToListAsync();
     foreach (var (roleName, permissionNames) in rolePermissionMap)

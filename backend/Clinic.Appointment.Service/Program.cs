@@ -57,13 +57,35 @@ builder.Services.AddHttpClient<ISchedulingClient, SchedulingClient>((sp, client)
 {
     var config = sp.GetRequiredService<IConfiguration>();
     client.BaseAddress = new Uri(schedulingBaseUrl);
-    client.Timeout = TimeSpan.FromSeconds(10);
+    // Deadlines are enforced by the resilience pipeline below, not HttpClient.Timeout.
+    client.Timeout = Timeout.InfiniteTimeSpan;
     var serviceToken = config["Services:InternalToken"] ?? config["Identity:ServiceToken"];
     if (!string.IsNullOrWhiteSpace(serviceToken))
     {
         client.DefaultRequestHeaders.Remove("X-Clinic-Service-Token");
         client.DefaultRequestHeaders.Add("X-Clinic-Service-Token", serviceToken);
     }
+})
+// Appointment -> Scheduling QoS (SLI_SLO_MATRIX §5.2): must fit inside the Gateway's 4s booking attempt.
+// Total 3s, attempt 1.5s, 1 jittered retry. All Scheduling commands are idempotent (reserve by
+// Idempotency-Key, confirm/release by reservation ID), so retrying POSTs is safe on this hop.
+// Circuit breaker opens at >= 50% failures over 30s (min. 20 calls) for 15s -> booking fails fast with 503.
+.AddStandardResilienceHandler(options =>
+{
+    var cfg = builder.Configuration;
+    int Ms(string key, int fallback) => cfg.GetValue<int?>(key) is int v && v > 0 ? v : fallback;
+    var total = Ms("QoS:Scheduling:TotalTimeoutMs", 3000);
+    var attempt = Math.Min(Ms("QoS:Scheduling:AttemptTimeoutMs", 1500), total - 1);
+    options.TotalRequestTimeout.Timeout = TimeSpan.FromMilliseconds(total);
+    options.AttemptTimeout.Timeout = TimeSpan.FromMilliseconds(attempt);
+    options.Retry.MaxRetryAttempts = Math.Max(1, cfg.GetValue<int?>("QoS:Scheduling:MaxRetryAttempts") ?? 1);
+    options.Retry.Delay = TimeSpan.FromMilliseconds(100);
+    options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+    options.Retry.UseJitter = true;
+    options.CircuitBreaker.FailureRatio = 0.5;
+    options.CircuitBreaker.MinimumThroughput = cfg.GetValue<int?>("QoS:Scheduling:BreakerMinimumThroughput") ?? 20;
+    options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+    options.CircuitBreaker.BreakDuration = TimeSpan.FromMilliseconds(Ms("QoS:Scheduling:BreakDurationMs", 15000));
 });
 
 // Authentication via Identity Service JWKS
@@ -178,6 +200,24 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 app.MapPrometheusScrapingEndpoint();
+
+// Map downstream (Scheduling) failures to explicit QoS responses instead of opaque 500s:
+// circuit open -> 503 + Retry-After, deadline exceeded -> 504, connection failure -> 502.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex) when (!context.Response.HasStarted && Clinic.Appointment.Service.Common.DownstreamFailure.TryMap(ex, out var status, out var message, out var retryAfter))
+    {
+        context.Response.Clear();
+        context.Response.StatusCode = status;
+        if (retryAfter.HasValue) context.Response.Headers.RetryAfter = retryAfter.Value.ToString();
+        context.Response.Headers[Clinic.Appointment.Service.Common.DownstreamFailure.DependencyFailureHeader] = "scheduling";
+        await context.Response.WriteAsJsonAsync(new { title = "Downstream dependency failure", status, detail = message });
+    }
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -15,7 +15,7 @@ function addLiveBase(slide, { section, title, number }) {
     x: 0.58, y: 1.38, w: 12.15, h: 0,
     line: { color: theme.colors.line, width: 1.2 },
   });
-  text(slide, `${String(number).padStart(2, '0')} / 16`, 11.75, 7.05, 0.98, 0.26, {
+  text(slide, `${String(number).padStart(2, '0')} / 17`, 11.75, 7.05, 0.98, 0.26, {
     fontSize: 12, bold: true, color: theme.colors.slate, align: 'right',
   });
 }
@@ -144,7 +144,7 @@ function buildLiveSlides01To08(pptx) {
       }
     });
 
-    text(slide, '01 / 16', 11.75, 7.05, 0.95, 0.26, {
+    text(slide, '01 / 17', 11.75, 7.05, 0.95, 0.26, {
       fontSize: 12, bold: true, color: 'A9C1D9', align: 'right',
     });
 

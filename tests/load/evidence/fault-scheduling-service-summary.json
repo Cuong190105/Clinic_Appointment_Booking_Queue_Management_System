@@ -1,0 +1,209 @@
+{
+  "profile": "fault-scheduling-service",
+  "baseUrl": "http://host.docker.internal:5000",
+  "target": "scheduling-service",
+  "runAt": "2026-11-27T06:24:13.145Z",
+  "testRunDurationMs": 180240.860928,
+  "thresholdsPassed": true,
+  "failedChecks": [
+    {
+      "name": "write-booking-create -> expected status",
+      "passes": 143,
+      "fails": 45
+    }
+  ],
+  "downAtS": 40,
+  "upAtS": 100,
+  "totalS": 170,
+  "metrics": {
+    "slo_login_duration": {
+      "avg": 955.2714262580646,
+      "med": 849.328752,
+      "min": 204.371472,
+      "max": 2205.908132,
+      "p(90)": 1981.08762,
+      "p(95)": 2068.4830405000002
+    },
+    "slo_unexpected_status": {
+      "rate": 0.03209700427960057,
+      "passes": 45,
+      "fails": 1357
+    },
+    "slo_requests": {
+      "count": 1402,
+      "rate": 7.778480377765454
+    },
+    "booking_created_rate": {
+      "rate": 0.7606382978723404,
+      "passes": 143,
+      "fails": 45
+    },
+    "slo_write_duration{phase:recovery}": {
+      "avg": 37.34980682142856,
+      "med": 32.855253000000005,
+      "min": 22.74103,
+      "max": 102.168134,
+      "p(90)": 53.00985150000002,
+      "p(95)": 72.39446994999999,
+      "thresholds": {
+        "p(95)<500": true
+      }
+    },
+    "fault_dependent_failures": {
+      "count": 79,
+      "rate": 0.4383023893320049,
+      "thresholds": {
+        "count>0": true
+      }
+    },
+    "slo_availability": {
+      "rate": 0.9678800856531049,
+      "passes": 1356,
+      "fails": 45
+    },
+    "slo_write_duration{phase:before}": {
+      "avg": 36.88718416129033,
+      "med": 33.394943999999995,
+      "min": 21.617862,
+      "max": 103.697725,
+      "p(90)": 50.75496650000001,
+      "p(95)": 75.61496485,
+      "thresholds": {
+        "p(95)<500": true
+      }
+    },
+    "workflow_booking_confirmed_duration": {
+      "avg": 297.1468531468532,
+      "med": 297,
+      "min": 72,
+      "max": 512,
+      "p(90)": 338.8,
+      "p(95)": 347.9
+    },
+    "fault_dependent_failure_duration": {
+      "avg": 698.3164556962025,
+      "med": 7,
+      "min": 5,
+      "max": 3559,
+      "p(90)": 3010,
+      "p(95)": 3013.1,
+      "thresholds": {
+        "p(95)<5500": true
+      }
+    },
+    "slo_write_duration{phase:degraded}": {
+      "avg": 0,
+      "med": 0,
+      "min": 0,
+      "max": 0,
+      "p(90)": 0,
+      "p(95)": 0,
+      "thresholds": {
+        "p(95)<500": true
+      }
+    },
+    "slo_availability{journey:core}": {
+      "rate": 1,
+      "passes": 491,
+      "fails": 0,
+      "thresholds": {
+        "rate>=0.99": true
+      }
+    },
+    "slo_read_duration": {
+      "avg": 9.548434545662117,
+      "med": 5.6850249999999996,
+      "min": 4.018896,
+      "max": 282.784391,
+      "p(90)": 9.120922,
+      "p(95)": 48.422935499999994
+    },
+    "slo_throttled": {
+      "rate": 0,
+      "passes": 0,
+      "fails": 1402
+    },
+    "http_req_duration": {
+      "avg": 119.35215100202575,
+      "med": 7.159276,
+      "min": 4.018896,
+      "max": 3559.193194,
+      "p(90)": 49.597644,
+      "p(95)": 231.342214
+    },
+    "slo_business_conflicts": {
+      "count": 1,
+      "rate": 0.005548131510531708
+    },
+    "http_req_failed": {
+      "rate": 0.0837272113436867,
+      "passes": 124,
+      "fails": 1357
+    },
+    "vus_max": {
+      "value": 30,
+      "min": 30,
+      "max": 30
+    },
+    "slo_availability{phase:recovery}": {
+      "rate": 1,
+      "passes": 382,
+      "fails": 0,
+      "thresholds": {
+        "rate>=0.99": true
+      }
+    },
+    "iterations": {
+      "count": 863,
+      "rate": 4.788037493588863
+    },
+    "slo_server_errors": {
+      "rate": 0.03209700427960057,
+      "passes": 45,
+      "fails": 1357
+    },
+    "slo_availability{phase:before}": {
+      "rate": 1,
+      "passes": 405,
+      "fails": 0,
+      "thresholds": {
+        "rate>=0.99": true
+      }
+    },
+    "slo_read_duration{phase:degraded}": {
+      "avg": 10.763170554794524,
+      "med": 5.6710695,
+      "min": 4.117219,
+      "max": 54.717797,
+      "p(90)": 47.9434045,
+      "p(95)": 50.062315,
+      "thresholds": {
+        "p(95)<300": true
+      }
+    },
+    "slo_availability{phase:degraded}": {
+      "rate": 1,
+      "passes": 146,
+      "fails": 0,
+      "thresholds": {
+        "rate>=0.99": true
+      }
+    },
+    "slo_write_duration": {
+      "avg": 245.04029893957713,
+      "med": 33.864314,
+      "min": 4.923405,
+      "max": 3324.258145,
+      "p(90)": 77.01936,
+      "p(95)": 3007.039909
+    },
+    "fault_dependent_fail_fast": {
+      "rate": 1,
+      "passes": 79,
+      "fails": 0,
+      "thresholds": {
+        "rate>=0.99": true
+      }
+    }
+  }
+}

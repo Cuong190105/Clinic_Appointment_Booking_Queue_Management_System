@@ -1,0 +1,99 @@
+{
+  "profile": "contention",
+  "baseUrl": "http://host.docker.internal:5000",
+  "target": "microservices",
+  "runAt": "2026-11-27T06:02:03.410Z",
+  "testRunDurationMs": 5900.538971,
+  "thresholdsPassed": true,
+  "failedChecks": [],
+  "contenders": 20,
+  "metrics": {
+      "slo_requests": {
+        "count": 46,
+        "rate": 7.795898006280621
+      },
+      "slo_login_duration": {
+        "avg": 264.8299172380953,
+        "med": 270.271207,
+        "min": 207.755692,
+        "max": 310.317377,
+        "p(90)": 304.248325,
+        "p(95)": 305.573568
+      },
+      "contention_conflicts": {
+        "count": 19,
+        "rate": 3.2200448286811256,
+        "thresholds": {
+          "count==19": true
+        }
+      },
+      "slo_unexpected_status": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 46
+      },
+      "http_req_duration": {
+        "avg": 169.86733897826093,
+        "med": 173.801735,
+        "min": 5.762524,
+        "max": 310.317377,
+        "p(90)": 290.2584075,
+        "p(95)": 302.56044375
+      },
+      "slo_throttled": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 46
+      },
+      "slo_write_duration": {
+        "avg": 105.87407825,
+        "med": 89.5717315,
+        "min": 69.632695,
+        "max": 176.421623,
+        "p(90)": 173.18754940000002,
+        "p(95)": 174.6620748
+      },
+      "slo_business_conflicts": {
+        "count": 19,
+        "rate": 3.2200448286811256
+      },
+      "contention_winners": {
+        "count": 1,
+        "rate": 0.1694760436147961,
+        "thresholds": {
+          "count==1": true
+        }
+      },
+      "slo_server_errors": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 46
+      },
+      "slo_availability": {
+        "rate": 1,
+        "passes": 27,
+        "fails": 0
+      },
+      "iterations": {
+        "count": 20,
+        "rate": 3.389520872295922
+      },
+      "contention_server_errors": {
+        "count": 0,
+        "rate": 0,
+        "thresholds": {
+          "count==0": true
+        }
+      },
+      "vus_max": {
+        "value": 20,
+        "min": 20,
+        "max": 20
+      },
+      "http_req_failed": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 46
+      }
+    }
+}
