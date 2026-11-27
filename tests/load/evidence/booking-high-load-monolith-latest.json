@@ -1,0 +1,140 @@
+{
+  "profile": "booking-high-load",
+  "baseUrl": "http://host.docker.internal:5100",
+  "target": "monolith",
+  "runAt": "2026-11-27T11:38:21.902Z",
+  "testRunDurationMs": 160458.388081,
+  "thresholdsPassed": true,
+  "failedChecks": [],
+  "rate": 20,
+  "durationSeconds": 120,
+  "dayOffsets": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+  "metrics": {
+      "slo_server_errors": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 7003,
+        "thresholds": {
+          "rate<0.01": true
+        }
+      },
+      "slo_requests": {
+        "count": 7003,
+        "rate": 43.64371401054371
+      },
+      "slo_login_duration": {
+        "avg": 174.8514571135371,
+        "med": 172.821959,
+        "min": 149.123228,
+        "max": 291.411506,
+        "p(90)": 182.58465900000002,
+        "p(95)": 186.6112658
+      },
+      "slo_write_duration": {
+        "avg": 23.72593365708335,
+        "med": 23.7883345,
+        "min": 14.676211,
+        "max": 83.300241,
+        "p(90)": 27.5373303,
+        "p(95)": 30.44553464999998,
+        "thresholds": {
+          "p(95)<500": true,
+          "p(99)<1500": true
+        }
+      },
+      "slo_unexpected_status": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 7003
+      },
+      "iterations": {
+        "count": 2400,
+        "rate": 14.957148882665273
+      },
+      "http_req_duration": {
+        "avg": 19.444408093959705,
+        "med": 11.706634,
+        "min": 3.225128,
+        "max": 291.411506,
+        "p(90)": 26.3793428,
+        "p(95)": 31.947155799999997
+      },
+      "dropped_iterations": {
+        "count": 0,
+        "rate": 0,
+        "thresholds": {
+          "count<100": true
+        }
+      },
+      "slo_read_duration": {
+        "avg": 4.201025808943096,
+        "med": 3.920227,
+        "min": 3.225128,
+        "max": 47.590277,
+        "p(90)": 5.2475704,
+        "p(95)": 5.613946649999998,
+        "thresholds": {
+          "p(95)<300": true,
+          "p(99)<1000": true
+        }
+      },
+      "http_req_failed": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 7003
+      },
+      "slo_availability": {
+        "rate": 1,
+        "passes": 6570,
+        "fails": 0,
+        "thresholds": {
+          "rate>=0.99": true
+        }
+      },
+      "vus_max": {
+        "value": 228,
+        "min": 228,
+        "max": 228
+      },
+      "slo_business_conflicts": {
+        "count": 432,
+        "rate": 2.692286798879749
+      },
+      "booking_created_rate": {
+        "rate": 0.82,
+        "passes": 1968,
+        "fails": 432,
+        "thresholds": {
+          "rate>0.7": true
+        }
+      },
+      "slo_throttled": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 7003
+      },
+      "workflow_booking_confirmed_duration": {
+        "avg": 30.258130081300813,
+        "med": 29,
+        "min": 25,
+        "max": 90,
+        "p(90)": 34,
+        "p(95)": 38,
+        "thresholds": {
+          "p(95)<5000": true
+        }
+      }
+    }
+}

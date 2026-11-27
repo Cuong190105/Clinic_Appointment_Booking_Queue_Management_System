@@ -225,10 +225,28 @@ Cả hai đạt mọi threshold, dữ liệu test được cleanup. Thông lư�
 |---|---|---:|---:|---:|---:|
 | normal, 20 VU, 5 phút | Monolith | 68,75% / 31,25% | 82,2 / 111,3 / 50,3 ms | 100% / 0% | Không áp dụng |
 | normal, 20 VU, 5 phút | Microservices | 71,30% / 28,70% | 26,8 / 91,3 / 107,2 ms | 100% / 0% | Không áp dụng |
-| clinic-peak, 30 VU, 5 phút | Monolith | 64,00% / 36,00% | 276,7 / 362,4 / 287,8 ms | 94,81% / 2,90% | 0/865 (lỗi walk-in) |
-| clinic-peak, 30 VU, 5 phút | Microservices | 67,73% / 32,27% | 49,7 / 187,8 / 343,8 ms | 99,976% / 0% | 836/836 hoàn tất |
+| clinic-peak, 30 VU, 5 phút (22/11) | Monolith | 64,00% / 36,00% | 276,7 / 362,4 / 287,8 ms | 94,81% / 2,90% | 0/865 (lỗi walk-in) |
+| clinic-peak, 30 VU, 5 phút (22/11) | Microservices | 67,73% / 32,27% | 49,7 / 187,8 / 343,8 ms | 99,976% / 0% | 836/836 hoàn tất |
 
-Ở profile normal, microservices có p95 đọc và ghi thấp hơn, monolith có p95 tạo booking thấp hơn. Clinic-peak trên monolith **không đạt** do lỗi chức năng: luồng walk-in lấy `WorkSchedule` bằng `AsNoTracking` rồi thêm `Appointment` qua navigation graph, khiến EF Core insert lại schedule đã tồn tại (`DbUpdateException`). Vì vậy chưa thể so hiệu năng Queue giữa hai bên. Mỗi profile mới có một lượt mỗi bên.
+Ở profile normal (22/11), microservices có p95 đọc và ghi thấp hơn, monolith có p95 tạo booking thấp hơn. Ở lượt clinic-peak ngày 22/11, monolith **không đạt** do lỗi chức năng: luồng walk-in lấy `WorkSchedule` bằng `AsNoTracking` rồi thêm `Appointment` qua navigation graph, khiến EF Core insert lại schedule đã tồn tại (`DbUpdateException`).
+
+#### Chạy lại `clinic-peak` và các kịch bản full-duration (27/11/2026)
+
+Sau khi sửa lỗi walk-in trên nhánh `monolith` và chạy từng hệ thống tách biệt (tắt hoàn toàn hệ thống còn lại trước khi đo; nâng `AUTH_RATE_LIMIT_PERMIT_LIMIT=1000`, `ANONYMOUS_RATE_LIMIT_PERMIT_LIMIT=100000`, `IDENTITY_AUTH_RATE_LIMIT_PERMIT_LIMIT=1000` trên Microservices trong lúc chạy k6 rồi khôi phục mặc định sau khi đo), các lượt chạy full-duration thu được như sau:
+
+| Kịch bản | Hệ thống | Tải / VUs / Thời lượng | p95 Read / Write / Login | Workflow Booking p95 | Availability / 5xx | Booking thành công |
+|---|---|---|---:|---:|---:|---:|
+| `clinic-peak` (`mixed-workload.js`) | Monolith | 500 VU, 14 phút (`40.183` iters, `58.276` reqs) | 12,53 / 41,76 / 188,75 ms | 57 ms | 100% (`57.774/57.774`) / 0% | 99,99% (`7.611/7.612`) |
+| `clinic-peak` (`mixed-workload.js`) | Microservices | 500 VU, 14 phút (`39.932` iters, `65.218` reqs) | 46,36 / 147,59 / 229,19 ms | 480 ms | 100% (`64.373/64.373`) / 0% | 99,93% (`7.347/7.352`) |
+| `load.js` | Monolith | 10/s, 60s warmup + 5m steady (`3.329` iters) | Read steady p95: 14,60 ms | — | 100% steady / 0% (`0/5.132`) | — |
+| `load.js` | Microservices | 10/s, 60s warmup + 5m steady (`3.329` iters, `7.256` reqs) | 46,71 / 66,52 / 107,00 ms (steady) | 344 ms | 100% (`5.785/5.785`) / 0% (`0/6.273`) | 100% (`662/662`) |
+| `booking-high-load.js` | Monolith | 20/s, 120s (`2.400` iters, `7.003` reqs) | 5,61 / 30,45 / — ms | 38 ms | 100% (`6.570/6.570`) / 0% | 82,00% (`1.968/2.400`) |
+| `booking-high-load.js` | Microservices | 20/s, 120s (`2.400` iters) | Write p95: 57,70 ms | 339 ms | 98,55% / 1,337% (FAIL) | 79,35% (`1.829/2.305`) |
+
+Ghi chú kỹ thuật cho lượt full-duration 27/11/2026:
+- Ở `clinic-peak` 500 VU (14 phút), **cả Monolith và Microservices đều đạt toàn bộ ngưỡng SLO** (`thresholdsPassed: true`, `0%` 5xx, `0%` throttled). Monolith có latency thấp hơn rõ rệt (`12,53 ms` read, `41,76 ms` write, `57 ms` booking so với `46,36 ms`, `147,59 ms`, `480 ms` bên Microservices) nhờ giao dịch cục bộ không qua gateway/outbox.
+- Ở `booking-high-load.js` trên Microservices, 228 VU khởi tạo đồng thời tại `t=0` không qua `warmSessions` gây bão đăng nhập khiến bulkhead Identity từ chối `95` request (`503`, `slo_server_errors = 1,337%` > `1%`, `slo_availability = 98,55%` < `99%`), và pha teardown dùng một tài khoản `admin1` hủy `1.829` lịch nên chạm ngưỡng Staff `600 req/min` (`61` lỗi `429`). Tuy nhiên trong suốt pha đặt lịch không có dropped iteration (`2.400/2.400`).
+- Các file summary JSON mới được lưu tại `tests/load/evidence/*-latest.json`. Sau khi khôi phục rate limit mặc định, `scripts/check-slo-invariants.ps1` đạt **11/11 PASS**.
 
 ### 6.5. Tối ưu đã thực hiện
 
@@ -260,7 +278,7 @@ Hướng xử lý đề xuất (chưa làm): thay bước đếm + chèn trong k
 
 ### 6.7. Nhận định so sánh
 
-Với các lượt đo hiện có, monolith có latency booking thấp hơn (ít hop mạng, giao dịch cục bộ), thông lượng xác nhận hai bên tương đương, còn microservices xử lý được tải hỗn hợp có Queue mà monolith gặp lỗi. Các kết quả này **chưa đủ để kết luận kiến trúc nào tốt hơn tổng thể**, vì chưa khôi phục DB snapshot giữa các lượt, chưa thu CPU/RAM hai stack theo cùng cách, và mixed workload mới có một lượt mỗi bên.
+Với các lượt đo ngày 22/11 và các lượt full-duration ngày 27/11/2026 (sau khi đã sửa lỗi walk-in của monolith), cả hai kiến trúc đều vượt qua kịch bản `clinic-peak` 500 VU trong 14 phút với 0% lỗi 5xx. Monolith có latency đọc/ghi/booking thấp hơn (ít hop mạng, giao dịch cục bộ), còn Microservices đáp ứng tốt tải hỗn hợp có Queue ở `clinic-peak` nhưng nhạy cảm hơn với spike đăng nhập đồng thời ở `t=0` (`booking-high-load.js`) do bulkhead Identity và giới hạn rate limit theo tài khoản. Các kết quả này vẫn cần lưu ý điều kiện đo: chưa khôi phục DB snapshot sạch giữa mọi lượt và chưa thu CPU/RAM hai stack theo cùng một chuẩn.
 
 ## 7. Kết quả review hệ thống (27/11/2026)
 
@@ -280,7 +298,7 @@ Review tĩnh trên commit `5dd739f`, tập trung vào độ tin cậy messaging,
 |---|---|---|---|---|
 | 1 | Cao | 10 file evidence đã commit trong `tests/load/evidence/` còn chứa JWT: `raw_contention.json`, `raw_load.json`, `raw_smoke.json`, `raw_spike.json`, `highload-micro-booking-k6.json` và 5 file `review-*-booking-k6.json`. Token là token dev (issuer `http://localhost:5000`), đã hết hạn từ 04/11/2026. | Không khai thác được trên môi trường khác, nhưng vi phạm quy tắc “không lưu token trong evidence” mà chính tài liệu dự án đặt ra, và lộ cấu trúc claim/role. | Sanitize hoặc xóa các file raw, chỉ giữ summary; xoay khóa ký Identity nếu khóa dev đã dùng ở môi trường dùng chung; cân nhắc làm sạch lịch sử git trước khi công khai repo. |
 | 2 | Trung bình | `AppointmentEventConsumer` và `SchedulingEventConsumer` gọi `BasicNack(requeue: false)` với **mọi** exception, nhưng queue của chúng không khai báo dead-letter exchange. | Lỗi tạm thời (DB timeout, deadlock) làm broker **xóa hẳn** message. Mất `queue.exam-completed` khiến appointment không chuyển Completed; mất `appointment.cancelled` ở Scheduling chỉ được bù nếu lệnh release trực tiếp thành công. Trái với SLO “0 message hợp lệ bị bỏ lại”. | Áp dụng cùng mẫu retry queue + DLX như Queue/Medical Records; phân biệt lỗi tạm thời với poison message; thêm test mô phỏng lỗi DB khi consume. |
-| 3 | Trung bình | Lỗi walk-in của monolith (mục 6.4) chưa được sửa: commit mới nhất trên nhánh `monolith` (`1e64bfc`) chỉ thêm harness và evidence. | Không có số liệu đối chứng Queue dưới tải; clinic-peak của monolith không hợp lệ để so sánh. | Attach `WorkSchedule` với state `Unchanged` (hoặc chỉ gán FK), thêm integration test hồi quy, chạy lại clinic-peak ba lượt. |
+| 3 | Đã xử lý (27/11) | Lỗi walk-in của monolith đã được sửa và chạy lại full-duration `clinic-peak` (500 VU, 14 phút) đạt `thresholdsPassed: true` (`100%` availability, `0%` 5xx). | Đã có số liệu đối chứng `clinic-peak` hợp lệ giữa Monolith và Microservices (mục 6.4). | Giữ test hồi quy walk-in trong CI của nhánh `monolith`. |
 | 4 | Thấp | Sáu database logic chạy trên một SQL Server container (giới hạn 4 CPU). | Điểm lỗi đơn và tài nguyên dùng chung; một service tải nặng có thể làm chậm các service khác, không phản ánh khả năng mở rộng độc lập. | Ghi rõ là giới hạn của môi trường đồ án; nếu cần chứng minh cô lập lỗi, tách ít nhất DB của Appointment/Scheduling sang instance riêng. |
 | 5 | Thấp | `DB_SA_PASSWORD` có giá trị mặc định trong `docker-compose.yml`, trong khi RabbitMQ bắt buộc cấu hình qua `.env`. Mọi service kết nối DB bằng tài khoản `sa`. | Chạy Compose không có `.env` vẫn dùng mật khẩu công khai; service có toàn quyền trên mọi database. | Bắt buộc `DB_SA_PASSWORD` như RabbitMQ (`:?`); tạo login riêng cho từng service, chỉ cấp quyền trên database của service đó. |
 
@@ -300,7 +318,7 @@ Review tĩnh trên commit `5dd739f`, tập trung vào độ tin cậy messaging,
 
 1. **Làm sạch evidence chứa JWT** (vấn đề 1), ưu tiên trước khi chia sẻ repo hoặc chiếu artifact.
 2. **Bổ sung retry + DLX cho consumer Appointment và Scheduling** (vấn đề 2), rồi chạy lại test.
-3. **Sửa lỗi walk-in monolith** (vấn đề 3) và chạy lại clinic-peak.
+3. **Đã hoàn thành sửa lỗi walk-in monolith và chạy lại full-duration `clinic-peak`, `load.js`, `booking-high-load.js`** trên cả hai hệ thống (mục 6.4). Tiếp tục bổ sung warm-up session / phân tán tài khoản teardown cho `booking-high-load.js` trên Microservices nếu cần đạt ngưỡng `thresholdsPassed: true` cho burst 228 VU tại `t=0`.
 4. **Lặp benchmark có trạng thái dữ liệu tái lập:** khôi phục cùng DB snapshot/seed trước mỗi lượt, tối thiểu ba lượt mỗi profile, báo median và khoảng biến thiên.
 5. **Thu tài nguyên ngang nhau:** chuỗi `docker stats` cùng chu kỳ cho mọi container của cả hai stack. CPU trên 100% nghĩa là dùng nhiều hơn một logical core, không phải vượt quota.
 6. **Chạy lại toàn bộ test và contract validator** trên commit nộp, ghi kết quả vào báo cáo nghiệm thu cuối.
