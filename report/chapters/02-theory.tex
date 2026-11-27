@@ -1,0 +1,53 @@
+\section{Cơ sở lý thuyết}
+\label{ch:theory}
+
+\subsection{Monolith và microservices}
+
+\textbf{Monolith} triển khai các nghiệp vụ trong một ứng dụng, thường dùng chung mô hình miền và cơ sở dữ liệu. Cách này dễ chạy, dễ kiểm thử giao dịch xuyên nghiệp vụ và có ít hop mạng, nhưng các miền khó phát hành, mở rộng và chịu lỗi độc lập.
+
+\textbf{Microservices} chia hệ thống theo bounded context: mỗi service sở hữu nghiệp vụ, dữ liệu và API của nó~\cite{newman2021,richardson2018}. Các service có thể phát hành và mở rộng riêng; đổi lại, hệ thống phải xử lý giao tiếp mạng, lỗi một phần, eventual consistency, quản lý phiên bản hợp đồng và vận hành nhiều tiến trình.
+
+``Database per service'' có nghĩa là quyền sở hữu dữ liệu logic riêng: một service không đọc/ghi trực tiếp bảng của service khác. Trong dự án này các database vẫn nằm trên cùng một SQL Server container, không phải các máy chủ database vật lý độc lập.
+
+\begin{table}[!t]
+\centering
+\caption{So sánh monolith và microservices}
+\label{tab:mono-vs-micro}
+\small
+\begin{tabularx}{\linewidth}{@{}L{1.6cm}YY@{}}
+\toprule
+\textbf{Tiêu chí} & \textbf{Monolith} & \textbf{Microservices} \\
+\midrule
+Triển khai & Một đơn vị, đơn giản & Nhiều đơn vị, cần orchestration hạ tầng \\
+Giao dịch & ACID cục bộ, dễ & Xuyên service phải dùng SAGA/outbox \\
+Độ trễ & Gọi trong tiến trình & Thêm hop mạng, serialize/deserialize \\
+Mở rộng & Cả ứng dụng & Từng service theo nhu cầu \\
+Cô lập lỗi & Lỗi một module ảnh hưởng toàn bộ & Lỗi được giới hạn nếu thiết kế đúng \\
+Vận hành & Ít thành phần & Cần observability, tracing phân tán \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Hợp đồng API và OpenAPI}
+
+OpenAPI~\cite{openapi} mô tả endpoint, phương thức, schema request/response, lỗi và cơ chế bảo vệ API theo định dạng máy đọc được. Hợp đồng giúp frontend, Gateway và service thống nhất cách tích hợp, sinh tài liệu Swagger, phát hiện drift giữa schema công bố và implementation, và làm căn cứ cho contract testing. Hợp đồng không tự chứng minh API hoạt động đúng; vẫn cần kiểm thử tích hợp và runtime.
+
+\subsection{Orchestration, choreography và SAGA}
+
+\begin{itemize}
+  \item \textbf{Orchestration:} một thành phần điều phối các bước nghiệp vụ và biết bước tiếp theo cần gọi. Dễ thấy luồng tổng thể, nhưng điều phối viên có thể trở thành nơi tập trung logic.
+  \item \textbf{Choreography:} các service phản ứng với event do service khác phát ra; không có bộ điều phối trung tâm. Các service ít phụ thuộc trực tiếp hơn, nhưng cần observability và quản lý event tốt.
+  \item \textbf{SAGA}~\cite{garcia1987sagas}: giao dịch nghiệp vụ dài được tách thành chuỗi giao dịch cục bộ. Nếu bước sau thất bại, hệ thống retry hoặc thực hiện hành động bù thay vì giữ một transaction ACID xuyên nhiều database.
+  \item \textbf{Transactional outbox / inbox và idempotency}~\cite{richardson2018}: outbox ghi thay đổi nghiệp vụ và event cần phát trong cùng transaction cục bộ; publisher gửi lại khi broker phục hồi. Inbox và idempotency key chặn event hoặc request lặp gây tác dụng phụ trùng.
+\end{itemize}
+
+\subsection{SLA, SLI, SLO và QoS}
+
+Theo cách tiếp cận Site Reliability Engineering~\cite{beyer2016sre}:
+
+\begin{itemize}
+  \item \textbf{SLI} là chỉ số đo thực tế, ví dụ tỷ lệ request hợp lệ không lỗi 5xx hoặc độ trễ p95.
+  \item \textbf{SLO} là mục tiêu nội bộ cho SLI trong một cửa sổ và mẫu đo đã định nghĩa.
+  \item \textbf{SLA} là cam kết với khách hàng, thường kèm trách nhiệm khi vi phạm. Ma trận trong dự án là mục tiêu nghiệm thu của đồ án, không phải hợp đồng SLA.
+  \item \textbf{QoS} là các chính sách phục vụ như timeout, rate limit, retry, giới hạn đồng thời, idempotency và xử lý quá tải.
+\end{itemize}

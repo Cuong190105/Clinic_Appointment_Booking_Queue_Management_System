@@ -1,0 +1,108 @@
+% ---------------------------------------------------------------
+% Preamble — IEEEtran + XeLaTeX/LuaLaTeX (TeX Live 2022+ / MiKTeX / Overleaf)
+% ---------------------------------------------------------------
+
+% Ngôn ngữ và phông chữ
+\usepackage{fontspec}
+\usepackage{babel}
+\babelprovide[main,import]{vietnamese}
+% TeX Gyre Termes (giống Times, phông chuẩn của IEEE) hỗ trợ đầy đủ tiếng Việt.
+% Gọi theo tên file để chạy được cả trên TeX Live, Overleaf và Tectonic.
+\setmainfont{texgyretermes}[Extension=.otf,
+  UprightFont=*-regular, BoldFont=*-bold,
+  ItalicFont=*-italic, BoldItalicFont=*-bolditalic]
+\setsansfont{texgyreheros}[Extension=.otf,
+  UprightFont=*-regular, BoldFont=*-bold,
+  ItalicFont=*-italic, BoldItalicFont=*-bolditalic]
+\setmonofont{DejaVuSansMono}[Extension=.ttf, Scale=0.85,
+  BoldFont=*-Bold, ItalicFont=*-Oblique, BoldItalicFont=*-BoldOblique]
+
+% Bảng
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\renewcommand{\arraystretch}{1.2}
+
+% Hình, sơ đồ, biểu đồ
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,shapes.geometric,shapes.multipart,calc,backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% Mã nguồn
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  frame=tb,
+  framerule=0.4pt,
+  rulecolor=\color{black!40},
+  backgroundcolor=\color{black!3},
+  numbers=none,
+  keywordstyle=\color{blue!60!black}\bfseries,
+  commentstyle=\color{green!40!black}\itshape,
+  stringstyle=\color{red!50!black},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  aboveskip=6pt,
+  belowskip=4pt,
+  captionpos=t,
+  abovecaptionskip=0pt,
+  belowcaptionskip=6pt
+}
+\renewcommand{\lstlistingname}{Đoạn mã}
+% IEEEtran in chú thích với khoảng âm nên chú thích của listings bị đè lên khung.
+% Dùng chú thích riêng: \codecaption{nội dung}{nhãn} đặt ngay trước lstlisting.
+\newcounter{codelisting}
+\newcommand{\codecaption}[2]{%
+  \par\smallskip\refstepcounter{codelisting}\label{#2}%
+  {\centering\footnotesize \lstlistingname~\thecodelisting. #1\par}\nobreak\vspace{2pt}\nobreak}
+
+% Danh sách, liên kết, đường dẫn
+\usepackage{enumitem}
+\setlist{itemsep=1pt,topsep=3pt,leftmargin=*}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+% Giảm giãn chữ ở cột hẹp khi dòng chứa tên mã/đường dẫn dài
+\setlength{\emergencystretch}{2em}
+\pgfplotsset{/pgf/number format/1000 sep={.}, /pgf/number format/use comma}
+
+% Danh sách căn trái cho các mục chứa nhiều tên mã
+\newenvironment{codeitems}{\begin{itemize}\raggedright}{\end{itemize}}
+
+% Lệnh tiện ích
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\commitmain}{\code{5dd739f}}
+\newcommand{\commitmono}{\code{1e64bfc}}
+
+% Màu dùng chung cho sơ đồ
+\definecolor{svc}{HTML}{DCEBFA}
+\definecolor{svcborder}{HTML}{2F6DB5}
+\definecolor{infra}{HTML}{FCEBD5}
+\definecolor{infraborder}{HTML}{C07A1B}
+\definecolor{obs}{HTML}{E6F2E1}
+\definecolor{obsborder}{HTML}{4C8A3A}
+\definecolor{mono}{HTML}{8A8F98}
+\definecolor{micro}{HTML}{2F6DB5}
+
+\tikzset{
+  box/.style={draw=svcborder,fill=svc,rounded corners=2pt,align=center,
+              minimum height=9mm,inner sep=4pt,font=\small},
+  infrabox/.style={box,draw=infraborder,fill=infra},
+  obsbox/.style={box,draw=obsborder,fill=obs},
+  db/.style={cylinder,shape border rotate=90,aspect=0.18,draw=infraborder,
+             fill=infra,align=center,minimum height=12mm,inner sep=3pt,font=\small},
+  actor/.style={draw=black!60,fill=black!5,rounded corners=6pt,align=center,
+                minimum height=8mm,inner sep=4pt,font=\small},
+  arr/.style={-{Stealth[length=2.2mm]},thick,draw=black!70},
+  dasharr/.style={arr,dashed},
+  lbl/.style={font=\scriptsize,fill=white,inner sep=1.5pt}
+}

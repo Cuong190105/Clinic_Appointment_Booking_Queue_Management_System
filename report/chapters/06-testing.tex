@@ -1,0 +1,168 @@
+\section{Kiểm thử và đánh giá hiệu năng}
+\label{ch:testing}
+
+\subsection{Kiểm thử chức năng và hợp đồng}
+
+Lượt nghiệm thu sau cleanup ngày 10/11/2026 (\path{tasks/PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md}) ghi nhận:
+
+\begin{itemize}
+  \item Toàn bộ backend solution: \textbf{285/285 test pass}.
+  \item Contract validation: \textbf{13/13 pass}; QoS failure-policy: \textbf{8/8 pass}.
+  \item Runtime acceptance cho baseline, đặt lịch, tranh chấp slot, broker gián đoạn và phục hồi, soak, queue/medical record và độ trễ event.
+\end{itemize}
+
+Bộ test hiện có 267 phương thức \code{[Fact]}/\code{[Theory]} trải trên 12 project test; số test case lớn hơn số phương thức vì mỗi \code{[Theory]} chạy với nhiều bộ dữ liệu.
+
+\subsection{Phương pháp kiểm thử tải}
+
+Kiểm thử tải dùng k6 với các kịch bản trong \path{tests/load/}: smoke, load, spike, soak, contention, booking, booking high-load và mixed workload. Nguyên tắc so sánh:
+
+\begin{codeitems}
+  \item Hai stack có cùng tổng giới hạn 12,5 CPU, chạy lần lượt để không tranh tài nguyên.
+  \item Dùng cùng script cho cả hai hệ thống; mỗi lượt kiểm tra trạng thái nghiệp vụ (Confirmed, idempotency) và dọn dữ liệu test.
+  \item \code{http\_req\_failed} của k6 đếm cả 409 tranh chấp hợp lệ, nên tỷ lệ lỗi server được tính riêng từ 5xx.
+  \item Evidence chỉ lưu metrics tổng hợp; tài khoản test dùng file env bên ngoài repo.
+\end{codeitems}
+
+\subsection{Benchmark đặt lịch 20 VU}
+
+Lượt đầu ngày 11/11 cho p95 booking API 594,7 ms ở microservices và 293,4 ms ở monolith. Sau khi tối ưu truy vấn reserve (mục~\ref{sec:optim}), ngày 17/11 đo lại mỗi bên ba lượt (Bảng~\ref{tab:bench20}, Hình~\ref{fig:bench20}).
+
+\begin{table*}[t]
+\centering
+\caption{Benchmark đặt lịch 20 VU, 12,5 CPU mỗi hệ thống (17/11/2026)}
+\label{tab:bench20}
+\small
+\begin{tabularx}{\linewidth}{@{}lRRRl@{}}
+\toprule
+\textbf{Hệ thống, lượt} & \textbf{Booking API p95} & \textbf{POST~$\rightarrow$~Confirmed p95} & \textbf{Thành công} & \textbf{p95 < 500 ms} \\
+\midrule
+Microservices, lượt 1 & 983,8 ms & 1.529 ms & 20/20 & Không đạt \\
+Microservices, lượt 2 & 417,4 ms & 729,6 ms & 20/20 & Đạt \\
+Microservices, lượt 3 & 449,0 ms & 661,1 ms & 20/20 & Đạt \\
+\midrule
+Monolith, lượt 1 & 796,7 ms & 908,2 ms & 20/20 & Không đạt \\
+Monolith, lượt 2 & 335,6 ms & 408,0 ms & 20/20 & Đạt \\
+Monolith, lượt 3 & 297,9 ms & 368,6 ms & 20/20 & Đạt \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=9pt, width=0.95\linewidth, height=5.4cm,
+  ylabel={Booking API p95 (ms)}, ymin=0, ymax=1100,
+  symbolic x coords={r1,r2,r3}, xtick=data,
+  xticklabels={Lượt 1,Lượt 2,Lượt 3},
+  enlarge x limits=0.25,
+  legend style={at={(0.5,-0.22)},anchor=north,font=\small,legend columns=2,/tikz/every even column/.append style={column sep=8pt}},
+  nodes near coords, nodes near coords style={font=\scriptsize},
+  every node near coord/.append style={/pgf/number format/fixed,/pgf/number format/precision=0},
+  extra y ticks={500}, extra y tick style={grid=major,grid style={red!60,dashed,thick}},
+  extra y tick labels={}
+]
+  \addplot[fill=micro!70,draw=micro] coordinates {(r1,983.8) (r2,417.4) (r3,449.0)};
+  \addplot[fill=mono!60,draw=mono]  coordinates {(r1,796.7) (r2,335.6) (r3,297.9)};
+  \legend{Microservices, Monolith}
+\end{axis}
+\end{tikzpicture}
+\caption{p95 booking API qua ba lượt đo; đường đứt đỏ là ngưỡng 500 ms}
+\label{fig:bench20}
+\end{figure}
+
+Mọi lượt đạt 101/101 check, cleanup đầy đủ và không có 5xx. Lượt đầu của cả hai bên chậm do khởi động nguội. Median p95 của microservices giảm khoảng 24,5\% so với mốc 594,7 ms nhưng vẫn cao hơn monolith khoảng 34\% (449,0 so với 335,6 ms).
+
+\subsection{Booking high-load 30 VU, 2.400 slot}
+
+Kịch bản: 30 VU, 10 giây ramp-up, 60 giây giữ tải, 10 giây ramp-down, tối đa 2.400 slot (10 bác sĩ $\times$ 5 ngày). Mỗi hệ thống chạy ba lượt acceptance.
+
+\begin{table}[!t]
+\centering
+\caption{Booking high-load, median của ba lượt}
+\label{tab:highload}
+\small
+\begin{tabularx}{\linewidth}{@{}L{3.1cm}RR@{}}
+\toprule
+\textbf{Chỉ số} & \textbf{Monolith (22/11)} & \textbf{Microservices (17/11)} \\
+\midrule
+p95 mọi booking API & 190,2 ms & 253,6 ms \\
+p95 API tạo booking thành công & 214,6 ms & 387,8 ms \\
+p95 POST~$\rightarrow$~Confirmed & 235 ms & 762 ms \\
+Thông lượng booking Confirmed & 29,84/s & $\approx$ 29,72/s \\
+Tỷ lệ 5xx & 0\% & 0\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar, bar width=7pt, width=0.72\linewidth, height=5.2cm,
+  xlabel={p95 (ms)}, xmin=0, xmax=900,
+  symbolic y coords={e2e,create,all},
+  ytick=data,
+  yticklabels={POST $\rightarrow$ Confirmed,API tạo thành công,Mọi booking API},
+  y tick label style={font=\small},
+  enlarge y limits=0.3,
+  legend style={at={(0.5,-0.32)},anchor=north,font=\small,legend columns=2,/tikz/every even column/.append style={column sep=8pt}},
+  nodes near coords, nodes near coords style={font=\scriptsize}
+]
+  \addplot[fill=micro!70,draw=micro] coordinates {(762,e2e) (387.8,create) (253.6,all)};
+  \addplot[fill=mono!60,draw=mono]  coordinates {(235,e2e) (214.6,create) (190.2,all)};
+  \legend{Microservices, Monolith}
+\end{axis}
+\end{tikzpicture}
+\caption{So sánh p95 trong kịch bản booking high-load}
+\label{fig:highload}
+\end{figure}
+
+Cả hai đạt mọi threshold và dữ liệu test được dọn sạch. Thông lượng xác nhận gần bằng nhau, còn độ trễ của monolith thấp hơn. Khoảng cách lớn nhất nằm ở POST~$\rightarrow$~Confirmed, vì microservices xác nhận bất đồng bộ qua worker và một lời gọi HTTP sang Scheduling, còn monolith xác nhận trong cùng transaction.
+
+Cần lưu ý: monolith dùng chung DB qua các lượt nên lịch sử appointment đã hủy tích lũy, và p95 tăng theo thứ tự chạy (122 $\rightarrow$ 190 $\rightarrow$ 254 ms). Một lượt monolith bị loại khỏi nhóm acceptance do teardown timeout, dù các threshold nghiệp vụ đều đạt.
+
+\subsection{Mixed workload}
+
+Mixed workload mô phỏng nhiều persona cùng lúc. Profile \textit{normal} gồm tìm kiếm và đặt lịch; \textit{clinic-peak} thêm lễ tân tiếp nhận walk-in, check-in và toàn bộ vòng đời hàng đợi.
+
+\begin{table*}[t]
+\centering
+\caption{Mixed workload, mỗi profile một lượt cho mỗi hệ thống}
+\label{tab:mixed}
+\footnotesize
+\begin{tabularx}{\linewidth}{@{}L{2.6cm}L{2cm}L{2.2cm}YL{2.1cm}L{1.9cm}@{}}
+\toprule
+\textbf{Profile} & \textbf{Hệ thống} & \textbf{Đọc / ghi} & \textbf{p95 đọc / ghi / tạo booking} & \textbf{Thành công / 5xx} & \textbf{Queue} \\
+\midrule
+\multirow{2}{2.6cm}{normal, 20 VU, 5 phút} & Monolith & 68,75 / 31,25\% & 82,2 / 111,3 / 50,3 ms & 100\% / 0\% & — \\
+ & Microservices & 71,30 / 28,70\% & 26,8 / 91,3 / 107,2 ms & 100\% / 0\% & — \\
+\midrule
+\multirow{2}{2.6cm}{clinic-peak, 30 VU, 5 phút} & Monolith & 64,00 / 36,00\% & 276,7 / 362,4 / 287,8 ms & 94,81\% / 2,90\% & 0/865 \\
+ & Microservices & 67,73 / 32,27\% & 49,7 / 187,8 / 343,8 ms & 99,976\% / 0\% & 836/836 \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Ở profile normal, microservices có p95 đọc và ghi thấp hơn, còn monolith có p95 tạo booking thấp hơn. Clinic-peak trên monolith \textbf{không đạt} do một lỗi chức năng: luồng walk-in lấy \code{WorkSchedule} bằng \code{AsNoTracking} rồi thêm \code{Appointment} qua navigation graph, khiến EF Core cố insert lại schedule đã tồn tại và ném \code{DbUpdateException}. Vì vậy chưa thể so hiệu năng hàng đợi giữa hai hệ thống.
+
+\subsection{Tối ưu đã thực hiện}
+\label{sec:optim}
+
+\begin{codeitems}
+  \item \textbf{Truy vấn kiểm tra capacity khi reserve} (\path{SchedulingManager.cs}): trước đây đọc toàn bộ \code{TimeSlot} của các reservation còn hiệu lực về ứng dụng; nay dùng một truy vấn aggregate theo \code{WorkScheduleId}, chỉ trả về tổng reservation và số lần slot yêu cầu xuất hiện. Khóa bản ghi schedule và filtered unique index vẫn giữ nguyên.
+  \item \textbf{Đánh thức worker theo tín hiệu} (\path{AppointmentWorkSignal.cs}): outbox publisher và confirmation worker được đánh thức ngay khi có việc mới thay vì chờ chu kỳ polling, giảm thời gian POST~$\rightarrow$~Confirmed.
+  \item \textbf{Connection pool:} cấu hình \code{Min Pool Size}/\code{Max Pool Size} cho Scheduling, Appointment, Queue và Identity.
+\end{codeitems}
+
+\subsection{Nhận định so sánh}
+
+Với các lượt đo hiện có:
+\begin{itemize}
+  \item Monolith có độ trễ đặt lịch thấp hơn, nhờ ít hop mạng và xác nhận trong một transaction cục bộ.
+  \item Thông lượng xác nhận booking của hai hệ thống tương đương (khoảng 29,7--29,8 booking/giây).
+  \item Microservices xử lý được tải hỗn hợp có hàng đợi, trong khi monolith gặp lỗi chức năng ở luồng walk-in.
+\end{itemize}
+
+Các kết quả này \textbf{chưa đủ để kết luận kiến trúc nào tốt hơn tổng thể}, vì chưa khôi phục DB snapshot giữa các lượt, chưa thu CPU/RAM của hai stack theo cùng cách, và mixed workload mới có một lượt mỗi bên.

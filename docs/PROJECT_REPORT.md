@@ -1,23 +1,23 @@
 # Báo cáo dự án — Hệ thống đặt lịch khám, quản lý hàng đợi và hồ sơ y tế
 
-> Ngày tổng hợp: 16/11/2026. Báo cáo đối chiếu mã nguồn trong hai working tree, tài liệu thiết kế/nghiệm thu và artifact benchmark đã lưu. Những số liệu tải được nêu có ngày chạy theo artifact (11/11/2026), không phải lượt chạy mới ngày 16/11.
+> Ngày tổng hợp: 27/11/2026, trên commit `5dd739f` của nhánh `main` (microservices) và commit `1e64bfc` của nhánh `monolith`. Báo cáo đối chiếu mã nguồn, tài liệu thiết kế/nghiệm thu và artifact benchmark đã lưu trong repo. Mọi số liệu tải đều ghi ngày chạy theo artifact gốc (11/11, 17/11 và 22/11/2026); không có lượt chạy tải mới trong đợt tổng hợp này.
 
 ## 1. Cơ sở lý thuyết
 
 ### 1.1. Monolith và microservices
 
-Monolith triển khai các nghiệp vụ trong một ứng dụng, thường dùng chung mô hình miền và cơ sở dữ liệu. Cách này dễ chạy, kiểm thử giao dịch xuyên nghiệp vụ và có ít hop mạng, nhưng các miền khó phát hành, mở rộng và chịu lỗi độc lập.
+Monolith triển khai các nghiệp vụ trong một ứng dụng, thường dùng chung mô hình miền và cơ sở dữ liệu. Cách này dễ chạy, dễ kiểm thử giao dịch xuyên nghiệp vụ và có ít hop mạng, nhưng các miền khó phát hành, mở rộng và chịu lỗi độc lập.
 
-Microservices phân chia hệ thống theo bounded context: mỗi service sở hữu nghiệp vụ, dữ liệu và API của nó. Các service có thể phát hành và mở rộng riêng; đổi lại, hệ thống phải xử lý giao tiếp mạng, lỗi một phần, eventual consistency, version hợp đồng và vận hành nhiều tiến trình. “Database per service” là quyền sở hữu dữ liệu logic riêng; trong dự án này các database vẫn nằm trên cùng SQL Server container, không phải các máy chủ database vật lý độc lập.
+Microservices phân chia hệ thống theo bounded context: mỗi service sở hữu nghiệp vụ, dữ liệu và API của nó. Các service có thể phát hành và mở rộng riêng; đổi lại, hệ thống phải xử lý giao tiếp mạng, lỗi một phần, eventual consistency, version hợp đồng và vận hành nhiều tiến trình. “Database per service” ở đây là quyền sở hữu dữ liệu logic riêng; trong dự án các database vẫn nằm trên cùng một SQL Server container, không phải các máy chủ database vật lý độc lập.
 
 ### 1.2. API contract và OpenAPI
 
-OpenAPI mô tả endpoint, phương thức, schema request/response, lỗi và cơ chế bảo vệ API theo định dạng máy đọc được. Contract giúp frontend/Gateway và service thống nhất cách tích hợp, hỗ trợ Swagger, kiểm tra drift giữa schema được công bố với implementation và làm căn cứ cho contract testing. Contract không tự chứng minh API hoạt động đúng; cần kiểm thử tích hợp/runtime bổ sung.
+OpenAPI mô tả endpoint, phương thức, schema request/response, lỗi và cơ chế bảo vệ API theo định dạng máy đọc được. Contract giúp frontend/Gateway và service thống nhất cách tích hợp, hỗ trợ Swagger, phát hiện drift giữa schema công bố với implementation và làm căn cứ cho contract testing. Contract không tự chứng minh API hoạt động đúng; cần kiểm thử tích hợp/runtime bổ sung.
 
 ### 1.3. Orchestration, choreography và SAGA
 
-- **Orchestration:** một thành phần điều phối bước nghiệp vụ và biết bước tiếp theo cần gọi. Dễ thấy luồng tổng thể, nhưng điều phối viên có thể trở thành điểm tập trung logic.
-- **Choreography:** các service phản ứng với event do service khác phát ra; không có một bộ điều phối trung tâm cho toàn bộ luồng. Các service ít phụ thuộc trực tiếp hơn, nhưng cần observability và quản lý event tốt.
+- **Orchestration:** một thành phần điều phối các bước nghiệp vụ và biết bước tiếp theo cần gọi. Dễ thấy luồng tổng thể, nhưng điều phối viên có thể trở thành điểm tập trung logic.
+- **Choreography:** các service phản ứng với event do service khác phát ra; không có bộ điều phối trung tâm cho toàn bộ luồng. Các service ít phụ thuộc trực tiếp hơn, nhưng cần observability và quản lý event tốt.
 - **SAGA:** giao dịch nghiệp vụ dài được tách thành các giao dịch cục bộ. Nếu bước sau thất bại, hệ thống dùng retry hoặc hành động bù thay vì giữ một transaction ACID xuyên nhiều database.
 - **Outbox/inbox và idempotency:** outbox ghi thay đổi nghiệp vụ và event cần phát trong cùng transaction cục bộ; publisher gửi lại khi broker phục hồi. Inbox/idempotency chặn event hoặc request lặp gây tác dụng phụ trùng.
 
@@ -30,15 +30,15 @@ OpenAPI mô tả endpoint, phương thức, schema request/response, lỗi và c
 
 ## 2. Giới thiệu hệ thống
 
-Đây là ứng dụng quản lý hoạt động phòng khám: bệnh nhân tìm bác sĩ/ca khám và đặt lịch; nhân viên quản lý bệnh nhân và lịch; lễ tân check-in, gọi số và điều phối hàng đợi; bác sĩ khám và cập nhật hồ sơ; hệ thống gửi thông báo và cung cấp trang theo dõi/vận hành.
+Ứng dụng quản lý hoạt động phòng khám: bệnh nhân tìm bác sĩ/ca khám và đặt lịch; nhân viên quản lý bệnh nhân và lịch; lễ tân check-in, gọi số và điều phối hàng đợi; bác sĩ khám và cập nhật hồ sơ; hệ thống gửi thông báo và cung cấp trang theo dõi/vận hành.
 
-Các năng lực chính trong sản phẩm hiện tại gồm xác thực và phân quyền; quản lý nhân sự, chuyên khoa, ca làm; tìm slot và đặt/hủy/đổi lịch; idempotency cho thao tác đặt; check-in và cấp số hàng đợi; gọi/bỏ qua/bắt đầu/kết thúc lượt theo vai trò; hồ sơ bệnh nhân và medical record gắn với AppointmentId; notification inbox/real-time; API Gateway; health/readiness, metrics, tracing và kịch bản benchmark.
+Các năng lực chính: xác thực và phân quyền; quản lý nhân sự, chuyên khoa, ca làm; tìm slot và đặt/hủy/đổi lịch; idempotency cho thao tác đặt; khách walk-in; check-in và cấp số hàng đợi; gọi/bỏ qua/bắt đầu/kết thúc lượt theo vai trò; hồ sơ bệnh nhân và medical record gắn với `AppointmentId`; notification inbox/real-time (SignalR); API Gateway; health/readiness, metrics, tracing và bộ kịch bản kiểm thử tải.
 
 ## 3. Hệ thống monolith cũ
 
 ### 3.1. Kiến trúc và triển khai
 
-Monolith cũ là một ứng dụng ASP.NET Core (`Clinic.API`) chia lớp API/Application/Domain/Infrastructure, một frontend và một SQL Server. Trong Docker Compose cũ, backend được publish ở cổng 5000, frontend ở 3000 và SQL Server ở 1433. Các nghiệp vụ gọi nhau trong cùng tiến trình và dùng một `ApplicationDbContext`; đây là điểm khác biệt chính so với các database ownership boundary hiện tại.
+Monolith (nhánh `monolith`) là một ứng dụng ASP.NET Core (`Clinic.API`) chia lớp API/Application/Domain/Infrastructure, một frontend và một SQL Server. Các nghiệp vụ gọi nhau trong cùng tiến trình và dùng một `ApplicationDbContext`; đây là khác biệt chính so với ranh giới sở hữu dữ liệu của bản microservices. Để benchmark đối chứng, monolith được container hóa bằng `docker-compose.monolith.yml` (API ở cổng 5100) với tổng ngân sách CPU tương đương bản microservices.
 
 ```mermaid
 flowchart LR
@@ -51,9 +51,9 @@ flowchart LR
 
 ### 3.2. Thiết kế CSDL monolith
 
-`ApplicationDbContext` đăng ký chung các nhóm bảng: `Persons`, `Users`, `Roles`, `Permissions`, bảng nối `UserRoles`/`RolePermissions`, `Employees`, `Doctors`, `Specialties`, `WorkHistories`, `WorkSchedules`, `ShiftRequests`, `Patients`, `Appointments`, `AppointmentSnapshots`, `QueueTickets`, `QueueCounters`, `MedicalReports`, `MedicalReportAmendments`, `MedicalAccessAudits`, `Notifications`, và `RefreshTokens`. Cấu hình EF Core nằm ở `backend/Clinic.Infrastructure.Sqlserver/Configurations`.
+`ApplicationDbContext` đăng ký chung các nhóm bảng: `Persons`, `Users`, `Roles`, `Permissions`, bảng nối `UserRoles`/`RolePermissions`, `Employees`, `Doctors`, `Specialties`, `WorkHistories`, `WorkSchedules`, `ShiftRequests`, `Patients`, `Appointments`, `AppointmentSnapshots`, `QueueTickets`, `QueueCounters`, `MedicalReports`, `MedicalReportAmendments`, `MedicalAccessAudits`, `Notifications` và `RefreshTokens`. Cấu hình EF Core nằm ở `backend/Clinic.Infrastructure.Sqlserver/Configurations`.
 
-Sơ đồ dưới đây là ERD khái quát các quan hệ nghiệp vụ chính theo cấu hình EF, không liệt kê mọi cột/index/migration:
+ERD khái quát các quan hệ nghiệp vụ chính theo cấu hình EF (không liệt kê mọi cột/index/migration):
 
 ```mermaid
 erDiagram
@@ -79,22 +79,22 @@ erDiagram
     MEDICAL_REPORT ||--o{ MEDICAL_REPORT_AMENDMENT : amended_by
 ```
 
-Một số quan hệ là tùy chọn (ví dụ Person có thể chưa có User; khách walk-in vẫn có thể có hồ sơ Person/Patient). `MedicalAccessAudits` được lưu cùng database nhưng cấu hình hiện tại chỉ khai báo khóa/index, không khai báo quan hệ FK trong EF nên không vẽ cạnh FK ở đây. ERD tập trung vào quan hệ được cấu hình trong monolith; không nên dùng nó như bản migration/schema vật lý đầy đủ.
+Một số quan hệ là tùy chọn (ví dụ Person có thể chưa có User; khách walk-in vẫn có hồ sơ Person/Patient). `MedicalAccessAudits` nằm cùng database nhưng cấu hình chỉ khai báo khóa/index, không khai báo FK trong EF nên không vẽ cạnh ở đây.
 
 ## 4. Sản phẩm mới và phân rã nghiệp vụ
 
-Frontend vẫn truy cập qua Clinic API Gateway. Gateway xác thực/định tuyến và proxy đến service owner. Sáu bounded context trong triển khai:
+Frontend truy cập qua Clinic API Gateway (`Clinic.API` ở nhánh `main`, sau đợt cleanup chỉ còn vai trò Gateway). Gateway xác thực, áp QoS và proxy đến service sở hữu nghiệp vụ. Sáu bounded context:
 
-| Service | Sở hữu nghiệp vụ/dữ liệu chính |
-|---|---|
-| Identity | Tài khoản, credential, token, role/permission và các API xác thực |
-| Staff & Scheduling | Nhân sự/bác sĩ, chuyên khoa, ca làm và reservation slot |
-| Appointment | Appointment lifecycle, booking/change/cancel/check-in và outbox nghiệp vụ |
-| Queue | Queue ticket/counter, số thứ tự và trạng thái gọi/khám |
-| Medical Records | Patient profile, encounter context, medical report, amendment và audit |
-| Notification | Inbox, delivery intent/outbox, provider result/replay và SignalR |
+| Service | Project | Sở hữu nghiệp vụ/dữ liệu chính | Database logic |
+|---|---|---|---|
+| Identity | `Clinic.Identity.Service` | Tài khoản, credential, token, role/permission | `ClinicIdentityDB` |
+| Staff & Scheduling | `Clinic.StaffScheduling.Service` | Nhân sự/bác sĩ, chuyên khoa, ca làm, reservation slot | `ClinicSchedulingDB` |
+| Appointment | `Clinic.Appointment.Service` | Vòng đời lịch hẹn, booking/đổi/hủy/check-in, walk-in, outbox | `ClinicAppointmentDB` |
+| Queue | `Clinic.Queue.Service` | Queue ticket/counter, số thứ tự, trạng thái gọi/khám | `ClinicQueueDB` |
+| Medical Records | `Clinic.MedicalRecords.Service` | Hồ sơ bệnh nhân, encounter, medical report, amendment, audit | `ClinicMedicalRecordsDB` |
+| Notification | `Clinic.Notification.Service` | Inbox, delivery/outbox, provider result/replay, SignalR | `ClinicNotificationDB` |
 
-Các database logic là `ClinicIdentityDB`, `ClinicSchedulingDB`, `ClinicAppointmentDB`, `ClinicQueueDB`, `ClinicMedicalRecordsDB`, `ClinicNotificationDB`; được cấu hình riêng nhưng cùng dùng SQL Server service/container trong Compose. RabbitMQ vận chuyển event. Prometheus thu metrics, Jaeger nhận trace OTLP; dashboards/alert rules nằm dưới `observability/`.
+Sáu database được cấu hình riêng nhưng cùng chạy trên service `db` (một SQL Server container) trong Compose. RabbitMQ vận chuyển event. Prometheus thu metrics (kèm `mssql-exporter`), Jaeger nhận trace OTLP; dashboard và alert rule nằm trong `observability/`. Mỗi container có giới hạn CPU/RAM trong `docker-compose.yml`.
 
 ### 4.1. Sơ đồ tổng quan
 
@@ -106,15 +106,15 @@ flowchart TB
     GW --> SCH[Staff & Scheduling Service]
     GW --> AP[Appointment Service]
     GW --> Q[Queue Service]
-    GW --> MR[Medical Records Service\nPatient + Medical Record]
+    GW --> MR[Medical Records Service]
     GW --> N[Notification Service / Hub]
-    ID --> SQL[(SQL Server container)]
+    ID --> SQL[(SQL Server container\n6 database logic)]
     SCH --> SQL
     AP --> SQL
     Q --> SQL
     MR --> SQL
     N --> SQL
-    AP <--> |reserve / confirm slot| SCH
+    AP <--> |reserve / confirm / release slot| SCH
     AP -->|Outbox events| MQ[(RabbitMQ)]
     Q -->|Queue events| MQ
     SCH -->|Scheduling events| MQ
@@ -122,130 +122,156 @@ flowchart TB
     MQ --> MR
     MQ --> N
     MQ --> AP
-    GW -. OTLP .-> J[Jaeger]
-    ID -. OTLP .-> J
-    SCH -. OTLP .-> J
-    AP -. OTLP .-> J
-    Q -. OTLP .-> J
-    MR -. OTLP .-> J
-    N -. OTLP .-> J
+    MQ --> SCH
     P[Prometheus + Dashboards + Alerts] -. scrape .-> GW
-    P -. scrape .-> ID
-    P -. scrape .-> SCH
-    P -. scrape .-> AP
-    P -. scrape .-> Q
-    P -. scrape .-> MR
-    P -. scrape .-> N
+    GW -. OTLP .-> J[Jaeger]
 ```
 
-Sơ đồ thể hiện ownership và hướng giao tiếp logic; không hàm ý mỗi service đang chạy trên một SQL Server riêng. Một số event routing/consumer có thể khác theo event type.
+Mọi service đều được Prometheus scrape và gửi trace sang Jaeger; sơ đồ chỉ vẽ Gateway để gọn. Sơ đồ thể hiện quyền sở hữu và hướng giao tiếp logic, không hàm ý mỗi service có SQL Server riêng.
 
-### 4.2. Luồng phối hợp làm nổi bật orchestration/choreography
+### 4.2. Luồng phối hợp: orchestration và choreography
 
-**Đặt lịch — điều phối có bước đồng bộ và SAGA nền:**
+**Đặt lịch — điều phối đồng bộ kết hợp SAGA nền:**
 
-1. Gateway chuyển `POST /appointments` cùng idempotency key đến Appointment Service.
-2. Appointment Service kiểm tra request và patient projection, gọi Scheduling Service để reserve slot. Đây là bước sync có thể trả contention `409`.
-3. Appointment Service ghi appointment trạng thái chờ và outbox trong transaction của chính nó.
-4. Publisher gửi event; confirmation worker phối hợp với Scheduling để confirm reservation. Khi thành công, Appointment chuyển trạng thái và phát `AppointmentConfirmed`.
-5. Notification phản ứng với event để tạo inbox/delivery; luồng có thể retry và chống event lặp. Nếu broker gián đoạn, outbox giữ thông điệp chờ phục hồi.
+1. Gateway chuyển `POST /appointments` kèm idempotency key đến Appointment Service.
+2. Appointment Service kiểm tra request và patient projection, gọi Scheduling để reserve slot. Đây là bước đồng bộ, có thể trả `409` khi tranh chấp slot. Reservation có hạn 10 phút; `ReservationExpirationWorker` thu hồi reservation quá hạn.
+3. Appointment Service ghi appointment trạng thái chờ và outbox trong cùng transaction cục bộ.
+4. `AppointmentConfirmationWorker` gọi Scheduling để confirm reservation, retry tối đa 4 lần với backoff; nếu vẫn thất bại thì release reservation. Khi thành công, appointment chuyển `Confirmed` và phát `AppointmentConfirmed`. `AppointmentWorkSignal` đánh thức worker và outbox publisher ngay khi có việc mới thay vì chờ chu kỳ polling.
+5. Notification phản ứng với event để tạo inbox/delivery, có retry và chống event lặp. Nếu broker gián đoạn, outbox giữ thông điệp đến khi broker phục hồi.
 
-Đây là luồng **điều phối lai**: bước reserve/confirm được Appointment điều khiển trực tiếp qua API, còn phát thông tin sang các bounded context khác dùng choreography qua event. Vì các DB độc lập, đây không phải transaction ACID duy nhất xuyên toàn hệ thống.
+Đây là luồng **điều phối lai**: reserve/confirm do Appointment điều khiển trực tiếp qua API, còn việc lan truyền sang các bounded context khác dùng choreography qua event. Vì các database độc lập, đây không phải một transaction ACID xuyên toàn hệ thống.
+
+**Hủy lịch:** Appointment ghi trạng thái hủy và `AppointmentCancelled` vào outbox, đồng thời gọi trực tiếp Scheduling để nhả slot (best-effort). Scheduling cũng consume event để nhả slot nên hai đường bổ trợ nhau.
 
 **Check-in → Queue → Medical Records/Notification — choreography:**
 
-1. Appointment Service kiểm tra check-in theo AppointmentId, ghi trạng thái và `AppointmentCheckedIn` trong outbox.
-2. Queue Service consume event idempotent, tạo đúng một ticket, cấp số trong phạm vi ngày/doctor và phát event kết quả nếu cần.
-3. Queue state events thông báo việc gọi số/bắt đầu/kết thúc khám; Medical Records cập nhật encounter context theo AppointmentId, còn Notification tạo thông báo/inbox phù hợp.
-4. Retry/event trùng không được tạo ticket hoặc encounter trùng; thứ tự và lifecycle được bảo vệ bởi state guard/idempotency.
+1. Appointment kiểm tra check-in theo `AppointmentId`, ghi trạng thái và `AppointmentCheckedIn` vào outbox.
+2. Queue consume event qua inbox (unique index), tạo đúng một ticket, cấp số theo ngày/bác sĩ. Lỗi tạm thời được đưa vào retry queue (tối đa 3 lần), quá hạn thì vào DLQ.
+3. Queue phát event gọi số/bắt đầu/kết thúc khám; Medical Records cập nhật encounter theo `AppointmentId`, Notification tạo thông báo, Appointment nhận `queue.exam-completed` để đóng lịch hẹn.
+4. Retry hoặc event trùng không tạo ticket/encounter trùng; thứ tự vòng đời được bảo vệ bằng state guard và idempotency.
 
 ### 4.3. OpenAPI và kiểm thử hợp đồng
 
-Repo có OpenAPI snapshots cho Gateway và sáu service dưới `tasks/contracts/`, endpoints OpenAPI/Swagger trong ứng dụng, cùng `ApiContractDriftTests`. Đây đáp ứng thiết kế API và cơ chế phát hiện drift ở mức triển khai/test. Trước khi nộp, nên sinh lại snapshot từ đúng commit và đính kèm kết quả chạy `scripts/validate-api-contracts.ps1` (hoặc `.sh`) để chứng minh contract hiện hành, không chỉ dựa vào file snapshot có sẵn.
+Repo có OpenAPI snapshot cho Gateway và sáu service trong `tasks/contracts/` (kèm `api-catalog-baseline.json`), endpoint Swagger trong từng ứng dụng và `ApiContractDriftTests` trong `backend/Clinic.IntegrationTests`. Lượt nghiệm thu ngày 10/11/2026 ghi contract validation 13/13 pass. Trước khi nộp nên chạy lại `scripts/validate-api-contracts.ps1` trên đúng commit nộp và đính kèm kết quả.
 
 ## 5. SLA/SLO/QoS
 
-Ma trận chi tiết: [`../tasks/SLI_SLO_MATRIX_MEMBER_A.md`](../tasks/SLI_SLO_MATRIX_MEMBER_A.md). Các mục tiêu nghiệm thu chính đã ghi trong tài liệu:
+Ma trận chi tiết: [`../tasks/SLI_SLO_MATRIX_MEMBER_A.md`](../tasks/SLI_SLO_MATRIX_MEMBER_A.md).
 
 | SLI/QoS | Mục tiêu dự án | Cách hiểu |
 |---|---:|---|
-| Availability tại Gateway | ≥ 99.0% | Loại expected 4xx, 401/403, contention 409, throttling 429 và client abort khỏi lỗi hệ thống; tính 5xx/502/503/504 là failure |
-| API latency | p95 ≤ 500 ms; p99 ≤ 1,500 ms | Mỗi endpoint/boundary đo riêng; percentile các hop không cộng lại |
-| Server error | ≤ 1.0% | Theo cửa sổ và mẫu tối thiểu đã quy định trong ma trận |
-| Event processing lag | p95 ≤ 5 s | Từ thời điểm publish đến xử lý/ack theo định nghĩa SLI |
-| DLQ | 0 message hợp lệ bị bỏ lại | Poison event cần cách ly, có thể chẩn đoán/replay an toàn |
-| Invariants | 0 overbooking; 0 duplicate queue ticket | Kiểm tra bằng integration/load tests và đối soát trạng thái |
-| Rate limiting | Fixed window, mặc định 100 request/phút/partition | Authenticated theo subject; anonymous theo remote IP; không tin `X-Forwarded-For` trong Compose trực tiếp |
+| Availability tại Gateway | ≥ 99,0% | Loại expected 4xx, 401/403, contention 409, throttling 429 và client abort khỏi lỗi hệ thống; 5xx/502/503/504 tính là failure |
+| API latency | p95 ≤ 500 ms; p99 ≤ 1.500 ms | Đo riêng từng endpoint/boundary; percentile các hop không cộng lại |
+| Server error | ≤ 1,0% | Theo cửa sổ và mẫu tối thiểu quy định trong ma trận |
+| Event processing lag | p95 ≤ 5 s | Từ lúc publish đến lúc xử lý/ack |
+| DLQ | 0 message hợp lệ bị bỏ lại | Poison event phải được cách ly, chẩn đoán và replay an toàn |
+| Invariants | 0 overbooking; 0 queue ticket trùng | Kiểm tra bằng integration/load test và truy vấn đối soát |
+| Rate limiting | Fixed window, mặc định 100 request/phút/partition | Đã xác minh trong `Clinic.API/Program.cs`; authenticated theo subject, anonymous theo remote IP |
 
-Các ngưỡng này là mục tiêu đồ án trên môi trường Docker Compose. Không có căn cứ để trình bày như SLA production hoặc cam kết uptime theo tháng.
+Các ngưỡng này là mục tiêu đồ án trên môi trường Docker Compose, không phải SLA production hay cam kết uptime theo tháng.
 
-## 6. Kiểm thử và đánh giá mức hoàn thành
+## 6. Kiểm thử và kết quả
 
-### 6.1. Phần đã có bằng chứng
+### 6.1. Kiểm thử chức năng và hợp đồng
 
-- Phân rã ownership thành Gateway và sáu service; Compose có migration/health checks và database logic riêng.
-- OpenAPI snapshots, Swagger/OpenAPI endpoints và contract drift tests.
-- Orchestration lai cho booking/reservation và event choreography cho các workflow queue, medical records, notification.
-- Tài liệu SLI/SLO/QoS, metrics, tracing, dashboard/alert rules; tài liệu nghiệm thu Phase 7–9 ghi solution backend 285/285, contract 13/13, QoS 8/8 và runtime acceptance sau cleanup ngày 10/11/2026.
-- Runtime acceptance report ghi baseline, workflow booking, contention, broker degradation/recovery, soak, queue/medical record và event timing. Các con số ở đó thuộc từng workload cụ thể và không tự chứng minh mọi ngưỡng dưới mọi tải.
+Lượt nghiệm thu sau cleanup ngày 10/11/2026 ([`PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](../tasks/PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md)) ghi: toàn bộ backend solution **285/285 test pass**, contract validation **13/13**, QoS failure-policy **8/8**, cùng runtime acceptance cho baseline, booking, contention, broker degradation/recovery, soak, queue/medical record và event timing. Bộ test hiện có 267 phương thức `[Fact]`/`[Theory]` trải trên 12 project test (số test case lớn hơn do `[Theory]` có nhiều bộ dữ liệu).
 
-### 6.2. Benchmark monolith so với microservices gần nhất
+Trong đợt review này chưa chạy lại được bộ test vì máy tổng hợp không có .NET 10 SDK và Docker không hoạt động (xem mục 7.3).
 
-Artifact 20 VU được đặt tên “12cpu” trong cả hai cây (báo cáo ghi cấu hình 12.5 CPU). Đây là phép so sánh gần đồng điều kiện rõ nhất hiện có:
+### 6.2. Benchmark booking 20 VU (12,5 CPU mỗi hệ thống)
 
-| Chỉ số booking | Monolith | Microservices | Mục tiêu |
-|---|---:|---:|---:|
-| Booking API p95 | 293.4 ms | 594.7 ms | ≤ 500 ms |
-| POST đến Confirmed p95 | 456.4 ms | 820.9 ms | ≤ 5,000 ms E2E |
-| Business success / confirmation | 100% / 100% | 100% / 100% | ≥ 98% / ≥ 90% theo runner |
-| 5xx | 0 | 0 | ≤ 1% |
+Cả hai stack có tổng giới hạn 12,5 CPU, chạy lần lượt, cùng script `tests/load/booking.js`. Lượt đầu ngày 11/11 cho p95 booking API 594,7 ms ở microservices và 293,4 ms ở monolith. Sau khi tối ưu truy vấn reserve (mục 6.5), ngày 17/11 đo lại mỗi bên ba lượt:
 
-Kết quả: hai bên hoàn tất nghiệp vụ trong lượt đo đó, nhưng microservice **không đạt p95 API 500 ms** trong run 12 CPU; monolith đạt. E2E và lỗi server đạt mục tiêu. Vì vậy không thể tuyên bố microservice nhanh hơn monolith theo benchmark này.
+| Hệ thống | Booking API p95: lượt 1 / 2 / 3 | POST → Confirmed p95: lượt 1 / 2 / 3 | Ngưỡng p95 < 500 ms |
+|---|---:|---:|---|
+| Microservices | 983,8 / 417,4 / 449,0 ms | 1.529 / 729,6 / 661,1 ms | Lượt 1 không đạt, lượt 2–3 đạt |
+| Monolith | 796,7 / 335,6 / 297,9 ms | 908,2 / 408,0 / 368,6 ms | Lượt 1 không đạt, lượt 2–3 đạt |
 
-Artifact 30 VU `highload-*` cho thấy API p95 khoảng 47.1 ms monolith và 179.6 ms microservices; E2E p95 khoảng 106 ms và 524.3 ms; 5xx metric bằng 0. Tuy nhiên đây chưa phải so sánh cuối cùng có thể dùng để kết luận thắng/thua: số attempts và số booking tạo được khác nhau (28,312/2,400 so với 11,743/1,996); data state và tiến độ lấp slot khác nhau; script không dọn appointments đã tạo; cấu hình tài nguyên/commit/run provenance không được gắn với artifact; và JSON lưu threshold flags `false` ngay cả khi metric ghi p95/rate thỏa con số hiển thị. `http_req_failed` phần lớn đếm các 409 xung đột hợp lệ nên không được diễn giải như tỷ lệ 5xx.
+Mọi lượt đạt 101/101 check, 20/20 booking Confirmed và cleanup, 0 HTTP 5xx. Lượt đầu của cả hai bên chậm do khởi động nguội. Median p95 microservices giảm khoảng 24,5% so với mốc 594,7 ms nhưng vẫn cao hơn monolith khoảng 34% (449,0 so với 335,6 ms).
 
-### 6.3. Kết luận hoàn thành
+### 6.3. Booking high-load 30 VU, 2.400 slot
 
-**Đánh giá: hoàn thành phần kiến trúc/triển khai chính, nhưng chưa đủ căn cứ đóng mục tiêu kiểm thử tải so sánh một cách chặt chẽ.** Hệ thống chạy được và tài liệu/test cho thấy đã thực hiện các yêu cầu cốt lõi. Cổng còn mở là benchmark đối chiếu tái lập được và minh bạch, đồng thời phải xử lý artifact chứa JWT. Do đó báo cáo này không ghi “toàn bộ yêu cầu đã nghiệm thu” cho đến khi hoàn tất các mục sau.
+| Chỉ số (median của 3 lượt) | Monolith (22/11) | Microservices (17/11) |
+|---|---:|---:|
+| p95 mọi booking API | 190,2 ms | 253,6 ms |
+| p95 API tạo booking thành công | 214,6 ms | 387,8 ms |
+| p95 POST → Confirmed | 235 ms | 762 ms |
+| Thông lượng booking Confirmed | 29,84/s | ≈ 29,72/s |
+| 5xx | 0% | 0% |
 
-### 6.4. Việc còn phải làm trước khi kết luận nghiệm thu toàn bộ
+Cả hai đạt mọi threshold, dữ liệu test được cleanup. Thông lượng xác nhận gần bằng nhau, còn latency monolith thấp hơn. Lưu ý: monolith dùng chung DB qua các lượt nên lịch sử appointment đã hủy tích lũy và p95 tăng theo thứ tự chạy (122 → 190 → 254 ms); một lượt monolith bị loại khỏi nhóm acceptance do teardown timeout.
 
-1. **Rà soát artifact cũ:** các summary mới đã sanitize, nhưng `tests/load/evidence/highload-micro-booking-k6.json` còn tồn tại; không công bố/chiếu raw artifact nếu chưa xác minh rồi loại bỏ token/fixture data. Các artifact mới ngày 22/11 chỉ chứa metrics tổng hợp.
-2. **Lặp lại mixed-workload:** monolith normal/clinic-peak và microservices hiện mỗi bên mới có một lượt cho từng profile. Chạy tối thiểu ba lượt trên snapshot DB tương đương, cùng seed, VU/thời lượng, tài nguyên và warm-up; báo median/range cho p95, throughput, 5xx, Queue lifecycle và CPU/RAM.
-3. **Sửa lỗi monolith walk-in:** clinic-peak phát hiện `DbUpdateException` do cố insert lại `WorkSchedule` đã tồn tại; 865/865 lượt Queue thất bại và tỷ lệ 5xx 2,90%. Sửa cách attach/insert graph, viết integration test regression, rồi chạy lại clinic-peak.
-4. **Làm benchmark có trạng thái dữ liệu tái lập:** ba lượt booking high-load sạch đã đạt threshold, song dùng chung DB và p95 tăng theo thứ tự chạy. Restore cùng DB snapshot trước từng lượt để phân biệt ảnh hưởng kiến trúc với lịch sử dữ liệu.
-5. **Đối chiếu tài nguyên ngang nhau:** hiện đã có chuỗi docker stats monolith; cần thu cùng cách/chu kỳ cho các container microservices dưới cùng profile và giới hạn CPU/RAM. Số liệu CPU vượt 100% là mức dùng nhiều hơn một logical core, không phải quota cấu hình.
-6. **Đính kèm contract evidence:** chạy validator trên đúng commit, cập nhật OpenAPI snapshots nếu cần và ghi kết quả vào báo cáo nghiệm thu cuối.
+### 6.4. Mixed workload (đọc/ghi hỗn hợp nhiều persona)
 
-### 6.5. Tối ưu code thực hiện sau khi lập báo cáo
+| Profile | Hệ thống | Tỷ lệ HTTP đọc / ghi | p95 đọc / ghi / tạo booking | Workflow thành công / 5xx | Queue lifecycle |
+|---|---|---:|---:|---:|---:|
+| normal, 20 VU, 5 phút | Monolith | 68,75% / 31,25% | 82,2 / 111,3 / 50,3 ms | 100% / 0% | Không áp dụng |
+| normal, 20 VU, 5 phút | Microservices | 71,30% / 28,70% | 26,8 / 91,3 / 107,2 ms | 100% / 0% | Không áp dụng |
+| clinic-peak, 30 VU, 5 phút | Monolith | 64,00% / 36,00% | 276,7 / 362,4 / 287,8 ms | 94,81% / 2,90% | 0/865 (lỗi walk-in) |
+| clinic-peak, 30 VU, 5 phút | Microservices | 67,73% / 32,27% | 49,7 / 187,8 / 343,8 ms | 99,976% / 0% | 836/836 hoàn tất |
 
-Trong `Clinic.StaffScheduling.Service/Services/SchedulingManager.cs`, kiểm tra capacity trước đây đọc toàn bộ `TimeSlot` của các reservation còn hiệu lực về ứng dụng để vừa đếm vừa tìm slot trùng. Đã đổi thành một truy vấn aggregate theo `WorkScheduleId`, chỉ trả về tổng reservation và số lần slot yêu cầu xuất hiện. Khóa bản ghi schedule và filtered unique index hiện có vẫn giữ nguyên.
+Ở profile normal, microservices có p95 đọc và ghi thấp hơn, monolith có p95 tạo booking thấp hơn. Clinic-peak trên monolith **không đạt** do lỗi chức năng: luồng walk-in lấy `WorkSchedule` bằng `AsNoTracking` rồi thêm `Appointment` qua navigation graph, khiến EF Core insert lại schedule đã tồn tại (`DbUpdateException`). Vì vậy chưa thể so hiệu năng Queue giữa hai bên. Mỗi profile mới có một lượt mỗi bên.
 
-Thay đổi này giảm dữ liệu chuyển từ SQL Server và allocation trong service; chưa có benchmark sau sửa nên không khẳng định p95 đã giảm. Trước khi nghiệm thu, cần chạy test hiện có cho capacity/duplicate/concurrency và chạy lại benchmark cùng cấu hình đã khóa. Chưa thay đổi code các điểm phụ thuộc vào trace/đo tài nguyên như phân bổ CPU, pool size, timeout, polling hoặc khóa đồng bộ.
+### 6.5. Tối ưu đã thực hiện
 
-## 7. Tài liệu và nguồn đối chiếu
+- **Truy vấn kiểm tra capacity khi reserve** (`SchedulingManager.cs`): trước đây đọc toàn bộ `TimeSlot` của các reservation còn hiệu lực về ứng dụng; nay dùng một truy vấn aggregate theo `WorkScheduleId`, giữ nguyên khóa bản ghi schedule và filtered unique index. Hiệu quả đã đo ở mục 6.2.
+- **Đánh thức worker theo tín hiệu** (`AppointmentWorkSignal.cs`): outbox publisher và confirmation worker được đánh thức ngay khi có appointment/outbox mới, giảm thời gian chờ POST → Confirmed.
+- **Connection pool** cấu hình `Min Pool Size`/`Max Pool Size` cho các service chịu tải ghi (Scheduling, Appointment, Queue, Identity).
 
-- Thiết kế/task tổng thể: [`../tasks/TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`../tasks/TASK_MEMBER_B.md`](../tasks/TASK_MEMBER_B.md), các execution plan Phase 2–9.
+### 6.6. Nhận định so sánh
+
+Với các lượt đo hiện có, monolith có latency booking thấp hơn (ít hop mạng, giao dịch cục bộ), thông lượng xác nhận hai bên tương đương, còn microservices xử lý được tải hỗn hợp có Queue mà monolith gặp lỗi. Các kết quả này **chưa đủ để kết luận kiến trúc nào tốt hơn tổng thể**, vì chưa khôi phục DB snapshot giữa các lượt, chưa thu CPU/RAM hai stack theo cùng cách, và mixed workload mới có một lượt mỗi bên.
+
+## 7. Kết quả review hệ thống (27/11/2026)
+
+Review tĩnh trên commit `5dd739f`, tập trung vào độ tin cậy messaging, invariant dữ liệu, bảo mật cấu hình và tính chính xác của bằng chứng.
+
+### 7.1. Điểm đã xác minh tốt
+
+- Ranh giới dữ liệu đúng như thiết kế: mỗi service chỉ có connection string tới database của mình; giao tiếp liên service qua HTTP client có cấu hình hoặc RabbitMQ.
+- Invariant được bảo vệ ở tầng database: unique index cho queue ticket theo appointment và số thứ tự, unique idempotency key cho appointment, unique `EventId` cho outbox, unique inbox message ở Queue.
+- Queue, Medical Records và Notification có retry queue + DLX; Notification có API liệt kê và replay delivery dead-lettered qua Gateway (`AdminController`).
+- Reservation có thời hạn và worker thu hồi, nên confirm thất bại không giữ slot vĩnh viễn. Hủy lịch nhả slot bằng hai đường (gọi trực tiếp + event).
+- Bảo mật cấu hình: JWT ký bằng khóa bất đối xứng lưu trong volume (`Jwt__SigningKeyDirectory`); mật khẩu RabbitMQ bắt buộc lấy từ `.env` (Compose báo lỗi nếu thiếu); repo chỉ có `.env.example`.
+
+### 7.2. Vấn đề cần xử lý
+
+| # | Mức độ | Vấn đề | Ảnh hưởng | Đề xuất |
+|---|---|---|---|---|
+| 1 | Cao | 10 file evidence đã commit trong `tests/load/evidence/` còn chứa JWT: `raw_contention.json`, `raw_load.json`, `raw_smoke.json`, `raw_spike.json`, `highload-micro-booking-k6.json` và 5 file `review-*-booking-k6.json`. Token là token dev (issuer `http://localhost:5000`), đã hết hạn từ 04/11/2026. | Không khai thác được trên môi trường khác, nhưng vi phạm quy tắc “không lưu token trong evidence” mà chính tài liệu dự án đặt ra, và lộ cấu trúc claim/role. | Sanitize hoặc xóa các file raw, chỉ giữ summary; xoay khóa ký Identity nếu khóa dev đã dùng ở môi trường dùng chung; cân nhắc làm sạch lịch sử git trước khi công khai repo. |
+| 2 | Trung bình | `AppointmentEventConsumer` và `SchedulingEventConsumer` gọi `BasicNack(requeue: false)` với **mọi** exception, nhưng queue của chúng không khai báo dead-letter exchange. | Lỗi tạm thời (DB timeout, deadlock) làm broker **xóa hẳn** message. Mất `queue.exam-completed` khiến appointment không chuyển Completed; mất `appointment.cancelled` ở Scheduling chỉ được bù nếu lệnh release trực tiếp thành công. Trái với SLO “0 message hợp lệ bị bỏ lại”. | Áp dụng cùng mẫu retry queue + DLX như Queue/Medical Records; phân biệt lỗi tạm thời với poison message; thêm test mô phỏng lỗi DB khi consume. |
+| 3 | Trung bình | Lỗi walk-in của monolith (mục 6.4) chưa được sửa: commit mới nhất trên nhánh `monolith` (`1e64bfc`) chỉ thêm harness và evidence. | Không có số liệu đối chứng Queue dưới tải; clinic-peak của monolith không hợp lệ để so sánh. | Attach `WorkSchedule` với state `Unchanged` (hoặc chỉ gán FK), thêm integration test hồi quy, chạy lại clinic-peak ba lượt. |
+| 4 | Thấp | Sáu database logic chạy trên một SQL Server container (giới hạn 4 CPU). | Điểm lỗi đơn và tài nguyên dùng chung; một service tải nặng có thể làm chậm các service khác, không phản ánh khả năng mở rộng độc lập. | Ghi rõ là giới hạn của môi trường đồ án; nếu cần chứng minh cô lập lỗi, tách ít nhất DB của Appointment/Scheduling sang instance riêng. |
+| 5 | Thấp | `DB_SA_PASSWORD` có giá trị mặc định trong `docker-compose.yml`, trong khi RabbitMQ bắt buộc cấu hình qua `.env`. Mọi service kết nối DB bằng tài khoản `sa`. | Chạy Compose không có `.env` vẫn dùng mật khẩu công khai; service có toàn quyền trên mọi database. | Bắt buộc `DB_SA_PASSWORD` như RabbitMQ (`:?`); tạo login riêng cho từng service, chỉ cấp quyền trên database của service đó. |
+
+### 7.3. Giới hạn của đợt review
+
+- Không chạy lại test backend: máy không có .NET 10 SDK (dù repo có `.tools/dotnet-install.ps1`) và Docker Desktop không chạy. Kết quả 285/285 dựa trên lượt nghiệm thu ngày 10/11/2026.
+- Không chạy lại benchmark; mọi số liệu tải lấy từ artifact đã lưu.
+- Review tĩnh tập trung vào backend và cấu hình; frontend chỉ kiểm tra qua việc test spec có trong repo.
+
+## 8. Đánh giá mức hoàn thành
+
+**Hoàn thành phần kiến trúc và triển khai chính.** Đã phân rã thành Gateway và sáu service có database riêng, có OpenAPI và drift test, outbox/inbox/idempotency, SAGA cho đặt lịch, choreography cho check-in/queue/hồ sơ/thông báo, SLI/SLO/QoS cùng metrics, tracing, dashboard, alert, và bộ kiểm thử tải gồm smoke, load, spike, soak, contention, high-load và mixed workload.
+
+**Chưa đủ căn cứ để đóng hoàn toàn mục tiêu kiểm thử tải so sánh**, và còn hai lỗ hổng độ tin cậy/vệ sinh dữ liệu cần xử lý trước khi nộp.
+
+### 8.1. Việc cần làm trước khi nghiệm thu toàn bộ
+
+1. **Làm sạch evidence chứa JWT** (vấn đề 1), ưu tiên trước khi chia sẻ repo hoặc chiếu artifact.
+2. **Bổ sung retry + DLX cho consumer Appointment và Scheduling** (vấn đề 2), rồi chạy lại test.
+3. **Sửa lỗi walk-in monolith** (vấn đề 3) và chạy lại clinic-peak.
+4. **Lặp benchmark có trạng thái dữ liệu tái lập:** khôi phục cùng DB snapshot/seed trước mỗi lượt, tối thiểu ba lượt mỗi profile, báo median và khoảng biến thiên.
+5. **Thu tài nguyên ngang nhau:** chuỗi `docker stats` cùng chu kỳ cho mọi container của cả hai stack. CPU trên 100% nghĩa là dùng nhiều hơn một logical core, không phải vượt quota.
+6. **Chạy lại toàn bộ test và contract validator** trên commit nộp, ghi kết quả vào báo cáo nghiệm thu cuối.
+
+## 9. Tài liệu và nguồn đối chiếu
+
+- Thiết kế/task tổng thể: [`../tasks/TASK_MEMBER_A.md`](../tasks/TASK_MEMBER_A.md), [`../tasks/TASK_MEMBER_B.md`](../tasks/TASK_MEMBER_B.md), các execution plan Phase 0–9 trong `tasks/`.
 - SLI/SLO/QoS: [`../tasks/SLI_SLO_MATRIX_MEMBER_A.md`](../tasks/SLI_SLO_MATRIX_MEMBER_A.md).
-- Nghiệm thu tải A: [`../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md`](../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md).
+- Kiểm thử tải: [`../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md`](../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md) (mục 18–22), [`PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md`](PHASE_9_LOAD_TEST_REPORT_MEMBER_B.md), [`../tests/load/README.md`](../tests/load/README.md).
 - Nghiệm thu sau cleanup: [`../tasks/PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md`](../tasks/PHASE_7_9_FINAL_ACCEPTANCE_PLAN.md).
-- Benchmark history: [`../tasks/BENCHMARK_MONOLITH_VS_MICROSERVICES_FULL_HISTORY.md`](../tasks/BENCHMARK_MONOLITH_VS_MICROSERVICES_FULL_HISTORY.md).
-- OpenAPI: [`../tasks/contracts/`](../tasks/contracts/), drift tests: `backend/Clinic.IntegrationTests/ApiContractDriftTests.cs`.
-- Mã monolith đối chiếu: working tree `Clinic_Appointment_Booking_Queue_Management_System`, nhất là `backend/Clinic.Infrastructure.Sqlserver/Persistence/ApplicationDbContext.cs`, `Configurations/` và `docker-compose.yml`.
-
-
-## Bổ sung kết quả kiểm thử tải mới nhất — 17/11/2026
-
-Sau ba lượt booking-only high-load (30 VU, 2.400 slot), median p95 là 253,6 ms cho các response booking API, 387,8 ms cho request tạo booking thành công và 762 ms từ POST đến Confirmed; cả ba lượt không có 5xx và đã cleanup dữ liệu test.
-
-Hai mixed-workload profile mới chạy trên microservices: normal (20 VU) có 71,30% request đọc / 28,70% ghi, p95 đọc 26,8 ms, ghi 91,3 ms, tạo booking 107,2 ms; clinic-peak (30 VU, bao gồm walk-in và queue) có 67,73% đọc / 32,27% ghi, p95 đọc 49,7 ms, ghi 187,8 ms, tạo booking 343,8 ms, queue workflow 1.661 ms. Cả hai không có 5xx và đạt các threshold đã khai báo. Peak có 4/16.852 workflow iteration chưa thành công (0,024%), dù toàn bộ 836 queue lifecycle đạt marker hoàn tất.
-
-Đây là hai loại workload khác nhau, nên không suy ra rằng một loại nhanh hơn loại kia. Mixed profiles chưa chạy đối chứng trên monolith và chưa sử dụng tỷ lệ traffic đo tại phòng khám; vì vậy chúng chứng minh các luồng đã chọn hoạt động dưới tải hỗn hợp trên cấu hình hiện tại, chưa chứng minh ưu thế hiệu năng tổng thể. Chi tiết và evidence sanitize nằm trong [báo cáo phase 9](../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md#21-nghiệm-thu-hai-profile-tải-hỗn-hợp--17112026).
-
-## Bổ sung đối chứng monolith — 22/11/2026
-
-Các lượt chạy sau đó đã bổ sung đối chứng cùng profile trên monolith. Mixed normal (20 VU/5 phút) đạt 100% workflow và 0% 5xx; p95 đọc/ghi là 82,2/111,3 ms. Mixed clinic-peak (30 VU/5 phút) không đạt: 865 lượt receptionist walk-in đều lỗi, 5xx là 2,90%, và không có Queue lifecycle hoàn tất. Nguyên nhân được khoanh vùng ở cách EF Core thêm lại `WorkSchedule` đã tồn tại trong graph của appointment. Vì vậy clinic-peak không được dùng để so hiệu năng Queue cho tới khi sửa lỗi và chạy lại.
-
-Booking high-load 30 VU/2.400 slot chạy ba lượt acceptance trên monolith, với median p95 190,2 ms cho mọi booking API, 214,6 ms cho POST tạo thành công, 235 ms từ POST đến Confirmed; median 29,84 booking xác nhận/giây và 0% 5xx. Microservices trong ba lượt cùng profile đạt median tương ứng 253,6 ms, 387,8 ms, 762 ms và khoảng 29,72 booking xác nhận/giây. Các con số này mô tả các lượt đo hiện có; monolith dùng cùng DB qua các lượt nên lịch sử appointment đã hủy tích lũy và latency tăng theo thứ tự. Chưa khôi phục DB snapshot giữa các lượt hoặc thu CPU/RAM hai stack cùng cách, nên chưa thể kết luận kiến trúc nào tốt hơn tổng thể.
-
-Tài liệu Phase 9 mục 22 ghi chi tiết workload, lượt bị loại do timeout teardown, cleanup đã xác minh, tài nguyên và evidence sanitize. Trước khi chốt kết luận so sánh, cần sửa lỗi walk-in, lặp clinic-peak tối thiểu ba lượt và benchmark cả hai stack trên snapshot/seed/tài nguyên tương đương.
+- Lịch sử benchmark: [`../tasks/BENCHMARK_MONOLITH_VS_MICROSERVICES_FULL_HISTORY.md`](../tasks/BENCHMARK_MONOLITH_VS_MICROSERVICES_FULL_HISTORY.md).
+- OpenAPI: [`../tasks/contracts/`](../tasks/contracts/); drift test: `backend/Clinic.IntegrationTests/ApiContractDriftTests.cs`.
+- Vận hành: [`MEMBER_B_OPERATIONS_RUNBOOK.md`](MEMBER_B_OPERATIONS_RUNBOOK.md), [`PHASE_0_OPERATIONS_AND_ACCEPTANCE.md`](PHASE_0_OPERATIONS_AND_ACCEPTANCE.md).
+- Mã monolith đối chứng: nhánh `monolith`, nhất là `backend/Clinic.Infrastructure.Sqlserver/Persistence/ApplicationDbContext.cs`, `Configurations/` và `docker-compose.monolith.yml`.

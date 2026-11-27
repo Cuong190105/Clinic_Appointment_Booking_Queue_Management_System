@@ -1,0 +1,40 @@
+\section{Kết luận và hướng phát triển}
+\label{ch:conclusion}
+
+\subsection{Kết quả đạt được}
+
+Dự án đã hoàn thành phần kiến trúc và triển khai chính:
+
+\begin{itemize}
+  \item Phân rã monolith thành API Gateway và sáu service, mỗi service sở hữu database logic riêng.
+  \item Hợp đồng OpenAPI cho Gateway và từng service, kèm drift test.
+  \item Outbox, inbox và idempotency; SAGA có hành động bù cho đặt lịch; choreography cho check-in, hàng đợi, hồ sơ y tế và thông báo.
+  \item Ma trận SLI/SLO/QoS cùng metrics, tracing, dashboard và cảnh báo.
+  \item Bộ kiểm thử tải đầy đủ (smoke, load, spike, soak, contention, high-load, mixed workload) và các lượt benchmark đối chứng với monolith trên cùng ngân sách 12,5 CPU.
+\end{itemize}
+
+Về hiệu năng, monolith có độ trễ đặt lịch thấp hơn nhưng thông lượng xác nhận hai bên tương đương; microservices chạy ổn định dưới tải hỗn hợp có hàng đợi. Đây là đánh đổi điển hình: microservices trả giá bằng độ trễ mạng và tính nhất quán sau cùng để đổi lấy ranh giới sở hữu rõ ràng và khả năng phát hành, mở rộng độc lập.
+
+\subsection{Hạn chế}
+
+Dự án chưa đủ căn cứ để đóng hoàn toàn mục tiêu kiểm thử tải so sánh, và còn hai vấn đề về độ tin cậy messaging và vệ sinh dữ liệu evidence (Mục~\ref{ch:review}). Toàn bộ hệ thống chạy trên một máy với một SQL Server dùng chung, nên chưa chứng minh được khả năng cô lập lỗi và mở rộng độc lập ở mức hạ tầng.
+
+\subsection{Việc cần làm trước khi nghiệm thu toàn bộ}
+
+\begin{enumerate}
+  \item Làm sạch các file evidence chứa JWT, ưu tiên trước khi chia sẻ repo hoặc trình chiếu artifact.
+  \item Bổ sung retry queue và DLX cho consumer của Appointment và Scheduling, sau đó chạy lại test.
+  \item Sửa lỗi walk-in của monolith và chạy lại profile clinic-peak.
+  \item Lặp benchmark với trạng thái dữ liệu tái lập: khôi phục cùng DB snapshot và seed trước mỗi lượt, tối thiểu ba lượt mỗi profile, báo median và khoảng biến thiên.
+  \item Thu tài nguyên của hai stack theo cùng cách: chuỗi \code{docker stats} cùng chu kỳ cho mọi container.
+  \item Chạy lại toàn bộ test và contract validator trên commit nộp, ghi kết quả vào báo cáo nghiệm thu cuối.
+\end{enumerate}
+
+\subsection{Hướng phát triển}
+
+\begin{itemize}
+  \item Tách database của các service chịu tải cao sang instance riêng và triển khai trên Kubernetes để thử nghiệm mở rộng ngang từng service.
+  \item Bổ sung consumer-driven contract test giữa các service giao tiếp qua event.
+  \item Dùng số liệu traffic thực tế của phòng khám để xây dựng profile tải sát thực hơn.
+  \item Tự động hóa benchmark trong CI với snapshot dữ liệu cố định để theo dõi hồi quy hiệu năng.
+\end{itemize}

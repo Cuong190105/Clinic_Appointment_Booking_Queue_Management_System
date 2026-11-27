@@ -1,0 +1,40 @@
+\section{SLA, SLO và QoS}
+\label{ch:sla}
+
+\subsection{Ma trận mục tiêu}
+
+Ma trận chi tiết nằm trong \path{tasks/SLI_SLO_MATRIX_MEMBER_A.md}. Bảng~\ref{tab:slo} tóm tắt các mục tiêu nghiệm thu chính.
+
+\begin{table*}[t]
+\centering
+\caption{Các SLI/SLO và chính sách QoS}
+\label{tab:slo}
+\small
+\begin{tabularx}{\linewidth}{@{}L{3.3cm}L{3.6cm}Y@{}}
+\toprule
+\textbf{SLI / QoS} & \textbf{Mục tiêu} & \textbf{Cách hiểu} \\
+\midrule
+Availability tại Gateway & $\geq 99{,}0\%$ & Loại các 4xx hợp lệ, 401/403, 409 tranh chấp, 429 throttling và client abort khỏi lỗi hệ thống; 5xx/502/503/504 tính là failure \\
+Độ trễ API & p95 $\leq 500$ ms; p99 $\leq 1.500$ ms & Đo riêng từng endpoint/boundary; percentile các hop không cộng lại \\
+Lỗi server & $\leq 1{,}0\%$ & Theo cửa sổ và mẫu tối thiểu quy định trong ma trận \\
+Độ trễ xử lý event & p95 $\leq 5$ s & Từ lúc publish đến lúc xử lý/ack \\
+DLQ & 0 message hợp lệ bị bỏ lại & Poison event phải được cách ly, chẩn đoán và replay an toàn \\
+Invariant & 0 overbooking; 0 ticket trùng & Kiểm tra bằng integration/load test và truy vấn đối soát \\
+Rate limiting & Fixed window, 100 request/phút/partition & Người dùng đã xác thực theo subject; ẩn danh theo IP \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Hiện thực các chính sách QoS}
+
+\begin{itemize}
+  \item \textbf{Rate limiting:} Gateway dùng fixed-window limiter, mặc định 100 request/phút cho mỗi partition, cấu hình qua \code{QoS:RateLimitPermitLimit} trong \path{backend/Clinic.API/Program.cs}. Partition theo subject của JWT với người dùng đã đăng nhập và theo IP với người dùng ẩn danh; không tin header \code{X-Forwarded-For} khi chạy Compose trực tiếp.
+  \item \textbf{Idempotency:} đặt lịch và walk-in nhận idempotency key; unique index bảo đảm request lặp trả về cùng kết quả.
+  \item \textbf{Retry và DLQ:} Queue, Medical Records và Notification có retry queue và dead-letter exchange; Notification cho phép quản trị viên xem và replay delivery dead-lettered qua Gateway.
+  \item \textbf{Timeout và hành động bù:} confirm reservation retry tối đa 4 lần có backoff; reservation tự hết hạn sau 10 phút.
+  \item \textbf{Connection pool:} các service chịu tải ghi cấu hình \code{Min Pool Size}/\code{Max Pool Size} để tránh nghẽn kết nối khi tải tăng đột biến.
+\end{itemize}
+
+\subsection{Phạm vi áp dụng}
+
+Các ngưỡng trên là mục tiêu đồ án trên môi trường Docker Compose một máy. Không có căn cứ để trình bày chúng như SLA production hay cam kết uptime theo tháng.

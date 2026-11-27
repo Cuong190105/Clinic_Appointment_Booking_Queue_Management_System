@@ -1,0 +1,110 @@
+\section{Hệ thống monolith cũ}
+\label{ch:monolith}
+
+\subsection{Kiến trúc và triển khai}
+
+Monolith (nhánh \code{monolith}) là một ứng dụng ASP.NET Core (\code{Clinic.API}) chia lớp API / Application / Domain / Infrastructure, đi kèm frontend Vue và một SQL Server. Các nghiệp vụ gọi nhau trong cùng tiến trình và dùng một \code{ApplicationDbContext} duy nhất (Hình~\ref{fig:monolith}). Đây là khác biệt chính so với ranh giới sở hữu dữ liệu của bản microservices.
+
+Để benchmark đối chứng, monolith được container hóa bằng \path{docker-compose.monolith.yml} (API ở cổng 5100) với tổng ngân sách CPU tương đương bản microservices (12,5 CPU).
+
+\begin{figure}[!t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[node distance=9mm and 12mm]
+  \node[actor] (u) {Patient / Receptionist\\Doctor / Admin};
+  \node[box, right=of u] (fe) {Vue Frontend};
+  \node[box, right=of fe, minimum width=4.2cm] (api) {\textbf{Clinic.API (monolith)}\\Controllers + Application\\+ Domain};
+  \node[box, below=of api, minimum width=4.2cm] (inf) {Infrastructure / EF Core\\\code{ApplicationDbContext}};
+  \node[db, below=of inf] (db) {SQL Server\\ClinicDB};
+  \draw[arr] (u) -- (fe);
+  \draw[arr] (fe) -- node[lbl,above]{HTTP} (api);
+  \draw[arr] (api) -- node[lbl,right]{gọi trong tiến trình} (inf);
+  \draw[arr] (inf) -- (db);
+\end{tikzpicture}%
+}
+\caption{Kiến trúc hệ thống monolith}
+\label{fig:monolith}
+\end{figure}
+
+\subsection{Thiết kế cơ sở dữ liệu}
+
+\code{ApplicationDbContext} đăng ký chung các nhóm bảng:
+\begin{codeitems}
+  \item \textbf{Định danh và phân quyền:} \code{Persons}, \code{Users}, \code{Roles}, \code{Permissions}, \code{UserRoles}, \code{RolePermissions}, \code{RefreshTokens}.
+  \item \textbf{Nhân sự và lịch làm việc:} \code{Employees}, \code{Doctors}, \code{Specialties}, \code{WorkHistories}, \code{WorkSchedules}, \code{ShiftRequests}.
+  \item \textbf{Khám bệnh:} \code{Patients}, \code{Appointments}, \code{AppointmentSnapshots}, \code{QueueTickets}, \code{QueueCounters}.
+  \item \textbf{Hồ sơ y tế:} \code{MedicalReports}, \code{MedicalReportAmendments}, \code{MedicalAccessAudits}.
+  \item \textbf{Thông báo:} \code{Notifications}.
+\end{codeitems}
+
+Cấu hình EF Core nằm ở \path{backend/Clinic.Infrastructure.Sqlserver/Configurations}. Hình~\ref{fig:erd} là ERD khái quát các quan hệ nghiệp vụ chính (không liệt kê mọi cột, index hay migration).
+
+\begin{figure*}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  ent/.style={draw=svcborder,fill=svc,rounded corners=1pt,font=\footnotesize\bfseries,
+              minimum width=2.5cm,minimum height=7mm,align=center},
+  rel/.style={draw=black!65,thick},
+  card/.style={font=\tiny,fill=white,inner sep=1pt},
+  node distance=11mm and 9mm]
+  % Cột giữa: Person
+  \node[ent] (person) {PERSON};
+  \node[ent, above left=of person] (user) {USER};
+  \node[ent, above=of person] (employee) {EMPLOYEE};
+  \node[ent, below=of person] (patient) {PATIENT};
+  \node[ent, left=of person] (notif) {NOTIFICATION};
+  % Định danh
+  \node[ent, above=of user] (rtoken) {REFRESH\_TOKEN};
+  \node[ent, left=of user] (userrole) {USER\_ROLE};
+  \node[ent, above=of userrole] (role) {ROLE};
+  \node[ent, left=of role] (roleperm) {ROLE\_PERM};
+  \node[ent, below=of roleperm] (perm) {PERMISSION};
+  % Nhân sự
+  \node[ent, right=22mm of employee] (doctor) {DOCTOR};
+  \node[ent, above=of doctor] (workhist) {WORK\_HISTORY};
+  \node[ent, right=of workhist] (specialty) {SPECIALTY};
+  \node[ent, right=of doctor] (schedule) {WORK\_SCHEDULE};
+  % Khám
+  \node[ent, below=24mm of schedule] (appt) {APPOINTMENT};
+  \node[ent, right=of appt] (snap) {APPT\_SNAPSHOT};
+  \node[ent, below=of appt] (ticket) {QUEUE\_TICKET};
+  \node[ent, below left=of ticket] (report) {MEDICAL\_REPORT};
+  \node[ent, below=of report] (amend) {AMENDMENT};
+
+  \draw[rel] (person) -- node[card]{1 : 0..1} (user);
+  \draw[rel] (person) -- node[card]{1 : 0..1} (employee);
+  \draw[rel] (person) -- node[card]{1 : 0..1} (patient);
+  \draw[rel] (person) -- node[card]{1 : n} (notif);
+  \draw[rel] (user) -- node[card]{1 : n} (rtoken);
+  \draw[rel] (user) -- node[card]{1 : n} (userrole);
+  \draw[rel] (role) -- node[card]{1 : n} (userrole);
+  \draw[rel] (role) -- node[card]{1 : n} (roleperm);
+  \draw[rel] (perm) -- node[card]{1 : n} (roleperm);
+  \draw[rel] (employee) -- node[card]{1 : 0..1} (doctor);
+  \draw[rel] (doctor) -- node[card]{1 : n} (workhist);
+  \draw[rel] (specialty) -- node[card]{1 : n} (workhist);
+  \draw[rel] (doctor) -- node[card]{1 : n} (schedule);
+  \draw[rel] (schedule) -- node[card]{1 : n} (appt);
+  \draw[rel] (patient) -- node[card]{1 : n} (appt);
+  \draw[rel] (appt) -- node[card]{1 : n} (snap);
+  \draw[rel] (appt) -- node[card]{1 : 0..1} (ticket);
+  \draw[rel] (appt) -- node[card]{1 : 0..1} (report);
+  \draw[rel] (ticket) -- node[card]{1 : 0..1} (report);
+  \draw[rel] (report) -- node[card]{1 : n} (amend);
+\end{tikzpicture}%
+}
+\caption{ERD khái quát của CSDL monolith}
+\label{fig:erd}
+\end{figure*}
+
+Một số quan hệ là tùy chọn: Person có thể chưa có User; khách walk-in vẫn có hồ sơ Person/Patient. \code{MedicalAccessAudits} nằm cùng database nhưng chỉ khai báo khóa và index, không khai báo khóa ngoại trong EF nên không xuất hiện trên sơ đồ.
+
+\subsection{Hạn chế của monolith}
+
+\begin{itemize}
+  \item Mọi miền nghiệp vụ chia sẻ một mô hình dữ liệu; thay đổi schema ở một miền có thể ảnh hưởng miền khác.
+  \item Không thể mở rộng riêng phần chịu tải cao (đặt lịch, hàng đợi) mà phải nhân bản toàn bộ ứng dụng.
+  \item Lỗi ở một module (ví dụ gửi thông báo) có thể làm chậm hoặc làm hỏng cả tiến trình.
+  \item Phát hành phải triển khai lại toàn bộ ứng dụng.
+\end{itemize}

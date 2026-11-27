@@ -1,0 +1,195 @@
+\section{Kiến trúc microservices}
+\label{ch:micro}
+
+\subsection{Phân rã nghiệp vụ}
+
+Frontend truy cập hệ thống qua Clinic API Gateway (\code{Clinic.API} ở nhánh \code{main}; sau đợt cleanup, project này chỉ còn vai trò Gateway). Gateway xác thực, áp chính sách QoS và proxy request đến service sở hữu nghiệp vụ. Hệ thống được chia thành sáu bounded context (Bảng~\ref{tab:services}).
+
+\begin{table*}[t]
+\centering
+\caption{Các service và dữ liệu sở hữu}
+\label{tab:services}
+\small
+\begin{tabularx}{\linewidth}{@{}L{2.5cm}L{3.9cm}YL{3.8cm}@{}}
+\toprule
+\textbf{Service} & \textbf{Project} & \textbf{Nghiệp vụ / dữ liệu sở hữu} & \textbf{Database logic} \\
+\midrule
+Identity & \path{Clinic.Identity.Service} & Tài khoản, credential, token, role/permission & \code{ClinicIdentityDB} \\
+Staff \& Scheduling & \path{Clinic.StaffScheduling.Service} & Nhân sự/bác sĩ, chuyên khoa, ca làm, reservation slot & \code{ClinicSchedulingDB} \\
+Appointment & \path{Clinic.Appointment.Service} & Vòng đời lịch hẹn, đặt/đổi/hủy/check-in, walk-in, outbox & \code{ClinicAppointmentDB} \\
+Queue & \path{Clinic.Queue.Service} & Queue ticket/counter, số thứ tự, trạng thái gọi/khám & \code{ClinicQueueDB} \\
+Medical Records & \path{Clinic.MedicalRecords.Service} & Hồ sơ bệnh nhân, encounter, medical report, amendment, audit & \code{ClinicMedicalRecordsDB} \\
+Notification & \path{Clinic.Notification.Service} & Inbox, delivery/outbox, replay, SignalR hub & \code{ClinicNotificationDB} \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Sáu database được cấu hình riêng nhưng cùng chạy trên service \code{db} (một SQL Server container) trong Docker Compose. Mỗi service chỉ có connection string tới database của chính nó; giao tiếp liên service đi qua HTTP client có cấu hình hoặc qua RabbitMQ.
+
+\subsection{Sơ đồ tổng quan}
+
+\begin{figure*}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[svc/.style={box,minimum width=2.6cm,minimum height=11mm}]
+  % Lớp truy cập
+  \node[actor] (users) at (0,3.2) {Patient / Receptionist / Doctor / Admin};
+  \node[box] (fe) at (0,1.7) {Frontend (Vue)};
+  \node[box, minimum width=8.5cm] (gw) at (0,0) {\textbf{Clinic.API Gateway}\\Public API + Auth (JWT) + QoS (rate limit) + Proxy};
+  % Quan sát
+  \node[obsbox, minimum width=3.2cm, minimum height=8mm] (prom)   at (8.5,0.5)  {Prometheus + alert};
+  \node[obsbox, minimum width=3.2cm, minimum height=8mm] (jaeger) at (8.5,-0.5) {Jaeger (OTLP)};
+  % Hàng service
+  \node[svc] (id)  at (-8.5,-2.4) {Identity};
+  \node[svc] (sch) at (-5.1,-2.4) {Staff \&\\Scheduling};
+  \node[svc] (ap)  at (-1.7,-2.4) {Appointment};
+  \node[svc] (q)   at (1.7,-2.4)  {Queue};
+  \node[svc] (mr)  at (5.1,-2.4)  {Medical\\Records};
+  \node[svc] (nt)  at (8.5,-2.4)  {Notification\\+ SignalR};
+  % Event bus và CSDL
+  \node[infrabox, minimum width=19.6cm, minimum height=8mm] (mq) at (0,-4.4)
+       {\textbf{RabbitMQ} — topic exchange, retry queue, DLX};
+  \node[infrabox, minimum width=9cm, minimum height=9mm, rounded corners=6pt] (sql) at (0,-6.3)
+       {SQL Server container — 6 database logic (mỗi service một DB)};
+
+  \draw[arr] (users) -- (fe);
+  \draw[arr] (fe) -- (gw);
+  \foreach \s in {id,sch,ap,q,mr,nt} { \draw[arr] (gw.south) -- (\s.north); }
+
+  % Lời gọi HTTP đồng bộ Appointment <-> Scheduling
+  \draw[{Stealth[length=2mm]}-{Stealth[length=2mm]},thick,draw=svcborder] (sch.east) -- node[lbl,above]{HTTP} (ap.west);
+
+  % Event: Identity chỉ phát, các service còn lại vừa phát vừa nhận
+  \draw[arr,draw=red!60!black] (id.south) -- (id.south |- mq.north);
+  \foreach \s in {sch,ap,q,mr} {
+    \draw[{Stealth[length=2mm]}-{Stealth[length=2mm]},thick,draw=red!60!black]
+      ($(\s.south)+(-0.5,0)$) -- ($(\s.south)+(-0.5,0)$ |- mq.north);
+  }
+  \draw[arr,draw=red!60!black] ($(nt.south)+(-0.5,0)$ |- mq.north) -- ($(nt.south)+(-0.5,0)$);
+
+  % Kết nối CSDL vẽ ở lớp nền, đi phía sau thanh RabbitMQ
+  \begin{scope}[on background layer]
+    \foreach \s in {id,sch,ap,q,mr,nt} {
+      \draw[draw=infraborder!70,thick,dashed] ($(\s.south)+(0.5,0)$) -- (sql.north);
+    }
+  \end{scope}
+
+  \draw[dasharr,draw=obsborder] (prom.west) -- node[lbl,above]{scrape} (gw.east |- prom.west);
+  \draw[dasharr,draw=obsborder] (gw.east |- jaeger.west) -- node[lbl,below]{trace} (jaeger.west);
+\end{tikzpicture}%
+}
+\caption{Tổng quan kiến trúc microservices. Mọi service đều được Prometheus scrape và gửi trace sang Jaeger; sơ đồ chỉ vẽ Gateway cho gọn.}
+\label{fig:overview}
+\end{figure*}
+
+Hình~\ref{fig:overview} thể hiện quyền sở hữu và hướng giao tiếp logic. Mũi tên đỏ là luồng event qua RabbitMQ (Identity chỉ phát event, các service khác vừa phát vừa nhận); mũi tên xanh giữa Appointment và Scheduling là lời gọi HTTP đồng bộ; đường đứt màu cam là kết nối của từng service tới database riêng trên SQL Server dùng chung.
+
+\subsection{Luồng đặt lịch: điều phối lai và SAGA}
+
+Đặt lịch là luồng có tranh chấp: nhiều bệnh nhân có thể cùng chọn một slot. Hệ thống dùng \textbf{điều phối lai}: Appointment điều khiển trực tiếp các bước reserve/confirm qua API, còn việc lan truyền kết quả sang các bounded context khác dùng choreography qua event (Hình~\ref{fig:booking}).
+
+\begin{figure*}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  ll/.style={draw=black!35,dashed},
+  head/.style={box,minimum width=2.6cm},
+  msg/.style={arr},
+  ret/.style={arr,dashed,draw=black!55},
+  note/.style={font=\scriptsize,align=left,fill=yellow!10,draw=yellow!50!black,inner sep=3pt}]
+  \foreach \x/\n/\lab in {0/c/Client,3.4/gw/Gateway,6.8/ap/Appointment,10.2/sch/Scheduling,13.6/mq/RabbitMQ,17/nt/Notification} {
+    \node[head] (\n) at (\x,0) {\lab};
+    \draw[ll] (\x,-0.5) -- (\x,-12.2);
+  }
+  \draw[msg] (0,-1.1) -- node[lbl,above]{POST /appointments} node[lbl,below]{+ Idempotency-Key} (3.4,-1.1);
+  \draw[msg] (3.4,-1.7) -- node[lbl,above]{proxy} (6.8,-1.7);
+  \draw[msg] (6.8,-2.4) -- node[lbl,above]{reserve slot} (10.2,-2.4);
+  \draw[ret] (10.2,-3.0) -- node[lbl,above]{reservation (10 phút)} node[lbl,below]{hoặc 409} (6.8,-3.0);
+  \node[note,anchor=west] at (7.0,-3.9) {Ghi appointment (chờ xác nhận)\\+ outbox trong một transaction};
+  \draw[ret] (6.8,-4.8) -- node[lbl,above]{201 Created} (3.4,-4.8);
+  \draw[ret] (3.4,-5.3) -- (0,-5.3);
+  \node[note,anchor=west] at (7.0,-6.2) {ConfirmationWorker (đánh thức bởi\\AppointmentWorkSignal)};
+  \draw[msg] (6.8,-7.1) -- node[lbl,above]{confirm reservation} (10.2,-7.1);
+  \draw[ret] (10.2,-7.7) -- node[lbl,above]{ok} (6.8,-7.7);
+  \draw[msg] (6.8,-8.5) -- node[lbl,above]{AppointmentConfirmed (outbox publisher)} (13.6,-8.5);
+  \draw[msg] (13.6,-9.2) -- node[lbl,above]{deliver} (17,-9.2);
+  \node[note,anchor=east] at (16.8,-10.1) {Inbox chống trùng, tạo thông báo};
+  \node[note,anchor=west] at (7.0,-11.3) {Lỗi confirm: retry tối đa 4 lần có backoff,\\sau đó release reservation};
+\end{tikzpicture}%
+}
+\caption{Luồng đặt lịch: bước đồng bộ reserve và SAGA nền xác nhận}
+\label{fig:booking}
+\end{figure*}
+
+\begin{enumerate}
+  \item Gateway chuyển \code{POST /appointments} kèm idempotency key đến Appointment Service. Gửi lại cùng key trả về đúng lịch hẹn đã tạo.
+  \item Appointment kiểm tra request và patient projection, gọi Scheduling để reserve slot. Đây là bước đồng bộ, trả \code{409} khi slot đã hết. Reservation có hạn 10 phút; \code{ReservationExpirationWorker} thu hồi reservation quá hạn.
+  \item Appointment ghi lịch hẹn trạng thái chờ và outbox trong cùng transaction cục bộ.
+  \item \code{AppointmentConfirmationWorker} gọi Scheduling để confirm, retry tối đa 4 lần với backoff; nếu vẫn thất bại thì release reservation (hành động bù). Khi thành công, lịch hẹn chuyển \code{Confirmed} và phát \code{AppointmentConfirmed}.
+  \item Notification consume event qua inbox để tạo thông báo. Nếu broker gián đoạn, outbox giữ thông điệp đến khi broker phục hồi.
+\end{enumerate}
+
+Vì các database độc lập, đây không phải một transaction ACID xuyên hệ thống. Tính đúng đắn dựa vào khóa bản ghi schedule cùng filtered unique index ở Scheduling (chống overbooking), unique idempotency key ở Appointment (chống tạo trùng) và hành động bù khi confirm thất bại.
+
+\textbf{Hủy lịch:} Appointment ghi trạng thái hủy và \code{AppointmentCancelled} vào outbox, đồng thời gọi trực tiếp Scheduling để nhả slot (best-effort). Scheduling cũng consume event để nhả slot, nên hai đường bổ trợ cho nhau.
+
+\subsection{Luồng check-in và hàng đợi: choreography}
+
+\begin{figure}[!t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[node distance=10mm and 14mm]
+  \node[box] (ap) {Appointment};
+  \node[infrabox, right=of ap] (mq) {RabbitMQ};
+  \node[box, right=of mq] (q) {Queue};
+  \node[box, below=14mm of mq, xshift=-38mm] (mr) {Medical Records};
+  \node[box, below=14mm of mq, xshift=0mm] (nt) {Notification};
+  \node[box, below=14mm of mq, xshift=38mm] (ap2) {Appointment};
+
+  \draw[arr] (ap) -- node[lbl,above]{\scriptsize 1. CheckedIn} (mq);
+  \draw[arr] (mq.north east) to[bend left=35] node[lbl,above]{\scriptsize 2. tạo ticket} (q.north west);
+  \draw[arr] (q.south west) to[bend left=35] node[lbl,pos=0.35,below right]{\scriptsize 3. gọi số / khám} (mq.south east);
+  \draw[arr] (mq) -- (mr);
+  \draw[arr] (mq) -- (nt);
+  \draw[arr] (mq) -- node[lbl,pos=0.75,left]{\scriptsize exam-completed} (ap2);
+\end{tikzpicture}%
+}
+\caption{Choreography của luồng check-in, hàng đợi, hồ sơ và thông báo}
+\label{fig:checkin}
+\end{figure}
+
+\begin{enumerate}
+  \item Appointment kiểm tra check-in theo \code{AppointmentId}, ghi trạng thái và \code{AppointmentCheckedIn} vào outbox.
+  \item Queue consume event qua inbox (unique index), tạo đúng một ticket cho mỗi lịch hẹn và cấp số theo ngày/bác sĩ. Lỗi tạm thời được đưa vào retry queue (tối đa 3 lần); quá số lần thì vào DLQ.
+  \item Queue phát event gọi số, bắt đầu và kết thúc khám. Medical Records cập nhật encounter theo \code{AppointmentId}, Notification tạo thông báo, Appointment nhận \code{queue.exam-completed} để đóng lịch hẹn.
+  \item Event trùng hoặc retry không tạo ticket/encounter trùng; thứ tự vòng đời được bảo vệ bằng state guard và idempotency.
+\end{enumerate}
+
+Hai invariant quan trọng được bảo vệ ngay tại tầng database của Queue:
+
+\codecaption{Unique index trong QueueTicketConfiguration.cs}{lst:queue-index}
+\begin{lstlisting}[language={[Sharp]C}]
+// 1 ticket per appointment
+builder.HasIndex(t => t.AppointmentId)
+    .IsUnique()
+    .HasDatabaseName("IX_QueueTickets_AppointmentId");
+
+// Unique queue number per doctor per day
+builder.HasIndex(t => new { t.DoctorId, t.QueueDate, t.QueueNumber })
+    .IsUnique()
+    .HasDatabaseName("IX_QueueTickets_DoctorId_QueueDate_QueueNumber");
+\end{lstlisting}
+
+\subsection{Hợp đồng API}
+
+Repo lưu OpenAPI snapshot cho Gateway và sáu service trong \path{tasks/contracts/} (kèm \path{api-catalog-baseline.json}). Mỗi service công bố endpoint Swagger, và \code{ApiContractDriftTests} trong \path{backend/Clinic.IntegrationTests} so sánh schema đang chạy với snapshot để phát hiện drift. Lượt nghiệm thu ngày 10/11/2026 ghi contract validation 13/13 pass.
+
+\subsection{Observability và triển khai}
+
+\begin{codeitems}
+  \item \textbf{Metrics:} mọi service xuất metrics cho Prometheus; \code{mssql-exporter} thu số liệu SQL Server. Dashboard SLA và alert rule nằm trong \path{observability/}.
+  \item \textbf{Tracing:} các service gửi trace qua OTLP sang Jaeger, cho phép theo dõi một request đi qua Gateway và nhiều service.
+  \item \textbf{Health:} mỗi service có health/readiness check; Compose chỉ khởi động service phụ thuộc khi service trước đã healthy.
+  \item \textbf{Tài nguyên:} mỗi container có giới hạn CPU/RAM trong \path{docker-compose.yml}, tổng cộng 12,5 CPU, bằng ngân sách của monolith khi benchmark.
+  \item \textbf{Bảo mật:} JWT ký bằng khóa bất đối xứng lưu trong volume; các service xác thực token qua Identity. Mật khẩu RabbitMQ bắt buộc cấu hình qua \code{.env}.
+\end{codeitems}
