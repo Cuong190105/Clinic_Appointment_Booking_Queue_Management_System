@@ -241,12 +241,15 @@ Sau khi sửa lỗi walk-in trên nhánh `monolith` và chạy từng hệ thố
 | `load.js` | Monolith | 10/s, 60s warmup + 5m steady (`3.329` iters) | Read steady p95: 14,60 ms | — | 100% steady / 0% (`0/5.132`) | — |
 | `load.js` | Microservices | 10/s, 60s warmup + 5m steady (`3.329` iters, `7.256` reqs) | 46,71 / 66,52 / 107,00 ms (steady) | 344 ms | 100% (`5.785/5.785`) / 0% (`0/6.273`) | 100% (`662/662`) |
 | `booking-high-load.js` | Monolith | 20/s, 120s (`2.400` iters, `7.003` reqs) | 5,61 / 30,45 / — ms | 38 ms | 100% (`6.570/6.570`) / 0% | 82,00% (`1.968/2.400`) |
-| `booking-high-load.js` | Microservices | 20/s, 120s (`2.400` iters) | Write p95: 57,70 ms | 339 ms | 98,55% / 1,337% (FAIL) | 79,35% (`1.829/2.305`) |
+| `booking-high-load.js` (cold-login) | Microservices | 20/s, 120s (`2.400` iters) | Write p95: 57,70 ms | 339 ms | 98,55% / 1,337% (FAIL) | 79,35% (`1.829/2.305`) |
+| `booking-high-load.js` (warm-sessions, `228` VU) | Microservices | 20/s, 120s (`2.401` iters, `8.799` reqs) | 19,89 / 82,04 / 112,26 ms | 367 ms | 100% (`8.232/8.232`) / 0% (**PASS**) | 80,97% (`1.944/2.401`) |
 
 Ghi chú kỹ thuật cho lượt full-duration 27/11/2026:
-- Ở `clinic-peak` 500 VU (14 phút), **cả Monolith và Microservices đều đạt toàn bộ ngưỡng SLO** (`thresholdsPassed: true`, `0%` 5xx, `0%` throttled). Monolith có latency thấp hơn rõ rệt (`12,53 ms` read, `41,76 ms` write, `57 ms` booking so với `46,36 ms`, `147,59 ms`, `480 ms` bên Microservices) nhờ giao dịch cục bộ không qua gateway/outbox.
-- Ở `booking-high-load.js` trên Microservices, 228 VU khởi tạo đồng thời tại `t=0` không qua `warmSessions` gây bão đăng nhập khiến bulkhead Identity từ chối `95` request (`503`, `slo_server_errors = 1,337%` > `1%`, `slo_availability = 98,55%` < `99%`), và pha teardown dùng một tài khoản `admin1` hủy `1.829` lịch nên chạm ngưỡng Staff `600 req/min` (`61` lỗi `429`). Tuy nhiên trong suốt pha đặt lịch không có dropped iteration (`2.400/2.400`).
-- Các file summary JSON mới được lưu tại `tests/load/evidence/*-latest.json`. Sau khi khôi phục rate limit mặc định, `scripts/check-slo-invariants.ps1` đạt **11/11 PASS**.
+- Ở `clinic-peak` 500 VU (14 phút), **cả Monolith và Microservices đều đạt toàn bộ ngưỡng SLO** (`thresholdsPassed: true`, `0%` 5xx, `0%` throttled). Monolith có latency thấp hơn rõ rệt (`12,53 ms` read, `41,76 ms` write, `57 ms` booking so với `46,36 ms`, `147,59 ms` , `480 ms` bên Microservices) nhờ giao dịch cục bộ không qua gateway/outbox.
+- **Chứng minh điểm nghẽn tại dịch vụ đăng nhập (Identity Service)**:
+  - Ở lượt `booking-high-load.js` **cold-login** ban đầu (`booking-high-load-microservices-latest.json`), 228 VU khởi tạo đồng thời tại `t=0` không qua `warmSessions` gây bão đăng nhập khiến bulkhead của `identity-service` từ chối `95` request (`503`, `slo_server_errors = 1,337%` > `1%`, `slo_availability = 98,55%` < `99%`), đồng thời pha teardown dùng một tài khoản `admin1` hủy liên tiếp nên chạm rate limit Staff `600 req/min` (`61` lỗi `429`).
+  - Sau khi bổ sung `warmSessions` (`228` VU đăng nhập trước ở nhịp `4 req/s` trong `setup()`) và giãn nhịp teardown (`sleep(0.11)`), lượt chạy lại (`booking-high-load-warm-microservices-latest.json`) đạt **100% PASS** (`thresholdsPassed: true`, `slo_availability = 100%`, `slo_server_errors = 0%`, `slo_throttled = 0%`, `slo_write_duration` p95 = `82,04 ms`, `workflow_booking_confirmed_duration` p95 = `367 ms`, hủy sạch `1.944/1.944` lịch). So sánh hai lượt chạy cho thấy **điểm nghẽn nằm ở thông lượng đăng nhập đồng thời của `identity-service` (bulkhead/BCrypt) tại `t=0`, không phải ở luồng đặt lịch**.
+- Các file summary JSON mới được lưu tại `tests/load/evidence/*-latest.json` (giữ nguyên cả hai bản `booking-high-load-microservices-latest.json` và `booking-high-load-warm-microservices-latest.json` để đối chiếu). Sau khi khôi phục rate limit mặc định, `scripts/check-slo-invariants.ps1` đạt **11/11 PASS**.
 
 ### 6.5. Tối ưu đã thực hiện
 
@@ -318,7 +321,7 @@ Review tĩnh trên commit `5dd739f`, tập trung vào độ tin cậy messaging,
 
 1. **Làm sạch evidence chứa JWT** (vấn đề 1), ưu tiên trước khi chia sẻ repo hoặc chiếu artifact.
 2. **Bổ sung retry + DLX cho consumer Appointment và Scheduling** (vấn đề 2), rồi chạy lại test.
-3. **Đã hoàn thành sửa lỗi walk-in monolith và chạy lại full-duration `clinic-peak`, `load.js`, `booking-high-load.js`** trên cả hai hệ thống (mục 6.4). Tiếp tục bổ sung warm-up session / phân tán tài khoản teardown cho `booking-high-load.js` trên Microservices nếu cần đạt ngưỡng `thresholdsPassed: true` cho burst 228 VU tại `t=0`.
+3. **Đã hoàn thành sửa lỗi walk-in monolith và chạy lại full-duration `clinic-peak`, `load.js`, `booking-high-load.js`** trên cả hai hệ thống (mục 6.4). Với `booking-high-load.js` trên Microservices, đã bổ sung `warmSessions` trong `setup()` để tách biệt và chứng minh điểm nghẽn nằm ở thông lượng đăng nhập đồng thời tại `t=0` của `identity-service`, giúp lượt chạy warm-sessions đạt `thresholdsPassed: true` (`100%` availability, `0%` 5xx).
 4. **Lặp benchmark có trạng thái dữ liệu tái lập:** khôi phục cùng DB snapshot/seed trước mỗi lượt, tối thiểu ba lượt mỗi profile, báo median và khoảng biến thiên.
 5. **Thu tài nguyên ngang nhau:** chuỗi `docker stats` cùng chu kỳ cho mọi container của cả hai stack. CPU trên 100% nghĩa là dùng nhiều hơn một logical core, không phải vượt quota.
 6. **Chạy lại toàn bộ test và contract validator** trên commit nộp, ghi kết quả vào báo cáo nghiệm thu cuối.

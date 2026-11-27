@@ -144,6 +144,7 @@ export function cleanupRunAppointments(adminToken, dates, runId) {
       if (!String(a.reason || '').includes(runId) || ['Cancelled', 'Completed'].includes(a.status)) continue;
       const c = post(`/appointments/${a.id}/cancel`, { token: adminToken, cls: 'none', name: 'cleanup-cancel', allowed: [200, 204, 400] });
       if (c.status === 200 || c.status === 204) cancelled++; else failed++;
+      sleep(0.11); // Stay under the 600 req/min Staff quota during bulk teardown.
     }
   }
   return { cancelled, failed };
