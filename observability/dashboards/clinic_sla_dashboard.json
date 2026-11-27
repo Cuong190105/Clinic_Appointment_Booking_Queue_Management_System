@@ -191,14 +191,14 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rabbitmq_queue_messages",
-          "legendFormat": "{{ queue }} depth",
+          "expr": "sum(rabbitmq_queue_messages)",
+          "legendFormat": "Total queue depth",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rabbitmq_queue_messages_unacknowledged",
-          "legendFormat": "{{ queue }} unacked",
+          "expr": "sum(rabbitmq_queue_messages_unacknowledged)",
+          "legendFormat": "Total unacked",
           "refId": "B"
         }
       ]

@@ -1923,6 +1923,13 @@
             }
           },
           {
+            "name": "X-Clinic-Service-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Idempotency-Key",
             "in": "header",
             "schema": {
@@ -1952,7 +1959,12 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
       }
     },
     "/schedules/{scheduleId}/reservations/{reservationId}/confirm": {
@@ -1980,6 +1992,13 @@
             }
           },
           {
+            "name": "X-Clinic-Service-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "X-Correlation-ID",
             "in": "header",
             "description": "Distributed correlation identifier",
@@ -1992,7 +2011,12 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
       }
     },
     "/schedules/{scheduleId}/reservations/{reservationId}/release": {
@@ -2020,6 +2044,13 @@
             }
           },
           {
+            "name": "X-Clinic-Service-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "X-Correlation-ID",
             "in": "header",
             "description": "Distributed correlation identifier",
@@ -2032,7 +2063,12 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "security": [
+          {
+            "ServiceToken": []
+          }
+        ]
       }
     },
     "/shifts/suggestions/{id}/approve": {
@@ -2404,6 +2440,13 @@
         ],
         "parameters": [
           {
+            "name": "X-Clinic-Service-Token",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "X-Correlation-ID",
             "in": "header",
             "description": "Distributed correlation identifier",
@@ -2552,6 +2595,13 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "schedulingReservationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -2607,9 +2657,7 @@
             ],
             "format": "int32"
           },
-          "status": {
-            "type": "string"
-          },
+          "status": {},
           "specialtyId": {
             "type": "string",
             "format": "uuid"
@@ -2688,7 +2736,6 @@
             "default": 0
           },
           "status": {
-            "type": "string",
             "default": "Active"
           },
           "specialtyId": {

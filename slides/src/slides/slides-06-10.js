@@ -192,7 +192,7 @@ function buildSlides06To10(pptx) {
 
     addPill(slide, 'GỌI API ĐỒNG BỘ', 1.82, 1.72, 1.68, theme.colors.sky, theme.colors.navy);
     addPill(slide, 'GIAO DỊCH CỤC BỘ', 5.74, 1.72, 1.72, theme.colors.sky, theme.colors.navy);
-    addPill(slide, 'OUTBOX → SỰ KIỆN RABBITMQ', 8.92, 1.72, 2.38, theme.colors.sky, theme.colors.teal);
+    addPill(slide, 'WORKER HTTP + OUTBOX', 8.92, 1.72, 2.38, theme.colors.sky, theme.colors.teal);
 
     const steps = [
       {
@@ -216,7 +216,7 @@ function buildSlides06To10(pptx) {
       {
         x: 8.02,
         title: '4 · Xác nhận giữ chỗ',
-        body: 'Worker phát sự kiện, xác nhận\nvà chuyển sang Confirmed',
+        body: 'Worker gọi Scheduling qua HTTP;\nchuyển trạng thái sang Confirmed',
         accent: theme.colors.teal,
       },
       {

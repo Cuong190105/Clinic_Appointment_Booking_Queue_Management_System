@@ -500,8 +500,8 @@ function buildSlides11To17(pptx) {
     });
 
     rect(slide, 0.58, 6.38, 12.15, 0.48, 'EAF0F4', 'EAF0F4', false);
-    text(slide, 'Cùng ngân sách 12,5 CPU / 5,06 GiB RAM · High-Load: trung vị 3 lượt (30 VU, 2.400 slot) · Mixed: 5 phút duy trì (20 VU & 30 VU) · 0% lỗi 5xx ở các luồng trên.', 0.74, 6.5, 11.82, 0.24, {
-      fontSize: 10.5, color: theme.colors.slate, align: 'center',
+    text(slide, 'Ngân sách tổng 12,5 CPU (~7,5 backend Mono vs ~4 đường booking Micro) · High-Load: trung vị 3 lượt, trần 2.400 slot · Đo trước bản vá RCSI 27/11.', 0.74, 6.5, 11.82, 0.24, {
+      fontSize: 10.3, color: theme.colors.slate, align: 'center',
     });
 
     slide.addNotes(notesFor(15));

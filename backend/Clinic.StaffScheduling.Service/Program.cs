@@ -127,7 +127,8 @@ builder.Services.AddOpenApi(options =>
         var relativePath = "/" + (context.Description.RelativePath ?? string.Empty).TrimStart('/');
         var metadata = context.Description.ActionDescriptor.EndpointMetadata;
         var hasAuthorize = metadata.OfType<Microsoft.AspNetCore.Authorization.IAuthorizeData>().Any();
-        if (relativePath.StartsWith("/internal/", StringComparison.OrdinalIgnoreCase))
+        if (relativePath.StartsWith("/internal/", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.Contains("/reservations", StringComparison.OrdinalIgnoreCase))
         {
             operation.Security = new List<Microsoft.OpenApi.OpenApiSecurityRequirement>
             {

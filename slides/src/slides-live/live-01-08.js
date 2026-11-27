@@ -632,7 +632,7 @@ function buildLiveSlides01To08(pptx) {
 
     addLivePill(slide, 'GỌI API ĐỒNG BỘ', 1.65, 1.68, 2.02, theme.colors.sky, theme.colors.navy, { h: 0.36, fontSize: 12 });
     addLivePill(slide, 'GIAO DỊCH CỤC BỘ', 5.62, 1.68, 2.05, theme.colors.sky, theme.colors.navy, { h: 0.36, fontSize: 12 });
-    addLivePill(slide, 'OUTBOX → SỰ KIỆN RABBITMQ', 8.75, 1.68, 2.75, theme.colors.sky, theme.colors.teal, { h: 0.36, fontSize: 12 });
+    addLivePill(slide, 'WORKER HTTP + OUTBOX', 8.75, 1.68, 2.75, theme.colors.sky, theme.colors.teal, { h: 0.36, fontSize: 12 });
 
     const steps = [
       {
@@ -656,7 +656,7 @@ function buildLiveSlides01To08(pptx) {
       {
         x: 8.02,
         title: '4 · Xác nhận',
-        body: 'Worker phát event;\nchuyển Confirmed',
+        body: 'Worker gọi Scheduling HTTP;\nchuyển Confirmed',
         accent: theme.colors.teal,
       },
       {

@@ -53,10 +53,17 @@ if (!builder.Environment.IsEnvironment("Testing") && !builder.Configuration.GetV
 }
 
 // HTTP Client for Staff & Scheduling Service
-builder.Services.AddHttpClient<ISchedulingClient, SchedulingClient>(client =>
+builder.Services.AddHttpClient<ISchedulingClient, SchedulingClient>((sp, client) =>
 {
+    var config = sp.GetRequiredService<IConfiguration>();
     client.BaseAddress = new Uri(schedulingBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(10);
+    var serviceToken = config["Services:InternalToken"] ?? config["Identity:ServiceToken"];
+    if (!string.IsNullOrWhiteSpace(serviceToken))
+    {
+        client.DefaultRequestHeaders.Remove("X-Clinic-Service-Token");
+        client.DefaultRequestHeaders.Add("X-Clinic-Service-Token", serviceToken);
+    }
 });
 
 // Authentication via Identity Service JWKS

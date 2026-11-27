@@ -1,13 +1,18 @@
-# PowerShell script to pre-fetch test JWT tokens for k6 load runner via Identity Service
+# PowerShell script to pre-fetch test JWT tokens for k6 load runner via Gateway (or Identity Service override)
 param(
+    [string]$GatewayUrl = $null,
     [string]$IdentityUrl = $null,
     [string]$OutputFile = $null,
     [string]$Password = $null
 )
 
-if (-not $IdentityUrl) {
-    if ($env:IDENTITY_URL) { $IdentityUrl = $env:IDENTITY_URL } else { $IdentityUrl = "http://localhost:5001" }
+if (-not $IdentityUrl -and $env:IDENTITY_URL) {
+    $IdentityUrl = $env:IDENTITY_URL
 }
+if (-not $GatewayUrl) {
+    if ($env:GATEWAY_URL) { $GatewayUrl = $env:GATEWAY_URL } else { $GatewayUrl = "http://localhost:5000" }
+}
+$LoginEndpoint = if ($IdentityUrl) { "$($IdentityUrl.TrimEnd('/'))/v1/auth/login" } else { "$($GatewayUrl.TrimEnd('/'))/auth/login" }
 if (-not $OutputFile) {
     if ($env:TOKEN_OUTPUT_PATH) { $OutputFile = $env:TOKEN_OUTPUT_PATH } else { $OutputFile = Join-Path $env:TEMP "clinic_phase9_tokens.json" }
 }
@@ -19,7 +24,7 @@ if (-not $Password) {
     }
 }
 
-Write-Host "Fetching Phase 9 JWT tokens directly from Identity Service ($IdentityUrl/v1/auth/login)..." -ForegroundColor Cyan
+Write-Host "Fetching Phase 9 JWT tokens from $LoginEndpoint..." -ForegroundColor Cyan
 
 $data = @{
     patients = @()
@@ -31,8 +36,10 @@ $data = @{
 function Get-Token($username) {
     try {
         $body = @{ username = $username; password = $Password } | ConvertTo-Json -Compress
-        $res = Invoke-RestMethod -Uri "$IdentityUrl/v1/auth/login" -Method Post -ContentType "application/json" -Body $body
-        return $res.accessToken
+        $res = Invoke-RestMethod -Uri $LoginEndpoint -Method Post -ContentType "application/json" -Body $body
+        if ($res.accessToken) { return $res.accessToken }
+        if ($res.result -and $res.result.accessToken) { return $res.result.accessToken }
+        return $res.token
     } catch {
         Write-Warning "Failed to log in ${username}: $($_.Exception.Message)"
         return $null

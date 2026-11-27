@@ -126,7 +126,7 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
             if (confirmed)
             {
                 appointment.Confirm(appointment.UpdatedByUserId);
-                outbox.Add(new EventEnvelope<AppointmentConfirmed>
+                var envelope = new EventEnvelope<AppointmentConfirmed>
                 {
                     EventId = Guid.NewGuid(),
                     EventType = EventTypes.AppointmentConfirmed,
@@ -147,46 +147,64 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
                         PatientEmail: null,
                         PatientPhone: appointment.PatientPhone,
                         IdentityUserId: appointment.PatientIdentityUserId)
-                }, "appointment.confirmed");
+                };
+                outbox.Add(envelope, "appointment.confirmed");
 
-                anyConfirmed = true;
-                _logger.LogInformation("Confirmed appointment {AppointmentId} after {Attempts} attempt(s).",
-                    appointment.Id, appointment.ConfirmationAttempts + 1);
+                try
+                {
+                    await db.SaveChangesAsync(ct);
+                    anyConfirmed = true;
+                    _logger.LogInformation("Confirmed appointment {AppointmentId} after {Attempts} attempt(s).",
+                        appointment.Id, appointment.ConfirmationAttempts + 1);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    db.ChangeTracker.Clear();
+                    var latest = await db.Appointments.AsNoTracking().FirstOrDefaultAsync(a => a.Id == appointment.Id, ct);
+                    if (latest?.Status == AppointmentStatus.Cancelled)
+                    {
+                        await SafeReleaseReservationAsync(scheduling, appointment.WorkScheduleId, reservationId, appointment.Id, ct);
+                    }
+                    _logger.LogWarning("Concurrency conflict confirming appointment {AppointmentId} (current status: {Status}); skipped confirming.",
+                        appointment.Id, latest?.Status);
+                }
                 continue;
             }
 
             appointment.ConfirmationAttempts++;
             if (appointment.ConfirmationAttempts >= MaxAttempts)
             {
-                try
-                {
-                    await scheduling.ReleaseReservationAsync(appointment.WorkScheduleId, reservationId, ct);
-                }
-                catch (HttpRequestException ex)
-                {
-                    _logger.LogError(ex, "Failed to release reservation {ReservationId} after confirmation failure for appointment {AppointmentId}.",
-                        reservationId, appointment.Id);
-                }
-                catch (TaskCanceledException) when (!ct.IsCancellationRequested)
-                {
-                    _logger.LogError("Timed out releasing reservation {ReservationId} after confirmation failure for appointment {AppointmentId}.",
-                        reservationId, appointment.Id);
-                }
+                await SafeReleaseReservationAsync(scheduling, appointment.WorkScheduleId, reservationId, appointment.Id, ct);
 
                 appointment.Cancel(appointment.UpdatedByUserId, isAdminOrReceptionist: true);
                 appointment.NextConfirmationAttemptAt = null;
-                _logger.LogError("Unable to confirm appointment {AppointmentId}; reservation released after {Attempts} attempts.",
-                    appointment.Id, appointment.ConfirmationAttempts);
+                try
+                {
+                    await db.SaveChangesAsync(ct);
+                    _logger.LogError("Unable to confirm appointment {AppointmentId}; reservation released after {Attempts} attempts.",
+                        appointment.Id, appointment.ConfirmationAttempts);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    db.ChangeTracker.Clear();
+                    _logger.LogWarning("Concurrency conflict cancelling expired pending appointment {AppointmentId}.", appointment.Id);
+                }
                 continue;
             }
 
             appointment.NextConfirmationAttemptAt = DateTime.UtcNow + GetRetryDelay(appointment.ConfirmationAttempts);
-            _logger.LogWarning("Scheduling confirmation failed for appointment {AppointmentId}; retry {Attempt} scheduled at {NextAttemptAt}.",
-                appointment.Id, appointment.ConfirmationAttempts, appointment.NextConfirmationAttemptAt);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                _logger.LogWarning("Scheduling confirmation failed for appointment {AppointmentId}; retry {Attempt} scheduled at {NextAttemptAt}.",
+                    appointment.Id, appointment.ConfirmationAttempts, appointment.NextConfirmationAttemptAt);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                db.ChangeTracker.Clear();
+                _logger.LogWarning("Concurrency conflict updating retry schedule for appointment {AppointmentId}.", appointment.Id);
+            }
         }
-
-        // Single batched database commit for all processed appointments and outbox events
-        await db.SaveChangesAsync(ct);
 
         if (anyConfirmed)
         {
@@ -194,6 +212,29 @@ public sealed class AppointmentConfirmationWorker : BackgroundService
         }
 
         return appointments.Count;
+    }
+
+    private async Task SafeReleaseReservationAsync(
+        ISchedulingClient scheduling,
+        Guid workScheduleId,
+        Guid reservationId,
+        Guid appointmentId,
+        CancellationToken ct)
+    {
+        try
+        {
+            await scheduling.ReleaseReservationAsync(workScheduleId, reservationId, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Failed to release reservation {ReservationId} for appointment {AppointmentId}.",
+                reservationId, appointmentId);
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogError("Timed out releasing reservation {ReservationId} for appointment {AppointmentId}.",
+                reservationId, appointmentId);
+        }
     }
 
     private static TimeSpan GetRetryDelay(int attempt) => attempt switch

@@ -649,4 +649,42 @@ public class QueueManagerTests
         Assert.Equal("Le Thi Queue", envelope.Payload.PatientName);
         Assert.Equal(appointmentId, envelope.Payload.AppointmentId);
     }
+
+    [Fact]
+    public async Task ProcessAppointmentCancelled_RescheduleRelease_CancelsExistingWaitingTicketWithoutTombstone()
+    {
+        using var db = CreateInMemoryDbContext();
+        var manager = new QueueManager(db, NullLogger<QueueManager>.Instance);
+        var appointmentId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var doctorId = Guid.NewGuid();
+
+        db.QueueTickets.Add(new QueueTicket
+        {
+            Id = Guid.NewGuid(),
+            AppointmentId = appointmentId,
+            PatientId = patientId,
+            DoctorId = doctorId,
+            QueueDate = Common.ClinicTime.GetTodayQueueDate(),
+            QueueNumber = 1,
+            Status = QueueStatus.Waiting
+        });
+        await db.SaveChangesAsync();
+
+        await manager.ProcessAppointmentCancelledAsync(new EventEnvelope<AppointmentCancelled>
+        {
+            EventId = Guid.NewGuid(),
+            EventType = EventTypes.AppointmentCancelled,
+            SchemaVersion = 1,
+            OccurredAt = DateTimeOffset.UtcNow,
+            CorrelationId = Guid.NewGuid(),
+            Producer = "Clinic.Appointment.Service",
+            Payload = new AppointmentCancelled(appointmentId, patientId, Guid.NewGuid(), DateTimeOffset.UtcNow,
+                Guid.NewGuid(), new TimeOnly(9, 0), IsRescheduleRelease: true)
+        });
+
+        var updatedTicket = await db.QueueTickets.SingleAsync();
+        Assert.Equal(QueueStatus.Cancelled, updatedTicket.Status);
+        Assert.Empty(await db.CancelledAppointments.ToListAsync());
+    }
 }

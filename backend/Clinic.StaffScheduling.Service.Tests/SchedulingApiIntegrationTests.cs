@@ -145,14 +145,25 @@ public class SchedulingApiIntegrationTests : IClassFixture<SchedulingServiceFact
         var availResponse = await _client.GetAsync($"/schedules/availability?fromDate={DateTime.UtcNow.AddDays(5):yyyy-MM-dd}&toDate={DateTime.UtcNow.AddDays(5):yyyy-MM-dd}");
         Assert.Equal(HttpStatusCode.OK, availResponse.StatusCode);
 
-        // 3. Make a reservation
+        // 3. Verify reservations require valid service token, then make a reservation
         var patientId = Guid.NewGuid();
         var idempotencyKey = Guid.NewGuid().ToString();
+        using (var unauthReq = new HttpRequestMessage(HttpMethod.Post, $"/schedules/{scheduleId}/reservations")
+        {
+            Content = JsonContent.Create(new CreateReservationRequest(new TimeOnly(9, 15), patientId))
+        })
+        {
+            unauthReq.Headers.Add("Idempotency-Key", idempotencyKey);
+            var unauthResp = await _client.SendAsync(unauthReq);
+            Assert.Equal(HttpStatusCode.Unauthorized, unauthResp.StatusCode);
+        }
+
         var request = new HttpRequestMessage(HttpMethod.Post, $"/schedules/{scheduleId}/reservations")
         {
             Content = JsonContent.Create(new CreateReservationRequest(new TimeOnly(9, 15), patientId))
         };
         request.Headers.Add("Idempotency-Key", idempotencyKey);
+        request.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
 
         var reserveResponse = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Created, reserveResponse.StatusCode);
@@ -162,13 +173,43 @@ public class SchedulingApiIntegrationTests : IClassFixture<SchedulingServiceFact
         Assert.Equal("Reserved", reservation.Status);
         Assert.Equal(scheduleId, reservation.ScheduleId);
 
-        // 4. Confirm reservation
-        var confirmResponse = await _client.PostAsync($"/schedules/{scheduleId}/reservations/{reservation.Id}/confirm", null);
+        // 4. Confirm reservation (unauthenticated -> 401, with service token -> 200)
+        var unauthConfirm = await _client.PostAsync($"/schedules/{scheduleId}/reservations/{reservation.Id}/confirm", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthConfirm.StatusCode);
+
+        using var confirmRequest = new HttpRequestMessage(HttpMethod.Post, $"/schedules/{scheduleId}/reservations/{reservation.Id}/confirm");
+        confirmRequest.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var confirmResponse = await _client.SendAsync(confirmRequest);
         Assert.Equal(HttpStatusCode.OK, confirmResponse.StatusCode);
 
-        // 5. Release reservation
-        var releaseResponse = await _client.PostAsync($"/schedules/{scheduleId}/reservations/{reservation.Id}/release", null);
+        // 5. Release reservation (unauthenticated -> 401, with service token -> 200)
+        var unauthRelease = await _client.PostAsync($"/schedules/{scheduleId}/reservations/{reservation.Id}/release", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthRelease.StatusCode);
+
+        using var releaseRequest = new HttpRequestMessage(HttpMethod.Post, $"/schedules/{scheduleId}/reservations/{reservation.Id}/release");
+        releaseRequest.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var releaseResponse = await _client.SendAsync(releaseRequest);
         Assert.Equal(HttpStatusCode.OK, releaseResponse.StatusCode);
+
+        // 6. Internal appointment-cancelled endpoint requires ServiceToken
+        var cancelEvt = new Clinic.Contracts.Events.AppointmentCancelled(
+            Guid.NewGuid(),
+            patientId,
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow,
+            scheduleId,
+            new TimeOnly(9, 15),
+            SchedulingReservationId: reservation.Id);
+        var unauthCancelEvt = await _client.PostAsJsonAsync("/internal/events/appointment-cancelled", cancelEvt);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthCancelEvt.StatusCode);
+
+        using var authCancelEvtReq = new HttpRequestMessage(HttpMethod.Post, "/internal/events/appointment-cancelled")
+        {
+            Content = JsonContent.Create(cancelEvt)
+        };
+        authCancelEvtReq.Headers.Add("X-Clinic-Service-Token", "integration-test-service-token");
+        var authCancelEvtResp = await _client.SendAsync(authCancelEvtReq);
+        Assert.Equal(HttpStatusCode.OK, authCancelEvtResp.StatusCode);
     }
 
     [Fact]

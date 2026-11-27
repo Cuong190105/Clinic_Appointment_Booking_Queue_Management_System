@@ -591,6 +591,16 @@ public sealed class ApiContractDriftTests : IClassFixture<ApiContractFactory>
         using var patientClient = _factory.CreateRoleClient("Patient");
         Assert.Equal(HttpStatusCode.Forbidden, (await patientClient.GetAsync("/admin/ping")).StatusCode);
 
+        // Reservation routes on Gateway are Admin-only (internal saga endpoints must reject non-Admin users)
+        using var patientReserveReq = new HttpRequestMessage(HttpMethod.Post, $"/schedules/{Guid.NewGuid()}/reservations")
+        {
+            Content = JsonContent.Create(new { timeSlot = "09:00:00", patientId = ApiContractFactory.PatientId })
+        };
+        patientReserveReq.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("N"));
+        Assert.Equal(HttpStatusCode.Forbidden, (await patientClient.SendAsync(patientReserveReq)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await patientClient.PostAsync($"/schedules/{Guid.NewGuid()}/reservations/{Guid.NewGuid()}/confirm", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await patientClient.PostAsync($"/schedules/{Guid.NewGuid()}/reservations/{Guid.NewGuid()}/release", null)).StatusCode);
+
         // =====================================================================
         // Group 3: Raw Downstream Proxy Responses (SchedulingProxyMiddleware & ContentResult)
         // =====================================================================

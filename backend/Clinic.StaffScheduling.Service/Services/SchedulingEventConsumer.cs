@@ -187,6 +187,12 @@ public sealed class SchedulingEventConsumer : BackgroundService
             routingKey: SchedulingRetryPolicy.RetryRoutingKey,
             cancellationToken: ct);
 
+        await TryCleanupLegacyQueueAsync(
+            legacyQueue: "clinic.scheduling.events",
+            exchangeName: exchangeName,
+            routingKeys: ["appointment.cancelled", "identity.user-profile-updated"],
+            ct);
+
         await _channel.BasicQosAsync(
             prefetchSize: 0,
             prefetchCount: 10,
@@ -217,6 +223,7 @@ public sealed class SchedulingEventConsumer : BackgroundService
                             payload.WorkScheduleId,
                             payload.TimeSlot,
                             payload.PatientId,
+                            payload.SchedulingReservationId,
                             ct);
                         _logger.LogInformation(
                             "Processed AppointmentCancelled event for AppointmentId={AppointmentId}, Schedule={ScheduleId}, Slot={TimeSlot}",
@@ -327,6 +334,34 @@ public sealed class SchedulingEventConsumer : BackgroundService
         return JsonSerializer.Deserialize<TPayload>(
             json,
             EventJsonSerializerOptions.Default);
+    }
+
+    private async Task TryCleanupLegacyQueueAsync(string legacyQueue, string exchangeName, string[] routingKeys, CancellationToken ct)
+    {
+        if (_connection == null) return;
+
+        try
+        {
+            await using var unbindChannel = await _connection.CreateChannelAsync(cancellationToken: ct);
+            foreach (var key in routingKeys)
+            {
+                await unbindChannel.QueueUnbindAsync(queue: legacyQueue, exchange: exchangeName, routingKey: key, cancellationToken: ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Legacy queue {Queue} unbind skipped.", legacyQueue);
+        }
+
+        try
+        {
+            await using var deleteChannel = await _connection.CreateChannelAsync(cancellationToken: ct);
+            await deleteChannel.QueueDeleteAsync(legacyQueue, ifUnused: true, ifEmpty: true, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Legacy queue {Queue} delete skipped.", legacyQueue);
+        }
     }
 
     private async Task DisconnectAsync()

@@ -57,6 +57,7 @@ public interface IAppointmentManager
         Guid currentUserId,
         bool isAdminOrReceptionist,
         string? updaterName,
+        Guid? callerPatientId = null,
         CancellationToken ct = default);
 
     Task<(bool Success, string? ErrorMessage, AppointmentDto? Result, int StatusCode)> RescheduleAppointmentAsync(
@@ -65,6 +66,8 @@ public interface IAppointmentManager
         Guid currentUserId,
         string? updaterName,
         string? idempotencyKey,
+        bool isAdminOrReceptionist = false,
+        Guid? callerPatientId = null,
         CancellationToken ct = default);
 
     Task<(bool Success, string? ErrorMessage, int StatusCode)> CheckInAppointmentAsync(
@@ -129,6 +132,11 @@ public class AppointmentManager : IAppointmentManager
         string? idempotencyKey,
         CancellationToken ct = default)
     {
+        if (!isStaff && request.IsWalkIn)
+        {
+            return (false, "Forbidden. Only staff can create walk-in appointments.", null, StatusCodes.Status403Forbidden);
+        }
+
         // 0. Idempotency Check
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
         {
@@ -146,10 +154,10 @@ public class AppointmentManager : IAppointmentManager
         // 1. Resolve Patient
         Guid patientId;
         Guid? patientIdentityUserId = null;
-        string patientName = request.PatientName ?? string.Empty;
-        string? patientPhone = request.PatientPhone;
-        string? patientGender = request.PatientGender;
-        DateOnly? patientDob = request.PatientDateOfBirth;
+        string patientName = isStaff ? (request.PatientName ?? string.Empty) : string.Empty;
+        string? patientPhone = isStaff ? request.PatientPhone : null;
+        string? patientGender = isStaff ? request.PatientGender : null;
+        DateOnly? patientDob = isStaff ? request.PatientDateOfBirth : null;
 
         if (isStaff && request.PatientId.HasValue && request.PatientId.Value != Guid.Empty)
         {
@@ -219,7 +227,7 @@ public class AppointmentManager : IAppointmentManager
         if (!request.IsWalkIn)
         {
             // CASE 1: Online Booking (SAGA Orchestration)
-            var key = idempotencyKey ?? $"booking-{patientId}-{request.WorkScheduleId}-{request.TimeSlot}";
+            var key = string.IsNullOrWhiteSpace(idempotencyKey) ? $"booking-{Guid.NewGuid():N}" : idempotencyKey;
             var reservation = await _schedulingClient.ReserveSlotAsync(
                 request.WorkScheduleId,
                 request.TimeSlot,
@@ -248,6 +256,7 @@ public class AppointmentManager : IAppointmentManager
                 currentUserId,
                 false)
             {
+                SpecialtyId = reservation.SpecialtyId,
                 IdempotencyKey = idempotencyKey,
                 PatientIdentityUserId = patientIdentityUserId,
                 SchedulingReservationId = reservation.Id,
@@ -287,6 +296,23 @@ public class AppointmentManager : IAppointmentManager
             }
             catch (DbUpdateException ex)
             {
+                if (!string.IsNullOrWhiteSpace(idempotencyKey))
+                {
+                    var existing = await _db.Appointments
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(a => a.IdempotencyKey == idempotencyKey && !a.IsDeleted, ct);
+                    if (existing != null)
+                    {
+                        if (existing.SchedulingReservationId != reservation.Id)
+                        {
+                            await _schedulingClient.ReleaseReservationAsync(request.WorkScheduleId, reservation.Id, ct);
+                        }
+                        _logger.LogInformation("Concurrent idempotent booking resolved for key '{IdempotencyKey}', returning appointment {AppointmentId}.",
+                            idempotencyKey, existing.Id);
+                        return (true, null, ToDto(existing), StatusCodes.Status200OK);
+                    }
+                }
+
                 await _schedulingClient.ReleaseReservationAsync(request.WorkScheduleId, reservation.Id, ct);
                 _logger.LogWarning(ex, "Conflict saving appointment for patient {PatientId}: slot or key already exists.", patientId);
                 return (false, "Khung giờ khám hoặc lịch hẹn này đã tồn tại trong hệ thống.", null, StatusCodes.Status409Conflict);
@@ -324,6 +350,7 @@ public class AppointmentManager : IAppointmentManager
                 currentUserId,
                 true)
             {
+                SpecialtyId = scheduleInfo.SpecialtyId,
                 IdempotencyKey = idempotencyKey
             };
 
@@ -477,6 +504,28 @@ public class AppointmentManager : IAppointmentManager
         return (true, null, new AppointmentChangelogDto(app.Id, app.PatientId, app.PatientName, changelog), StatusCodes.Status200OK);
     }
 
+    private async Task<bool> IsOwnerAsync(Appointment app, Guid currentUserId, Guid? callerPatientId, CancellationToken ct)
+    {
+        if (callerPatientId.HasValue && callerPatientId.Value != Guid.Empty && app.PatientId == callerPatientId.Value)
+        {
+            return true;
+        }
+
+        if (currentUserId != Guid.Empty && app.PatientIdentityUserId == currentUserId)
+        {
+            return true;
+        }
+
+        if (currentUserId != Guid.Empty)
+        {
+            return await _db.PatientProjections
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == app.PatientId && p.IdentityUserId == currentUserId, ct);
+        }
+
+        return false;
+    }
+
     public async Task<(bool Success, string? ErrorMessage, int StatusCode)> ConfirmAppointmentAsync(
         Guid appointmentId,
         Guid currentUserId,
@@ -488,6 +537,15 @@ public class AppointmentManager : IAppointmentManager
 
         try
         {
+            if (!app.IsWalkIn && app.SchedulingReservationId.HasValue)
+            {
+                var confirmed = await _schedulingClient.ConfirmReservationAsync(app.WorkScheduleId, app.SchedulingReservationId.Value, ct);
+                if (!confirmed)
+                {
+                    return (false, "Slot reservation could not be confirmed in Scheduling service.", StatusCodes.Status409Conflict);
+                }
+            }
+
             app.Confirm(currentUserId, updaterName);
             var proj = await _db.PatientProjections.AsNoTracking().FirstOrDefaultAsync(p => p.Id == app.PatientId, ct);
 
@@ -518,6 +576,10 @@ public class AppointmentManager : IAppointmentManager
             _workSignal?.SignalOutbox();
             return (true, null, StatusCodes.Status204NoContent);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            return (false, "Appointment was modified concurrently. Please retry.", StatusCodes.Status409Conflict);
+        }
         catch (InvalidOperationException ex)
         {
             return (false, ex.Message, StatusCodes.Status400BadRequest);
@@ -529,10 +591,16 @@ public class AppointmentManager : IAppointmentManager
         Guid currentUserId,
         bool isAdminOrReceptionist,
         string? updaterName,
+        Guid? callerPatientId = null,
         CancellationToken ct = default)
     {
         var app = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId && !a.IsDeleted, ct);
         if (app == null) return (false, "Appointment not found.", StatusCodes.Status404NotFound);
+
+        if (!isAdminOrReceptionist && !await IsOwnerAsync(app, currentUserId, callerPatientId, ct))
+        {
+            return (false, "Forbidden. You can only cancel your own appointments.", StatusCodes.Status403Forbidden);
+        }
 
         try
         {
@@ -559,22 +627,35 @@ public class AppointmentManager : IAppointmentManager
                     PatientName: string.IsNullOrWhiteSpace(app.PatientName) ? proj?.FullName : app.PatientName,
                     PatientEmail: null,
                     PatientPhone: app.PatientPhone ?? proj?.PhoneNumber,
-                    IdentityUserId: identityUserId)
+                    IdentityUserId: identityUserId,
+                    SchedulingReservationId: app.SchedulingReservationId)
             }, "appointment.cancelled");
 
             await _db.SaveChangesAsync(ct);
             _workSignal?.SignalOutbox();
 
             // Best-effort direct release on Staff & Scheduling Service alongside Outbox event
-            _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
-                app.Id,
-                app.WorkScheduleId,
-                app.TimeSlot,
-                app.PatientId,
-                currentUserId,
-                ct);
+            if (app.SchedulingReservationId.HasValue)
+            {
+                _ = await _schedulingClient.ReleaseReservationAsync(app.WorkScheduleId, app.SchedulingReservationId.Value, ct);
+            }
+            else
+            {
+                _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
+                    app.Id,
+                    app.WorkScheduleId,
+                    app.TimeSlot,
+                    app.PatientId,
+                    currentUserId,
+                    null,
+                    ct);
+            }
 
             return (true, null, StatusCodes.Status204NoContent);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return (false, "Appointment was modified concurrently. Please retry.", StatusCodes.Status409Conflict);
         }
         catch (InvalidOperationException ex)
         {
@@ -588,19 +669,28 @@ public class AppointmentManager : IAppointmentManager
         Guid currentUserId,
         string? updaterName,
         string? idempotencyKey,
+        bool isAdminOrReceptionist = false,
+        Guid? callerPatientId = null,
         CancellationToken ct = default)
     {
         var app = await _db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId && !a.IsDeleted, ct);
         if (app == null) return (false, "Appointment not found.", null, StatusCodes.Status404NotFound);
 
-        if (app.Status is AppointmentStatus.Completed or AppointmentStatus.Cancelled)
+        if (!isAdminOrReceptionist && !await IsOwnerAsync(app, currentUserId, callerPatientId, ct))
+        {
+            return (false, "Forbidden. You can only reschedule your own appointments.", null, StatusCodes.Status403Forbidden);
+        }
+
+        if (app.Status is AppointmentStatus.CheckedIn or AppointmentStatus.Completed or AppointmentStatus.Cancelled)
         {
             return (false, $"{app.Status} appointments cannot be rescheduled.", null, StatusCodes.Status400BadRequest);
         }
 
         // Reschedule Saga:
         // 1. Reserve slot at new work schedule
-        var key = idempotencyKey ?? $"reschedule-{app.Id}-{request.NewWorkScheduleId}-{request.TimeSlot}";
+        var key = string.IsNullOrWhiteSpace(idempotencyKey)
+            ? $"reschedule-{app.Id:N}-{Guid.NewGuid():N}"
+            : idempotencyKey;
         var newReservation = await _schedulingClient.ReserveSlotAsync(
             request.NewWorkScheduleId,
             request.TimeSlot,
@@ -615,6 +705,8 @@ public class AppointmentManager : IAppointmentManager
 
         var oldScheduleId = app.WorkScheduleId;
         var oldTimeSlot = app.TimeSlot;
+        var oldReservationId = app.SchedulingReservationId;
+        var wasPending = app.Status == AppointmentStatus.Pending;
 
         await using var tx = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
         try
@@ -629,7 +721,9 @@ public class AppointmentManager : IAppointmentManager
                 request.TimeSlot,
                 request.Reason,
                 currentUserId,
-                updaterName);
+                updaterName,
+                newSpecialtyId: newReservation.SpecialtyId,
+                newReservationId: newReservation.Id);
 
             await _db.SaveChangesAsync(ct);
 
@@ -640,6 +734,11 @@ public class AppointmentManager : IAppointmentManager
                 await _schedulingClient.ReleaseReservationAsync(request.NewWorkScheduleId, newReservation.Id, ct);
                 if (tx != null) await tx.RollbackAsync(ct);
                 return (false, "Failed to confirm new slot with Scheduling service.", null, StatusCodes.Status409Conflict);
+            }
+
+            if (wasPending)
+            {
+                app.Confirm(currentUserId, updaterName);
             }
 
             // Release old slot via event
@@ -663,22 +762,38 @@ public class AppointmentManager : IAppointmentManager
                     PatientName: string.IsNullOrWhiteSpace(app.PatientName) ? proj?.FullName : app.PatientName,
                     PatientEmail: null,
                     PatientPhone: app.PatientPhone ?? proj?.PhoneNumber,
-                    IdentityUserId: proj?.IdentityUserId)
+                    IdentityUserId: proj?.IdentityUserId,
+                    SchedulingReservationId: oldReservationId)
             }, "appointment.cancelled");
 
             await _db.SaveChangesAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);
+            _workSignal?.SignalOutbox();
 
             // Best-effort direct release of old slot on Staff & Scheduling Service alongside Outbox event
-            _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
-                app.Id,
-                oldScheduleId,
-                oldTimeSlot,
-                app.PatientId,
-                currentUserId,
-                ct);
+            if (oldReservationId.HasValue)
+            {
+                _ = await _schedulingClient.ReleaseReservationAsync(oldScheduleId, oldReservationId.Value, ct);
+            }
+            else
+            {
+                _ = await _schedulingClient.ReleaseSlotByAppointmentAsync(
+                    app.Id,
+                    oldScheduleId,
+                    oldTimeSlot,
+                    app.PatientId,
+                    currentUserId,
+                    null,
+                    ct);
+            }
 
             return (true, null, ToDto(app), StatusCodes.Status200OK);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (tx != null) await tx.RollbackAsync(ct);
+            await _schedulingClient.ReleaseReservationAsync(request.NewWorkScheduleId, newReservation.Id, ct);
+            return (false, "Appointment was modified concurrently. Please retry.", null, StatusCodes.Status409Conflict);
         }
         catch (Exception ex)
         {
@@ -753,6 +868,11 @@ public class AppointmentManager : IAppointmentManager
         if (doctorId.HasValue && doctorId.Value != Guid.Empty)
         {
             query = query.Where(a => a.DoctorId == doctorId.Value);
+        }
+        if (specialtyId.HasValue && specialtyId.Value != Guid.Empty)
+        {
+            var doctorIds = await _schedulingClient.GetDoctorIdsBySpecialtyAsync(specialtyId.Value, ct);
+            query = query.Where(a => a.SpecialtyId == specialtyId.Value || (a.SpecialtyId == null && doctorIds.Contains(a.DoctorId)));
         }
 
         var total = await query.CountAsync(ct);
@@ -908,7 +1028,7 @@ public class AppointmentManager : IAppointmentManager
         var reason = string.IsNullOrWhiteSpace(request.Reason) ? "Walk-in" : request.Reason.Trim();
         var appointment = new Appointment(request.PatientId, patient.FullName, patient.PhoneNumber, patient.Gender, patient.DateOfBirth,
             selected.Id, selected.DoctorId, selected.DoctorName, selected.SpecialtyName, date, timeSlot, reason, userId, true)
-        { Status = AppointmentStatus.CheckedIn, IdempotencyKey = idempotencyKey, UpdatedAt = nowUtc };
+        { SpecialtyId = selected.SpecialtyId ?? request.SpecialtyId, Status = AppointmentStatus.CheckedIn, IdempotencyKey = idempotencyKey, UpdatedAt = nowUtc };
         var checkedInAt = DateTimeOffset.UtcNow;
         await using var tx = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
         _db.Appointments.Add(appointment);
@@ -935,6 +1055,15 @@ public class AppointmentManager : IAppointmentManager
         if (appointment.Status == AppointmentStatus.Completed)
         {
             return true;
+        }
+
+        if (appointment.Status != AppointmentStatus.CheckedIn)
+        {
+            _logger.LogWarning(
+                "Ignoring ExamCompleted event for Appointment {AppointmentId} because status is {Status}",
+                evt.AppointmentId,
+                appointment.Status);
+            return false;
         }
 
         appointment.Status = AppointmentStatus.Completed;

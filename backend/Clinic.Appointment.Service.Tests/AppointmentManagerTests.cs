@@ -23,6 +23,8 @@ public class AppointmentManagerTests
         public bool ConfirmResult { get; set; } = true;
         public ScheduleInfoResult? ScheduleInfoResult { get; set; }
         public IReadOnlyList<WalkInScheduleCandidate> WalkInCandidates { get; set; } = Array.Empty<WalkInScheduleCandidate>();
+        public IReadOnlyList<Guid> DoctorIdsBySpecialty { get; set; } = Array.Empty<Guid>();
+        public List<(Guid ScheduleId, Guid ReservationId)> ConfirmedReservations { get; } = new();
         public List<(Guid ScheduleId, Guid ReservationId)> ReleasedReservations { get; } = new();
 
         public Task<ScheduleReservationResult?> ReserveSlotAsync(Guid workScheduleId, TimeOnly timeSlot, Guid patientId, string idempotencyKey, CancellationToken ct = default)
@@ -32,6 +34,7 @@ public class AppointmentManagerTests
 
         public Task<bool> ConfirmReservationAsync(Guid workScheduleId, Guid reservationId, CancellationToken ct = default)
         {
+            ConfirmedReservations.Add((workScheduleId, reservationId));
             return Task.FromResult(ConfirmResult);
         }
 
@@ -41,7 +44,7 @@ public class AppointmentManagerTests
             return Task.FromResult(true);
         }
 
-        public Task<bool> ReleaseSlotByAppointmentAsync(Guid appointmentId, Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid cancelledBy, CancellationToken ct = default)
+        public Task<bool> ReleaseSlotByAppointmentAsync(Guid appointmentId, Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid cancelledBy, Guid? reservationId = null, CancellationToken ct = default)
         {
             return Task.FromResult(true);
         }
@@ -54,6 +57,11 @@ public class AppointmentManagerTests
         public Task<IReadOnlyList<WalkInScheduleCandidate>> GetWalkInCandidatesAsync(DateOnly date, Guid specialtyId, Guid? doctorId, CancellationToken ct = default)
         {
             return Task.FromResult(WalkInCandidates);
+        }
+
+        public Task<IReadOnlyList<Guid>> GetDoctorIdsBySpecialtyAsync(Guid specialtyId, CancellationToken ct = default)
+        {
+            return Task.FromResult(DoctorIdsBySpecialty);
         }
     }
 
@@ -465,7 +473,7 @@ public class AppointmentManagerTests
         await db.SaveChangesAsync();
 
         var (success, errorMessage, statusCode) = await manager.CancelAppointmentAsync(
-            app.Id, patientId, isAdminOrReceptionist: false, updaterName: "Patient");
+            app.Id, patientId, isAdminOrReceptionist: false, updaterName: "Patient", callerPatientId: patientId);
 
         Assert.True(success);
         Assert.Equal(StatusCodes.Status204NoContent, statusCode);
@@ -520,7 +528,7 @@ public class AppointmentManagerTests
         var request = new UpdateAppointmentRequest(newScheduleId, newSlot, "Rescheduled reason");
 
         var (success, errorMessage, result, statusCode) = await manager.RescheduleAppointmentAsync(
-            app.Id, request, patientId, "Patient", "resched-key-1");
+            app.Id, request, patientId, "Patient", "resched-key-1", callerPatientId: patientId);
 
         Assert.True(success);
         Assert.Equal(StatusCodes.Status200OK, statusCode);
@@ -528,14 +536,14 @@ public class AppointmentManagerTests
         Assert.Equal("Dr. New", result.DoctorName);
         Assert.Equal(newDate, result.Date);
 
-        // Verify Snapshot created for traceback
+        // Verify Snapshot created for traceback (Pending reschedule also confirms the new slot, yielding 3 changelog states)
         var changelogResult = await manager.GetAppointmentChangelogAsync(app.Id);
         Assert.True(changelogResult.Success);
-        Assert.Equal(2, changelogResult.Result!.Changelog.Count);
-        var entry = changelogResult.Result.Changelog.Last();
-        Assert.Equal("Dr. Old", entry.DoctorName);
+        Assert.Equal(3, changelogResult.Result!.Changelog.Count);
+        var entry = Assert.Single(changelogResult.Result.Changelog.Where(c => c.DoctorName == "Dr. Old"));
         Assert.Equal(oldDate, entry.Date);
         Assert.Equal(oldSlot, entry.TimeSlot);
+        Assert.Equal(AppointmentStatus.Confirmed, result.Status);
 
         // Verify Outbox: AppointmentCancelled emitted to release old slot in Scheduling
         var outbox = await db.OutboxMessages.ToListAsync();
@@ -660,5 +668,184 @@ public class AppointmentManagerTests
         Assert.Equal(identityUserId, cancelledPayload.IdentityUserId);
         Assert.Equal("Nguyen Snapshot", cancelledPayload.PatientName);
         Assert.Equal("0911223344", cancelledPayload.PatientPhone);
+    }
+
+    [Fact]
+    public async Task CancelAndReschedule_ByDifferentPatient_ReturnsForbidden()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var ownerPatientId = Guid.NewGuid();
+        var otherPatientId = Guid.NewGuid();
+        var app = new AppointmentEntity(
+            ownerPatientId, "Owner", "090", "Male", null,
+            Guid.NewGuid(), Guid.NewGuid(), "Dr. A", "General",
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)), new TimeOnly(9, 0), "Reason",
+            ownerPatientId, isWalkIn: false);
+        db.Appointments.Add(app);
+        await db.SaveChangesAsync();
+
+        var cancelRes = await manager.CancelAppointmentAsync(
+            app.Id, currentUserId: otherPatientId, isAdminOrReceptionist: false, updaterName: "Attacker", callerPatientId: otherPatientId);
+        Assert.False(cancelRes.Success);
+        Assert.Equal(StatusCodes.Status403Forbidden, cancelRes.StatusCode);
+
+        var rescheduleRes = await manager.RescheduleAppointmentAsync(
+            app.Id, new UpdateAppointmentRequest(Guid.NewGuid(), new TimeOnly(10, 0), "Hijack"),
+            currentUserId: otherPatientId, updaterName: "Attacker", idempotencyKey: "k1",
+            isAdminOrReceptionist: false, callerPatientId: otherPatientId);
+        Assert.False(rescheduleRes.Success);
+        Assert.Equal(StatusCodes.Status403Forbidden, rescheduleRes.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateAppointmentAsync_ByPatient_RejectsWalkInAndIgnoresClientSuppliedPatientName()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var patientId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        db.PatientProjections.Add(new PatientProjection { Id = patientId, IdentityUserId = userId, FullName = "Real Patient" });
+        await db.SaveChangesAsync();
+
+        var walkInAttempt = await manager.CreateAppointmentAsync(
+            new CreateAppointmentRequest(Guid.NewGuid(), new TimeOnly(9, 0), "Bypass", patientId, IsWalkIn: true, PatientName: "Fake Name"),
+            userId, patientId, isStaff: false, idempotencyKey: "walkin-bypass");
+        Assert.False(walkInAttempt.Success);
+        Assert.Equal(StatusCodes.Status403Forbidden, walkInAttempt.StatusCode);
+
+        var scheduleId = Guid.NewGuid();
+        client.ReserveResult = new ScheduleReservationResult(
+            Guid.NewGuid(), scheduleId, new TimeOnly(9, 0), patientId, "Reserved",
+            DateTimeOffset.UtcNow.AddMinutes(5), "key", Guid.NewGuid(), "Dr. A", "General", new DateOnly(2026, 12, 1));
+        var onlineAttempt = await manager.CreateAppointmentAsync(
+            new CreateAppointmentRequest(scheduleId, new TimeOnly(9, 0), "Checkup", patientId, IsWalkIn: false, PatientName: "Spoofed Name"),
+            userId, patientId, isStaff: false, idempotencyKey: "real-name-key");
+        Assert.True(onlineAttempt.Success);
+        Assert.Equal("Real Patient", onlineAttempt.Result!.PatientName);
+    }
+
+    [Fact]
+    public async Task ConfirmAppointmentAsync_ConfirmsReservationInScheduling_AndFailsOnSchedulingRejection()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var scheduleId = Guid.NewGuid();
+        var reservationId = Guid.NewGuid();
+        var app = new AppointmentEntity(
+            Guid.NewGuid(), "Patient", "090", "Male", null,
+            scheduleId, Guid.NewGuid(), "Dr. A", "General",
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)), new TimeOnly(9, 0), "Reason",
+            Guid.NewGuid(), isWalkIn: false)
+        {
+            SchedulingReservationId = reservationId
+        };
+        db.Appointments.Add(app);
+        await db.SaveChangesAsync();
+
+        client.ConfirmResult = false;
+        var failRes = await manager.ConfirmAppointmentAsync(app.Id, Guid.NewGuid(), "Staff");
+        Assert.False(failRes.Success);
+        Assert.Equal(StatusCodes.Status409Conflict, failRes.StatusCode);
+        Assert.Equal(AppointmentStatus.Pending, (await db.Appointments.FindAsync(app.Id))!.Status);
+
+        client.ConfirmResult = true;
+        var okRes = await manager.ConfirmAppointmentAsync(app.Id, Guid.NewGuid(), "Staff");
+        Assert.True(okRes.Success);
+        Assert.Contains((scheduleId, reservationId), client.ConfirmedReservations);
+    }
+
+    [Fact]
+    public async Task RescheduleAppointmentAsync_PendingUpdatesReservationAndConfirms_AndCheckedInIsRejected()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var patientId = Guid.NewGuid();
+        var oldScheduleId = Guid.NewGuid();
+        var oldReservationId = Guid.NewGuid();
+        var app = new AppointmentEntity(
+            patientId, "Patient", "090", "Male", null,
+            oldScheduleId, Guid.NewGuid(), "Dr. Old", "General",
+            new DateOnly(2026, 12, 5), new TimeOnly(9, 0), "Reason",
+            patientId, isWalkIn: false)
+        {
+            SchedulingReservationId = oldReservationId,
+            NextConfirmationAttemptAt = DateTime.UtcNow.AddSeconds(30)
+        };
+        db.Appointments.Add(app);
+        await db.SaveChangesAsync();
+
+        var newScheduleId = Guid.NewGuid();
+        var newReservationId = Guid.NewGuid();
+        var specialtyId = Guid.NewGuid();
+        client.ReserveResult = new ScheduleReservationResult(
+            newReservationId, newScheduleId, new TimeOnly(10, 0), patientId, "Reserved",
+            DateTimeOffset.UtcNow.AddMinutes(5), "resched-pending", Guid.NewGuid(), "Dr. New", "Cardiology",
+            new DateOnly(2026, 12, 6), specialtyId);
+        client.ConfirmResult = true;
+
+        var res = await manager.RescheduleAppointmentAsync(
+            app.Id, new UpdateAppointmentRequest(newScheduleId, new TimeOnly(10, 0), "New time"),
+            patientId, "Patient", "resched-pending", isAdminOrReceptionist: false, callerPatientId: patientId);
+
+        Assert.True(res.Success);
+        var updated = await db.Appointments.FindAsync(app.Id);
+        Assert.NotNull(updated);
+        Assert.Equal(newReservationId, updated.SchedulingReservationId);
+        Assert.Equal(specialtyId, updated.SpecialtyId);
+        Assert.Equal(AppointmentStatus.Confirmed, updated.Status);
+        Assert.Null(updated.NextConfirmationAttemptAt);
+        Assert.Contains((oldScheduleId, oldReservationId), client.ReleasedReservations);
+
+        // CheckedIn appointments must not be reschedulable
+        var checkedIn = new AppointmentEntity(
+            patientId, "Patient", "090", "Male", null,
+            Guid.NewGuid(), Guid.NewGuid(), "Dr. A", "General",
+            ClinicTime.ToLocalDate(DateTime.UtcNow), new TimeOnly(10, 0), "Reason",
+            patientId, isWalkIn: false);
+        checkedIn.Confirm(Guid.NewGuid());
+        checkedIn.CheckIn(DateTime.UtcNow);
+        db.Appointments.Add(checkedIn);
+        await db.SaveChangesAsync();
+
+        var blocked = await manager.RescheduleAppointmentAsync(
+            checkedIn.Id, new UpdateAppointmentRequest(newScheduleId, new TimeOnly(11, 0), "Move"),
+            patientId, "Patient", "resched-checkedin", isAdminOrReceptionist: false, callerPatientId: patientId);
+        Assert.False(blocked.Success);
+        Assert.Equal(StatusCodes.Status400BadRequest, blocked.StatusCode);
+    }
+
+    [Fact]
+    public async Task ProcessExamCompletedAsync_IgnoresCancelledAppointment_AndGetSummaryFiltersSpecialty()
+    {
+        var (db, client, manager) = CreateTestSetup();
+        var specA = Guid.NewGuid();
+        var specB = Guid.NewGuid();
+        var docA = Guid.NewGuid();
+        var docB = Guid.NewGuid();
+
+        var cancelled = new AppointmentEntity(
+            Guid.NewGuid(), "Cancelled P", "090", "Male", null,
+            Guid.NewGuid(), docA, "Dr. A", "Cardiology",
+            new DateOnly(2026, 12, 1), new TimeOnly(9, 0), "Reason",
+            Guid.NewGuid(), isWalkIn: false)
+        { SpecialtyId = specA };
+        cancelled.Cancel(Guid.NewGuid(), isAdminOrReceptionist: true);
+
+        var otherSpec = new AppointmentEntity(
+            Guid.NewGuid(), "Other P", "091", "Female", null,
+            Guid.NewGuid(), docB, "Dr. B", "Neurology",
+            new DateOnly(2026, 12, 1), new TimeOnly(10, 0), "Reason",
+            Guid.NewGuid(), isWalkIn: false)
+        { SpecialtyId = specB };
+
+        db.Appointments.AddRange(cancelled, otherSpec);
+        await db.SaveChangesAsync();
+
+        var completedResult = await manager.ProcessExamCompletedAsync(
+            new ExamCompleted(Guid.NewGuid(), cancelled.Id, docA, DateTimeOffset.UtcNow));
+        Assert.False(completedResult);
+        Assert.Equal(AppointmentStatus.Cancelled, (await db.Appointments.FindAsync(cancelled.Id))!.Status);
+
+        client.DoctorIdsBySpecialty = new[] { docA };
+        var summaryA = await manager.GetSummaryAsync(specialtyId: specA);
+        Assert.Equal(1, summaryA.TotalAppointments);
+        Assert.Equal(1, summaryA.CancelledAppointments);
     }
 }

@@ -250,6 +250,12 @@ namespace Clinic.Queue.Service.Persistence.Migrations
                     b.Property<int>("QueueNumber")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<DateTime?>("SkippedAt")
                         .HasColumnType("datetime2");
 

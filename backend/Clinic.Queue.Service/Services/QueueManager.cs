@@ -269,6 +269,12 @@ public class QueueManager : IQueueManager
         var payload = envelope.Payload;
         if (payload.IsRescheduleRelease)
         {
+            var ticketToRelease = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.AppointmentId == payload.AppointmentId && !t.IsDeleted, ct);
+            if (ticketToRelease is not null && (ticketToRelease.Status == QueueStatus.Waiting || ticketToRelease.Status == QueueStatus.Called))
+            {
+                ticketToRelease.Cancel();
+            }
+
             var releaseInbox = await _dbContext.InboxMessages.FirstOrDefaultAsync(
                 m => m.EventId == envelope.EventId && m.ConsumerName == ConsumerName, ct);
             if (releaseInbox is null)
@@ -355,41 +361,57 @@ public class QueueManager : IQueueManager
     {
         var queueDate = date ?? ClinicTime.GetTodayQueueDate();
 
-        var nextTicket = await _dbContext.QueueTickets
-            .Where(t => t.DoctorId == doctorId
-                        && t.QueueDate == queueDate
-                        && !t.IsDeleted
-                        && t.Status == QueueStatus.Waiting)
-            .OrderByDescending(t => t.Priority)
-            .ThenBy(t => t.QueueNumber)
-            .FirstOrDefaultAsync(ct);
-
-        if (nextTicket == null)
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            throw new QueueNotFoundException("There are no patients waiting in the queue for this doctor.");
+            var nextTicket = await _dbContext.QueueTickets
+                .Where(t => t.DoctorId == doctorId
+                            && t.QueueDate == queueDate
+                            && !t.IsDeleted
+                            && t.Status == QueueStatus.Waiting)
+                .OrderByDescending(t => t.Priority)
+                .ThenBy(t => t.QueueNumber)
+                .FirstOrDefaultAsync(ct);
+
+            if (nextTicket == null)
+            {
+                throw new QueueNotFoundException("There are no patients waiting in the queue for this doctor.");
+            }
+
+            QueueTelemetry.WaitTime.Record(Math.Max(0, (DateTime.UtcNow - nextTicket.CheckInTime).TotalSeconds));
+
+            nextTicket.Call();
+
+            AddOutboxMessage(
+                new PatientCalled(
+                    nextTicket.Id,
+                    nextTicket.AppointmentId,
+                    nextTicket.DoctorId,
+                    nextTicket.QueueNumber,
+                    DateTimeOffset.UtcNow,
+                    PatientId: nextTicket.PatientId,
+                    IdentityUserId: nextTicket.IdentityUserId,
+                    PatientName: nextTicket.PatientName,
+                    PatientPhone: nextTicket.PatientPhone),
+                EventTypes.PatientCalled,
+                "queue.patient-called",
+                Guid.NewGuid());
+
+            try
+            {
+                await _dbContext.SaveChangesAsync(ct);
+                return MapToDto(nextTicket);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _dbContext.ChangeTracker.Clear();
+                if (attempt == 2)
+                {
+                    throw new QueueConflictException("Queue was updated concurrently. Please retry.");
+                }
+            }
         }
 
-        QueueTelemetry.WaitTime.Record(Math.Max(0, (DateTime.UtcNow - nextTicket.CheckInTime).TotalSeconds));
-
-        nextTicket.Call();
-
-        AddOutboxMessage(
-            new PatientCalled(
-                nextTicket.Id,
-                nextTicket.AppointmentId,
-                nextTicket.DoctorId,
-                nextTicket.QueueNumber,
-                DateTimeOffset.UtcNow,
-                PatientId: nextTicket.PatientId,
-                IdentityUserId: nextTicket.IdentityUserId,
-                PatientName: nextTicket.PatientName,
-                PatientPhone: nextTicket.PatientPhone),
-            EventTypes.PatientCalled,
-            "queue.patient-called",
-            Guid.NewGuid());
-
-        await _dbContext.SaveChangesAsync(ct);
-        return MapToDto(nextTicket);
+        throw new QueueConflictException("Queue was updated concurrently. Please retry.");
     }
 
     public async Task<QueueTicketDto> CallAsync(Guid queueTicketId, CancellationToken ct = default)
@@ -414,7 +436,7 @@ public class QueueManager : IQueueManager
             EventTypes.PatientCalled,
             "queue.patient-called",
             Guid.NewGuid());
-        await _dbContext.SaveChangesAsync(ct);
+        await SaveWithConcurrencyGuardAsync(ct);
         return MapToDto(ticket);
     }
 
@@ -436,7 +458,7 @@ public class QueueManager : IQueueManager
             "queue.exam-started",
             Guid.NewGuid());
 
-        await _dbContext.SaveChangesAsync(ct);
+        await SaveWithConcurrencyGuardAsync(ct);
     }
 
     public async Task CompleteExamAsync(Guid queueTicketId, Guid? actorDoctorId, bool hasAnyScope, CancellationToken ct = default)
@@ -457,7 +479,7 @@ public class QueueManager : IQueueManager
             "queue.exam-completed",
             Guid.NewGuid());
 
-        await _dbContext.SaveChangesAsync(ct);
+        await SaveWithConcurrencyGuardAsync(ct);
     }
 
     public async Task<SkipQueueResultDto> SkipAsync(Guid queueTicketId, QueueStatus? requiredStatus = null, CancellationToken ct = default)
@@ -475,7 +497,7 @@ public class QueueManager : IQueueManager
             "queue.patient-skipped",
             Guid.NewGuid());
 
-        await _dbContext.SaveChangesAsync(ct);
+        await SaveWithConcurrencyGuardAsync(ct);
         return new SkipQueueResultDto(MapToDto(ticket), null);
     }
 
@@ -484,7 +506,7 @@ public class QueueManager : IQueueManager
         var ticket = await _dbContext.QueueTickets.FirstOrDefaultAsync(t => t.Id == queueTicketId && !t.IsDeleted, ct)
             ?? throw new QueueNotFoundException($"Queue ticket '{queueTicketId}' not found.");
         ticket.Retry();
-        await _dbContext.SaveChangesAsync(ct);
+        await SaveWithConcurrencyGuardAsync(ct);
         return MapToDto(ticket);
     }
 
@@ -496,7 +518,19 @@ public class QueueManager : IQueueManager
         if (ticket.Status != QueueStatus.Waiting)
             throw new InvalidOperationException("Priority can only be changed before the ticket is called.");
         ticket.SetPriority(priority);
-        await _dbContext.SaveChangesAsync(ct);
+        await SaveWithConcurrencyGuardAsync(ct);
+    }
+
+    private async Task SaveWithConcurrencyGuardAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new QueueConflictException("Queue ticket was modified concurrently. Please retry.");
+        }
     }
 
     public async Task<List<QueueTicketDto>> GetQueueByDoctorAsync(Guid doctorId, DateOnly? date = null, CancellationToken ct = default)

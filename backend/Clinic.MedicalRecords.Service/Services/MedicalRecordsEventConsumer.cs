@@ -173,6 +173,12 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
             routingKey: MedicalRecordsRetryPolicy.RetryRoutingKey,
             cancellationToken: ct);
 
+        await TryCleanupLegacyQueueAsync(
+            legacyQueue: "clinic.medical-records.events",
+            exchangeName: exchangeName,
+            routingKeys: ["identity.user-profile-updated", "queue.exam-started", "queue.exam-completed"],
+            ct);
+
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.ReceivedAsync += async (_, args) =>
         {
@@ -373,6 +379,34 @@ public sealed class MedicalRecordsEventConsumer : BackgroundService
         if (eventId.HasValue && await db.InboxMessages.AnyAsync(
                 m => m.ConsumerName == "medical-records" && m.EventId == eventId.Value && m.Status == InboxMessageStatus.Processed, ct))
             throw new DuplicateIntegrationEventException();
+    }
+
+    private async Task TryCleanupLegacyQueueAsync(string legacyQueue, string exchangeName, string[] routingKeys, CancellationToken ct)
+    {
+        if (_connection == null) return;
+
+        try
+        {
+            await using var unbindChannel = await _connection.CreateChannelAsync(cancellationToken: ct);
+            foreach (var key in routingKeys)
+            {
+                await unbindChannel.QueueUnbindAsync(queue: legacyQueue, exchange: exchangeName, routingKey: key, cancellationToken: ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Legacy queue {Queue} unbind skipped.", legacyQueue);
+        }
+
+        try
+        {
+            await using var deleteChannel = await _connection.CreateChannelAsync(cancellationToken: ct);
+            await deleteChannel.QueueDeleteAsync(legacyQueue, ifUnused: true, ifEmpty: true, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Legacy queue {Queue} delete skipped.", legacyQueue);
+        }
     }
 
     private async Task DisconnectAsync()

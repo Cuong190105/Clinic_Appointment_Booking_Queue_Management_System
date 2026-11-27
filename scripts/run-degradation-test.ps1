@@ -143,18 +143,13 @@ DELETE FROM SlotReservations WHERE WorkScheduleId = '$scheduleId';
             } catch {}
         }
         if (-not $patientToken) {
-            Log "Authenticating patient in memory..."
+            Log "Authenticating patient through API Gateway in memory..."
             $loginBody = @{
                 username = "patient1"
                 password = $env:SEED_PASSWORD
             } | ConvertTo-Json
-            try {
-                $loginRes = Invoke-RestMethod -Uri "http://localhost:5001/v1/auth/login" -Method Post -Body $loginBody -ContentType "application/json"
-                $patientToken = $loginRes.accessToken
-            } catch {
-                $loginRes = Invoke-RestMethod -Uri "http://localhost:5000/auth/login" -Method Post -Body $loginBody -ContentType "application/json"
-                $patientToken = if ($loginRes.result -and $loginRes.result.accessToken) { $loginRes.result.accessToken } else { $loginRes.token }
-            }
+            $loginRes = Invoke-RestMethod -Uri "http://localhost:5000/auth/login" -Method Post -Body $loginBody -ContentType "application/json"
+            $patientToken = if ($loginRes.accessToken) { $loginRes.accessToken } elseif ($loginRes.result -and $loginRes.result.accessToken) { $loginRes.result.accessToken } else { $loginRes.token }
         }
 
         # Submit online booking through API Gateway while broker is paused

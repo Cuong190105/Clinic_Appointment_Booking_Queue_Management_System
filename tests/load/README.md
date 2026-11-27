@@ -43,7 +43,7 @@ docker compose -f docker-compose.microservices.yml up -d --wait
 
 1. **Phân biệt HTTP API Latency vs End-to-End Workflow Completion Time**:
    - **Monolith**: Đặt lịch là thao tác đồng bộ (synchronous transaction) ngay trong database. Khi API trả về `201 Created`, lịch hẹn đã lập tức ở trạng thái `Confirmed` (độ trễ async = 0 ms).
-   - **Microservices**: Đặt lịch đi qua bước bất đồng bộ (async saga event) qua RabbitMQ giữa các service (`Appointment`, `Scheduling`, `Queue`). API có thể phản hồi nhanh, nhưng trạng thái `Confirmed` hoàn tất sau khi saga kết thúc.
+   - **Microservices**: Đặt lịch đi qua SAGA lai — API gọi đồng bộ Scheduling để reserve slot rồi ghi `Pending` + Outbox; `AppointmentConfirmationWorker` thăm dò `AppointmentDB` và gọi Scheduling confirm qua HTTP, sau đó Outbox phát `AppointmentConfirmed` qua RabbitMQ. API có thể phản hồi nhanh, nhưng trạng thái `Confirmed` hoàn tất sau khi worker xác nhận.
    - Harness đo **cả 2 chỉ số**: Thời gian phản hồi API HTTP và thời gian trạng thái cuối/vé sẵn sàng.
 
 2. **Đo Lường Retry & Idempotency**:
@@ -60,6 +60,7 @@ docker compose -f docker-compose.microservices.yml up -d --wait
 4. **Bảo Mật & Mock Provider**:
    - Toàn bộ credential cố định trong compose đã được chuyển sang environment variables (`.env`).
    - Tùy chọn `Email__UseMock=true` được bật mặc định khi test tải để tránh phát sinh request ra mạng bên ngoài hoặc làm cạn kiệt hạn mức SMTP.
+   - **Rate Limiting khi chạy k6 trên Microservices**: Gateway mặc định giới hạn `RATE_LIMIT_PERMIT_LIMIT=100` req/phút/partition (theo `sub` hoặc IP). Vì các kịch bản k6 dùng chung ít tài khoản/token bệnh nhân ở mức 20–30 VU (>100 req/phút), hãy nâng tạm `RATE_LIMIT_PERMIT_LIMIT=100000` (qua `.env` hoặc biến môi trường khi `docker compose up -d backend`) trước khi đo tải, rồi khôi phục về `100` sau khi đo xong.
 
 ---
 

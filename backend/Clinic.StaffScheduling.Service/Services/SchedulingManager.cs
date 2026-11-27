@@ -20,7 +20,7 @@ public interface ISchedulingManager
     Task<WorkSchedule> UpdateScheduleAsync(Guid scheduleId, DateOnly date, TimeOnly shiftStart, TimeOnly shiftEnd, int recommendedCapacity, CancellationToken ct = default);
     Task<bool> CancelScheduleAsync(Guid scheduleId, string reason, CancellationToken ct = default);
     Task<int> HandleUserProfileUpdatedAsync(UserProfileUpdated evt, CancellationToken ct = default);
-    Task<bool> ReleaseSlotByAppointmentAsync(Guid scheduleId, TimeOnly timeSlot, Guid patientId, CancellationToken ct = default);
+    Task<bool> ReleaseSlotByAppointmentAsync(Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid? reservationId = null, CancellationToken ct = default);
 }
 
 public class SchedulingManager : ISchedulingManager
@@ -28,7 +28,7 @@ public class SchedulingManager : ISchedulingManager
     private readonly SchedulingDbContext _dbContext;
     private readonly ISchedulingOutboxWriter _outboxWriter;
     private readonly ILogger<SchedulingManager> _logger;
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (string DoctorName, string? SpecialtyName, DateTimeOffset ExpiresAt)> DoctorMetaCache = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (string DoctorName, Guid? SpecialtyId, string? SpecialtyName, DateTimeOffset ExpiresAt)> DoctorMetaCache = new();
 
     public SchedulingManager(
         SchedulingDbContext dbContext,
@@ -161,6 +161,36 @@ public class SchedulingManager : ISchedulingManager
         return availableSlots;
     }
 
+    private async Task<(string DoctorName, Guid? SpecialtyId, string? SpecialtyName)> GetDoctorMetaAsync(
+        Guid doctorId,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        if (DoctorMetaCache.TryGetValue(doctorId, out var cachedMeta) && cachedMeta.ExpiresAt > now)
+        {
+            return (cachedMeta.DoctorName, cachedMeta.SpecialtyId, cachedMeta.SpecialtyName);
+        }
+
+        var doctorMeta = await _dbContext.Doctors
+            .AsNoTracking()
+            .Where(d => d.Id == doctorId)
+            .Select(d => new
+            {
+                DoctorName = d.Employee != null ? d.Employee.FullName : string.Empty,
+                Specialty = d.WorkHistories
+                    .Where(wh => !wh.IsDeleted && wh.EndDate == null && wh.Specialty != null)
+                    .Select(wh => new { wh.SpecialtyId, Name = wh.Specialty!.Name })
+                    .FirstOrDefault()
+            })
+            .FirstOrDefaultAsync(ct);
+
+        var doctorName = doctorMeta?.DoctorName ?? string.Empty;
+        var specialtyId = doctorMeta?.Specialty?.SpecialtyId;
+        var specialtyName = doctorMeta?.Specialty?.Name;
+        DoctorMetaCache[doctorId] = (doctorName, specialtyId, specialtyName, now.AddSeconds(30));
+        return (doctorName, specialtyId, specialtyName);
+    }
+
     public async Task<ReservationResponse> ReserveSlotAsync(
         Guid scheduleId,
         TimeOnly timeSlot,
@@ -171,6 +201,8 @@ public class SchedulingManager : ISchedulingManager
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             throw new ArgumentException("Idempotency-Key header is required.", nameof(idempotencyKey));
 
+        var now = DateTimeOffset.UtcNow;
+
         // 1. Idempotency Check
         var existing = await _dbContext.SlotReservations
             .AsNoTracking()
@@ -178,6 +210,30 @@ public class SchedulingManager : ISchedulingManager
 
         if (existing != null)
         {
+            if (existing.WorkScheduleId != scheduleId || existing.TimeSlot != timeSlot || existing.PatientId != patientId)
+            {
+                throw new InvalidOperationException("Idempotency-Key was already used for a different reservation.");
+            }
+
+            if (existing.Status != ReservationStatus.Confirmed &&
+                !(existing.Status == ReservationStatus.Reserved && existing.ExpiresAt > now))
+            {
+                throw new InvalidOperationException($"Reservation for Idempotency-Key is no longer active (status: {existing.Status}).");
+            }
+
+            var existingSchedule = await _dbContext.WorkSchedules
+                .AsNoTracking()
+                .FirstOrDefaultAsync(ws => ws.Id == existing.WorkScheduleId && !ws.IsDeleted, ct);
+
+            Guid? existingDoctorId = existingSchedule?.DoctorId;
+            string? existingDoctorName = null;
+            Guid? existingSpecialtyId = null;
+            string? existingSpecialtyName = null;
+            if (existingDoctorId.HasValue)
+            {
+                (existingDoctorName, existingSpecialtyId, existingSpecialtyName) = await GetDoctorMetaAsync(existingDoctorId.Value, now, ct);
+            }
+
             _logger.LogInformation("Idempotent request detected for key {Key}, returning existing reservation {Id}.", idempotencyKey, existing.Id);
             return new ReservationResponse(
                 existing.Id,
@@ -186,7 +242,12 @@ public class SchedulingManager : ISchedulingManager
                 existing.PatientId,
                 existing.Status.ToString(),
                 existing.ExpiresAt,
-                existing.IdempotencyKey
+                existing.IdempotencyKey,
+                existingDoctorId,
+                existingDoctorName,
+                existingSpecialtyName,
+                existingSchedule?.Date,
+                existingSpecialtyId
             );
         }
 
@@ -224,9 +285,9 @@ public class SchedulingManager : ISchedulingManager
                 throw new InvalidOperationException($"TimeSlot {timeSlot} is outside shift window [{schedule.ShiftStart} - {schedule.ShiftEnd}].");
             }
 
-            var now = DateTimeOffset.UtcNow;
+            var reserveNow = DateTimeOffset.UtcNow;
             var slotUtc = ConvertSlotToUtc(schedule.Date, timeSlot);
-            if (slotUtc < now.UtcDateTime.AddMinutes(30))
+            if (slotUtc < reserveNow.UtcDateTime.AddMinutes(30))
             {
                 throw new InvalidOperationException("Chỉ có thể đặt hoặc giữ chỗ trước giờ khám ít nhất 30 phút.");
             }
@@ -238,7 +299,7 @@ public class SchedulingManager : ISchedulingManager
                 .AsNoTracking()
                 .Where(r => r.WorkScheduleId == scheduleId &&
                            (r.Status == ReservationStatus.Confirmed ||
-                           (r.Status == ReservationStatus.Reserved && r.ExpiresAt > now)))
+                           (r.Status == ReservationStatus.Reserved && r.ExpiresAt > reserveNow)))
                 .GroupBy(r => r.WorkScheduleId)
                 .Select(group => new
                 {
@@ -270,9 +331,9 @@ public class SchedulingManager : ISchedulingManager
                 TimeSlot = timeSlot,
                 PatientId = patientId,
                 Status = ReservationStatus.Reserved,
-                ExpiresAt = now.AddMinutes(10),
+                ExpiresAt = reserveNow.AddMinutes(10),
                 IdempotencyKey = idempotencyKey,
-                CreatedAt = now
+                CreatedAt = reserveNow
             };
 
             _dbContext.SlotReservations.Add(reservation);
@@ -283,32 +344,7 @@ public class SchedulingManager : ISchedulingManager
             _logger.LogInformation("Reserved slot {TimeSlot} on schedule {ScheduleId} for patient {PatientId}. Expires at {ExpiresAt}.",
                 timeSlot, scheduleId, patientId, reservation.ExpiresAt);
 
-            string doctorName;
-            string? specialtyName;
-            if (DoctorMetaCache.TryGetValue(schedule.DoctorId, out var cachedMeta) && cachedMeta.ExpiresAt > now)
-            {
-                doctorName = cachedMeta.DoctorName;
-                specialtyName = cachedMeta.SpecialtyName;
-            }
-            else
-            {
-                var doctorMeta = await _dbContext.Doctors
-                    .AsNoTracking()
-                    .Where(d => d.Id == schedule.DoctorId)
-                    .Select(d => new
-                    {
-                        DoctorName = d.Employee != null ? d.Employee.FullName : string.Empty,
-                        SpecialtyName = d.WorkHistories
-                            .Where(wh => !wh.IsDeleted && wh.EndDate == null && wh.Specialty != null)
-                            .Select(wh => wh.Specialty!.Name)
-                            .FirstOrDefault()
-                    })
-                    .FirstOrDefaultAsync(ct);
-
-                doctorName = doctorMeta?.DoctorName ?? string.Empty;
-                specialtyName = doctorMeta?.SpecialtyName;
-                DoctorMetaCache[schedule.DoctorId] = (doctorName, specialtyName, now.AddSeconds(30));
-            }
+            var (doctorName, specialtyId, specialtyName) = await GetDoctorMetaAsync(schedule.DoctorId, reserveNow, ct);
 
             return new ReservationResponse(
                 reservation.Id,
@@ -321,7 +357,8 @@ public class SchedulingManager : ISchedulingManager
                 schedule.DoctorId,
                 doctorName,
                 specialtyName,
-                schedule.Date
+                schedule.Date,
+                specialtyId
             );
         });
     }
@@ -334,8 +371,18 @@ public class SchedulingManager : ISchedulingManager
         if (reservation == null)
             return false;
 
+        if (reservation.Status == ReservationStatus.Confirmed)
+            return true;
+
         reservation.Confirm();
-        await _dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new InvalidOperationException("Reservation was modified concurrently.", ex);
+        }
         return true;
     }
 
@@ -347,16 +394,32 @@ public class SchedulingManager : ISchedulingManager
         if (reservation == null)
             return false;
 
+        if (reservation.Status is ReservationStatus.Released or ReservationStatus.Expired)
+            return true;
+
         reservation.Release();
-        await _dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new InvalidOperationException("Reservation was modified concurrently.", ex);
+        }
         return true;
     }
 
-    public async Task<bool> ReleaseSlotByAppointmentAsync(Guid scheduleId, TimeOnly timeSlot, Guid patientId, CancellationToken ct = default)
+    public async Task<bool> ReleaseSlotByAppointmentAsync(Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid? reservationId = null, CancellationToken ct = default)
     {
+        if (reservationId.HasValue && reservationId.Value != Guid.Empty)
+        {
+            return await ReleaseReservationAsync(scheduleId, reservationId.Value, ct);
+        }
+
         var reservations = await _dbContext.SlotReservations
             .Where(r => r.WorkScheduleId == scheduleId &&
                         r.TimeSlot == timeSlot &&
+                        r.PatientId == patientId &&
                         (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.Reserved))
             .ToListAsync(ct);
 
@@ -368,7 +431,15 @@ public class SchedulingManager : ISchedulingManager
             r.Release();
         }
 
-        await _dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new InvalidOperationException("Reservation was modified concurrently.", ex);
+        }
+
         _logger.LogInformation("Released {Count} slot reservation(s) on schedule {ScheduleId} at {TimeSlot} for patient {PatientId}.",
             reservations.Count, scheduleId, timeSlot, patientId);
         return true;

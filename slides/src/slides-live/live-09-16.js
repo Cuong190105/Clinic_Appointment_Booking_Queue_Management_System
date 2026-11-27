@@ -325,7 +325,7 @@ function buildLiveSlides09To16(pptx) {
         x: 5.54,
         step: 'Mốc 3 · 12,5 CPU',
         figure: '594,7 ms',
-        context: 'Mono: 293,4 ms',
+        context: 'Burst 20 mẫu (293,4)',
         figColor: theme.colors.amber,
         accent: theme.colors.amber,
         title: 'Chưa đạt < 500 ms',

@@ -84,10 +84,19 @@ namespace Clinic.Appointment.Service.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<DateOnly>("ScheduleDate")
                         .HasColumnType("date");
 
                     b.Property<Guid?>("SchedulingReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SpecialtyId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SpecialtyName")
@@ -116,6 +125,8 @@ namespace Clinic.Appointment.Service.Persistence.Migrations
                     b.HasIndex("IdempotencyKey")
                         .IsUnique()
                         .HasFilter("[IdempotencyKey] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.HasIndex("SpecialtyId");
 
                     b.HasIndex("Status");
 

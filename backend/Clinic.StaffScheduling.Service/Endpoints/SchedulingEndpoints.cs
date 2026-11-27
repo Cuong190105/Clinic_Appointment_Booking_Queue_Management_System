@@ -51,13 +51,28 @@ public static class SchedulingEndpoints
         // ==========================================
         // 2. RESERVATION APIS (HOLD - CONFIRM - RELEASE)
         // ==========================================
+        static bool IsValidServiceToken(string? serviceToken, IConfiguration configuration)
+        {
+            var expectedToken = configuration["Services:InternalToken"] ?? configuration["Identity:ServiceToken"];
+            return !string.IsNullOrWhiteSpace(expectedToken) &&
+                   !string.IsNullOrWhiteSpace(serviceToken) &&
+                   CryptographicOperations.FixedTimeEquals(
+                       Encoding.UTF8.GetBytes(serviceToken),
+                       Encoding.UTF8.GetBytes(expectedToken));
+        }
+
         app.MapPost("/schedules/{scheduleId:guid}/reservations", async (
             Guid scheduleId,
+            [FromHeader(Name = "X-Clinic-Service-Token")] string? serviceToken,
             [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
             [FromBody] CreateReservationRequest request,
+            IConfiguration configuration,
             ISchedulingManager manager,
             CancellationToken ct) =>
         {
+            if (!IsValidServiceToken(serviceToken, configuration))
+                return Results.Unauthorized();
+
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
                 return Results.BadRequest(new { error = "Header 'Idempotency-Key' is required." });
@@ -85,9 +100,14 @@ public static class SchedulingEndpoints
         app.MapPost("/schedules/{scheduleId:guid}/reservations/{reservationId:guid}/confirm", async (
             Guid scheduleId,
             Guid reservationId,
+            [FromHeader(Name = "X-Clinic-Service-Token")] string? serviceToken,
+            IConfiguration configuration,
             ISchedulingManager manager,
             CancellationToken ct) =>
         {
+            if (!IsValidServiceToken(serviceToken, configuration))
+                return Results.Unauthorized();
+
             try
             {
                 var success = await manager.ConfirmReservationAsync(scheduleId, reservationId, ct);
@@ -105,9 +125,14 @@ public static class SchedulingEndpoints
         app.MapPost("/schedules/{scheduleId:guid}/reservations/{reservationId:guid}/release", async (
             Guid scheduleId,
             Guid reservationId,
+            [FromHeader(Name = "X-Clinic-Service-Token")] string? serviceToken,
+            IConfiguration configuration,
             ISchedulingManager manager,
             CancellationToken ct) =>
         {
+            if (!IsValidServiceToken(serviceToken, configuration))
+                return Results.Unauthorized();
+
             try
             {
                 var success = await manager.ReleaseReservationAsync(scheduleId, reservationId, ct);
@@ -340,7 +365,9 @@ public static class SchedulingEndpoints
                 ws.Id, ws.DoctorId, ws.Doctor.Employee.FullName,
                 ws.Doctor.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null
                     && (specialtyId == Guid.Empty || h.SpecialtyId == specialtyId)).Select(h => h.Specialty.Name).FirstOrDefault(),
-                ws.Date, ws.ShiftStart, ws.ShiftEnd, ws.Status.ToString())).ToListAsync(ct);
+                ws.Date, ws.ShiftStart, ws.ShiftEnd, ws.Status.ToString(),
+                ws.Doctor.WorkHistories.Where(h => !h.IsDeleted && h.EndDate == null
+                    && (specialtyId == Guid.Empty || h.SpecialtyId == specialtyId)).Select(h => (Guid?)h.SpecialtyId).FirstOrDefault())).ToListAsync(ct);
             return Results.Ok(new { isSuccess = true, result });
         });
 
@@ -361,7 +388,8 @@ public static class SchedulingEndpoints
             if (ws == null)
                 return Results.NotFound(new { error = $"Schedule '{id}' not found." });
 
-            var specialty = ws.Doctor.WorkHistories.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null)?.Specialty?.Name;
+            var activeWorkHistory = ws.Doctor.WorkHistories.FirstOrDefault(wh => !wh.IsDeleted && wh.EndDate == null);
+            var specialty = activeWorkHistory?.Specialty?.Name;
             var detail = new ScheduleDetailDto(
                 ws.Id,
                 ws.DoctorId,
@@ -372,7 +400,8 @@ public static class SchedulingEndpoints
                 ws.ShiftEnd,
                 ws.RecommendedCapacity,
                 ws.Status.ToString(),
-                ws.CancellationReason
+                ws.CancellationReason,
+                activeWorkHistory?.SpecialtyId
             );
 
             return Results.Ok(new { isSuccess = true, result = detail });
@@ -432,12 +461,22 @@ public static class SchedulingEndpoints
 
         app.MapPost("/internal/events/appointment-cancelled", async (
             [FromBody] Clinic.Contracts.Events.AppointmentCancelled evt,
+            [FromHeader(Name = "X-Clinic-Service-Token")] string? serviceToken,
+            IConfiguration configuration,
             ISchedulingManager manager,
             CancellationToken ct) =>
         {
+            if (!IsValidServiceToken(serviceToken, configuration))
+                return Results.Unauthorized();
+
             if (evt.WorkScheduleId != Guid.Empty)
             {
-                var released = await manager.ReleaseSlotByAppointmentAsync(evt.WorkScheduleId, evt.TimeSlot, evt.PatientId, ct);
+                var released = await manager.ReleaseSlotByAppointmentAsync(
+                    evt.WorkScheduleId,
+                    evt.TimeSlot,
+                    evt.PatientId,
+                    evt.SchedulingReservationId,
+                    ct);
                 return Results.Ok(new { isSuccess = true, released });
             }
             return Results.Ok(new { isSuccess = true, released = false });

@@ -14,6 +14,7 @@ public class SlotReservation
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ConfirmedAt { get; set; }
     public DateTimeOffset? ReleasedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 
     // Navigation
     public WorkSchedule WorkSchedule { get; set; } = null!;

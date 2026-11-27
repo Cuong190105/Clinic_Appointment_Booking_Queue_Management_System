@@ -308,12 +308,14 @@ public static class AppointmentEndpoints
             var roles = GetRoles(user);
             var isAdminOrReceptionist = roles.Any(r => r is "Admin" or "Receptionist");
             var updaterName = GetUserName(user);
+            var patientId = GetPatientId(user);
 
             var (success, errorMessage, statusCode) = await manager.CancelAppointmentAsync(
                 appointmentId,
                 userId,
                 isAdminOrReceptionist,
                 updaterName,
+                patientId,
                 ct);
 
             if (!success)
@@ -334,7 +336,10 @@ public static class AppointmentEndpoints
             CancellationToken ct) =>
         {
             var userId = GetUserId(user);
+            var roles = GetRoles(user);
+            var isAdminOrReceptionist = roles.Any(r => r is "Admin" or "Receptionist");
             var updaterName = GetUserName(user);
+            var patientId = GetPatientId(user);
 
             var (success, errorMessage, result, statusCode) = await manager.RescheduleAppointmentAsync(
                 appointmentId,
@@ -342,6 +347,8 @@ public static class AppointmentEndpoints
                 userId,
                 updaterName,
                 idempotencyKey,
+                isAdminOrReceptionist,
+                patientId,
                 ct);
 
             if (!success)

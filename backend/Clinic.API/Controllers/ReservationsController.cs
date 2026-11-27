@@ -8,6 +8,7 @@ namespace Clinic.API.Controllers;
 
 [ApiController]
 [Route("/schedules/{scheduleId:guid}/reservations")]
+[Authorize(Roles = "Admin")]
 public sealed class ReservationsController : ControllerBase
 {
     private readonly HttpClient _schedulingClient;
@@ -18,10 +19,11 @@ public sealed class ReservationsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Reserve(
         [FromRoute] Guid scheduleId,
@@ -36,31 +38,48 @@ public sealed class ReservationsController : ControllerBase
 
         var response = await _schedulingClient.SendAsync(httpRequest);
         var content = await response.Content.ReadAsStringAsync();
-        return Content(content, "application/json");
+        return new ContentResult
+        {
+            StatusCode = (int)response.StatusCode,
+            Content = content,
+            ContentType = "application/json"
+        };
     }
 
     [HttpPost("{reservationId:guid}/confirm")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ReservationActionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Confirm([FromRoute] Guid scheduleId, [FromRoute] Guid reservationId)
     {
         var response = await _schedulingClient.PostAsync($"schedules/{scheduleId}/reservations/{reservationId}/confirm", null);
         var content = await response.Content.ReadAsStringAsync();
-        return Content(content, "application/json");
+        return new ContentResult
+        {
+            StatusCode = (int)response.StatusCode,
+            Content = content,
+            ContentType = "application/json"
+        };
     }
 
     [HttpPost("{reservationId:guid}/release")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ReservationActionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Release([FromRoute] Guid scheduleId, [FromRoute] Guid reservationId)
     {
         var response = await _schedulingClient.PostAsync($"schedules/{scheduleId}/reservations/{reservationId}/release", null);
         var content = await response.Content.ReadAsStringAsync();
-        return Content(content, "application/json");
+        return new ContentResult
+        {
+            StatusCode = (int)response.StatusCode,
+            Content = content,
+            ContentType = "application/json"
+        };
     }
 }

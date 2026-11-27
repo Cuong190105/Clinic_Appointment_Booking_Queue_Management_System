@@ -17,4 +17,10 @@ public static class ClinicTime
             : DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
         return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utc, TimeZone));
     }
+
+    public static DateTime ToUtc(DateOnly date, TimeOnly time)
+    {
+        var local = DateTime.SpecifyKind(date.ToDateTime(time), DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(local, TimeZone);
+    }
 }

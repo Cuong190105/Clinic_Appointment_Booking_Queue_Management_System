@@ -115,11 +115,18 @@ builder.Services.AddHttpClient("Identity", client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 }).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 
-builder.Services.AddHttpClient("Scheduling", client =>
+builder.Services.AddHttpClient("Scheduling", (sp, client) =>
 {
-    var schedulingAuthority = builder.Configuration["Scheduling:Authority"] ?? "http://localhost:5002";
+    var config = sp.GetRequiredService<IConfiguration>();
+    var schedulingAuthority = config["Scheduling:Authority"] ?? "http://localhost:5002";
     client.BaseAddress = new Uri(schedulingAuthority.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
+    var serviceToken = config["Services:InternalToken"] ?? config["Identity:ServiceToken"];
+    if (!string.IsNullOrWhiteSpace(serviceToken))
+    {
+        client.DefaultRequestHeaders.Remove("X-Clinic-Service-Token");
+        client.DefaultRequestHeaders.Add("X-Clinic-Service-Token", serviceToken);
+    }
 }).AddHttpMessageHandler<Clinic.API.Middlewares.CorrelationIdDelegatingHandler>();
 
 builder.Services.AddHttpClient("Appointment", client =>

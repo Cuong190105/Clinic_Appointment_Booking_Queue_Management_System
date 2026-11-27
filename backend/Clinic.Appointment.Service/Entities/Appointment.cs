@@ -18,6 +18,7 @@ public class Appointment
     public Guid WorkScheduleId { get; set; }
     public Guid DoctorId { get; set; }
     public string DoctorName { get; set; } = string.Empty;
+    public Guid? SpecialtyId { get; set; }
     public string? SpecialtyName { get; set; }
     public DateOnly ScheduleDate { get; set; }
     public TimeOnly TimeSlot { get; set; }
@@ -34,6 +35,7 @@ public class Appointment
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public bool IsDeleted { get; set; } = false;
+    public byte[] RowVersion { get; set; } = [];
 
     public ICollection<AppointmentSnapshot> Snapshots { get; set; } = new List<AppointmentSnapshot>();
 
@@ -126,7 +128,7 @@ public class Appointment
 
         if (!isAdminOrReceptionist)
         {
-            var appointmentDateTimeUtc = ScheduleDate.ToDateTime(TimeSlot, DateTimeKind.Utc);
+            var appointmentDateTimeUtc = ClinicTime.ToUtc(ScheduleDate, TimeSlot);
             if (DateTime.UtcNow.AddHours(CancelLimitHours) > appointmentDateTimeUtc)
             {
                 throw new InvalidOperationException($"Appointments can only be cancelled at least {CancelLimitHours} hours before the scheduled time.");
@@ -148,9 +150,11 @@ public class Appointment
         TimeOnly newTimeSlot,
         string newReason,
         Guid updatedByUserId,
-        string? updaterName = null)
+        string? updaterName = null,
+        Guid? newSpecialtyId = null,
+        Guid? newReservationId = null)
     {
-        if (Status is AppointmentStatus.Completed or AppointmentStatus.Cancelled)
+        if (Status is AppointmentStatus.CheckedIn or AppointmentStatus.Completed or AppointmentStatus.Cancelled)
         {
             throw new InvalidOperationException($"{Status} appointments cannot be updated.");
         }
@@ -160,10 +164,15 @@ public class Appointment
         WorkScheduleId = newScheduleId;
         DoctorId = newDoctorId;
         DoctorName = newDoctorName;
+        SpecialtyId = newSpecialtyId;
         SpecialtyName = newSpecialtyName;
         ScheduleDate = newDate;
         TimeSlot = newTimeSlot;
         Reason = newReason;
+        if (newReservationId.HasValue)
+        {
+            SchedulingReservationId = newReservationId.Value;
+        }
         UpdatedByUserId = updatedByUserId;
         UpdatedAt = DateTime.UtcNow;
     }

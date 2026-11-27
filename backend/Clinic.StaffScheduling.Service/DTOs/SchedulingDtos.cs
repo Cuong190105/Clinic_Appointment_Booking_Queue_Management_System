@@ -123,7 +123,8 @@ public record ReservationResponse(
     Guid? DoctorId = null,
     string? DoctorName = null,
     string? SpecialtyName = null,
-    DateOnly? ScheduleDate = null
+    DateOnly? ScheduleDate = null,
+    Guid? SpecialtyId = null
 );
 
 public record ShiftSuggestionApprovalRequest(
@@ -182,12 +183,14 @@ public record ScheduleDetailDto(
     TimeOnly ShiftEnd,
     int RecommendedCapacity,
     string Status,
-    string? CancellationReason
+    string? CancellationReason,
+    Guid? SpecialtyId = null
 );
 
 public record WalkInScheduleDto(
     Guid Id, Guid DoctorId, string DoctorName, string? SpecialtyName,
-    DateOnly Date, TimeOnly ShiftStart, TimeOnly ShiftEnd, string Status);
+    DateOnly Date, TimeOnly ShiftStart, TimeOnly ShiftEnd, string Status,
+    Guid? SpecialtyId = null);
 
 public record UpdateScheduleRequest(
     DateOnly Date,

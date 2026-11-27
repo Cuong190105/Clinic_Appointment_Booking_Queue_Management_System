@@ -36,6 +36,7 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.Property(a => a.UpdatedByUserId).IsRequired();
         builder.Property(a => a.CreatedAt).IsRequired();
         builder.Property(a => a.IsDeleted).IsRequired().HasDefaultValue(false);
+        builder.Property(a => a.RowVersion).IsRowVersion();
 
         // Unique index for idempotency key retry safety
         builder.HasIndex(a => a.IdempotencyKey)
@@ -50,6 +51,7 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         // Indexes for fast lookup
         builder.HasIndex(a => new { a.PatientId, a.ScheduleDate });
         builder.HasIndex(a => new { a.DoctorId, a.ScheduleDate });
+        builder.HasIndex(a => a.SpecialtyId);
         builder.HasIndex(a => a.Status);
 
         builder.HasMany(a => a.Snapshots)

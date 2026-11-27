@@ -199,6 +199,36 @@ public class DomainModelTests
         Assert.Equal("Receptionist Alice", snapshot.UpdatedByUserName);
     }
 
+    [Fact]
+    public void Appointment_Cancel_ConvertsClinicLocalTimeToUtcBeforeChecking24HourRule()
+    {
+        // Target 24h30m from now expressed in clinic local time (UTC+7).
+        var targetLocal = Clinic.Appointment.Service.Common.ClinicTime.ToLocalDate(DateTime.UtcNow.AddHours(24.5));
+        var targetLocalTime = TimeOnly.FromDateTime(
+            TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow.AddHours(24.5), Clinic.Appointment.Service.Common.ClinicTime.TimeZone));
+        var app = new AppointmentEntity(
+            Guid.NewGuid(), "Local Patient", "090", "Male", null,
+            Guid.NewGuid(), Guid.NewGuid(), "Dr. A", "General",
+            targetLocal, targetLocalTime, "Checkup", Guid.NewGuid(), isWalkIn: false);
+
+        // Previously treating local time as UTC shifted it 7h earlier (~17.5h from now) and wrongly threw!
+        app.Cancel(Guid.NewGuid(), isAdminOrReceptionist: false);
+        Assert.Equal(AppointmentStatus.Cancelled, app.Status);
+    }
+
+    [Fact]
+    public void Appointment_Reschedule_WhenCheckedIn_ShouldThrowInvalidOperationException()
+    {
+        var app = CreatePendingAppointment();
+        app.ScheduleDate = Clinic.Appointment.Service.Common.ClinicTime.ToLocalDate(DateTime.UtcNow);
+        app.Confirm(Guid.NewGuid());
+        app.CheckIn(DateTime.UtcNow);
+
+        Assert.Throws<InvalidOperationException>(() => app.Reschedule(
+            Guid.NewGuid(), Guid.NewGuid(), "Dr. B", "General",
+            app.ScheduleDate.AddDays(1), new TimeOnly(10, 0), "Move", Guid.NewGuid()));
+    }
+
     private static AppointmentEntity CreatePendingAppointment()
     {
         return new AppointmentEntity(

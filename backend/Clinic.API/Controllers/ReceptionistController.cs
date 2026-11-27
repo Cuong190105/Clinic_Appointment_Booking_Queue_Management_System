@@ -77,7 +77,7 @@ namespace Clinic.API.Controllers
         // For receptionist only
         [HttpPatch("appointments/{appointmentId}")]
         [Authorize(Policy = "Permission:appointment.update")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(AppointmentDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

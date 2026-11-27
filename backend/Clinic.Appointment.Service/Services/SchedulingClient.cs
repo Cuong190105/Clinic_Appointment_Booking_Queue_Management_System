@@ -51,7 +51,7 @@ public class SchedulingClient : ISchedulingClient
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<bool> ReleaseSlotByAppointmentAsync(Guid appointmentId, Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid cancelledBy, CancellationToken ct = default)
+    public async Task<bool> ReleaseSlotByAppointmentAsync(Guid appointmentId, Guid scheduleId, TimeOnly timeSlot, Guid patientId, Guid cancelledBy, Guid? reservationId = null, CancellationToken ct = default)
     {
         try
         {
@@ -62,7 +62,8 @@ public class SchedulingClient : ISchedulingClient
                 cancelledBy,
                 cancelledAt = DateTimeOffset.UtcNow,
                 workScheduleId = scheduleId,
-                timeSlot
+                timeSlot,
+                schedulingReservationId = reservationId
             };
             var response = await _client.PostAsJsonAsync("internal/events/appointment-cancelled", payload, ct);
             return response.IsSuccessStatusCode;
@@ -93,7 +94,10 @@ public class SchedulingClient : ISchedulingClient
             TimeOnly.Parse(target.GetProperty("shiftStart").GetString()!),
             TimeOnly.Parse(target.GetProperty("shiftEnd").GetString()!),
             target.GetProperty("recommendedCapacity").GetInt32(),
-            target.GetProperty("status").GetString() ?? string.Empty
+            target.GetProperty("status").GetString() ?? string.Empty,
+            target.TryGetProperty("specialtyId", out var specIdEl) && specIdEl.ValueKind == JsonValueKind.String
+                ? specIdEl.GetGuid()
+                : null
         );
     }
 
@@ -105,6 +109,29 @@ public class SchedulingClient : ISchedulingClient
         using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         var root = doc.RootElement.TryGetProperty("result", out var result) ? result : doc.RootElement;
         return JsonSerializer.Deserialize<List<WalkInScheduleCandidate>>(root.GetRawText(), new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetDoctorIdsBySpecialtyAsync(Guid specialtyId, CancellationToken ct = default)
+    {
+        using var response = await _client.GetAsync($"doctors?specialtyId={specialtyId}&pageSize=100", ct);
+        if (!response.IsSuccessStatusCode)
+            return [];
+
+        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        var root = doc.RootElement;
+        var container = root.TryGetProperty("result", out var resultEl) ? resultEl : root;
+        if (!container.TryGetProperty("items", out var itemsEl) || itemsEl.ValueKind != JsonValueKind.Array)
+            return [];
+
+        var ids = new List<Guid>();
+        foreach (var item in itemsEl.EnumerateArray())
+        {
+            if (item.TryGetProperty("id", out var idEl) && idEl.TryGetGuid(out var doctorId))
+            {
+                ids.Add(doctorId);
+            }
+        }
+        return ids;
     }
 }
 

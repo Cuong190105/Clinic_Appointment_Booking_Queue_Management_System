@@ -582,5 +582,94 @@ public class SchedulingManagerTests
         Assert.Equal("new@example.com", reloaded.Email);
         Assert.Equal("Male", reloaded.Gender);
     }
+
+    [Fact]
+    public async Task ReserveSlot_DuplicateIdempotencyKey_PopulatesDoctorMetadata_AndRejectsReleasedOrMismatched()
+    {
+        var (db, manager) = CreateTestManager();
+        var doctorId = Guid.NewGuid();
+        var specialty = new Specialty { Id = Guid.NewGuid(), Name = "Cardiology", EstablishedDate = new DateOnly(2020, 1, 1) };
+        var doctor = CreateTestDoctor(doctorId, "Dr. Meta");
+        doctor.WorkHistories.Add(new WorkHistory
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = doctorId,
+            SpecialtyId = specialty.Id,
+            Specialty = specialty,
+            StartDate = new DateOnly(2021, 1, 1)
+        });
+        var scheduleDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3));
+        var schedule = new WorkSchedule
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = doctorId,
+            Doctor = doctor,
+            Date = scheduleDate,
+            ShiftStart = new TimeOnly(8, 0),
+            ShiftEnd = new TimeOnly(12, 0),
+            RecommendedCapacity = 10,
+            Status = WorkScheduleStatus.Active
+        };
+        db.Specialties.Add(specialty);
+        db.Doctors.Add(doctor);
+        db.WorkSchedules.Add(schedule);
+        await db.SaveChangesAsync();
+
+        var patientId = Guid.NewGuid();
+        var slot = new TimeOnly(9, 0);
+        var first = await manager.ReserveSlotAsync(schedule.Id, slot, patientId, "meta-key-1");
+        var retry = await manager.ReserveSlotAsync(schedule.Id, slot, patientId, "meta-key-1");
+
+        Assert.Equal(first.Id, retry.Id);
+        Assert.Equal(doctorId, retry.DoctorId);
+        Assert.Equal("Dr. Meta", retry.DoctorName);
+        Assert.Equal(specialty.Id, retry.SpecialtyId);
+        Assert.Equal("Cardiology", retry.SpecialtyName);
+        Assert.Equal(scheduleDate, retry.ScheduleDate);
+
+        // Mismatched schedule/slot/patient must fail
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            manager.ReserveSlotAsync(schedule.Id, new TimeOnly(9, 15), patientId, "meta-key-1"));
+
+        // Releasing makes that idempotency key inactive so rebooking cannot reuse Released row
+        await manager.ReleaseReservationAsync(schedule.Id, first.Id);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            manager.ReserveSlotAsync(schedule.Id, slot, patientId, "meta-key-1"));
+    }
+
+    [Fact]
+    public async Task ReleaseSlotByAppointment_WithReservationId_DoesNotReleaseNewPatientsBooking()
+    {
+        var (db, manager) = CreateTestManager();
+        var schedule = new WorkSchedule
+        {
+            Id = Guid.NewGuid(),
+            DoctorId = Guid.NewGuid(),
+            Date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(4)),
+            ShiftStart = new TimeOnly(8, 0),
+            ShiftEnd = new TimeOnly(12, 0),
+            RecommendedCapacity = 10,
+            Status = WorkScheduleStatus.Active
+        };
+        db.WorkSchedules.Add(schedule);
+        await db.SaveChangesAsync();
+
+        var slot = new TimeOnly(10, 0);
+        var patientA = Guid.NewGuid();
+        var patientB = Guid.NewGuid();
+
+        var resA = await manager.ReserveSlotAsync(schedule.Id, slot, patientA, "patient-a-key");
+        await manager.ReleaseReservationAsync(schedule.Id, resA.Id);
+
+        var resB = await manager.ReserveSlotAsync(schedule.Id, slot, patientB, "patient-b-key");
+        await manager.ConfirmReservationAsync(schedule.Id, resB.Id);
+
+        // Late outbox cancel event for patient A's reservation must NOT touch patient B's confirmed reservation
+        await manager.ReleaseSlotByAppointmentAsync(schedule.Id, slot, patientA, resA.Id);
+
+        var reloadedB = await db.SlotReservations.FindAsync(resB.Id);
+        Assert.NotNull(reloadedB);
+        Assert.Equal(ReservationStatus.Confirmed, reloadedB.Status);
+    }
 }
 

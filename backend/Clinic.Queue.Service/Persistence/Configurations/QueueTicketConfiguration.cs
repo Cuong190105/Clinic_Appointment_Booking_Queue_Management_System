@@ -31,6 +31,9 @@ public class QueueTicketConfiguration : IEntityTypeConfiguration<QueueTicket>
             .HasColumnType("date")
             .IsRequired();
 
+        builder.Property(t => t.RowVersion)
+            .IsRowVersion();
+
         // 1 ticket per appointment
         builder.HasIndex(t => t.AppointmentId)
             .IsUnique()

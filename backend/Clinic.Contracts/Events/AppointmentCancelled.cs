@@ -15,6 +15,7 @@ public sealed record AppointmentCancelled
     public string? PatientEmail { get; init; }
     public string? PatientPhone { get; init; }
     public Guid? IdentityUserId { get; init; }
+    public Guid? SchedulingReservationId { get; init; }
 
     [JsonConstructor]
     public AppointmentCancelled()
@@ -32,7 +33,8 @@ public sealed record AppointmentCancelled
         string? PatientName = null,
         string? PatientEmail = null,
         string? PatientPhone = null,
-        Guid? IdentityUserId = null)
+        Guid? IdentityUserId = null,
+        Guid? SchedulingReservationId = null)
     {
         this.AppointmentId = AppointmentId;
         this.PatientId = PatientId;
@@ -45,5 +47,6 @@ public sealed record AppointmentCancelled
         this.PatientEmail = PatientEmail;
         this.PatientPhone = PatientPhone;
         this.IdentityUserId = IdentityUserId;
+        this.SchedulingReservationId = SchedulingReservationId;
     }
 }

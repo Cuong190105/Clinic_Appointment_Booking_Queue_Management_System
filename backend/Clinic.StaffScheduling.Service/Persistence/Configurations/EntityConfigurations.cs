@@ -125,6 +125,7 @@ public class SlotReservationConfiguration : IEntityTypeConfiguration<SlotReserva
         builder.HasKey(r => r.Id);
         builder.Property(r => r.IdempotencyKey).IsRequired().HasMaxLength(100);
         builder.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(r => r.RowVersion).IsRowVersion();
 
         builder.HasOne(r => r.WorkSchedule)
             .WithMany(w => w.SlotReservations)
