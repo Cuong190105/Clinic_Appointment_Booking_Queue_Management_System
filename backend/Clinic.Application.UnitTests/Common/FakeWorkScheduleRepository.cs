@@ -125,7 +125,7 @@ namespace Clinic.Application.UnitTests.Common
         public async Task<IEnumerable<WorkSchedule>> GetDoctorSchedulesWithAppointmentByDateAsync(Guid? doctorId, DateOnly date)
         {
             List<WorkSchedule> result = _workSchedules
-                .Where(ws => ws.DoctorId == doctorId &&
+                .Where(ws => (!doctorId.HasValue || ws.DoctorId == doctorId.Value) &&
                 ws.IsDeleted == false &&
                 ws.Status == WorkScheduleStatus.Active &&
                 ws.Date == date).ToList();
@@ -134,6 +134,10 @@ namespace Clinic.Application.UnitTests.Common
             {
                 // workaround to filter inclusion to preserve object stored in context, but lose the reference to other entity
                 var ws = new WorkSchedule(schedule.Id, schedule.DoctorId, schedule.Date, schedule.ShiftStart, schedule.ShiftEnd, schedule.PatientLimit, schedule.Status, schedule.CreatedAt, schedule.UpdatedAt, schedule.IsDeleted);
+                if (schedule.Doctor != null)
+                {
+                    typeof(WorkSchedule).GetProperty(nameof(WorkSchedule.Doctor))!.SetValue(ws, schedule.Doctor);
+                }
                 foreach (var appointment in schedule.Appointments)
                 {
                     if (!appointment.IsDeleted && appointment.Status != AppointmentStatus.Cancelled)

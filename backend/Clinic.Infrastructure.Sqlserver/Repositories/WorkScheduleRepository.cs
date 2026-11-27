@@ -31,6 +31,9 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
                 .Include(w => w.Doctor)
                     .ThenInclude(d => d.Employee)
                         .ThenInclude(e => e.Person)
+                .Include(w => w.Doctor)
+                    .ThenInclude(d => d.WorkHistories)
+                        .ThenInclude(wh => wh.Specialty)
                 .FirstOrDefaultAsync(w => w.Id == id && w.IsDeleted == false);
         }
 
@@ -107,13 +110,25 @@ namespace Clinic.Infrastructure.Sqlserver.Repositories
 
         public async Task<IEnumerable<WorkSchedule>> GetDoctorSchedulesWithAppointmentByDateAsync(Guid? doctorId, DateOnly date)
         {
-            return await _context.WorkSchedules.Include(ws => ws.Appointments.Where(a => a.IsDeleted == false && a.Status != AppointmentStatus.Cancelled))
+            var query = _context.WorkSchedules
+                .Include(ws => ws.Appointments.Where(a => a.IsDeleted == false && a.Status != AppointmentStatus.Cancelled))
+                .Include(ws => ws.Doctor)
+                    .ThenInclude(d => d.Employee)
+                        .ThenInclude(e => e.Person)
+                .Include(ws => ws.Doctor)
+                    .ThenInclude(d => d.WorkHistories)
+                        .ThenInclude(wh => wh.Specialty)
                 .Where(ws =>
-                    ws.DoctorId == doctorId &&
                     ws.IsDeleted == false &&
                     ws.Status == WorkScheduleStatus.Active &&
-                    ws.Date == date)
-                .AsNoTracking().ToListAsync();
+                    ws.Date == date);
+
+            if (doctorId.HasValue)
+            {
+                query = query.Where(ws => ws.DoctorId == doctorId.Value);
+            }
+
+            return await query.AsNoTracking().ToListAsync();
         }
 
         public async Task<IEnumerable<WorkSchedule>> GetPlannedSchedulesByDoctorIdAsync(Guid? doctorId, DateOnly startDate, DateOnly endDate)

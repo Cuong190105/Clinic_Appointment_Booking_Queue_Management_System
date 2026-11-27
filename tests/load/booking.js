@@ -6,6 +6,7 @@ import {
   DEFAULT_HEADERS,
   PATIENT_PASSWORD,
   PATIENT_USERNAME,
+  buildSanitizedSummary,
   clinicDate,
   parseAppointment,
   responseItems,
@@ -195,4 +196,9 @@ export function teardown(data) {
     const canceled = cancelWorkSchedule(data.adminToken, data.schedule);
     check(canceled, { 'dedicated benchmark shift is cancelled after run': (value) => value });
   }
+}
+
+
+export function handleSummary(data) {
+  return buildSanitizedSummary(data);
 }

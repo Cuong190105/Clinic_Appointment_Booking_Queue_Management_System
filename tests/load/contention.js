@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check, Counter } from 'k6';
-import { BASE_URL, DEFAULT_HEADERS, DOCTOR_ID, PATIENT_PASSWORD, PATIENT_USERNAME, clinicDate } from './config.js';
+import { BASE_URL, DEFAULT_HEADERS, DOCTOR_ID, PATIENT_PASSWORD, PATIENT_USERNAME, buildSanitizedSummary, clinicDate } from './config.js';
 import {
   adminToken as getAdminToken,
   availableDoctorSchedules,
@@ -150,4 +150,9 @@ export function teardown(data) {
     throw new Error(`Expected exactly one booking for ${data.targetSlot} on ${data.date}; found ${testAppointments.length}.`);
   }
   if (cleanupFailed || !shiftCleanupPassed) throw new Error('Contention test cleanup could not be verified.');
+}
+
+
+export function handleSummary(data) {
+  return buildSanitizedSummary(data);
 }

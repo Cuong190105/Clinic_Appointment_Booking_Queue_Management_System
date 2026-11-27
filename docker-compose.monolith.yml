@@ -6,7 +6,7 @@ services:
     container_name: clinic_mono_sql_server
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw}
+      - SA_PASSWORD=${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
       - MSSQL_PID=Express
     ports:
       - "1434:1433"
@@ -44,8 +44,8 @@ services:
       - "5100:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING:-Server=db,1433;Database=ClinicDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Min Pool Size=20;Max Pool Size=200;}
-      - Jwt__Key=${JWT_KEY:-SuperR4nd0mK3yForJWTTokenGenerat!onUsedForDevelopmentPurposesOnly}
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING:-Server=db,1433;Database=ClinicDB;User Id=sa;Password=${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env};TrustServerCertificate=True;Min Pool Size=20;Max Pool Size=200;}
+      - Jwt__Key=${JWT_KEY:?Set JWT_KEY in .env}
       - Email__Username=${SMTP_USERNAME:-mock-notifications@clinic.local}
       - Email__Password=${SMTP_PASSWORD:-mock-dev-password}
       - Email__Host=${SMTP_HOST:-mock}

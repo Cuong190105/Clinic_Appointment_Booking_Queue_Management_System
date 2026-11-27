@@ -79,7 +79,7 @@ namespace Clinic.Domain.Entities
                 throw new ArgumentOutOfRangeException(nameof(timeSlot), $"Time slot {timeSlot} must be within the work schedule ({workSchedule.ShiftStart} - {workSchedule.ShiftEnd}).");
             }
             var bookingTimeUtc = new TimeConverter().ConvertToUtc(new DateTime(workSchedule.Date, timeSlot));
-            if (bookingTimeUtc < DateTime.UtcNow)
+            if (!isWalkIn && bookingTimeUtc < DateTime.UtcNow)
             {
                 throw new ArgumentException("Cannot create an appointment for a past time.", nameof(workSchedule));
             }

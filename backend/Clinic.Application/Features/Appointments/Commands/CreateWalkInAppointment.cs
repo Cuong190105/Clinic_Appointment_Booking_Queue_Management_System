@@ -110,13 +110,16 @@ namespace Clinic.Application.Features.Appointments.Commands
                 throw new ConflictException("Không tìm thấy ca trực nào của bác sĩ/chuyên khoa này hôm nay.");
             }
 
-            var timeSlot = nowTime >= selectedSchedule.ShiftStart && nowTime < selectedSchedule.ShiftEnd
+            var trackedSchedule = await _workScheduleRepository.GetByIdAsync(selectedSchedule.Id)
+                ?? throw new ConflictException("Không tìm thấy ca trực nào của bác sĩ/chuyên khoa này hôm nay.");
+
+            var timeSlot = nowTime >= trackedSchedule.ShiftStart && nowTime < trackedSchedule.ShiftEnd
                 ? nowTime
-                : selectedSchedule.ShiftStart;
+                : trackedSchedule.ShiftStart;
 
             var appointment = new Appointment(
                 patient,
-                selectedSchedule,
+                trackedSchedule,
                 timeSlot,
                 string.IsNullOrWhiteSpace(request.Reason) ? "Walk-in" : request.Reason.Trim(),
                 request.UserId,
@@ -126,12 +129,12 @@ namespace Clinic.Application.Features.Appointments.Commands
             };
 
             appointment.Confirm(request.UserId);
-            selectedSchedule.AddAppointment(appointment);
+            trackedSchedule.AddAppointment(appointment);
             await _appointmentRepository.AddAsync(appointment);
 
             var checkInTime = DateTime.UtcNow;
-            var queueDate = selectedSchedule.Date;
-            var queueNumber = await _queueTicketRepository.GetNextQueueNumberAsync(selectedSchedule.DoctorId, queueDate.ToDateTime(TimeOnly.MinValue), cancellationToken);
+            var queueDate = trackedSchedule.Date;
+            var queueNumber = await _queueTicketRepository.GetNextQueueNumberAsync(trackedSchedule.DoctorId, queueDate.ToDateTime(TimeOnly.MinValue), cancellationToken);
 
             var queueTicket = appointment.CheckIn(checkInTime, queueNumber);
             queueTicket.QueueDate = queueDate;
@@ -140,20 +143,21 @@ namespace Clinic.Application.Features.Appointments.Commands
                 queueTicket.SetPriority(true);
             }
             queueTicket.PatientName = patient.Person.FullName;
-            queueTicket.DoctorName = selectedSchedule.Doctor?.Employee?.Person?.FullName;
+            queueTicket.DoctorName = trackedSchedule.Doctor?.Employee?.Person?.FullName;
 
             await _queueTicketRepository.AddAsync(queueTicket);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            var activeWh = selectedSchedule.Doctor?.WorkHistories.FirstOrDefault(wh => wh.EndDate == null);
+            var activeWh = trackedSchedule.Doctor?.WorkHistories.FirstOrDefault(wh => wh.EndDate == null)
+                ?? selectedSchedule.Doctor?.WorkHistories.FirstOrDefault(wh => wh.EndDate == null);
 
             return new WalkInResultDto
             {
                 AppointmentId = appointment.Id,
                 PatientId = patient.Id,
                 PatientName = patient.Person.FullName,
-                DoctorId = selectedSchedule.DoctorId,
-                DoctorName = selectedSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
+                DoctorId = trackedSchedule.DoctorId,
+                DoctorName = trackedSchedule.Doctor?.Employee?.Person?.FullName ?? string.Empty,
                 SpecialtyName = activeWh?.Specialty?.Name ?? string.Empty,
                 QueueTicketId = queueTicket.Id,
                 QueueNumber = queueTicket.QueueNumber,

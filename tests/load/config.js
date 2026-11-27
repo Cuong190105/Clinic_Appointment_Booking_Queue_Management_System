@@ -61,3 +61,16 @@ export function responseItems(body, keys = ['items', 'schedules']) {
 export function parseAppointment(body) {
   return unwrapResponse(body);
 }
+
+export function buildSanitizedSummary(data) {
+  const sanitized = { ...data };
+  if (sanitized.setup_data !== undefined) {
+    sanitized.setup_data = '[REDACTED]';
+  }
+  const serialized = `${JSON.stringify(sanitized, null, 2)}\n`;
+  const result = { stdout: serialized };
+  if (ENV.SUMMARY_EXPORT) {
+    result[ENV.SUMMARY_EXPORT] = serialized;
+  }
+  return result;
+}
