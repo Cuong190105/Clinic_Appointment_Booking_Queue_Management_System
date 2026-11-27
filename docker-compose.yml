@@ -10,6 +10,15 @@ services:
             - "1433:1433"
         volumes:
             - mssql_data:/var/opt/mssql
+        networks:
+            default:
+                aliases:
+                    - identity-db
+                    - scheduling-db
+                    - appointment-db
+                    - queue-db
+                    - medical-records-db
+                    - notification-db
         healthcheck:
             test:
                 - CMD-SHELL
@@ -27,6 +36,36 @@ services:
                     cpus: '2.0'
                     memory: 1024M
         restart: always
+
+    db-init:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        container_name: clinic_db_init
+        entrypoint: ["/bin/bash", "-c"]
+        command:
+            - >-
+                until /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null; do sleep 2; done;
+                /opt/mssql-tools18/bin/sqlcmd -C -S db,1433 -U sa -P "$$DB_SA_PASSWORD" -b
+                -v IdentityPassword="$$DB_IDENTITY_PASSWORD"
+                -v SchedulingPassword="$$DB_SCHEDULING_PASSWORD"
+                -v AppointmentPassword="$$DB_APPOINTMENT_PASSWORD"
+                -v QueuePassword="$$DB_QUEUE_PASSWORD"
+                -v MedicalRecordsPassword="$$DB_MEDICAL_RECORDS_PASSWORD"
+                -v NotificationPassword="$$DB_NOTIFICATION_PASSWORD"
+                -i /init-service-logins.sql
+        environment:
+            DB_SA_PASSWORD: ${DB_SA_PASSWORD:?Set DB_SA_PASSWORD in .env}
+            DB_IDENTITY_PASSWORD: ${DB_IDENTITY_PASSWORD:?Set DB_IDENTITY_PASSWORD in .env}
+            DB_SCHEDULING_PASSWORD: ${DB_SCHEDULING_PASSWORD:?Set DB_SCHEDULING_PASSWORD in .env}
+            DB_APPOINTMENT_PASSWORD: ${DB_APPOINTMENT_PASSWORD:?Set DB_APPOINTMENT_PASSWORD in .env}
+            DB_QUEUE_PASSWORD: ${DB_QUEUE_PASSWORD:?Set DB_QUEUE_PASSWORD in .env}
+            DB_MEDICAL_RECORDS_PASSWORD: ${DB_MEDICAL_RECORDS_PASSWORD:?Set DB_MEDICAL_RECORDS_PASSWORD in .env}
+            DB_NOTIFICATION_PASSWORD: ${DB_NOTIFICATION_PASSWORD:?Set DB_NOTIFICATION_PASSWORD in .env}
+        volumes:
+            - ./backend/sql/init-service-logins.sql:/init-service-logins.sql:ro
+        depends_on:
+            db:
+                condition: service_healthy
+        restart: "no"
 
     rabbitmq:
         image: rabbitmq:3.13-management
@@ -152,7 +191,7 @@ services:
         ports:
             - "5001:8080"
         environment:
-            - ConnectionStrings__IdentityConnection=Server=db,1433;Database=ClinicIdentityDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False;Min Pool Size=10;Max Pool Size=200;
+            - ConnectionStrings__IdentityConnection=Server=identity-db,1433;Database=ClinicIdentityDB;User Id=svc_identity;Password=${DB_IDENTITY_PASSWORD:?Set DB_IDENTITY_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;Min Pool Size=5;Max Pool Size=20;Connect Timeout=10;Application Name=clinic-identity-service;
             - Jwt__Issuer=${IDENTITY_ISSUER:-http://localhost:5000}
             - Jwt__Audience=Clinic.Services
             - Jwt__RefreshTokenDays=${IDENTITY_REFRESH_TOKEN_DAYS:-7}
@@ -166,6 +205,8 @@ services:
         depends_on:
             db:
                 condition: service_healthy
+            db-init:
+                condition: service_completed_successfully
         healthcheck:
             test:
                 [
@@ -196,7 +237,7 @@ services:
         ports:
             - "5002:8080"
         environment:
-            - ConnectionStrings__SchedulingConnection=Server=db,1433;Database=ClinicSchedulingDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False;Min Pool Size=20;Max Pool Size=200;
+            - ConnectionStrings__SchedulingConnection=Server=scheduling-db,1433;Database=ClinicSchedulingDB;User Id=svc_scheduling;Password=${DB_SCHEDULING_PASSWORD:?Set DB_SCHEDULING_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;Min Pool Size=10;Max Pool Size=40;Connect Timeout=10;Application Name=clinic-scheduling-service;
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Services__InternalToken=${IDENTITY_SERVICE_TOKEN}
@@ -215,6 +256,8 @@ services:
         depends_on:
             db:
                 condition: service_healthy
+            db-init:
+                condition: service_completed_successfully
             rabbitmq:
                 condition: service_healthy
             identity-service:
@@ -301,7 +344,7 @@ services:
         ports:
             - "5003:8080"
         environment:
-            - ConnectionStrings__AppointmentConnection=Server=db,1433;Database=ClinicAppointmentDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False;Min Pool Size=20;Max Pool Size=200;
+            - ConnectionStrings__AppointmentConnection=Server=appointment-db,1433;Database=ClinicAppointmentDB;User Id=svc_appointment;Password=${DB_APPOINTMENT_PASSWORD:?Set DB_APPOINTMENT_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;Min Pool Size=10;Max Pool Size=40;Connect Timeout=10;Application Name=clinic-appointment-service;
             - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
             - Identity__Authority=http://identity-service:8080
@@ -326,6 +369,8 @@ services:
         depends_on:
             db:
                 condition: service_healthy
+            db-init:
+                condition: service_completed_successfully
             rabbitmq:
                 condition: service_healthy
             identity-service:
@@ -381,7 +426,7 @@ services:
         ports:
             - "5004:8080"
         environment:
-            - ConnectionStrings__QueueConnection=Server=db,1433;Database=ClinicQueueDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False;Min Pool Size=10;Max Pool Size=200;
+            - ConnectionStrings__QueueConnection=Server=queue-db,1433;Database=ClinicQueueDB;User Id=svc_queue;Password=${DB_QUEUE_PASSWORD:?Set DB_QUEUE_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;Min Pool Size=5;Max Pool Size=25;Connect Timeout=10;Application Name=clinic-queue-service;
             - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
@@ -399,6 +444,8 @@ services:
         depends_on:
             db:
                 condition: service_healthy
+            db-init:
+                condition: service_completed_successfully
             rabbitmq:
                 condition: service_healthy
             identity-service:
@@ -455,7 +502,7 @@ services:
         ports:
             - "5005:8080"
         environment:
-            - ConnectionStrings__MedicalRecordsConnection=Server=db,1433;Database=ClinicMedicalRecordsDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - ConnectionStrings__MedicalRecordsConnection=Server=medical-records-db,1433;Database=ClinicMedicalRecordsDB;User Id=svc_medical_records;Password=${DB_MEDICAL_RECORDS_PASSWORD:?Set DB_MEDICAL_RECORDS_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;Min Pool Size=2;Max Pool Size=15;Connect Timeout=10;Application Name=clinic-medical-records-service;
             - CLINIC_TIME_ZONE=${CLINIC_TIME_ZONE:-Asia/Ho_Chi_Minh}
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
@@ -472,6 +519,8 @@ services:
         depends_on:
             db:
                 condition: service_healthy
+            db-init:
+                condition: service_completed_successfully
             rabbitmq:
                 condition: service_healthy
             identity-service:
@@ -527,7 +576,7 @@ services:
         ports:
             - "5006:8080"
         environment:
-            - ConnectionStrings__NotificationConnection=Server=db,1433;Database=ClinicNotificationDB;User Id=sa;Password=${DB_SA_PASSWORD:-ClinicDev!2026StrongPw};TrustServerCertificate=True;Encrypt=False
+            - ConnectionStrings__NotificationConnection=Server=notification-db,1433;Database=ClinicNotificationDB;User Id=svc_notification;Password=${DB_NOTIFICATION_PASSWORD:?Set DB_NOTIFICATION_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;Min Pool Size=2;Max Pool Size=15;Connect Timeout=10;Application Name=clinic-notification-service;
             - Identity__Authority=http://identity-service:8080
             - Identity__RequireHttpsMetadata=false
             - Identity__ServiceToken=${IDENTITY_SERVICE_TOKEN}
@@ -553,6 +602,8 @@ services:
         depends_on:
             db:
                 condition: service_healthy
+            db-init:
+                condition: service_completed_successfully
             rabbitmq:
                 condition: service_healthy
             identity-service:

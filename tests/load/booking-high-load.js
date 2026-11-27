@@ -6,6 +6,7 @@ import {
   DEFAULT_HEADERS,
   PATIENT_PASSWORD,
   PATIENT_USERNAME,
+  buildSanitizedSummary,
   clinicDate,
   parseAppointment,
   responseItems,
@@ -338,4 +339,9 @@ export function teardown(data) {
     }
   }
   console.log('[TEARDOWN] Cleanup completed.');
+}
+
+
+export function handleSummary(data) {
+  return buildSanitizedSummary(data);
 }

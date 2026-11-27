@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, DEFAULT_HEADERS, SLO_THRESHOLDS, clinicDate, responseItems, unwrapResponse } from './config.js';
+import { BASE_URL, DEFAULT_HEADERS, SLO_THRESHOLDS, buildSanitizedSummary, clinicDate, responseItems, unwrapResponse } from './config.js';
 
 const slotsUrl = `${BASE_URL}/slots?fromDate=${clinicDate(1)}T00:00:00&toDate=${clinicDate(7)}T23:59:59`;
 
@@ -46,4 +46,9 @@ export default function () {
   });
 
   sleep(0.5);
+}
+
+
+export function handleSummary(data) {
+  return buildSanitizedSummary(data);
 }

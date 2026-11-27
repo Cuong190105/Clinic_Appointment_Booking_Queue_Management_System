@@ -32,6 +32,12 @@ public sealed class SchedulingEventConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (string.Equals(_configuration["SkipBackgroundWorkers"], "true", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("SchedulingEventConsumer skipped because SkipBackgroundWorkers=true.");
+            return;
+        }
+
         _logger.LogInformation("SchedulingEventConsumer started.");
 
         while (!stoppingToken.IsCancellationRequested)
@@ -86,10 +92,14 @@ public sealed class SchedulingEventConsumer : BackgroundService
         };
 
         _connection = await factory.CreateConnectionAsync(ct);
-        _channel = await _connection.CreateChannelAsync(cancellationToken: ct);
+        _channel = await _connection.CreateChannelAsync(
+            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+            cancellationToken: ct);
 
-        const string exchangeName = "clinic.events";
-        const string queueName = "clinic.scheduling.events";
+        const string exchangeName = SchedulingRetryPolicy.ExchangeName;
+        const string queueName = SchedulingRetryPolicy.MainQueueName;
+        const string deadLetterExchange = SchedulingRetryPolicy.DeadLetterExchange;
+        const string deadLetterQueue = SchedulingRetryPolicy.DeadLetterQueueName;
 
         await _channel.ExchangeDeclareAsync(
             exchange: exchangeName,
@@ -98,11 +108,65 @@ public sealed class SchedulingEventConsumer : BackgroundService
             autoDelete: false,
             cancellationToken: ct);
 
+        await _channel.ExchangeDeclareAsync(
+            exchange: deadLetterExchange,
+            type: ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+
+        await _channel.QueueDeclareAsync(
+            queue: deadLetterQueue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            cancellationToken: ct);
+
+        await _channel.QueueBindAsync(
+            queue: deadLetterQueue,
+            exchange: deadLetterExchange,
+            routingKey: queueName,
+            cancellationToken: ct);
+
+        await _channel.ExchangeDeclareAsync(
+            exchange: SchedulingRetryPolicy.RetryExchange,
+            type: ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+
+        foreach (var (retryQueueName, delayMilliseconds) in SchedulingRetryPolicy.Queues)
+        {
+            await _channel.QueueDeclareAsync(
+                queue: retryQueueName,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object?>
+                {
+                    ["x-message-ttl"] = delayMilliseconds,
+                    ["x-dead-letter-exchange"] = exchangeName,
+                    ["x-dead-letter-routing-key"] = SchedulingRetryPolicy.RetryRoutingKey
+                },
+                cancellationToken: ct);
+
+            await _channel.QueueBindAsync(
+                queue: retryQueueName,
+                exchange: SchedulingRetryPolicy.RetryExchange,
+                routingKey: retryQueueName,
+                cancellationToken: ct);
+        }
+
         await _channel.QueueDeclareAsync(
             queue: queueName,
             durable: true,
             exclusive: false,
             autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-dead-letter-exchange"] = deadLetterExchange,
+                ["x-dead-letter-routing-key"] = queueName
+            },
             cancellationToken: ct);
 
         await _channel.QueueBindAsync(
@@ -117,25 +181,37 @@ public sealed class SchedulingEventConsumer : BackgroundService
             routingKey: "identity.user-profile-updated",
             cancellationToken: ct);
 
+        await _channel.QueueBindAsync(
+            queue: queueName,
+            exchange: exchangeName,
+            routingKey: SchedulingRetryPolicy.RetryRoutingKey,
+            cancellationToken: ct);
+
+        await _channel.BasicQosAsync(
+            prefetchSize: 0,
+            prefetchCount: 10,
+            global: false,
+            cancellationToken: ct);
+
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.ReceivedAsync += async (_, args) =>
         {
+            var effectiveRoutingKey = SchedulingRetryPolicy.GetEffectiveRoutingKey(
+                args.RoutingKey,
+                args.BasicProperties.Headers);
+
             try
             {
                 var json = Encoding.UTF8.GetString(args.Body.Span);
                 await using var scope = _serviceProvider.CreateAsyncScope();
                 var manager = scope.ServiceProvider.GetRequiredService<ISchedulingManager>();
 
-                if (args.RoutingKey == "appointment.cancelled" || json.Contains(EventTypes.AppointmentCancelled))
+                if (effectiveRoutingKey == "appointment.cancelled" || json.Contains(EventTypes.AppointmentCancelled))
                 {
-                    var envelope = JsonSerializer.Deserialize<EventEnvelope<AppointmentCancelled>>(
-                        json,
-                        EventJsonSerializerOptions.Default);
-                    var payload = envelope?.Payload ?? JsonSerializer.Deserialize<AppointmentCancelled>(
-                        json,
-                        EventJsonSerializerOptions.Default);
+                    var payload = DeserializePayload<AppointmentCancelled>(json)
+                        ?? throw new JsonException("Message is not a valid AppointmentCancelled envelope or payload.");
 
-                    if (payload != null && payload.WorkScheduleId != Guid.Empty)
+                    if (payload.WorkScheduleId != Guid.Empty)
                     {
                         await manager.ReleaseSlotByAppointmentAsync(
                             payload.WorkScheduleId,
@@ -149,19 +225,16 @@ public sealed class SchedulingEventConsumer : BackgroundService
                             payload.TimeSlot);
                     }
                 }
-                else if (args.RoutingKey == "identity.user-profile-updated" || json.Contains(EventTypes.UserProfileUpdated))
+                else if (effectiveRoutingKey == "identity.user-profile-updated" || json.Contains(EventTypes.UserProfileUpdated))
                 {
-                    var envelope = JsonSerializer.Deserialize<EventEnvelope<UserProfileUpdated>>(
-                        json,
-                        EventJsonSerializerOptions.Default);
-                    var payload = envelope?.Payload ?? JsonSerializer.Deserialize<UserProfileUpdated>(
-                        json,
-                        EventJsonSerializerOptions.Default);
+                    var payload = DeserializePayload<UserProfileUpdated>(json)
+                        ?? throw new JsonException("Message is not a valid UserProfileUpdated envelope or payload.");
 
-                    if (payload != null)
-                    {
-                        await manager.HandleUserProfileUpdatedAsync(payload, ct);
-                    }
+                    await manager.HandleUserProfileUpdatedAsync(payload, ct);
+                }
+                else
+                {
+                    throw new JsonException($"Unsupported scheduling event routing key '{effectiveRoutingKey}'.");
                 }
 
                 if (_channel is { IsOpen: true })
@@ -171,10 +244,57 @@ public sealed class SchedulingEventConsumer : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing scheduling event message with RoutingKey={RoutingKey}", args.RoutingKey);
-                if (_channel is { IsOpen: true })
+                if (ct.IsCancellationRequested)
+                    return;
+
+                var retryCount = SchedulingRetryPolicy.GetRetryCount(args.BasicProperties.Headers);
+                if (_channel is not { IsOpen: true })
+                    return;
+
+                if (SchedulingRetryPolicy.ShouldDeadLetter(ex, retryCount))
                 {
+                    _logger.LogError(
+                        ex,
+                        "Scheduling event permanently failed; dead-lettering RoutingKey={RoutingKey} after {RetryCount} retries",
+                        effectiveRoutingKey,
+                        retryCount);
                     await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
+                    return;
+                }
+
+                try
+                {
+                    var nextRetryCount = retryCount + 1;
+                    var retryProperties = SchedulingRetryPolicy.CreateRetryProperties(
+                        args.BasicProperties,
+                        effectiveRoutingKey,
+                        nextRetryCount);
+
+                    await _channel.BasicPublishAsync(
+                        exchange: SchedulingRetryPolicy.RetryExchange,
+                        routingKey: SchedulingRetryPolicy.GetRetryQueueName(retryCount),
+                        mandatory: true,
+                        basicProperties: retryProperties,
+                        body: args.Body,
+                        cancellationToken: ct);
+
+                    await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, cancellationToken: ct);
+                    _logger.LogWarning(
+                        ex,
+                        "Scheduling event transiently failed (RoutingKey={RoutingKey}); scheduled retry {RetryCount}/{MaximumRetries}",
+                        effectiveRoutingKey,
+                        nextRetryCount,
+                        SchedulingRetryPolicy.MaximumRetries);
+                }
+                catch (Exception retryException)
+                {
+                    _logger.LogError(
+                        retryException,
+                        "Could not schedule scheduling event retry; leaving source message unacked for broker redelivery.");
+                    if (_channel.IsOpen)
+                    {
+                        await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, cancellationToken: ct);
+                    }
                 }
             }
         };
@@ -186,6 +306,27 @@ public sealed class SchedulingEventConsumer : BackgroundService
             cancellationToken: ct);
 
         await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+    }
+
+    private static TPayload? DeserializePayload<TPayload>(string json)
+        where TPayload : class
+    {
+        try
+        {
+            var envelope = JsonSerializer.Deserialize<EventEnvelope<TPayload>>(
+                json,
+                EventJsonSerializerOptions.Default);
+            if (envelope?.Payload is not null)
+                return envelope.Payload;
+        }
+        catch (JsonException)
+        {
+            // Fallback to direct deserialization
+        }
+
+        return JsonSerializer.Deserialize<TPayload>(
+            json,
+            EventJsonSerializerOptions.Default);
     }
 
     private async Task DisconnectAsync()

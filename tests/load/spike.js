@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate } from 'k6/metrics';
-import { BASE_URL, DEFAULT_HEADERS, clinicDate, responseItems, unwrapResponse } from './config.js';
+import { BASE_URL, DEFAULT_HEADERS, buildSanitizedSummary, clinicDate, responseItems, unwrapResponse } from './config.js';
 
 const serverErrorRate = new Rate('spike_server_error_rate');
 const unexpectedStatusRate = new Rate('spike_unexpected_status_rate');
@@ -53,4 +53,9 @@ export default function () {
   });
 
   sleep(0.1);
+}
+
+
+export function handleSummary(data) {
+  return buildSanitizedSummary(data);
 }

@@ -32,6 +32,12 @@ public sealed class AppointmentEventConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (string.Equals(_configuration["SkipBackgroundWorkers"], "true", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("AppointmentEventConsumer skipped because SkipBackgroundWorkers=true.");
+            return;
+        }
+
         _logger.LogInformation("AppointmentEventConsumer started.");
 
         while (!stoppingToken.IsCancellationRequested)
@@ -86,10 +92,14 @@ public sealed class AppointmentEventConsumer : BackgroundService
         };
 
         _connection = await factory.CreateConnectionAsync(ct);
-        _channel = await _connection.CreateChannelAsync(cancellationToken: ct);
+        _channel = await _connection.CreateChannelAsync(
+            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+            cancellationToken: ct);
 
-        const string exchangeName = "clinic.events";
-        const string queueName = "clinic.appointment.events";
+        const string exchangeName = AppointmentRetryPolicy.ExchangeName;
+        const string queueName = AppointmentRetryPolicy.MainQueueName;
+        const string deadLetterExchange = AppointmentRetryPolicy.DeadLetterExchange;
+        const string deadLetterQueue = AppointmentRetryPolicy.DeadLetterQueueName;
 
         await _channel.ExchangeDeclareAsync(
             exchange: exchangeName,
@@ -98,11 +108,65 @@ public sealed class AppointmentEventConsumer : BackgroundService
             autoDelete: false,
             cancellationToken: ct);
 
+        await _channel.ExchangeDeclareAsync(
+            exchange: deadLetterExchange,
+            type: ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+
+        await _channel.QueueDeclareAsync(
+            queue: deadLetterQueue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            cancellationToken: ct);
+
+        await _channel.QueueBindAsync(
+            queue: deadLetterQueue,
+            exchange: deadLetterExchange,
+            routingKey: queueName,
+            cancellationToken: ct);
+
+        await _channel.ExchangeDeclareAsync(
+            exchange: AppointmentRetryPolicy.RetryExchange,
+            type: ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+
+        foreach (var (retryQueueName, delayMilliseconds) in AppointmentRetryPolicy.Queues)
+        {
+            await _channel.QueueDeclareAsync(
+                queue: retryQueueName,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object?>
+                {
+                    ["x-message-ttl"] = delayMilliseconds,
+                    ["x-dead-letter-exchange"] = exchangeName,
+                    ["x-dead-letter-routing-key"] = AppointmentRetryPolicy.RetryRoutingKey
+                },
+                cancellationToken: ct);
+
+            await _channel.QueueBindAsync(
+                queue: retryQueueName,
+                exchange: AppointmentRetryPolicy.RetryExchange,
+                routingKey: retryQueueName,
+                cancellationToken: ct);
+        }
+
         await _channel.QueueDeclareAsync(
             queue: queueName,
             durable: true,
             exclusive: false,
             autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-dead-letter-exchange"] = deadLetterExchange,
+                ["x-dead-letter-routing-key"] = queueName
+            },
             cancellationToken: ct);
 
         await _channel.QueueBindAsync(
@@ -117,61 +181,50 @@ public sealed class AppointmentEventConsumer : BackgroundService
             routingKey: "identity.user-profile-updated",
             cancellationToken: ct);
 
+        await _channel.QueueBindAsync(
+            queue: queueName,
+            exchange: exchangeName,
+            routingKey: AppointmentRetryPolicy.RetryRoutingKey,
+            cancellationToken: ct);
+
+        await _channel.BasicQosAsync(
+            prefetchSize: 0,
+            prefetchCount: 10,
+            global: false,
+            cancellationToken: ct);
+
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.ReceivedAsync += async (_, args) =>
         {
+            var effectiveRoutingKey = AppointmentRetryPolicy.GetEffectiveRoutingKey(
+                args.RoutingKey,
+                args.BasicProperties.Headers);
+
             try
             {
                 var json = Encoding.UTF8.GetString(args.Body.Span);
                 await using var scope = _serviceProvider.CreateAsyncScope();
                 var manager = scope.ServiceProvider.GetRequiredService<IAppointmentManager>();
 
-                if (args.RoutingKey == "queue.exam-completed" || json.Contains(EventTypes.ExamCompleted))
+                if (effectiveRoutingKey == "queue.exam-completed" || json.Contains(EventTypes.ExamCompleted))
                 {
-                    ExamCompleted? payload = null;
-                    try
-                    {
-                        var envelope = JsonSerializer.Deserialize<EventEnvelope<ExamCompleted>>(
-                            json,
-                            EventJsonSerializerOptions.Default);
-                        payload = envelope?.Payload;
-                    }
-                    catch
-                    {
-                        // Fallback to direct deserialization
-                    }
+                    var payload = DeserializePayload<ExamCompleted>(json)
+                        ?? throw new JsonException("Message is not a valid ExamCompleted envelope or payload.");
 
-                    if (payload == null)
-                    {
-                        try
-                        {
-                            payload = JsonSerializer.Deserialize<ExamCompleted>(
-                                json,
-                                EventJsonSerializerOptions.Default);
-                        }
-                        catch { }
-                    }
-
-                    if (payload != null)
-                    {
-                        await manager.ProcessExamCompletedAsync(payload, ct);
-                        _logger.LogInformation("Processed ExamCompleted event for AppointmentId={AppointmentId}", payload.AppointmentId);
-                    }
+                    await manager.ProcessExamCompletedAsync(payload, ct);
+                    _logger.LogInformation("Processed ExamCompleted event for AppointmentId={AppointmentId}", payload.AppointmentId);
                 }
-                else if (args.RoutingKey == "identity.user-profile-updated" || json.Contains(EventTypes.UserProfileUpdated))
+                else if (effectiveRoutingKey == "identity.user-profile-updated" || json.Contains(EventTypes.UserProfileUpdated))
                 {
-                    var envelope = JsonSerializer.Deserialize<EventEnvelope<UserProfileUpdated>>(
-                        json,
-                        EventJsonSerializerOptions.Default);
-                    var payload = envelope?.Payload ?? JsonSerializer.Deserialize<UserProfileUpdated>(
-                        json,
-                        EventJsonSerializerOptions.Default);
+                    var payload = DeserializePayload<UserProfileUpdated>(json)
+                        ?? throw new JsonException("Message is not a valid UserProfileUpdated envelope or payload.");
 
-                    if (payload != null)
-                    {
-                        await manager.ProcessUserProfileUpdatedAsync(payload, ct);
-                        _logger.LogInformation("Processed UserProfileUpdated event for PersonId={PersonId}", payload.PersonId);
-                    }
+                    await manager.ProcessUserProfileUpdatedAsync(payload, ct);
+                    _logger.LogInformation("Processed UserProfileUpdated event for PersonId={PersonId}", payload.PersonId);
+                }
+                else
+                {
+                    throw new JsonException($"Unsupported appointment event routing key '{effectiveRoutingKey}'.");
                 }
 
                 if (_channel is { IsOpen: true })
@@ -181,10 +234,57 @@ public sealed class AppointmentEventConsumer : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing appointment event message with RoutingKey={RoutingKey}", args.RoutingKey);
-                if (_channel is { IsOpen: true })
+                if (ct.IsCancellationRequested)
+                    return;
+
+                var retryCount = AppointmentRetryPolicy.GetRetryCount(args.BasicProperties.Headers);
+                if (_channel is not { IsOpen: true })
+                    return;
+
+                if (AppointmentRetryPolicy.ShouldDeadLetter(ex, retryCount))
                 {
+                    _logger.LogError(
+                        ex,
+                        "Appointment event permanently failed; dead-lettering RoutingKey={RoutingKey} after {RetryCount} retries",
+                        effectiveRoutingKey,
+                        retryCount);
                     await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
+                    return;
+                }
+
+                try
+                {
+                    var nextRetryCount = retryCount + 1;
+                    var retryProperties = AppointmentRetryPolicy.CreateRetryProperties(
+                        args.BasicProperties,
+                        effectiveRoutingKey,
+                        nextRetryCount);
+
+                    await _channel.BasicPublishAsync(
+                        exchange: AppointmentRetryPolicy.RetryExchange,
+                        routingKey: AppointmentRetryPolicy.GetRetryQueueName(retryCount),
+                        mandatory: true,
+                        basicProperties: retryProperties,
+                        body: args.Body,
+                        cancellationToken: ct);
+
+                    await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, cancellationToken: ct);
+                    _logger.LogWarning(
+                        ex,
+                        "Appointment event transiently failed (RoutingKey={RoutingKey}); scheduled retry {RetryCount}/{MaximumRetries}",
+                        effectiveRoutingKey,
+                        nextRetryCount,
+                        AppointmentRetryPolicy.MaximumRetries);
+                }
+                catch (Exception retryException)
+                {
+                    _logger.LogError(
+                        retryException,
+                        "Could not schedule appointment event retry; leaving source message unacked for broker redelivery.");
+                    if (_channel.IsOpen)
+                    {
+                        await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, cancellationToken: ct);
+                    }
                 }
             }
         };
@@ -196,6 +296,27 @@ public sealed class AppointmentEventConsumer : BackgroundService
             cancellationToken: ct);
 
         await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+    }
+
+    private static TPayload? DeserializePayload<TPayload>(string json)
+        where TPayload : class
+    {
+        try
+        {
+            var envelope = JsonSerializer.Deserialize<EventEnvelope<TPayload>>(
+                json,
+                EventJsonSerializerOptions.Default);
+            if (envelope?.Payload is not null)
+                return envelope.Payload;
+        }
+        catch (JsonException)
+        {
+            // Fallback to direct deserialization
+        }
+
+        return JsonSerializer.Deserialize<TPayload>(
+            json,
+            EventJsonSerializerOptions.Default);
     }
 
     private async Task DisconnectAsync()
