@@ -1,0 +1,7 @@
+\begin{abstract}
+Bài báo trình bày quá trình chuyển đổi một hệ thống quản lý phòng khám (đặt lịch khám, hàng đợi tiếp đón, hồ sơ y tế và thông báo) từ kiến trúc monolith sang microservices. Hệ thống mới gồm một API Gateway và sáu service phân chia theo bounded context, mỗi service sở hữu database logic riêng và giao tiếp qua HTTP hoặc RabbitMQ. Tính nhất quán dữ liệu xuyên service được bảo đảm bằng transactional outbox, inbox, idempotency key và SAGA có hành động bù; các invariant quan trọng (không overbooking, không cấp trùng số thứ tự) được ràng buộc ở tầng database. Chúng tôi định nghĩa ma trận SLI/SLO/QoS, trang bị metrics, tracing phân tán và cảnh báo, sau đó benchmark đối chứng hai kiến trúc trên cùng ngân sách 12,5 CPU. Trong kịch bản đặt lịch tải cao (30 VU, 2.400 slot), thông lượng xác nhận của hai hệ thống tương đương (khoảng 29,7--29,8 booking/giây, 0\% lỗi 5xx), nhưng p95 từ lúc gửi yêu cầu đến khi lịch hẹn được xác nhận của microservices là 762~ms so với 235~ms của monolith. Ngược lại, dưới tải hỗn hợp có hàng đợi, microservices hoàn tất 836/836 vòng đời hàng đợi trong khi monolith gặp lỗi chức năng ở luồng walk-in. Bài báo cũng báo cáo kết quả review mã nguồn, chỉ ra các rủi ro mất event ở hai consumer thiếu dead-letter queue, và thảo luận các giới hạn của phép so sánh.
+\end{abstract}
+
+\begin{IEEEkeywords}
+microservices, monolith, SAGA, transactional outbox, OpenAPI, SLO, kiểm thử tải, hệ thống phòng khám
+\end{IEEEkeywords}

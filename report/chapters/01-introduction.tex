@@ -1,0 +1,32 @@
+\section{Giới thiệu}
+\label{ch:intro}
+
+\subsection{Bối cảnh và bài toán}
+
+Một phòng khám đa khoa cần phục vụ nhiều nhóm người dùng cùng lúc: bệnh nhân tìm bác sĩ và đặt lịch; nhân viên quản lý hồ sơ bệnh nhân và ca làm; lễ tân tiếp nhận, check-in và điều phối hàng đợi; bác sĩ khám và cập nhật hồ sơ y tế; quản trị viên theo dõi vận hành. Các nghiệp vụ này có tần suất và yêu cầu khác nhau: tìm lịch trống chủ yếu là đọc, đặt lịch là ghi có tranh chấp slot, còn hàng đợi cần cập nhật gần thời gian thực.
+
+Phiên bản đầu tiên của hệ thống là một ứng dụng monolith. Dự án này phân rã nó thành các microservices theo bounded context, đồng thời đo đạc để đánh giá cái được và cái mất của việc chuyển đổi.
+
+\subsection{Mục tiêu}
+
+\begin{enumerate}
+  \item Phân tích hệ thống monolith hiện có, thiết kế lại thành các service sở hữu nghiệp vụ và dữ liệu riêng.
+  \item Thiết kế hợp đồng API bằng OpenAPI và có cơ chế phát hiện sai lệch (drift) giữa hợp đồng và mã nguồn.
+  \item Hiện thực các luồng phối hợp giữa service bằng orchestration, choreography và SAGA, bảo đảm không overbooking và không cấp trùng số thứ tự.
+  \item Định nghĩa SLI/SLO/QoS, trang bị metrics, tracing, dashboard và cảnh báo.
+  \item Kiểm thử tải và so sánh đối chứng với monolith trên cùng ngân sách tài nguyên.
+\end{enumerate}
+
+\subsection{Phạm vi và chức năng chính}
+
+Hệ thống bao gồm: xác thực và phân quyền; quản lý nhân sự, chuyên khoa, ca làm; tìm slot và đặt/hủy/đổi lịch có idempotency; tiếp nhận khách walk-in; check-in và cấp số hàng đợi; gọi, bỏ qua, bắt đầu, kết thúc lượt khám theo vai trò; hồ sơ bệnh nhân và medical record gắn với \code{AppointmentId}; hộp thư thông báo và thông báo thời gian thực qua SignalR; API Gateway; health/readiness, metrics, tracing và bộ kịch bản kiểm thử tải.
+
+Toàn bộ hệ thống được triển khai bằng Docker Compose trên một máy. Các mục tiêu chất lượng trong bài báo là mục tiêu của đồ án trên môi trường này, không phải cam kết vận hành production.
+
+\subsection{Nguồn số liệu}
+
+Bài báo đối chiếu mã nguồn tại commit \commitmain{} của nhánh \code{main} (microservices) và commit \commitmono{} của nhánh \code{monolith}, cùng các tài liệu thiết kế, nghiệm thu và artifact benchmark lưu trong repo. Mọi số liệu tải đều ghi ngày chạy theo artifact gốc (11/11, 17/11 và 22/11/2026).
+
+\subsection{Cấu trúc bài báo}
+
+Phần còn lại của bài báo được tổ chức như sau. Mục~\ref{ch:theory} trình bày cơ sở lý thuyết. Mục~\ref{ch:monolith} mô tả hệ thống monolith. Mục~\ref{ch:micro} trình bày kiến trúc microservices và các luồng phối hợp. Mục~\ref{ch:sla} định nghĩa SLA/SLO/QoS. Mục~\ref{ch:testing} trình bày kết quả kiểm thử và so sánh hiệu năng. Mục~\ref{ch:review} là kết quả review hệ thống. Mục~\ref{ch:conclusion} kết luận và nêu hướng phát triển.

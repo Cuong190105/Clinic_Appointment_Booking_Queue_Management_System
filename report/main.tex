@@ -1,0 +1,40 @@
+% !TEX program = xelatex
+% Bài báo dự án: Hệ thống đặt lịch khám, quản lý hàng đợi và hồ sơ y tế
+% Định dạng bài báo khoa học hai cột (IEEEtran, khổ A4).
+% Biên dịch: latexmk (đã cấu hình trong .latexmkrc) hoặc xelatex main.tex hai lần.
+\documentclass[conference,a4paper,10pt]{IEEEtran}
+
+\input{preamble}
+
+\begin{document}
+
+\title{Chuyển đổi hệ thống đặt lịch khám, hàng đợi\\và hồ sơ y tế từ monolith sang microservices:\\thiết kế, hiện thực và đánh giá hiệu năng}
+
+% Thành viên 1: điền họ tên, MSSV và email vào các chỗ trống.
+\author{
+  \IEEEauthorblockN{\rule{4cm}{0.4pt}}
+  \IEEEauthorblockA{MSSV: \rule{2.5cm}{0.4pt}\\
+                    Email: \rule{4cm}{0.4pt}}
+  \and
+  \IEEEauthorblockN{Lê Tuấn Cảnh}
+  \IEEEauthorblockA{MSSV: 23020013\\
+                    Email: \href{mailto:23020013@vnu.edu.vn}{23020013@vnu.edu.vn}}
+}
+
+\maketitle
+\thispagestyle{plain}
+\pagestyle{plain}
+
+\input{chapters/00-abstract}
+\input{chapters/01-introduction}
+\input{chapters/02-theory}
+\input{chapters/03-monolith}
+\input{chapters/04-microservices}
+\input{chapters/05-sla-slo-qos}
+\input{chapters/06-testing}
+\input{chapters/07-review}
+\input{chapters/08-conclusion}
+
+\input{chapters/99-references}
+
+\end{document}

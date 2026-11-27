@@ -1,0 +1,73 @@
+\section{Kết quả review hệ thống}
+\label{ch:review}
+
+Review tĩnh được thực hiện ngày 27/11/2026 trên commit \commitmain{}, tập trung vào độ tin cậy messaging, invariant dữ liệu, bảo mật cấu hình và tính chính xác của bằng chứng kiểm thử.
+
+\subsection{Điểm đã xác minh tốt}
+
+\begin{codeitems}
+  \item \textbf{Ranh giới dữ liệu đúng thiết kế:} mỗi service chỉ có connection string tới database của mình; giao tiếp liên service qua HTTP client có cấu hình hoặc RabbitMQ.
+  \item \textbf{Invariant được bảo vệ ở tầng database:} unique index cho queue ticket theo lịch hẹn và theo số thứ tự (Đoạn mã~\ref{lst:queue-index}), unique idempotency key cho lịch hẹn, unique \code{EventId} cho outbox, unique inbox message ở Queue.
+  \item \textbf{Xử lý event lỗi:} Queue, Medical Records và Notification có retry queue và DLX; Notification có API liệt kê và replay delivery dead-lettered qua Gateway.
+  \item \textbf{Không giữ slot vĩnh viễn:} reservation có thời hạn và worker thu hồi; hủy lịch nhả slot bằng hai đường (gọi trực tiếp và event).
+  \item \textbf{Cấu hình bảo mật:} JWT ký bằng khóa bất đối xứng lưu trong volume; mật khẩu RabbitMQ bắt buộc lấy từ \code{.env}; repo chỉ chứa \code{.env.example}.
+\end{codeitems}
+
+\subsection{Vấn đề cần xử lý}
+
+\begin{table*}[t]
+\centering
+\caption{Các vấn đề phát hiện khi review}
+\label{tab:issues}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}L{0.3cm}L{1.5cm}YL{5.6cm}@{}}
+\toprule
+\textbf{\#} & \textbf{Mức độ} & \textbf{Vấn đề và ảnh hưởng} & \textbf{Đề xuất} \\
+\midrule
+1 & \cellcolor{red!15}Cao &
+10 file evidence đã commit trong \path{tests/load/evidence/} còn chứa JWT (\path{raw_*.json}, \path{highload-micro-booking-k6.json} và năm file \path{review-*-booking-k6.json}). Token là token dev, issuer \code{localhost}, hết hạn từ 04/11/2026. Không khai thác được ở môi trường khác nhưng vi phạm quy tắc ``không lưu token trong evidence'' của chính dự án. &
+Sanitize hoặc xóa các file raw, chỉ giữ summary; xoay khóa ký Identity nếu khóa dev từng dùng ở môi trường chung; làm sạch lịch sử git trước khi công khai repo. \\
+\midrule
+2 & \cellcolor{orange!20}Trung bình &
+\code{AppointmentEventConsumer} và \code{SchedulingEventConsumer} gọi \code{BasicNack(requeue: false)} với mọi exception, nhưng queue của chúng không khai báo DLX. Một lỗi tạm thời (DB timeout, deadlock) khiến broker xóa hẳn message: mất \code{queue.exam-completed} thì lịch hẹn không chuyển Completed; mất \code{appointment.cancelled} ở Scheduling chỉ được bù nếu lời gọi release trực tiếp thành công. Trái với SLO ``0 message hợp lệ bị bỏ lại''. &
+Áp dụng cùng mẫu retry queue + DLX như Queue và Medical Records; phân biệt lỗi tạm thời với poison message; thêm test mô phỏng lỗi DB khi consume. \\
+\midrule
+3 & \cellcolor{orange!20}Trung bình &
+Lỗi walk-in của monolith chưa được sửa: commit mới nhất của nhánh \code{monolith} (\commitmono) chỉ thêm harness và evidence. Không có số liệu đối chứng hàng đợi dưới tải. &
+Attach \code{WorkSchedule} với state \code{Unchanged} (hoặc chỉ gán khóa ngoại), thêm integration test hồi quy, chạy lại clinic-peak ba lượt. \\
+\midrule
+4 & \cellcolor{yellow!25}Thấp &
+Sáu database logic chạy trên một SQL Server container (giới hạn 4 CPU): điểm lỗi đơn và tài nguyên dùng chung, một service tải nặng có thể làm chậm service khác. &
+Ghi rõ là giới hạn của môi trường đồ án; nếu cần chứng minh cô lập lỗi, tách DB của Appointment/Scheduling sang instance riêng. \\
+\midrule
+5 & \cellcolor{yellow!25}Thấp &
+\code{DB\_SA\_PASSWORD} có giá trị mặc định trong \path{docker-compose.yml}, và mọi service kết nối bằng tài khoản \code{sa}. &
+Bắt buộc biến môi trường như RabbitMQ; tạo login riêng cho từng service, chỉ cấp quyền trên database của service đó. \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Bảng~\ref{tab:issues} tổng hợp các vấn đề. Đoạn mã~\ref{lst:nack} minh họa vấn đề số 2: mọi exception đều dẫn tới \code{nack} không requeue, trong khi queue không có DLX nên message bị loại bỏ.
+
+\codecaption{Xử lý lỗi trong AppointmentEventConsumer.cs (rút gọn)}{lst:nack}
+\begin{lstlisting}[language={[Sharp]C}]
+await _channel.QueueDeclareAsync(
+    queue: queueName, durable: true,
+    exclusive: false, autoDelete: false,
+    cancellationToken: ct);          // không có x-dead-letter-exchange
+...
+catch (Exception ex)
+{
+    _logger.LogError(ex, "Error processing appointment event ...");
+    await _channel.BasicNackAsync(args.DeliveryTag,
+        multiple: false, requeue: false, cancellationToken: ct);
+}
+\end{lstlisting}
+
+\subsection{Giới hạn của đợt review}
+
+\begin{itemize}
+  \item Không chạy lại test backend vì máy tổng hợp không có .NET 10 SDK và Docker Desktop không hoạt động; kết quả 285/285 dựa trên lượt nghiệm thu ngày 10/11/2026.
+  \item Không chạy lại benchmark; mọi số liệu tải lấy từ artifact đã lưu.
+  \item Review tập trung vào backend và cấu hình triển khai; frontend chỉ được kiểm tra qua các test spec có trong repo.
+\end{itemize}
