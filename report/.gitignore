@@ -13,4 +13,3 @@
 
 # Kết quả build được commit để xem PDF trực tiếp trên repo
 !build/main.pdf
-!build/main.log
