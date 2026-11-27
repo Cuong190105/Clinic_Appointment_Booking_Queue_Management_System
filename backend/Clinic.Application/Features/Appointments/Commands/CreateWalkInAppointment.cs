@@ -73,16 +73,12 @@ namespace Clinic.Application.Features.Appointments.Commands
             var patient = await _patientRepository.GetByIdAsync(request.PatientId)
                 ?? throw new NotFoundException($"Patient '{request.PatientId}' not found.");
 
-            var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
-            var todayLocal = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
-            var nowTime = TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var timeConverter = new Clinic.Domain.Common.TimeConverter();
+            var todayLocal = timeConverter.Today;
+            var nowTime = timeConverter.CurrentTime;
 
-            // Find matching work schedule today
+            // Find matching active work schedule for today only (no fallback to yesterday/tomorrow/ended shifts)
             var candidates = (await _workScheduleRepository.GetDoctorSchedulesWithAppointmentByDateAsync(request.DoctorId, todayLocal)).ToList();
-            if (candidates.Count == 0 && todayLocal != todayUtc)
-            {
-                candidates = (await _workScheduleRepository.GetDoctorSchedulesWithAppointmentByDateAsync(request.DoctorId, todayUtc)).ToList();
-            }
 
             if (request.DoctorId == null)
             {
@@ -92,22 +88,15 @@ namespace Clinic.Application.Features.Appointments.Commands
             }
 
             var activeCandidates = candidates
-                .Where(ws => ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted)
+                .Where(ws => ws.Date == todayLocal && ws.ShiftEnd > nowTime && ws.Status == WorkScheduleStatus.Active && !ws.IsDeleted)
                 .OrderBy(ws => ws.Appointments.Count(a => !a.IsDeleted && a.Status != AppointmentStatus.Cancelled))
                 .ToList();
 
-            WorkSchedule? selectedSchedule = activeCandidates.FirstOrDefault();
+            var selectedSchedule = activeCandidates.FirstOrDefault();
 
             if (selectedSchedule == null)
             {
-                // Fallback: search available slots or any active schedule for this doctor / specialty
-                var fallbackSlots = await _workScheduleRepository.GetAvailableSlotsAsync(request.DoctorId, request.SpecialtyId, DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(1));
-                selectedSchedule = fallbackSlots.FirstOrDefault(ws => ws.Status == WorkScheduleStatus.Active);
-            }
-
-            if (selectedSchedule == null)
-            {
-                throw new ConflictException("Không tìm thấy ca trực nào của bác sĩ/chuyên khoa này hôm nay.");
+                throw new ConflictException("Không tìm thấy ca trực nào đang hoạt động của bác sĩ/chuyên khoa này hôm nay.");
             }
 
             var trackedSchedule = await _workScheduleRepository.GetByIdAsync(selectedSchedule.Id)

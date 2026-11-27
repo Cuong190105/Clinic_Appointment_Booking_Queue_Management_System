@@ -6,7 +6,6 @@ using Clinic.Domain.Entities;
 using Clinic.Domain.Enums;
 using Clinic.Infrastructure.Sqlserver.Persistence;
 using Clinic.Infrastructure.Sqlserver.Repositories;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -19,37 +18,17 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
 {
     public class BookingSqlServerConcurrencyIntegrationTests
     {
-        private static readonly string ConnectionString =
-            Environment.GetEnvironmentVariable("TEST_DB_CONNECTION") ??
-            "Server=127.0.0.1,1434;Database=ClinicDB;User Id=sa;Password=ClinicDev!2026StrongPw;TrustServerCertificate=True;MultipleActiveResultSets=true;Connect Timeout=5";
-
-        private async Task<bool> IsSqlServerAvailableAsync()
-        {
-            try
-            {
-                await using var conn = new SqlConnection(ConnectionString);
-                await conn.OpenAsync();
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private ApplicationDbContext CreateDbContext()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseSqlServer(ConnectionString)
+                .UseSqlServer(SqlServerTestHelper.GetRequiredConnectionString())
                 .Options;
             return new ApplicationDbContext(options);
         }
 
-        [Fact]
+        [SqlServerFact]
         public async Task SqlServer_ConcurrentBookingSameSlot_ShouldAllowOnlyOneWinnerAndSerializeWithUpdlock()
         {
-            Assert.True(await IsSqlServerAvailableAsync(), $"SQL Server container must be running at {ConnectionString} for live concurrency integration testing.");
-
             var scheduleId = Guid.NewGuid();
             var doctorId = Guid.Parse("a0000004-0000-0000-0000-000000000001");
             var patientId = Guid.Parse("a0000005-0000-0000-0000-000000000001");
@@ -143,11 +122,9 @@ namespace Clinic.Application.UnitTests.Features.Appointments.Commands
             }
         }
 
-        [Fact]
+        [SqlServerFact]
         public async Task SqlServer_ConcurrentSameIdempotencyKey_ShouldAllSucceedAndReturnSameAppointment()
         {
-            Assert.True(await IsSqlServerAvailableAsync(), $"SQL Server container must be running at {ConnectionString} for live concurrency integration testing.");
-
             var scheduleId = Guid.NewGuid();
             var doctorId = Guid.Parse("a0000004-0000-0000-0000-000000000001");
             var patientId = Guid.Parse("a0000005-0000-0000-0000-000000000001");

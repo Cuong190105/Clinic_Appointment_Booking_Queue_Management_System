@@ -156,18 +156,31 @@ namespace Clinic.Domain.UnitTests
         [Fact]
         public void Constructor_WalkInAppointmentDuringCurrentShift_ShouldAllowPastStartTime()
         {
-            var patient = TestDataFactory.CreatePatient();
+            var doctor = new Doctor(
+                id: Guid.NewGuid(),
+                employeeId: Guid.NewGuid(),
+                licenseNumber: "TEST-WALKIN-LIC",
+                qualification: "MD",
+                experienceYears: 1,
+                biography: null,
+                status: DoctorStatus.Active,
+                createdAt: DateTime.UtcNow,
+                updatedAt: DateTime.UtcNow,
+                isDeleted: false);
+            var patient = new Patient(TestDataFactory.CreatePerson("WalkIn Test Patient"), "", "");
             var today = new Clinic.Domain.Common.TimeConverter().Today;
             var shiftStart = new TimeOnly(0, 0);
             var shiftEnd = new TimeOnly(23, 59);
-            var schedule = TestDataFactory.CreateWorkSchedule(date: today, startTime: shiftStart, endTime: shiftEnd);
+            var schedule = WorkSchedule.CreateForTest(doctor, today, shiftStart, shiftEnd);
 
             var walkIn = new Appointment(patient, schedule, shiftStart, "Walk-in urgent", Guid.NewGuid(), isWalkIn: true);
 
             Assert.True(walkIn.IsWalkIn);
             Assert.Equal(shiftStart, walkIn.TimeSlot);
             Assert.Throws<ArgumentException>(() =>
-                new Appointment(patient, schedule, shiftStart, "Online past slot", Guid.NewGuid(), isWalkIn: false));
+            {
+                _ = new Appointment(patient, schedule, shiftStart, "Online past slot", Guid.NewGuid(), isWalkIn: false);
+            });
         }
     }
 }
