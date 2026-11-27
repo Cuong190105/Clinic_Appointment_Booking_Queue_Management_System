@@ -236,13 +236,15 @@ Sau khi sửa lỗi walk-in trên nhánh `monolith` và chạy từng hệ thố
 
 | Kịch bản | Hệ thống | Tải / VUs / Thời lượng | p95 Read / Write / Login | Workflow Booking p95 | Availability / 5xx | Booking thành công |
 |---|---|---|---:|---:|---:|---:|
-| `clinic-peak` (`mixed-workload.js`) | Monolith | 500 VU, 14 phút (`40.183` iters, `58.276` reqs) | 12,53 / 41,76 / 188,75 ms | 57 ms | 100% (`57.774/57.774`) / 0% | 99,99% (`7.611/7.612`) |
+| `clinic-peak` (`mixed-workload.js`, 30 tài khoản seed) | Monolith | 500 VU, 14 phút (`40.183` iters, `58.276` reqs) | 12,53 / 41,76 / 188,75 ms | 57 ms | 100% (`57.774/57.774`) / 0% | 99,99% (`7.611/7.612`) |
 | `clinic-peak` (`mixed-workload.js`) | Microservices | 500 VU, 14 phút (`39.932` iters, `65.218` reqs) | 46,36 / 147,59 / 229,19 ms | 480 ms | 100% (`64.373/64.373`) / 0% | 99,93% (`7.347/7.352`) |
-| `load.js` | Monolith | 10/s, 60s warmup + 5m steady (`3.329` iters) | Read steady p95: 14,60 ms | — | 100% steady / 0% (`0/5.132`) | — |
+| `clinic-peak` (`mixed-workload.js`, pool 500, chạy lại) | Monolith | 500 VU, 14 phút (`40.341` iters, `58.427` reqs) | 18,15 / 50,31 / 180,60 ms | 68 ms | 100% (`57.923/57.923`) / 0% | 100% (`7.622/7.622`) |
+| `load.js` | Monolith | 10/s, 60s warmup + 5m steady (`3.329` iters, `6.027` reqs) | 14,61 / 46,51 / 164,59 ms (steady) | 56 ms | 100% (`5.132/5.132`) / 0% | 100% (`655/655`) |
 | `load.js` | Microservices | 10/s, 60s warmup + 5m steady (`3.329` iters, `7.256` reqs) | 46,71 / 66,52 / 107,00 ms (steady) | 344 ms | 100% (`5.785/5.785`) / 0% (`0/6.273`) | 100% (`662/662`) |
-| `booking-high-load.js` | Monolith | 20/s, 120s (`2.400` iters, `7.003` reqs) | 5,61 / 30,45 / — ms | 38 ms | 100% (`6.570/6.570`) / 0% | 82,00% (`1.968/2.400`) |
-| `booking-high-load.js` (cold-login) | Microservices | 20/s, 120s (`2.400` iters) | Write p95: 57,70 ms | 339 ms | 98,55% / 1,337% (FAIL) | 79,35% (`1.829/2.305`) |
-| `booking-high-load.js` (warm-sessions, `228` VU) | Microservices | 20/s, 120s (`2.401` iters, `8.799` reqs) | 19,89 / 82,04 / 112,26 ms | 367 ms | 100% (`8.232/8.232`) / 0% (**PASS**) | 80,97% (`1.944/2.401`) |
+| `booking-high-load.js` (cold-login) | Monolith | 20/s, 120s (`2.400` iters, `7.003` reqs) | 5,61 / 30,45 / 186,61 ms | 38 ms | 100% (`6.570/6.570`) / 0% | 82,00% (`1.968/2.400`) |
+| `booking-high-load.js` (warm-sessions, pool 500) | Monolith | 20/s, 120s (`2.401` iters, `6.872` reqs) | 5,53 / 30,05 / 159,95 ms (đăng nhập đo trong `setup()`) | 39 ms | 100% (`6.362/6.362`) / 0% (**PASS**) | 78,80% (`1.892/2.401`) |
+| `booking-high-load.js` (cold-login) | Microservices | 20/s, 120s (`2.400` iters, `7.106` reqs) | 10,40 / 57,70 / 423,61 ms | 339 ms | 98,55% / 1,337% (FAIL) | 79,35% (`1.829/2.305`) |
+| `booking-high-load.js` (warm-sessions, `228` VU) | Microservices | 20/s, 120s (`2.401` iters, `8.799` reqs) | 19,89 / 82,04 / 112,26 ms (đăng nhập đo trong `setup()`) | 367 ms | 100% (`8.232/8.232`) / 0% (**PASS**) | 80,97% (`1.944/2.401`) |
 
 Ghi chú kỹ thuật cho lượt full-duration 27/11/2026:
 - Ở `clinic-peak` 500 VU (14 phút), **cả Monolith và Microservices đều đạt toàn bộ ngưỡng SLO** (`thresholdsPassed: true`, `0%` 5xx, `0%` throttled). Monolith có latency thấp hơn rõ rệt (`12,53 ms` read, `41,76 ms` write, `57 ms` booking so với `46,36 ms`, `147,59 ms` , `480 ms` bên Microservices) nhờ giao dịch cục bộ không qua gateway/outbox.
@@ -250,6 +252,14 @@ Ghi chú kỹ thuật cho lượt full-duration 27/11/2026:
   - Ở lượt `booking-high-load.js` **cold-login** ban đầu (`booking-high-load-microservices-latest.json`), 228 VU khởi tạo đồng thời tại `t=0` không qua `warmSessions` gây bão đăng nhập khiến bulkhead của `identity-service` từ chối `95` request (`503`, `slo_server_errors = 1,337%` > `1%`, `slo_availability = 98,55%` < `99%`), đồng thời pha teardown dùng một tài khoản `admin1` hủy liên tiếp nên chạm rate limit Staff `600 req/min` (`61` lỗi `429`).
   - Sau khi bổ sung `warmSessions` (`228` VU đăng nhập trước ở nhịp `4 req/s` trong `setup()`) và giãn nhịp teardown (`sleep(0.11)`), lượt chạy lại (`booking-high-load-warm-microservices-latest.json`) đạt **100% PASS** (`thresholdsPassed: true`, `slo_availability = 100%`, `slo_server_errors = 0%`, `slo_throttled = 0%`, `slo_write_duration` p95 = `82,04 ms`, `workflow_booking_confirmed_duration` p95 = `367 ms`, hủy sạch `1.944/1.944` lịch). So sánh hai lượt chạy cho thấy **điểm nghẽn nằm ở thông lượng đăng nhập đồng thời của `identity-service` (bulkhead/BCrypt) tại `t=0`, không phải ở luồng đặt lịch**.
 - Các file summary JSON mới được lưu tại `tests/load/evidence/*-latest.json` (giữ nguyên cả hai bản `booking-high-load-microservices-latest.json` và `booking-high-load-warm-microservices-latest.json` để đối chiếu). Sau khi khôi phục rate limit mặc định, `scripts/check-slo-invariants.ps1` đạt **11/11 PASS**.
+- **Rà soát tính hợp lệ (27/11/2026):** các con số trong bảng khớp với file evidence tương ứng. Khi đọc kết quả cần lưu ý:
+  - Hai lượt chạy lại của Monolith (evidence `mixed-clinic-peak-monolith-pool500-latest.json` và `booking-high-load-warm-monolith-latest.json`) được thực hiện cùng ngày, sau khi dừng hẳn stack Microservices, với cùng biến môi trường như lượt Microservices (`LOAD_USER_POOL=500`, `DAY_OFFSETS=3..13` cho high-load).
+  - 95 phản hồi `503` ở lượt cold-login là **load shedding theo thiết kế** (bulkhead trả `503` + `Retry-After`, xem §5); `lib/session.js` thử lại theo `Retry-After` nên cả `228/228` VU đều đăng nhập được. Lượt này không đạt vì ngưỡng `slo_server_errors` tính cả 503 chủ động, không phải vì Identity sập. Với năng lực đo được ~10 lượt đăng nhập/giây (§6.6), 228 lượt dồn tại `t=0` vượt năng lực khoảng 20 lần, nên việc từ chối một phần là đúng hành vi mong muốn.
+  - Monolith chạy kịch bản cold-login mà không có lỗi, vì không có bulkhead và BCrypt dùng chung toàn bộ CPU backend. Để so sánh cùng điều kiện, Monolith được chạy lại bằng bản warm-sessions với cùng pool 500 tài khoản như Microservices: ghi p95 30,05 ms, toàn trình 39 ms, **đạt** (dòng warm-sessions của Monolith trong bảng).
+  - Ở lượt warm-sessions, p95 đăng nhập `112,26 ms` được đo trong `setup()` ở nhịp 4 lượt/giây, không phải dưới tải đặt lịch. `iterations.rate` và `slo_requests.rate` bị pha loãng vì `testRunDurationMs` gồm cả setup (~1 phút) và teardown giãn nhịp (~4 phút); tốc độ đặt lịch thực tế vẫn là 20 lượt/giây, `0` dropped.
+  - Tỷ lệ đặt thành công ~80% ở `booking-high-load.js` (cả hai hệ thống) là do các VU chọn ngẫu nhiên trùng slot và nhận `409` (`slo_business_conflicts`), không phải lỗi; ngưỡng của kịch bản là `> 70%`.
+  - Lượt `clinic-peak` đầu tiên của Monolith chạy với `poolSize: 0` (500 VU dùng chung 30 tài khoản seed), còn Microservices dùng pool 500. Lượt chạy lại với `LOAD_USER_POOL=500` cho p95 đọc/ghi 18,15/50,31 ms và toàn trình 68 ms: chậm hơn lượt 30 tài khoản một chút nhưng vẫn thấp hơn Microservices nhiều. §6.7 dùng lượt pool 500.
+  - Mỗi kịch bản mới có một lượt, chưa khôi phục cùng snapshot CSDL trước mỗi lượt. Rate limit đăng nhập/ẩn danh của Microservices được nâng tạm thời trong lúc đo nên các lượt này đo năng lực xử lý, không đo chính sách rate limit (đã kiểm chứng riêng bằng `qos-policy.js`).
 
 ### 6.5. Tối ưu đã thực hiện
 
@@ -268,6 +278,7 @@ Các lượt chạy ngắn trên Docker Compose (một máy) sau khi rebuild Gat
 | Deadline / retry / circuit breaker / không lan lỗi | `GatewayQoSPolicyTests` (9 test, gồm load shedding không mở breaker) | Đạt |
 | Degraded modes | `run-fault-isolation.ps1` dừng Scheduling / Notification giữa tải | Đạt: đặt lịch lỗi nhanh 502/503/504, xem lịch hẹn 100%; dừng Notification thì lõi 100% |
 | Đăng nhập (p95 ≤ 1 s) và quá tải có kiểm soát | `login-capacity.js` 2 → 20 lượt/s | **Đạt**: trong SLO tới ~10 lượt/s (trước: ~2); quá tải gấp đôi p95 lượt nhận ≤ 756 ms, shed p95 14 ms, 0 × 504 |
+| Load shedding khi đăng nhập dồn thật | `booking-high-load.js` 20 lượt/s, 228 VU đăng nhập cùng lúc / làm nóng phiên | Lạnh: 95 × 503 có `Retry-After`, 228/228 đăng nhập được sau khi thử lại, không có 504; làm nóng: **đạt**, availability 100% (§6.4) |
 | Smoke mọi hành trình Tier 1 | `smoke.js` | Đạt: đọc p95 19 ms, ghi 78 ms, đăng nhập 181 ms |
 | Đột biến mở lịch | `spike.js` (500 phiên làm nóng, 3 → 40 lượt/s vào 2 bác sĩ) | **Không đạt** (xem dưới) |
 | RPO/RTO | `backup.ps1 drill -IntegrityCheck`, PITR, khôi phục tại chỗ | **7/7 đạt**, restore 2–9 s; PITR khớp đúng số bản ghi tại thời điểm *T*; tail-log mất 0 bản ghi ([BACKUP_RECOVERY.md §7.1](BACKUP_RECOVERY.md)) |
@@ -281,7 +292,14 @@ Hướng xử lý đề xuất (chưa làm): thay bước đếm + chèn trong k
 
 ### 6.7. Nhận định so sánh
 
-Với các lượt đo ngày 22/11 và các lượt full-duration ngày 27/11/2026 (sau khi đã sửa lỗi walk-in của monolith), cả hai kiến trúc đều vượt qua kịch bản `clinic-peak` 500 VU trong 14 phút với 0% lỗi 5xx. Monolith có latency đọc/ghi/booking thấp hơn (ít hop mạng, giao dịch cục bộ), còn Microservices đáp ứng tốt tải hỗn hợp có Queue ở `clinic-peak` nhưng nhạy cảm hơn với spike đăng nhập đồng thời ở `t=0` (`booking-high-load.js`) do bulkhead Identity và giới hạn rate limit theo tài khoản. Các kết quả này vẫn cần lưu ý điều kiện đo: chưa khôi phục DB snapshot sạch giữa mọi lượt và chưa thu CPU/RAM hai stack theo cùng một chuẩn.
+Các lượt full-duration ngày 27/11/2026 (sau khi sửa lỗi walk-in của monolith, chạy từng hệ thống riêng trên cùng ngân sách 12,5 CPU) thay thế kết luận rút ra từ lượt 22/11:
+
+- **Cả hai kiến trúc đều đạt SLO** ở `clinic-peak` 500 người dùng trong 14 phút và ở `load.js` 10 lượt/giây, với 100% availability và 0% 5xx. Biên an toàn của Microservices vẫn lớn: p95 đọc 46 ms và ghi 148 ms so với ngưỡng 300 ms và 500 ms.
+- **Trên một máy, Monolith có độ trễ thấp hơn ở gần như mọi chỉ số**: `clinic-peak` (cùng pool 500 tài khoản) đọc 18,2 so với 46,4 ms, ghi 50,3 so với 147,6 ms, đặt lịch toàn trình 68 so với 480 ms; `booking-high-load.js` (cùng làm nóng phiên, pool 500) ghi 30,0 so với 82,0 ms, toàn trình 39 so với 367 ms. Nguyên nhân là mỗi thao tác của Microservices đi qua Gateway, gọi HTTP giữa các service và xác nhận đặt lịch bất đồng bộ qua outbox/worker, còn Monolith gọi hàm và commit trong cùng một giao dịch. Microservices chỉ nhanh hơn ở đăng nhập tải đều (`load.js` 107,0 so với 164,6 ms).
+- **Ưu thế đọc của Microservices ở lượt 22/11 không còn dùng để kết luận.** Lượt `clinic-peak` 30 VU của Monolith ngày 22/11 hỏng do lỗi walk-in (2,90% 5xx), nên con số nhanh hơn 5,6 lần khi đó không phản ánh hiệu năng. Lượt `normal` 20 VU ngày 22/11 (Microservices đọc 26,8 so với 82,2 ms) vẫn hợp lệ nhưng được đo trên code cũ và mô hình tải khác.
+- **Microservices đổi độ trễ lấy khả năng kiểm soát**: quá tải đăng nhập bị từ chối có kiểm soát (503 + `Retry-After`) thay vì timeout; dừng Scheduling hoặc Notification không làm sập các luồng khác (§6.6); tài nguyên được cấp riêng cho dịch vụ nóng (Identity 1,5 CPU). Mặt trái là các giới hạn này cần được tính đến khi thiết kế tải, như lượt cold-login cho thấy, và đột biến đặt lịch vào ít ca làm việc vẫn còn điểm nóng khóa (§6.6).
+
+Điều kiện đo còn hạn chế: mỗi kịch bản một lượt, chưa khôi phục cùng snapshot CSDL trước mỗi lượt, và chưa thu CPU/RAM hai stack theo cùng một chuẩn.
 
 ## 7. Kết quả review hệ thống (27/11/2026)
 

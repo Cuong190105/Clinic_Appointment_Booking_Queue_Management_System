@@ -231,31 +231,31 @@ function buildLiveSlides09To16(pptx) {
     addLiveCard(slide, {
       x: 0.58, y: 1.72, w: 5.75, h: 2.28,
       title: '1 · Ép tải đặt lịch (Booking High-Load)',
-      body: '• 30 VU tranh chấp trên 2.400 slot (10 bác sĩ × 5 ngày)\n• Đo tốc độ giao dịch ghi đơn luồng & hoàn tất SAGA',
+      body: '• 20 lượt đặt/giây trong 120 s (228 VU)\n• Đo ghi đặt lịch & SAGA; đăng nhập lạnh và làm nóng',
       accent: theme.colors.navy, titleSize: 19, bodySize: 15.5, titleHeight: 0.44,
     });
-    addLivePill(slide, '30 VU · 2.400 SLOT · 3 LƯỢT ĐO LẶP', 0.8, 3.46, 3.55, theme.colors.sky, theme.colors.navy, { h: 0.36, fontSize: 12 });
+    addLivePill(slide, '20 LƯỢT/S · 120 S · LẠNH & NÓNG', 0.8, 3.46, 3.55, theme.colors.sky, theme.colors.navy, { h: 0.36, fontSize: 12 });
 
     addLiveCard(slide, {
       x: 0.58, y: 4.26, w: 5.75, h: 2.28,
-      title: '2 · Tải hỗn hợp Đọc & Ghi (Mixed)',
-      body: '• Duy trì 5 phút ở mức 20 VU và 30 VU (~70% Đọc / ~30% Ghi)\n• Đo khả năng chia tải khi nhiều miền cùng hoạt động',
+      title: '2 · Tải theo người dùng (Clinic-Peak)',
+      body: '• 500 người dùng · 3 phút tăng + 10 phút giữ tải\n• Đặt lịch, hàng đợi, khám cùng hoạt động',
       accent: theme.colors.teal, titleSize: 19, bodySize: 15.5, titleHeight: 0.44,
     });
-    addLivePill(slide, '20 VU & 30 VU · 5 PHÚT DUY TRÌ TẢI', 0.8, 6.0, 3.55, theme.colors.sky, theme.colors.teal, { h: 0.36, fontSize: 12 });
+    addLivePill(slide, '500 NGƯỜI DÙNG · 14 PHÚT', 0.8, 6.0, 3.55, theme.colors.sky, theme.colors.teal, { h: 0.36, fontSize: 12 });
 
     const metricGroups = [
       {
         y: 1.72,
         title: 'Chỉ số Ép tải đặt lịch (p95)',
         accent: theme.colors.navy,
-        body: '• Phản hồi API chung  ·  Tạo lịch thành công (201)\n• Thời gian toàn trình POST → Confirmed',
+        body: '• Độ trễ Ghi · Tạo lịch thành công\n• Thời gian toàn trình POST → Confirmed',
       },
       {
         y: 3.32,
-        title: 'Chỉ số Tải hỗn hợp (p95 & RPS)',
+        title: 'Chỉ số Tải hỗn hợp (p95 & SLO)',
         accent: theme.colors.teal,
-        body: '• Độ trễ thao tác Đọc (Read) & thao tác Ghi (Write)\n• Độ trễ tạo lịch hẹn & Thông lượng (requests/giây)',
+        body: '• Độ trễ Đọc, Ghi, Đăng nhập, đặt lịch E2E\n• Availability và tỷ lệ 5xx theo SLO',
       },
       {
         y: 4.92,
@@ -377,29 +377,14 @@ function buildLiveSlides09To16(pptx) {
     const slide = pptx.addSlide('BASE');
     addLiveBase(slide, {
       section: 'Kết quả Microservices mới nhất',
-      title: 'Kết quả High-Load và Mixed-Load trên Microservices',
+      title: 'Kết quả tải full-duration trên Microservices (27/11)',
       number: 15,
     });
 
     const kpis = [
-      {
-        x: 0.58,
-        val: '253,6  ·  387,8  ·  762 ms',
-        label: 'High-Load p95: API · Tạo lịch · E2E',
-        accent: theme.colors.navy,
-      },
-      {
-        x: 4.72,
-        val: '26,8 ms  ·  49,7 ms',
-        label: 'Đọc p95 tải hỗn hợp (20 VU · 30 VU)',
-        accent: theme.colors.teal,
-      },
-      {
-        x: 8.86,
-        val: '12.995 lịch Confirmed · 0% 5xx',
-        label: 'Hoàn tất 100% mục tiêu trên cả 3 kịch bản',
-        accent: theme.colors.green,
-      },
+      { x: 0.58, val: '46,4 · 147,6 · 480 ms', label: 'Clinic-peak p95: Đọc · Ghi · E2E', accent: theme.colors.navy },
+      { x: 4.72, val: '100% availability · 0% 5xx', label: 'Cả 3 kịch bản (high-load: bản nóng)', accent: theme.colors.green },
+      { x: 8.86, val: '95 × 503 khi đăng nhập lạnh', label: 'Bulkhead Identity từ chối có kiểm soát', accent: theme.colors.amber },
     ];
 
     kpis.forEach((k) => {
@@ -431,25 +416,26 @@ function buildLiveSlides09To16(pptx) {
 
     const rows = [
       {
+        profile: 'Clinic-Peak\n(Tải theo người dùng)',
+        scale: '500 người · 14 phút\nthink time 3–15 s',
+        volume: '65.218 request\n7.347 lịch tạo (99,9%)',
+        latency: 'Đọc: 46,4 · Ghi: 147,6 ms\nĐặt lịch E2E: 480 ms',
+        status: 'Đạt ngưỡng\n0% lỗi 5xx',
+      },
+      {
+        profile: 'Load\n(Tốc độ đến cố định)',
+        scale: '10 lượt/s\n5 phút ổn định',
+        volume: '7.256 request\n662/662 lịch tạo',
+        latency: 'Đọc: 46,7 · Ghi: 66,5 ms\nĐăng nhập: 107 ms',
+        status: 'Đạt ngưỡng\n0% lỗi 5xx',
+      },
+      {
         profile: 'Booking High-Load\n(Ép tải đặt lịch)',
-        scale: '30 VU · 60s giữ tải\n2.400 slot · 3 lượt',
-        volume: '34.398 yêu cầu\n7.133 lịch Confirmed',
-        latency: 'API: 253,6 ms · Tạo: 387,8 ms\nPOST → Confirmed: 762 ms',
-        status: 'Đạt ngưỡng\n0% lỗi 5xx',
-      },
-      {
-        profile: 'Mixed Normal\n(Tải hỗn hợp thường)',
-        scale: '20 VU · 5 phút\n71% Đọc / 29% Ghi',
-        volume: '18.108 Đọc · 7.290 Ghi\n2.430 lịch Confirmed',
-        latency: 'Đọc: 26,8 ms · Ghi: 91,3 ms\nTạo lịch: 107,2 ms',
-        status: 'Đạt ngưỡng\n0% lỗi 5xx',
-      },
-      {
-        profile: 'Mixed Peak\n(Tải hỗn hợp cao điểm)',
-        scale: '30 VU · 5 phút\n68% Đọc / 32% Ghi',
-        volume: '32.139 Đọc · 15.312 Ghi\n3.432 lịch Confirmed',
-        latency: 'Đọc: 49,7 ms · Ghi: 187,8 ms\nTạo lịch: 343,8 ms',
-        status: 'Đạt ngưỡng\n0% lỗi 5xx',
+        scale: '20 lượt/s · 120 s\n228 VU',
+        volume: 'Lạnh: 95 × 503\nNóng: 1.944 lịch tạo',
+        latency: 'Ghi: 82,0 ms · E2E: 367 ms\n(bản làm nóng phiên)',
+        status: 'Lạnh: chưa đạt\nNóng: đạt',
+        statusColor: theme.colors.amber,
       },
     ];
 
@@ -462,7 +448,7 @@ function buildLiveSlides09To16(pptx) {
       text(slide, r.scale, cols[1].x + 0.14, y + 0.16, cols[1].w - 0.28, 0.72, { fontSize: 13.8, color: theme.colors.slate });
       text(slide, r.volume, cols[2].x + 0.14, y + 0.16, cols[2].w - 0.28, 0.72, { fontSize: 13.8, color: theme.colors.ink });
       text(slide, r.latency, cols[3].x + 0.14, y + 0.16, cols[3].w - 0.28, 0.72, { fontSize: 13.8, color: theme.colors.ink });
-      text(slide, r.status, cols[4].x + 0.14, y + 0.16, cols[4].w - 0.28, 0.72, { fontSize: 14.2, bold: true, color: theme.colors.green });
+      text(slide, r.status, cols[4].x + 0.14, y + 0.16, cols[4].w - 0.28, 0.72, { fontSize: 14.2, bold: true, color: r.statusColor || theme.colors.green });
     });
 
     slide.addNotes(notesFor(15));
@@ -475,7 +461,7 @@ function buildLiveSlides09To16(pptx) {
     const slide = pptx.addSlide('BASE');
     addLiveBase(slide, {
       section: 'Đối chiếu số liệu thực nghiệm',
-      title: 'Đối chiếu hiệu năng Monolith và Microservices (12,5 CPU)',
+      title: 'Đối chiếu hiệu năng Monolith và Microservices (27/11)',
       number: 16,
     });
 
@@ -483,36 +469,15 @@ function buildLiveSlides09To16(pptx) {
       fontSize: 15, bold: true, color: theme.colors.slate,
     });
 
+    const chartLabels = ['Đọc (peak)', 'Ghi (peak)', 'E2E (peak)', 'Đọc (load)', 'Ghi (load)', 'Ghi (high-load)'];
     slide.addChart(pptx.ChartType.bar, [
-      {
-        name: 'Monolith',
-        labels: [
-          'Đọc (20 VU)',
-          'Ghi (20 VU)',
-          'Đọc (30 VU)',
-          'Ghi (30 VU)',
-          'API Đặt lịch',
-          'Tạo lịch 201',
-        ],
-        values: [82.2, 111.3, 276.7, 362.4, 190.2, 214.6],
-      },
-      {
-        name: 'Microservices',
-        labels: [
-          'Đọc (20 VU)',
-          'Ghi (20 VU)',
-          'Đọc (30 VU)',
-          'Ghi (30 VU)',
-          'API Đặt lịch',
-          'Tạo lịch 201',
-        ],
-        values: [26.8, 91.3, 49.7, 187.8, 253.6, 387.8],
-      },
+      { name: 'Monolith', labels: chartLabels, values: [18.2, 50.3, 68, 14.6, 46.5, 30.0] },
+      { name: 'Microservices', labels: chartLabels, values: [46.4, 147.6, 480, 46.7, 66.5, 82.0] },
     ], {
       x: 0.52, y: 1.9, w: 6.15, h: 4.88,
       catAxisLabelFontFace: theme.font, catAxisLabelFontSize: 11.5,
       valAxisLabelFontFace: theme.font, valAxisLabelFontSize: 11,
-      valAxisMinVal: 0, valAxisMaxVal: 450, valAxisMajorUnit: 150,
+      valAxisMinVal: 0, valAxisMaxVal: 550, valAxisMajorUnit: 100,
       valAxisTitle: 'Mili giây (ms)', valAxisTitleFontFace: theme.font, valAxisTitleFontSize: 11.5,
       chartColors: [theme.colors.navy, theme.colors.teal],
       showLegend: true, legendPos: 'b', legendFontFace: theme.font, legendFontSize: 12.5,
@@ -547,15 +512,15 @@ function buildLiveSlides09To16(pptx) {
     text(slide, 'Microservices', tx + 4.4, ty + 0.1, 1.38, 0.3, { fontSize: 13.5, bold: true, color: theme.colors.white, align: 'center' });
 
     const compRows = [
-      { label: 'High-Load · API Đặt lịch (p95)', mono: '190,2 ms', micro: '253,6 ms', better: 'mono' },
-      { label: 'High-Load · Tạo lịch 201 (p95)', mono: '214,6 ms', micro: '387,8 ms', better: 'mono' },
-      { label: 'High-Load · POST → Confirmed', mono: '235 ms', micro: '762 ms', better: 'mono' },
-      { label: 'High-Load · Lịch Confirmed / s', mono: '29,84 / s', micro: '29,72 / s', better: 'tie' },
-      { label: 'Mixed 20 VU · Độ trễ Đọc (p95)', mono: '82,2 ms', micro: '26,8 ms', better: 'micro' },
-      { label: 'Mixed 20 VU · Độ trễ Ghi (p95)', mono: '111,3 ms', micro: '91,3 ms', better: 'micro' },
-      { label: 'Mixed 30 VU · Độ trễ Đọc (p95)', mono: '276,7 ms', micro: '49,7 ms', better: 'micro' },
-      { label: 'Mixed 30 VU · Độ trễ Ghi (p95)', mono: '362,4 ms', micro: '187,8 ms', better: 'micro' },
-      { label: 'Mixed 30 VU · Thông lượng Đọc', mono: '52,6 req/s', micro: '88,2 req/s', better: 'micro' },
+      { label: 'Clinic-peak · Đọc (p95)', mono: '18,2 ms', micro: '46,4 ms', better: 'mono' },
+      { label: 'Clinic-peak · Ghi (p95)', mono: '50,3 ms', micro: '147,6 ms', better: 'mono' },
+      { label: 'Clinic-peak · Đặt lịch E2E', mono: '68 ms', micro: '480 ms', better: 'mono' },
+      { label: 'Clinic-peak · Lỗi 5xx', mono: '0%', micro: '0%', better: 'tie' },
+      { label: 'Load 10/s · Đọc (p95)', mono: '14,6 ms', micro: '46,7 ms', better: 'mono' },
+      { label: 'Load 10/s · Đăng nhập (p95)', mono: '164,6 ms', micro: '107,0 ms', better: 'micro' },
+      { label: 'High-load · Ghi (p95, nóng)', mono: '30,0 ms', micro: '82,0 ms', better: 'mono' },
+      { label: 'High-load · Đăng nhập lạnh', mono: '0 lỗi', micro: '95 × 503', better: 'mono' },
+      { label: '22/11 · Mixed 20 VU · Đọc', mono: '82,2 ms', micro: '26,8 ms', better: 'micro' },
     ];
 
     const rowH = 0.485;
@@ -619,9 +584,9 @@ function buildLiveSlides09To16(pptx) {
         accent: theme.colors.navy,
         title: '2 · Kết quả Đối chiếu Tải',
         items: [
-          { h: 'Ép tải đặt lịch đơn luồng', d: 'Monolith nhanh hơn (214,6 vs 387,8 ms)' },
-          { h: 'Tải hỗn hợp Đọc & Ghi', d: 'Microservices đọc nhanh gấp 3,1 – 5,6 lần' },
-          { h: 'Thông lượng & Độ tin cậy', d: '~29,8 lịch/giây · 100% Idempotency · 0% 5xx' },
+          { h: 'Cả hai đạt SLO · 500 người', d: '100% availability · 0% lỗi 5xx' },
+          { h: 'Monolith nhanh hơn 1 máy', d: 'Đặt lịch toàn trình 68 vs 480 ms' },
+          { h: 'Micro đổi trễ lấy kiểm soát', d: 'Load shedding, cô lập lỗi, QoS' },
         ],
       },
       {
@@ -629,8 +594,8 @@ function buildLiveSlides09To16(pptx) {
         accent: theme.colors.amber,
         title: '3 · Hướng phát triển',
         items: [
-          { h: 'Khôi phục cùng Snapshot CSDL', d: 'Loại bỏ ảnh hưởng tích lũy dữ liệu' },
-          { h: 'Lặp ≥ 3 lượt Tải hỗn hợp', d: 'Báo cáo trung vị và phương sai' },
+          { h: 'Sửa điểm nóng đặt lịch', d: 'Bộ đếm chỗ nguyên tử, chạy lại spike' },
+          { h: 'Lặp ≥ 3 lượt cùng điều kiện', d: 'Cùng snapshot CSDL mỗi lượt' },
           { h: 'Tách cụm CSDL vật lý độc lập', d: 'Triển khai 6 instance CSDL riêng biệt' },
         ],
       },

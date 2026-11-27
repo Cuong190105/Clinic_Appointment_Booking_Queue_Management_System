@@ -190,3 +190,28 @@ Trong monolith mixed normal, backend CPU trung bình/đỉnh 163,8%/479,6% và R
 Các lượt booking lặp sử dụng DB persistent và có trạng thái lịch sử khác nhau; mixed profile mỗi bên mới có một lượt; clinic-peak monolith có defect nghiệp vụ; và chưa khóa DB snapshot/seed cùng trace warm-up. Trước khi kết luận kiến trúc, cần sửa walk-in, lặp mixed tối thiểu ba lần mỗi bên, restore cùng DB snapshot trước từng high-load run và thu CPU/RAM hai stack cùng cách.
 
 Summary sanitize và file evidence theo từng lượt được lưu tại `tests/load/evidence/highload-monolith-2026-11-22*.json`, `mixed-*-monolith-2026-11-22.json` và `monolith-resource-summary-2026-11-22.json`; chi tiết kịch bản và cleanup nằm trong [`PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md` mục 22](PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md#22-chạy-các-profile-tương-ứng-trên-monolith--22112026).
+
+---
+
+# PHẦN VII: CHẠY LẠI FULL-DURATION SAU KHI SỬA WALK-IN — 27/11/2026
+
+Lỗi walk-in của monolith (Phần VI mục 2) đã được sửa trên nhánh `monolith`. Hai hệ thống được chạy riêng (tắt hệ thống còn lại), cùng ngân sách 12,5 CPU, cùng pool 500 tài khoản, mỗi kịch bản một lượt; trên Microservices hạn mức đăng nhập/ẩn danh được nâng tạm thời trong lúc đo rồi khôi phục.
+
+| Kịch bản | Chỉ số p95 | Monolith | Microservices |
+|---|---|---:|---:|
+| `clinic-peak` 500 người dùng, 14 phút | Đọc / Ghi / Đăng nhập | 18,2 / 50,3 / 180,6 ms | 46,4 / 147,6 / 229,2 ms |
+| | Đặt lịch toàn trình | 68 ms | 480 ms |
+| | Availability / 5xx / lịch tạo | 100% / 0% / 7.622 của 7.622 | 100% / 0% / 7.347 của 7.352 |
+| `load.js` 10 lượt/s, 5 phút ổn định | Đọc / Ghi / Đăng nhập | 14,6 / 46,5 / 164,6 ms | 46,7 / 66,5 / 107,0 ms |
+| | Đặt lịch toàn trình | 56 ms | 344 ms |
+| `booking-high-load.js` 20 lượt/s, 120 s | Ghi / toàn trình | 30,0 / 39 ms (làm nóng phiên, đạt; lạnh: 30,4 / 38 ms, đạt) | 82,0 / 367 ms (làm nóng phiên, đạt) |
+| | Đăng nhập lạnh 228 VU tại t=0 | 0 lỗi | 95 × 503 (load shedding), không đạt |
+
+**Kết luận thay thế Phần VI:**
+
+- Cả hai kiến trúc đều đạt SLO ở `clinic-peak` 500 người dùng và `load.js`, 0% 5xx.
+- Trên một máy, monolith có độ trễ thấp hơn ở gần như mọi chỉ số; microservices chỉ nhanh hơn ở đăng nhập tải đều. Chi phí của microservices đến từ Gateway, HTTP giữa các service và xác nhận bất đồng bộ qua outbox.
+- Kết luận "microservices đọc nhanh hơn 5,6 lần ở cao điểm" của lượt 22/11 không còn dùng, vì lượt monolith hôm đó hỏng do lỗi walk-in.
+- Microservices nhạy hơn với đăng nhập dồn cùng lúc vì Identity có bulkhead riêng (1 phép băm đồng thời trên 1,5 CPU); đây là đánh đổi có chủ đích để quá tải trả 503 nhanh thay vì timeout.
+
+**Giới hạn:** một lượt mỗi kịch bản; chưa khôi phục cùng snapshot CSDL; chưa thu CPU/RAM hai stack theo cùng chuẩn. Phân tích đầy đủ: [`docs/PROJECT_REPORT.md` §6.4, §6.7](../docs/PROJECT_REPORT.md).

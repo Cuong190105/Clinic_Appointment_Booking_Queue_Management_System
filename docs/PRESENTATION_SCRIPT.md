@@ -20,7 +20,7 @@
 | 12 | Kiểm chứng SLA/QoS trên hệ thống chạy | 1:00 |
 | 13 | Cách đánh giá hiệu năng | 0:45 |
 | 14 | Quá trình cải tiến microservices | 0:50 |
-| 15 | Kết quả high-load và mixed-load | 1:00 |
+| 15 | Kết quả tải full-duration trên Microservices | 1:00 |
 | 16 | So sánh với monolith | 1:00 |
 | 17 | Kết luận và phần còn lại | 0:50 |
 | **Tổng** |  | **15:00** |
@@ -125,11 +125,11 @@ Về dữ liệu, diễn tập khôi phục cả sáu database và bản off-sit
 
 ## Slide 13 — Cách đánh giá hiệu năng (45 giây)
 
-**Trên slide:** Phân biệt high-load booking (ép tải ghi đơn miền) và mixed workload (tải hỗn hợp Đọc + Ghi đồng thời); các metric: request p95, create p95, E2E POST→Confirmed, read/write p95, thông lượng và 5xx.
+**Trên slide:** Hai kịch bản đo ngày 27/11/2026: Booking High-Load (20 lượt đặt/giây trong 120 giây, chạy cả đăng nhập lạnh và phiên làm nóng) và Clinic-Peak (500 người dùng theo vai trò, 14 phút, think time 3–15 s), kèm `load.js` 10 lượt/giây; các metric: p95 đọc/ghi/đăng nhập, POST→Confirmed, availability và 5xx.
 
 **Lời dẫn:**
-“Nhóm đánh giá hiệu năng trên hai nhóm kịch bản đại diện cho hai chế độ vận hành khác nhau. Thứ nhất là Booking High-Load với 30 VU tranh chấp trên 2.400 slot: kịch bản này dồn toàn bộ áp lực vào một giao dịch ghi đặt lịch duy nhất để đo khả năng xử lý xung đột giữ chỗ và độ trễ hoàn tất SAGA. Thứ hai là Mixed Workload kéo dài 5 phút ở mức tải thường 20 VU và cao điểm 30 VU: kịch bản này chạy đồng thời luồng tra cứu Đọc với luồng giao dịch Ghi đặt và hủy lịch để đánh giá khả năng phân tán tải khi nhiều miền cùng hoạt động.
-Với đặt lịch, nhóm bóc tách độ trễ của mọi phản hồi API, độ trễ riêng của lượt tạo thành công HTTP 201 và thời gian toàn trình từ POST đến Confirmed. Với tải hỗn hợp, nhóm đo riêng độ trễ p95 của thao tác Đọc, thao tác Ghi tổng hợp và bước tạo lịch hẹn. Đồng thời, các phản hồi xung đột slot HTTP 409 hợp lệ được tách khỏi tỷ lệ lỗi máy chủ 5xx để phản ánh đúng độ tin cậy kỹ thuật.”
+“Nhóm đánh giá hiệu năng bằng hai kiểu tải. Thứ nhất là Booking High-Load: tải đến với tốc độ cố định 20 lượt đặt lịch mỗi giây trong 120 giây, dồn áp lực vào giao dịch ghi để đo tranh chấp giữ chỗ và thời gian hoàn tất SAGA. Thứ hai là Clinic-Peak: 500 người dùng đóng vai bệnh nhân, lễ tân và bác sĩ, tăng dần trong 3 phút rồi giữ 10 phút, mỗi người nghỉ 3 đến 15 giây giữa các thao tác như người thật; kèm một bài tải cố định 10 lượt mỗi giây.
+Với mỗi kịch bản, nhóm đo p95 của thao tác đọc, ghi, đăng nhập và thời gian từ POST đến Confirmed. Phản hồi 409 do hết slot được tính là xung đột nghiệp vụ hợp lệ, tách khỏi tỷ lệ lỗi máy chủ 5xx và availability.”
 
 ## Slide 14 — Quá trình cải tiến microservices (50 giây)
 
@@ -139,32 +139,30 @@ Với đặt lịch, nhóm bóc tách độ trễ của mọi phản hồi API, 
 “Quá trình tối ưu microservices có cả kết quả tốt và kết quả không đạt được ghi nhận minh bạch. Các lượt đầu tiên có p95 đặt lịch khoảng 1,9 đến 2,35 giây, vượt xa mục tiêu. Sau khi tinh chỉnh luồng gọi dịch vụ và phân bổ tài nguyên container, một lượt đo ở 20 VU giảm xuống khoảng 411 ms. Tuy nhiên, trong lượt đối chiếu đồng tài nguyên 12,5 CPU ở 20 VU, monolith đạt 293,4 ms còn microservices là 594,7 ms, tức vẫn vượt ngưỡng 500 ms.
 Khi phân tích sâu, nhóm phát hiện truy vấn kiểm tra sức chứa của Scheduling tải toàn bộ danh sách slot về bộ nhớ ứng dụng, nên đã tối ưu thành truy vấn gom nhóm aggregate trực tiếp trong SQL Server. Nhờ đó, bộ đo lặp 3 lượt ở 20 VU giảm median p95 xuống 449 ms. Tiếp theo, nhóm mở rộng sang kịch bản ép tải 30 VU với 2.400 slot và các cấu hình tải hỗn hợp 5 phút để đối chiếu toàn diện với monolith.”
 
-## Slide 15 — Kết quả high-load và mixed-load mới nhất trên Microservices (1 phút)
+## Slide 15 — Kết quả tải full-duration trên Microservices (1 phút)
 
-**Trên slide:** Bảng gọn 3 dòng cho Booking High-Load (30 VU), Mixed Normal (20 VU) và Mixed Peak (30 VU) với khối lượng request Đọc/Ghi, số lịch Confirmed, độ trễ p95 và 0% lỗi 5xx.
+**Trên slide:** Ba KPI (Clinic-Peak p95 đọc/ghi/toàn trình 46,4/147,6/480 ms; 100% availability, 0% 5xx; 95 × 503 khi đăng nhập lạnh) và bảng 3 dòng Clinic-Peak, Load, Booking High-Load (đăng nhập lạnh / phiên làm nóng).
 
 **Lời dẫn:**
-“Trên hệ thống microservices sau tối ưu, cả ba kịch bản đều vượt qua toàn bộ ngưỡng mục tiêu và đạt 0% lỗi máy chủ 5xx. Ở kịch bản ép tải đặt lịch 30 VU trên 2.400 slot, qua 3 lượt chạy hệ thống xử lý 34.398 yêu cầu, tạo và xác nhận thành công 7.133 lịch hẹn với median p95 phản hồi API chung là 253,6 ms, p95 tạo lịch thành công là 387,8 ms và từ POST đến Confirmed là 762 ms.
-Ở hai cấu hình tải hỗn hợp kéo dài 5 phút, kịch bản tải thường 20 VU thực hiện hơn 18.100 lượt đọc và 7.290 lượt ghi, xác nhận và dọn dẹp sạch 2.430 lịch hẹn với p95 đọc chỉ 26,8 ms, ghi tổng hợp 91,3 ms và tạo lịch 107,2 ms. Khi nâng lên tải cao điểm 30 VU, hệ thống xử lý hơn 32.100 lượt đọc và 15.300 lượt ghi, xác nhận 3.432 lịch hẹn mà vẫn giữ p95 đọc ở mức 49,7 ms và ghi tổng hợp 187,8 ms. Những con số này là cơ sở để đặt lên bàn cân đối chiếu trực tiếp với monolith ở slide tiếp theo.”
+“Đây là các lượt chạy đủ thời lượng ngày 27/11 trên microservices. Ở Clinic-Peak 500 người dùng trong 14 phút, hệ thống xử lý hơn 65 nghìn request, tạo thành công 7.347 trên 7.352 lịch, p95 đọc 46 ms và ghi 148 ms, cách xa ngưỡng 300 và 500 ms, với 0% lỗi 5xx. Bài tải cố định 10 lượt mỗi giây cũng đạt, 662 trên 662 lịch.
+Booking High-Load cho một bài học đáng chú ý. Lần đầu, cả 228 người dùng ảo đăng nhập cùng lúc ở giây đầu tiên; bulkhead của Identity chủ động từ chối 95 lượt bằng 503 kèm `Retry-After`, các lượt thử lại sau đó đều thành công, nhưng tỷ lệ 503 vượt ngưỡng 1% nên bài test không đạt. Khi làm nóng phiên trước, giống người dùng thật đăng nhập rải rác, cùng tải đặt lịch đạt 100% availability, p95 ghi 82 ms. Hai lượt cho thấy điểm nghẽn là đăng nhập dồn cùng lúc, không phải luồng đặt lịch. Khoảng 19% lượt đặt nhận 409 vì tranh cùng slot; đó là xung đột nghiệp vụ, không phải lỗi.”
 
 ## Slide 16 — Đối chiếu với monolith: Hệ thống nào tốt hơn ở khía cạnh nào? (1 phút)
 
-**Trên slide:** Biểu đồ cột nhóm so sánh trực tiếp độ trễ p95 (ms) của Monolith và Microservices ở hai chế độ: Tải hỗn hợp đa tác vụ (Đọc & Ghi tổng hợp ở 20 VU và 30 VU) so với Ép tải đặt lịch đơn miền (API chung, Tạo lịch 201, POST→Confirmed); bên phải là bảng phân định rõ khía cạnh Monolith tốt hơn, khía cạnh Microservices tốt hơn và khía cạnh tương đương.
+**Trên slide:** Biểu đồ cột p95 (ms) Monolith và Microservices ở Clinic-Peak, Load và High-Load ngày 27/11; bảng đối chiếu, ô xanh là bên tốt hơn; chú thích điều kiện đo (1 lượt mỗi kịch bản; Clinic-Peak và High-Load dùng cùng pool 500 tài khoản, High-Load cùng làm nóng phiên).
 
 **Lời dẫn:**
-“Khi đặt kết quả của hai hệ thống cạnh nhau trên cùng kịch bản và ngân sách tài nguyên 12,5 CPU, bức tranh thực nghiệm chỉ rõ mỗi kiến trúc vượt trội ở một khía cạnh khác nhau.
-Thứ nhất, **Monolith tốt hơn ở độ trễ của giao dịch ghi đơn lẻ và thời gian xác nhận tức thì**. Khi ép tải thuần túy vào luồng đặt lịch 30 VU, Monolith có p95 tạo lịch thành công thấp hơn (214,6 ms so với 387,8 ms) và thời gian từ POST đến Confirmed ngắn hơn rõ rệt (235 ms so với 762 ms). Nguyên nhân là Monolith (đã đồng bộ hóa luồng xác nhận trực tiếp ở phiên bản 10/11) gọi hàm trong cùng tiến trình và commit ACID một bước với 7,5 CPU dành cho backend, không tốn chi phí gọi HTTP từ Gateway sang Appointment rồi Scheduling (~4 CPU trên đường ghi đặt lịch trong tổng ngân sách 12,5 CPU), và không qua chu kỳ worker thăm dò `AppointmentDB` rồi mới gọi HTTP confirm tới Scheduling.
-Thứ hai, **Microservices lại vượt trội rõ rệt về độ trễ Đọc và Ghi tổng hợp khi hệ thống chịu tải hỗn hợp đa tác vụ**. Khi các luồng tra cứu Đọc và giao dịch Ghi chạy đồng thời suốt 5 phút, ở mức 20 VU Microservices có p95 Đọc nhanh gấp 3,1 lần (26,8 ms so với 82,2 ms) và p95 Ghi tổng hợp thấp hơn 18% (91,3 ms so với 111,3 ms). Khi lên tải cao điểm 30 VU, ưu thế phân tán tải càng rõ: p95 Đọc của Microservices nhanh gấp 5,6 lần (49,7 ms so với 276,7 ms), p95 Ghi tổng hợp nhanh gấp 1,9 lần (187,8 ms so với 362,4 ms) và tổng lượng request xử lý cao hơn gần 60%. Lý do là Microservices chia tải tra cứu và cập nhật về từng service và CSDL logic riêng, tránh được hiện tượng nghẽn cổ chai trên một tiến trình và một DbContext dùng chung như Monolith.
-Cuối cùng, về **thông lượng đặt lịch xác nhận thực tế**, con số ~29,84 và ~29,72 lịch Confirmed/giây phản ánh mức lấp gần hết trần 2.400 slot trong khoảng ~80 giây chạy bài test, không phải giới hạn attempts/s cực đại. Ngoài ra, toàn bộ số liệu benchmark trên được đo trước đợt vá bảo mật, optimistic concurrency, DLQ và bật RCSI ngày 27/11/2026.”
+“Sau khi sửa lỗi walk-in của monolith, nhóm chạy lại cùng các kịch bản trên hai hệ thống, mỗi lần chỉ bật một hệ thống, cùng ngân sách 12,5 CPU. Kết quả khác với lượt 22/11: trên một máy, monolith nhanh hơn ở gần như mọi chỉ số. Ở Clinic-Peak, p95 đọc là 18 so với 46 ms, ghi 50 so với 148 ms, và đặt lịch toàn trình 68 so với 480 ms. Lý do là mỗi thao tác của microservices phải đi qua Gateway, gọi HTTP giữa các service và chờ outbox xác nhận bất đồng bộ, còn monolith gọi hàm và commit trong cùng một giao dịch.
+Ở lượt 22/11, microservices đọc nhanh hơn ở mức 20 VU; nhưng lượt cao điểm của monolith hôm đó hỏng do lỗi walk-in, nên con số nhanh hơn 5,6 lần trước đây không còn được dùng. Hôm nay microservices chỉ nhanh hơn ở đăng nhập tải đều, 107 so với 165 ms. Điểm quan trọng là cả hai đều đạt SLO với biên an toàn lớn. Lưu ý mỗi kịch bản mới có một lượt, nhưng hai bên chạy cùng điều kiện: cùng 500 tài khoản và cùng cách làm nóng phiên.”
 
 ## Slide 17 — Kết luận và hướng tiếp theo (50 giây)
 
-**Trên slide:** Tổng kết 3 khối: Khi nào Monolith tốt hơn (giao dịch ghi đơn luồng, xác nhận ACID tức thì, vận hành gọn); Khi nào Microservices tốt hơn (tải hỗn hợp đa miền, độ trễ Đọc nhanh hơn 3,1–5,6×, cô lập lỗi và mở rộng độc lập); Công việc hoàn thiện tiếp theo (khôi phục snapshot CSDL, lặp ≥3 lượt tải hỗn hợp, đo CPU/RAM đồng nhất).
+**Trên slide:** Tổng kết 3 khối: Kết quả kiến trúc (6 dịch vụ và Gateway, OpenAPI + SAGA/choreography, SLA/SLO/QoS đã kiểm chứng); Kết quả đối chiếu (cả hai đạt SLO ở 500 người dùng; Monolith nhanh hơn trên một máy; Microservices đổi độ trễ lấy cô lập lỗi và kiểm soát quá tải); Hướng tiếp theo (sửa điểm nóng đặt lịch, lặp ≥ 3 lượt cùng điều kiện, đo CPU/RAM đồng nhất).
 
 **Lời dẫn:**
-“Tóm lại, đồ án không chỉ hoàn thành việc chuyển đổi sang kiến trúc microservices chạy được với OpenAPI, SAGA, choreography và SLA/SLO/QoS cho từng dịch vụ — được kiểm chứng bằng fault injection, kiểm thử tải và diễn tập khôi phục dữ liệu — mà qua kiểm thử tải còn định lượng rõ ranh giới đánh đổi giữa hai kiến trúc.
-Monolith là lựa chọn tối ưu khi ưu tiên độ trễ phản hồi tức thì của một giao dịch ghi đơn lẻ và sự đơn giản trong vận hành. Ngược lại, Microservices phát huy ưu thế vượt trội khi hệ thống vận hành dưới tải hỗn hợp nhiều miền nghiệp vụ cùng lúc — giúp giảm độ trễ đọc từ 3 đến hơn 5 lần, giảm độ trễ ghi tổng hợp tới gần một nửa ở tải cao điểm, đồng thời cho phép cô lập lỗi qua Outbox và mở rộng tài nguyên độc lập cho từng dịch vụ nóng.
-Để bộ đối chứng hoàn chỉnh hơn nữa trong tương lai, nhóm đề xuất khôi phục cùng một snapshot CSDL sạch trước mỗi lượt chạy để loại bỏ ảnh hưởng tích lũy dữ liệu lịch sử, chạy lặp tối thiểu ba lượt cho các kịch bản tải hỗn hợp và thu thập chuỗi CPU/RAM đồng nhất trên hai kiến trúc. Em xin cảm ơn thầy cô và các bạn, rất mong nhận được câu hỏi và góp ý.”
+“Tóm lại, đồ án đã chuyển hệ thống sang microservices chạy được, với OpenAPI, SAGA, choreography và SLA/SLO/QoS cho từng dịch vụ, được kiểm chứng bằng fault injection, kiểm thử tải và diễn tập khôi phục dữ liệu.
+Kết quả đo cho thấy rõ đánh đổi. Trên một máy, monolith có độ trễ thấp hơn và vận hành đơn giản hơn. Microservices chậm hơn nhưng vẫn đạt SLO dưới tải 500 người dùng, và đổi lại có những khả năng monolith không có: dịch vụ quá tải tự từ chối có kiểm soát thay vì kéo cả hệ thống, một dịch vụ dừng thì các luồng khác vẫn chạy, và mỗi dịch vụ được cấp tài nguyên riêng.
+Bước tiếp theo là sửa điểm nóng khóa ca làm việc khi đặt lịch đột biến, chạy lặp ít nhất ba lượt với cùng snapshot dữ liệu và cùng pool tài khoản, và đo CPU, RAM đồng nhất trên hai kiến trúc. Em xin cảm ơn thầy cô và các bạn, rất mong nhận được câu hỏi và góp ý.”
 
 ## Gợi ý trình chiếu và demo
 
@@ -186,8 +184,17 @@ Monolith là lựa chọn tối ưu khi ưu tiên độ trễ phản hồi tức
 - **Tải hỗn hợp đa tác vụ — Mức cao điểm (Mixed Peak, 30 VU, 5 phút giữ tải)**:
   - **Microservices**: 32.139 lượt đọc (88,2 req/s) / 15.312 lượt ghi (42,0 req/s); **p95 Đọc 49,7 ms**, **p95 Ghi tổng hợp 187,8 ms**, **p95 HTTP chung 112,7 ms**, p95 POST tạo lịch **343,8 ms**, hoàn tất **3.432 lịch Confirmed**, 5xx **0%**.
   - **Monolith**: 19.086 lượt đọc (52,6 req/s) / 10.732 lượt ghi (29,6 req/s); **p95 Đọc 276,7 ms**, **p95 Ghi tổng hợp 362,4 ms**, **p95 HTTP chung 307,3 ms**, p95 POST tạo lịch **287,8 ms**.
-  - *Kết luận khía cạnh 3*: Khi tải hỗn hợp tăng lên mức cao điểm 30 VU, khả năng phân tán tải của Microservices giúp p95 Đọc nhanh hơn **5,6 lần** (49,7 ms vs 276,7 ms) và p95 Ghi tổng hợp nhanh hơn **1,9 lần** (187,8 ms vs 362,4 ms).
+  - *Lưu ý*: lượt Monolith này hỏng do lỗi walk-in (2,90% 5xx, 0/865 walk-in), nên không dùng để kết luận; xem số liệu chạy lại ngày 27/11 bên dưới.
+  - *Kết luận khía cạnh 3 (đã thay thế)*: Khi tải hỗn hợp tăng lên mức cao điểm 30 VU, khả năng phân tán tải của Microservices giúp p95 Đọc nhanh hơn **5,6 lần** (49,7 ms vs 276,7 ms) và p95 Ghi tổng hợp nhanh hơn **1,9 lần** (187,8 ms vs 362,4 ms).
 - Evidence sanitize và run details: [báo cáo Phase 9 mục 19, 21, 22](../tasks/PHASE_9_LOAD_TEST_REPORT_MEMBER_A.md#22-chạy-các-profile-tương-ứng-trên-monolith--22112026).
+
+## Phụ lục số liệu full-duration dùng khi hỏi đáp — 27/11/2026
+
+- **Điều kiện:** sau khi sửa lỗi walk-in của monolith; chạy từng hệ thống riêng (tắt hệ thống còn lại), cùng ngân sách 12,5 CPU; mỗi kịch bản 1 lượt; trên Microservices tạm nâng hạn mức rate limit đăng nhập/ẩn danh trong lúc đo rồi khôi phục. Clinic-Peak và High-Load dùng cùng pool 500 tài khoản trên cả hai hệ thống.
+- **Clinic-Peak (500 người dùng, 3 phút tăng + 10 phút giữ):** Monolith (pool 500) p95 đọc/ghi/đăng nhập 18,15/50,31/180,60 ms, đặt lịch toàn trình 68 ms, 58.427 request, 7.622/7.622 lịch (lượt đầu với 30 tài khoản seed: 12,53/41,76/188,75 ms, 57 ms); Microservices 46,36/147,59/229,19 ms, toàn trình 480 ms, 65.218 request, 7.347/7.352 lịch. Cả hai 100% availability, 0% 5xx, 0% throttled.
+- **Load (10 lượt/s, 5 phút ổn định):** Monolith đọc/ghi/đăng nhập 14,61/46,51/164,59 ms, toàn trình 56 ms, 655/655 lịch; Microservices 46,71/66,52/107,00 ms, toàn trình 344 ms, 662/662 lịch. Cả hai 0% 5xx.
+- **Booking High-Load (20 lượt/s, 120 s, 228 VU):** Monolith đăng nhập lạnh vẫn đạt: ghi p95 30,45 ms, toàn trình 38 ms, 1.968/2.400 lịch (phần còn lại là 409 trùng/hết slot); bản làm nóng phiên, cùng điều kiện với Microservices, cũng đạt: ghi p95 30,05 ms, toàn trình 39 ms, 1.892/2.401 lịch. Microservices đăng nhập lạnh **không đạt**: 95 × 503 do bulkhead Identity (availability 98,55%, 5xx 1,34%) và 61 × 429 khi dọn dữ liệu bằng một tài khoản admin; bản làm nóng phiên (228 phiên đăng nhập trước ở 4 lượt/s) **đạt**: availability 100%, ghi p95 82,04 ms, toàn trình 367 ms, 1.944/2.401 lịch, 0 dropped.
+- **Lưu ý khi trả lời:** p95 đăng nhập 112 ms của bản làm nóng được đo trong pha `setup()` ở 4 lượt/s, không phải dưới tải đặt lịch. Evidence: `tests/load/evidence/*-latest.json`; chi tiết ở [báo cáo dự án §6.4](PROJECT_REPORT.md).
 
 ## Phụ lục số liệu kiểm chứng SLA/QoS dùng khi hỏi đáp — 27/11/2026
 

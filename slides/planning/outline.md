@@ -23,11 +23,11 @@
 | 10 | Contracts and operations | OpenAPI, drift checks, tests, health, metrics, and tracing support the running system. | 0:45 |
 | 11 | Per-service SLA/SLO/QoS | Each service has a tier, availability, latency/workflow target, QoS mechanism and RPO/RTO. | 1:00 |
 | 12 | QoS verification | QoS policy, fault isolation, login capacity, spike, restore drill and invariants were measured on the running stack. | 1:00 |
-| 13 | Benchmark method | Booking stress and mixed workload answer different performance questions. | 0:45 |
+| 13 | Benchmark method | Open-model booking stress (20/s, cold and warm logins) and a 500-user clinic-peak model answer different performance questions. | 0:45 |
 | 14 | Optimization history | Iteration improved some results, but a resource-balanced run still exposed a p95 miss. | 0:50 |
-| 15 | Latest microservice results | High-load and mixed profiles meet their declared gates with a small number of unclassified peak iterations. | 1:00 |
-| 16 | Monolith comparison | Current paired booking runs show tradeoffs; mixed clinic-peak exposed a monolith walk-in defect. | 1:00 |
-| 17 | Conclusion | The project meets its implementation goals; equivalent repeated comparison work remains. | 0:50 |
+| 15 | Latest microservice results | Full-duration 27/11 runs: clinic-peak and load pass with 0% 5xx; high-load fails cold (95 load-shed logins) and passes with warmed sessions. | 1:00 |
+| 16 | Monolith comparison | After the walk-in fix, both meet SLOs but the monolith has lower latency on one host; the 22/11 peak advantage is withdrawn. | 1:00 |
+| 17 | Conclusion | Microservices trade latency for isolation and overload control; next: fix the booking hot row, repeat runs under identical conditions. | 0:50 |
 | 18 | References (appendix) | Source documents and test evidence behind the presentation. | Not spoken |
 
 **Total spoken time: 15:00.**

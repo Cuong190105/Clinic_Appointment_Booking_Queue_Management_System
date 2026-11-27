@@ -40,7 +40,7 @@ function buildSlides01To05(pptx) {
       cx += chip.w + 0.16;
     });
 
-    text(slide, 'Thời lượng: 15 phút  ·  16 slide nội dung + 1 slide phụ lục tham khảo', 0.68, 5.78, 7.1, 0.32, {
+    text(slide, 'Thời lượng: 15 phút  ·  17 slide nội dung + 1 slide phụ lục tham khảo', 0.68, 5.78, 7.1, 0.32, {
       fontSize: 12.5, color: 'A9C1D9',
     });
 

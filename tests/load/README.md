@@ -101,6 +101,20 @@ Quy tắc so sánh công bằng: chạy **tuần tự** từng stack (không ch�
 
 Đây là các lượt chạy ngắn để xác minh script và chính sách, **chưa phải số liệu benchmark**; cần chạy đầy đủ theo §4 trên trạng thái DB tái lập được.
 
+### 5.1. Lượt full-duration (27/11/2026, sau khi sửa walk-in monolith)
+
+Chạy từng hệ thống riêng (tắt hệ thống còn lại), cùng ngân sách 12,5 CPU, mỗi kịch bản một lượt. Trên Microservices hạn mức đăng nhập/ẩn danh được nâng tạm thời trong lúc đo rồi khôi phục. Evidence: `evidence/*-latest.json`; phân tích ở `docs/PROJECT_REPORT.md` §6.4 và §6.7.
+
+| Script | Monolith | Microservices |
+|---|---|---|
+| `mixed-workload.js` `clinic-peak` (500 người dùng, 3 phút tăng + 10 phút giữ) | **Đạt** (pool 500): đọc/ghi/đăng nhập p95 18,2/50,3/180,6 ms, đặt lịch toàn trình 68 ms, 0% 5xx; lượt đầu với 30 tài khoản seed: 12,5/41,8/188,7 ms, 57 ms | **Đạt**: 46,4/147,6/229,2 ms, toàn trình 480 ms, 0% 5xx (pool 500) |
+| `load.js` (10 lượt/s, 5 phút ổn định) | **Đạt**: 14,6/46,5/164,6 ms, toàn trình 56 ms, 655/655 lịch | **Đạt**: 46,7/66,5/107,0 ms, toàn trình 344 ms, 662/662 lịch |
+| `booking-high-load.js` (20 lượt/s, 120 s, đăng nhập lạnh) | **Đạt**: ghi p95 30,4 ms, toàn trình 38 ms, 1.968/2.400 lịch (còn lại là 409) | **Không đạt**: 95 × 503 do bulkhead Identity khi 228 VU đăng nhập cùng lúc (availability 98,55%), 61 × 429 khi teardown bằng một tài khoản admin |
+| `booking-high-load.js` (làm nóng phiên, `HIGH_LOAD_WARM_SESSIONS` mặc định bật, pool 500) | **Đạt**: ghi p95 30,0 ms, toàn trình 39 ms, 1.892/2.401 lịch | **Đạt**: availability 100%, ghi p95 82,0 ms, toàn trình 367 ms, 1.944/2.401 lịch, 0 dropped |
+| `check-slo-invariants.ps1` (sau khi khôi phục hạn mức) | — | **Đạt 11/11** |
+
+Lưu ý khi đọc: 503 ở lượt đăng nhập lạnh là load shedding có `Retry-After` theo thiết kế, cả 228 VU đăng nhập được sau khi thử lại; p95 đăng nhập của lượt làm nóng (112 ms) được đo trong `setup()` ở 4 lượt/s; `iterations.rate` của lượt làm nóng bị pha loãng vì thời lượng gồm cả setup và teardown giãn nhịp (`sleep(0.11)` mỗi lượt hủy để ở dưới hạn mức Staff 600 req/phút). Đặt `HIGH_LOAD_WARM_SESSIONS=0` để tái hiện lượt đăng nhập lạnh.
+
 ---
 
 ## Phụ lục — Lịch sử rà soát bộ test cũ
