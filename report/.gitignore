@@ -1,4 +1,3 @@
-build/
 *.aux
 *.log
 *.out
@@ -11,4 +10,6 @@ build/
 *.xdv
 *.bbl
 *.blg
-main.pdf
+
+# Kết quả build được commit để xem PDF trực tiếp trên repo
+!build/main.pdf
